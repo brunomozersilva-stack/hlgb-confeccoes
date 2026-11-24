@@ -250,7 +250,7 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 187,
+  "integratedScripts": 189,
   "mode": "candidate-not-production",
   "followup": {
     "version": "96.52",
@@ -350,5 +350,51 @@
     ],
     "mode": "isolated-no-production",
     "tests": "34 archive + 22 finance + 13 settlement controlled assertions; browser/CI pending"
+  },
+  "followupRH": {
+    "version": "96.67",
+    "added": [
+      "hlgb-modules/financeiro/rh-planning-v9636.js",
+      "hlgb-modules/financeiro/rh-live-view-v9667.js"
+    ],
+    "mode": "local-review-no-write",
+    "tests": [
+      "tests/hlgb-rh-planning-v9636.cjs",
+      "tests/hlgb-rh-live-view-v9667.cjs",
+      "tests/hlgb-rh-stage-browser.cjs"
+    ]
+  },
+  "incrementalStage02": {
+    "base": "d6d28feb1a9005380642ee4cb3166cd0e5a7707f",
+    "source": "eddd25b995ac98c21147f1423b3c89dbafc35444",
+    "sourceWorkflows": 82,
+    "scope": "RH, passagem, guardas do cadastro; sem Hub novo, descontos automáticos ou persistência nova",
+    "exactFiles": [
+      "hlgb-modules/financeiro/rh-planning-v9636.js",
+      "hlgb-modules/financeiro/rh-live-view-v9667.js",
+      "hlgb-modules/financeiro/attendance-transport-preview-v9658.js",
+      "hlgb-modules/financeiro/attendance-transport-view-v9658.js",
+      "hlgb-modules/financeiro/worker-registry-view-v9659.js",
+      "hlgb-modules/financeiro/README-rh-planning-v9636.md",
+      "hlgb-modules/financeiro/README-attendance-transport-v9658.md",
+      "tests/hlgb-rh-planning-v9636.cjs",
+      "tests/hlgb-rh-live-view-v9667.cjs",
+      "tests/hlgb-attendance-transport-v9658.cjs",
+      "tests/hlgb-worker-registry-v9659.cjs",
+      "tests/hlgb-worker-registry-v9659-browser.cjs",
+      "tests/hlgb-integration-v9651.cjs",
+      "app-stable3.html",
+      "hlgb-modules/ownership-v9600.json",
+      ".github/workflows/bot-direct-download-v9544.yml",
+      ".github/workflows/monitor-bot-visible-link-v9545.yml",
+      ".github/workflows/monitor-bot-ready-only-v9547.yml"
+    ],
+    "tests": [
+      "tests/hlgb-rh-stage-browser.cjs",
+      "tests/hlgb-attendance-stage-view.cjs"
+    ],
+    "infrastructure": "3 runners browser fixados em Ubuntu 24.04",
+    "status": "CI específica pendente",
+    "userValidatedPreviousStage": true
   }
 }

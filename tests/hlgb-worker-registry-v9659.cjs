@@ -16,4 +16,23 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  let noReview=false;try{api.nextWeek(x,null,v)}catch(_){noReview=true}ok(noReview,'explicit review required');
  let partial=false;try{api.monthly({...p,mode:'monthly',start_date:'2026-11-02'},{competence:'2026-11',asOf:'2026-11-27',contractDate:'2026-12-04',commuteDays:20},{})}catch(_){partial=true}ok(partial,'partial month review');
 
+ // Shared in-memory mock with an authoritative unique revision constraint, two independent transports.
+ const shared=[{...x}],attempts=[];let released=0,release;
+ const barrier=new Promise(resolve=>{release=resolve});
+ const transport=(actor,wait=false)=>({allowed:()=>true,byOperation:async(kind,id)=>shared.find(z=>z.operation_id===id)||null,
+ latest:async()=>{const snapshot={...shared.at(-1)};if(wait&&released<2){released++;if(released===2)release();await barrier}return snapshot},
+ insert:async(kind,row)=>{attempts.push({actor,op:row.operation_id});if(shared.some(z=>z.operation_id===row.operation_id||z.worker_id===row.worker_id&&z.revision===row.revision))throw Error('unique constraint');shared.push({...row});return row}});
+ const rA=api.profile({...x,revision:2,operation_id:op2,rate_cents:11000}),rB=api.profile({...x,revision:2,operation_id:'12345678-1234-4234-8234-123456789abf',rate_cents:12000});
+ const race=await Promise.all([api.save('profile',rA,transport('A',true)),api.save('profile',rB,transport('B',true))]);
+ ok(race.filter(r=>r.confirmed).length===1,'two clients cannot both confirm revision 2');
+ ok(shared.length===2&&attempts.length===2,'shared unique revision constraint');
+ const winner=race[0].confirmed?rA:rB,loser=race[0].confirmed?rB:rA;
+ ok((await api.save('profile',winner,transport('B'))).confirmed&&shared.length===2,'same operation verified from independent session');
+ ok((await api.save('profile',loser,transport('A'))).state==='revision-conflict','stale conflicting revision blocked');
+ const r3=api.profile({...winner,revision:3,operation_id:'12345678-1234-4234-8234-123456789ac0',rate_cents:13000});
+ let permitted=true;const revoke={...transport('A'),allowed:()=>permitted,insert:async(k,row)=>{shared.push({...row});permitted=false;throw Error('lost response and session')}};
+ const unknownAck=await api.save('profile',r3,revoke);
+ ok(!unknownAck.confirmed&&shared.length===3,'revoked client cannot claim confirmed write');
+ ok((await api.save('profile',r3,transport('B'))).confirmed&&shared.length===3,'authorized readback proves same operation without duplicate');
+ ok((await api.save('profile',{...r3,rate_cents:14000},transport('B'))).state==='operation-conflict','altered retry rejected');
 })(api,(v,m)=>assert.ok(v,m)).then(()=>console.log('PASS worker registry, versioned save and weekly forecast')).catch(e=>{console.error(e);process.exit(1)});
