@@ -442,7 +442,7 @@
   },
   "followupIntelligence": {
     "version": "96.70",
-    "codeHead": "824a0a1ccd0457688f9026bfb4d6520cc803d77c",
+    "codeHead": "92d633783a50c4cdf17d972c237f4446fedff3a7",
     "assistant": "consultas determinísticas de pedidos, materiais, acertos por pessoa e Hub semanal, autorização e sessão, sem modelo externo",
     "auditor": "triagem somente leitura, WAL e ACK antes de qualquer repetição, versões e cobertura",
     "bot": "status distinto por execução, tentativas deduplicadas, cobertura parcial e consulta desatualizada",
@@ -457,8 +457,8 @@
       "cause": "ambiguous accessible label in fixture, exact:true",
       "learned": false
     },
-    "controlledAssertions": 72,
-    "tests": "30 assistant + 22 auditor + 15 monitor + 5 mobile search; native browser not run",
+    "controlledAssertions": 93,
+    "tests": "30 assistant + 21 integrated assistant + 22 auditor + 15 monitor + 5 mobile search; native browser on functional batch not run",
     "canPublish": false
   }
 }
