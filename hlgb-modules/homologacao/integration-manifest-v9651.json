@@ -437,5 +437,49 @@
     ],
     "status": "CI específica pendente",
     "requiresPreviousOperationalConfirmation": true
+  },
+  "followupOperations": {
+    "version": "96.69",
+    "validatedCodeHead": "b88db49169f93d28df0ebdc24c9927af6d4cc2fa",
+    "controlledAssertions": 165,
+    "tests": [
+      "tests/hlgb-settlement-history-v9653.cjs",
+      "tests/hlgb-settlement-history-view-v9654.cjs",
+      "tests/hlgb-attendance-transport-v9658.cjs",
+      "tests/hlgb-operations-history-attendance-v9669.cjs"
+    ],
+    "workflow": ".github/workflows/hlgb-attendance-transport-v9658.yml",
+    "settlement": {
+      "scopedOwnerAndDate": true,
+      "totalsBeforePagination": true,
+      "originalGroupPdf": true,
+      "sourceNoteActions": true,
+      "clientEvents": "recorded-date and matched canonical source, receipt vs material offset vs active/reversed return; no invented dated history",
+      "export": "CSV max 5000 rows, formula escaping, scope revalidation"
+    },
+    "attendance": {
+      "batch": "up to 200, individual reviewed fare and coverage",
+      "companyFifth": "candidate only",
+      "oldPayrollEdit": "preserved",
+      "persistence": "disabled"
+    },
+    "nativeBrowser": false,
+    "remotePersistence": false
+  },
+  "incrementalStage04": {
+    "base": "68541ec701bf65441c04f9437165a6e9a6e70c14",
+    "source": "eddd25b995ac98c21147f1423b3c89dbafc35444",
+    "sourceWorkflows": 82,
+    "scope": "histórico somente leitura de facções, clientes e funcionários; eventos por data, CSV, consulta e PDFs originais",
+    "exactFiles": [
+      "hlgb-modules/financeiro/settlement-history-v9653.js",
+      "hlgb-modules/financeiro/settlement-history-view-v9654.js",
+      "tests/hlgb-settlement-history-v9653.cjs",
+      "tests/hlgb-settlement-history-view-v9654.cjs",
+      "tests/hlgb-operations-history-attendance-v9669.cjs",
+      ".github/workflows/hlgb-attendance-transport-v9658.yml"
+    ],
+    "dependsOn": 322,
+    "status": "validação antecipada; não publicar antes da etapa 03"
   }
 }

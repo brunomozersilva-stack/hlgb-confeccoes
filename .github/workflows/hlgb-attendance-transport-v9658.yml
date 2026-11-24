@@ -5,6 +5,11 @@ on:
       - 'hlgb-modules/financeiro/attendance-transport-preview-v9658.js'
       - 'hlgb-modules/financeiro/attendance-transport-view-v9658.js'
       - 'tests/hlgb-attendance-transport-v9658.cjs'
+      - 'hlgb-modules/financeiro/settlement-history-v9653.js'
+      - 'hlgb-modules/financeiro/settlement-history-view-v9654.js'
+      - 'tests/hlgb-settlement-history-v9653.cjs'
+      - 'tests/hlgb-settlement-history-view-v9654.cjs'
+      - 'tests/hlgb-operations-history-attendance-v9669.cjs'
       - 'app-stable3.html'
   workflow_dispatch:
 permissions:
@@ -21,4 +26,7 @@ jobs:
         with: {node-version: '22'}
       - run: node --check hlgb-modules/financeiro/attendance-transport-view-v9658.js
       - run: node tests/hlgb-attendance-transport-v9658.cjs
+      - run: node tests/hlgb-settlement-history-v9653.cjs
+      - run: node tests/hlgb-settlement-history-view-v9654.cjs
+      - run: node tests/hlgb-operations-history-attendance-v9669.cjs
       - run: node tests/hlgb-integration-v9651.cjs
