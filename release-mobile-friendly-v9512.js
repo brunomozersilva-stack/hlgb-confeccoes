@@ -41,7 +41,12 @@ const css=String.raw`
 
   #appShell .page :is(.grid,.form-grid){grid-template-columns:minmax(0,1fr)!important}
   #appShell .page :is(input,select,textarea){font-size:16px!important;max-width:100%!important;box-sizing:border-box}
-  #appShell .page button{min-height:42px;max-width:100%;touch-action:manipulation;white-space:normal}
+  #appShell .page button{min-height:42px;max-width:100%;touch-action:manipulation;white-space:normal;overflow-wrap:anywhere;box-sizing:border-box}
+  #appShell .page :is(details,summary,label,article){min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+  #appShell .page .toolbar > label{flex:1 1 min(100%,180px)}
+  #appShell .page label > :is(input:not([type=checkbox]):not([type=radio]),select,textarea){min-width:0!important;max-width:100%;box-sizing:border-box}
+  #appShell .page .panel > details{max-width:100%;min-width:0}
+  #hlgbMobileSheetLinks9513 .hlgb-mobile-no-results9513{padding:12px 6px;color:#66535d;overflow-wrap:anywhere}
   #appShell .page :is(table,.table){display:block;min-width:0!important;width:100%!important;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
   #appShell .page :is(table,.table) :is(th,td){white-space:normal;min-width:74px;vertical-align:top}
   #appShell .page #hlgbDgCards{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important}
@@ -85,13 +90,17 @@ function style(){
  (document.head||document.documentElement).appendChild(st);
 }
 function escText9513(v){return String(v??'').replace(/\s+/g,' ').trim()}
-function close(){
+function close(restoreFocus=false){
+ const wasOpen=document.body?.classList.contains('hlgb-mobile-sheet-open9513');
  document.body?.classList.remove('hlgb-mobile-sheet-open9513','hlgb-mobile-nav-open9512');
  const menu=document.getElementById('hlgbMobileMenu9512');
  menu?.setAttribute('aria-expanded','false');
  const sheet=document.getElementById('hlgbMobileSheet9513');
  sheet?.setAttribute('aria-hidden','true');
+ if(restoreFocus===true&&wasOpen&&menu?.isConnected)menu.focus({preventScroll:true});
 }
+function normalizeMenu9513(v){return escText9513(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR')}
+function matchesMenuQuery9513(text,query){const hay=normalizeMenu9513(text);return normalizeMenu9513(query).split(' ').filter(Boolean).every(word=>hay.includes(word))}
 function sourceLabel9513(btn){
  const text=escText9513(btn.getAttribute('aria-label')||btn.innerText||btn.textContent);
  return text.slice(0,100);
@@ -99,7 +108,8 @@ function sourceLabel9513(btn){
 function isLink9513(node){
  if(!node||node.disabled||node.id==='hlgbMobileNavClose9512')return false;
  if(node.closest('.nav-group-title'))return false;
- if(node.getAttribute('aria-hidden')==='true'||node.hidden||node.style?.display==='none')return false;
+ if(node.getAttribute('aria-hidden')==='true'||node.hidden||node.style?.display==='none'||node.getAttribute('aria-disabled')==='true')return false;
+ const nav=document.getElementById('nav');for(let p=node;p&&p!==nav;p=p.parentElement){if(p.hidden||p.getAttribute('aria-hidden')==='true'||p.style?.display==='none'||window.getComputedStyle?.(p)?.display==='none')return false}
  return node.matches('button,a')&&!!sourceLabel9513(node);
 }
 function renderLinks9513(){
@@ -124,6 +134,7 @@ function renderLinks9513(){
    const b=document.createElement('button');b.type='button';b.className='hlgb-mobile-link9513';
    b.textContent=item.label;b.setAttribute('data-hlgb-mobile-text9513',(section.name+' '+item.label).toLowerCase());
    b.addEventListener('click',()=>{
+    if(!item.source.isConnected||!document.getElementById('nav')?.contains(item.source)||!isLink9513(item.source)||window.__HLGB_AUTH_READY===false){renderLinks9513();filterLinks9513(document.getElementById('hlgbMobileSheetSearch9513')?.value||'');return}
     close();
     try{item.source.click()}catch(e){console.warn('[HLGB mobile v95.13] menu action',e)}
    });
@@ -138,12 +149,12 @@ function renderLinks9513(){
 }
 function filterLinks9513(value){
  const root=document.getElementById('hlgbMobileSheetLinks9513');if(!root)return;
- const query=escText9513(value).toLocaleLowerCase('pt-BR');
+ const query=normalizeMenu9513(value);root.querySelector('.hlgb-mobile-no-results9513')?.remove();
  let segment=null,visible=0;
  for(const node of root.children){
   if(node.classList.contains('hlgb-mobile-section9513')){segment={header:node,count:0};node.hidden=false;continue}
   if(!node.classList.contains('hlgb-mobile-link9513'))continue;
-  const match=!query||node.getAttribute('data-hlgb-mobile-text9513').includes(query);
+  const match=matchesMenuQuery9513(node.getAttribute('data-hlgb-mobile-text9513'),query);
   node.hidden=!match;if(match){visible++;if(segment)segment.count++}
  }
  for(const node of root.querySelectorAll('.hlgb-mobile-section9513')){
@@ -154,9 +165,10 @@ function filterLinks9513(value){
   }
   node.hidden=!any;
  }
+ if(query&&!visible){const m=document.createElement('div');m.className='hlgb-mobile-no-results9513';m.setAttribute('role','status');m.textContent='Nenhuma área encontrada. Tente outro termo.';root.appendChild(m)}
 }
 function open(){
- if(!window.matchMedia?.('(max-width:700px)').matches)return;
+ if(window.__HLGB_AUTH_READY===false||!window.matchMedia?.('(max-width:700px)').matches)return;
  install();
  renderLinks9513();
  const search=document.getElementById('hlgbMobileSheetSearch9513');
@@ -169,7 +181,7 @@ function open(){
  document.getElementById('hlgbMobileSheetClose9513')?.focus({preventScroll:true});
 }
 function toggle(){
- if(document.body?.classList.contains('hlgb-mobile-sheet-open9513'))close();
+ if(document.body?.classList.contains('hlgb-mobile-sheet-open9513'))close(true);
  else open();
 }
 function install(){
@@ -185,8 +197,8 @@ function install(){
     '<button type="button" id="hlgbMobileSheetClose9513" aria-label="Fechar menu">✕ Fechar</button></div>'+
     '<input id="hlgbMobileSheetSearch9513" type="search" autocomplete="off" placeholder="Buscar uma área..." aria-label="Buscar área do sistema">'+
     '<div id="hlgbMobileSheetLinks9513"></div></div>';
-  sheet.addEventListener('click',e=>{if(e.target===sheet)close()});
-  sheet.querySelector('#hlgbMobileSheetClose9513').addEventListener('click',close);
+  sheet.addEventListener('click',e=>{if(e.target===sheet)close(true)});
+  sheet.querySelector('#hlgbMobileSheetClose9513').addEventListener('click',()=>close(true));
   sheet.querySelector('#hlgbMobileSheetSearch9513').addEventListener('input',e=>filterLinks9513(e.target.value));
   document.body.appendChild(sheet);
  }
@@ -198,11 +210,21 @@ function install(){
   btn.addEventListener('click',toggle);bottom.appendChild(btn);
  }
 }
-document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+document.addEventListener('keydown',e=>{
+ if(!document.body?.classList.contains('hlgb-mobile-sheet-open9513'))return;
+ if(e.key==='Escape'){e.preventDefault();close(true);return}
+ if(e.key!=='Tab')return;
+ const panel=document.getElementById('hlgbMobileSheetPanel9513');if(!panel)return;
+ const nodes=[...panel.querySelectorAll('button,input,a[href]')].filter(x=>!x.disabled&&!x.hidden&&x.getClientRects().length);
+ if(!nodes.length)return;const first=nodes[0],last=nodes[nodes.length-1],active=document.activeElement;
+ if(e.shiftKey&&(active===first||!panel.contains(active))){e.preventDefault();last.focus()}
+ else if(!e.shiftKey&&(active===last||!panel.contains(active))){e.preventDefault();first.focus()}
+});
 window.addEventListener?.('resize',()=>{if(window.innerWidth>700)close()});
-window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,100));
+window.addEventListener?.('hlgb:authenticated',()=>{close();setTimeout(install,100)});
+window.addEventListener?.('hlgb:logout',()=>{close();document.getElementById('hlgbMobileSheetLinks9513')?.replaceChildren();const search=document.getElementById('hlgbMobileSheetSearch9513');if(search)search.value=''});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 setTimeout(install,800);setTimeout(install,2600);setTimeout(install,6000);
-window.hlgbMobileFriendly9512={version:V,install,open,close};
+window.hlgbMobileFriendly9512={version:V,install,open,close,matchesMenuQuery:matchesMenuQuery9513};
 console.info('[HLGB] v'+V+' menu mobile independente do appShell; nenhuma operação de negócio alterada');
 })();
