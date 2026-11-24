@@ -8,8 +8,8 @@
   if(!context||context.authenticated!==true||context.financeAllowed!==true||context.payrollAggregateAllowed!==true)return unavailable('permission');
   const {db,paidDateApi}=context;
   if(!db||!Array.isArray(db.hubFinanceEntries)||!Array.isArray(db.payroll)||typeof paidDateApi?.rows!=='function')return unavailable('source-unavailable');
-  const {asOf,targetDate,historyWeeks=8}=options||{};
-  if(!date(asOf)||!date(targetDate)||![8,12,26].includes(historyWeeks)||weekly.monday(targetDate)<weekly.monday(asOf))return unavailable('invalid-period');
+  const {asOf,targetDate,historyWeeks=8,receiptDelayDays=14}=options||{};
+  if(!date(asOf)||!date(targetDate)||![8,12,26].includes(historyWeeks)||![0,7,14,21,28].includes(receiptDelayDays)||weekly.monday(targetDate)<weekly.monday(asOf))return unavailable('invalid-period');
   // Copy before calling the existing adapter. No callback receives the live database.
   let effective;
   try{effective=paidDateApi.rows(JSON.parse(JSON.stringify(db.hubFinanceEntries)),JSON.parse(JSON.stringify(db.payroll)));if(!Array.isArray(effective))throw Error('invalid')}catch(_){return unavailable('payroll-view-failed')}
@@ -38,8 +38,42 @@
   const comparison=weekly.compare(accepted,{asOf,targetDate,historyWeeks,snapshotVerified:false,targetVerified:false,verifiedWeeks:[]});
   const obligations=accepted.filter(x=>x.status==='Previsto'&&x.cents>0).map(x=>({id:x.id,origin:x.origin||'hub:'+x.id,dueDate:x.day,direction:x.flow==='Entrada'?'in':'out',amountCents:x.cents,status:'open',verified:true}));
   // verified is only the normalized local row's shape, not cloud evidence. Never expose a balance.
-  const projection=cash.project({startDate:asOf,openingBalanceCents:null,openingVerified:false,coverageVerified:false,entries:obligations});
-  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},cash:{quality:projection.quality,base:projection.base.weeks.map(x=>({start:x.start,end:x.end,incomingCents:x.incomingCents,outgoingCents:x.outgoingCents,closingCents:null,shortfall:null})),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
+  const projection=cash.project({startDate:asOf,openingBalanceCents:null,openingVerified:false,coverageVerified:false,entries:obligations,receiptDelayDays});
+
+  // Historical observation does not establish complete weeks; a missing record is null, not zero.
+  const historical=recordedHistory(accepted,comparison.history,target,asOf,issues.length);
+  const weeklyCash=rows=>rows.map(x=>({start:x.start,end:x.end,incomingCents:x.incomingCents,outgoingCents:x.outgoingCents,closingCents:null,shortfall:null}));
+  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
+ }
+
+ function recordedHistory(rows,weeks,target,asOf,omitted){
+  const scope=new Set(weeks),byWeek=new Map(),byCategory=new Map(),targetGroups=new Map(),overdue={in:{amountCents:0,count:0},out:{amountCents:0,count:0}},categories=new Set();
+  const tally=(map,key,field,x)=>{const g=map.get(key)||{paidInCents:null,paidOutCents:null,plannedInCents:null,plannedOutCents:null,paidInCount:0,paidOutCount:0,plannedInCount:0,plannedOutCount:0};const count=field.replace('Cents','Count');g[field]=(g[field]??0)+x.cents;g[count]++;map.set(key,g)};
+  const blank=()=>({paidInCents:null,paidOutCents:null,plannedInCents:null,plannedOutCents:null,paidInCount:0,paidOutCount:0,plannedInCount:0,plannedOutCount:0});
+  for(const x of rows){
+   const w=weekly.monday(x.day),field=(x.status==='Realizado'?'paid':'planned')+(x.flow==='Entrada'?'In':'Out')+'Cents';
+   if(x.status==='Previsto'&&x.day<asOf){const o=overdue[x.flow==='Entrada'?'in':'out'];o.amountCents+=x.cents;o.count++}
+   if(!scope.has(w)&&w!==target)continue;
+   if(scope.has(w))tally(byWeek,w,field,x);
+   if(x.flow!=='Saída')continue;
+   categories.add(x.category);
+   if(scope.has(w))tally(byCategory,JSON.stringify([w,x.category]),field,x);
+   if(w===target)tally(targetGroups,x.category,field,x);
+  }
+  const allWeeks=weeks.map(week=>({week,...(byWeek.get(week)||blank())}));
+  const observedWeeks=allWeeks.filter(x=>x.paidInCount+x.paidOutCount>0).length;
+  const actions=[];
+  if(overdue.in.count)actions.push({code:'review-overdue-receipts',count:overdue.in.count,amountCents:overdue.in.amountCents});
+  if(overdue.out.count)actions.push({code:'review-overdue-payments',count:overdue.out.count,amountCents:overdue.out.amountCents});
+  if(omitted)actions.push({code:'review-omitted',count:omitted});
+  if(observedWeeks<weeks.length)actions.push({code:'review-history-gaps',count:weeks.length-observedWeeks});
+  const maxCategories=500,categoryRows=categories.size>maxCategories?[]:[...categories].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(category=>{
+   const targetRow=targetGroups.get(category)||blank();
+   const historical=weeks.map(week=>{const r=byCategory.get(JSON.stringify([week,category]))||blank();return {week,paidCents:r.paidOutCents,plannedCents:r.plannedOutCents,paidCount:r.paidOutCount,plannedCount:r.plannedOutCount}});
+   return {category,targetPaidCents:targetRow.paidOutCents,targetPlannedCents:targetRow.plannedOutCents,recordedWeeks:historical.filter(x=>x.paidCount>0).length,history:historical};
+  });
+  if(categories.size>maxCategories)actions.push({code:'review-category-count',count:categories.size});
+  return {state:'observed-incomplete',weeks:allWeeks,categories:categoryRows,categoryCount:categories.size,observedWeeks,overdue,actions,officialBaseline:null,canPublish:false};
  }
  return {inspect};
 });
