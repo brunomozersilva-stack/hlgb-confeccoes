@@ -76,7 +76,7 @@
    if(!n||!sid(n.clientKey).startsWith('id:')||n.mismatch||![n.total,n.paid,n.credit,n.balance].every(valid)||n.total!==n.paid+n.credit+n.balance){issues.push('nota-revisar:'+k);continue}
    const ownerId=sid(n.clientKey).slice(3);if(!ownerId){issues.push('nota-sem-cliente:'+k);continue}
    owners.set(ownerId,{ownerId,name:sid(n.client)});
-   const record=raw.get(k);if(!record||!live(record)){issues.push('origem-nao-confirmada:'+k);continue}
+   const record=raw.get(k);if(!record||!live(record)||!['projection','order'].some(type=>k===type+':'+sid(record.id))||sid(record.clientId)!==ownerId){issues.push('origem-nao-confirmada:'+k);continue}
    const history=record.paymentHistory??[],returns=record.acertoReturnsV9565??[];
    if(!Array.isArray(history)||!Array.isArray(returns)){issues.push('historico-invalido:'+k);continue}
    const keys=new Set(),local=[];let paid=0,credit=0,invalid=false;
