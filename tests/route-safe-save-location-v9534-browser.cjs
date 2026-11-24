@@ -115,7 +115,7 @@ const kind=process.env.HLGB_BROWSER||'chromium';
    assert.equal(await stop.locator('.ops-route-carry').inputValue(),carry);
    const mayte=stop.locator('[data-route-item9249]').filter({hasText:'Calcinha Mayte'}),tatielly=stop.locator('[data-route-item9249]').filter({hasText:'Calcinha Tatielly'});
    await mayte.getByRole('button',{name:'Retirar da rota'}).click();await tatielly.getByRole('button',{name:'BUSCAR'}).click();
-   assert.doesNotMatch(await stop.locator('.ops-route-carry').inputValue(),/Mayte|Tatielly/);assert.match(await stop.locator('.ops-route-pickup').inputValue(),/Tatielly/);
+   assert.doesNotMatch(await stop.locator('.ops-route-carry').inputValue(),/Mayte|Tatielly/);assert.match(await stop.locator('.ops-route-pickup').inputValue(),/Tatielly/);await stop.getByRole('button',{name:'Atualizar modelos da nuvem'}).click();await stop.getByText('0 modelo(s) novo(s)',{exact:false}).waitFor();assert.doesNotMatch(await stop.locator('.ops-route-carry').inputValue(),/Mayte|Tatielly/);
    await mayte.getByRole('button',{name:'LEVAR'}).click();
    await stop.getByRole('button',{name:'Descer parada'}).click();
    assert.equal(await edit.locator('.ops-route-stop').nth(1).locator('.ops-route-carry').inputValue(),'Conferir etiquetas\nPedido #55 — Calcinha Mayte — 480 pç');
