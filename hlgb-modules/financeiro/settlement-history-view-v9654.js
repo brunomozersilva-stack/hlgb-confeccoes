@@ -22,7 +22,7 @@ function install(){
   const active=()=>host.isConnected&&scopeOK(kind)&&host.dataset.actor===actor()&&area.classList.contains('active');
   el('h3','Histórico individual de acertos',host);el('p','Consulta local. Para clientes, a data é de emissão da nota, não necessariamente do recebimento. Não é confirmação bancária nem total oficial.',host);
   const controls=el('div','',host);controls.className='toolbar';controls.style.cssText='display:flex;flex-wrap:wrap;gap:8px;min-width:0';
-  const field=(label,tag,type)=>{const wrap=el('label',label,controls);wrap.style.cssText='display:flex;flex-direction:column;min-width:0;max-width:100%';const e=el(tag,'',wrap);if(type)e.type=type;e.style.cssText='min-width:0;max-width:100%;box-sizing:border-box';return e};
+  const field=(label,tag,type)=>{const wrap=el('label',label,controls);wrap.style.cssText='display:flex;flex-direction:column;min-width:0;max-width:100%';const e=el(tag,'',wrap);e.setAttribute('aria-label',label);if(type)e.type=type;e.style.cssText='min-width:0;max-width:100%;box-sizing:border-box';return e};
   const q=field('Pessoa, modelo ou identificação','input','search'),from=field('De','input','date'),to=field('Até','input','date');
   const owner=field('Pessoa cadastrada','select'),status=field('Situação do acerto','select'),mode=field('Visualização do histórico','select'),eventType=kind==='cliente'?field('Tipo de evento','select'):null;
   const options=(input,rows)=>{const prior=input.value;input.replaceChildren();for(const [v,t] of rows){const o=el('option',t,input);o.value=v}input.value=rows.some(r=>r[0]===prior)?prior:rows[0][0]};
