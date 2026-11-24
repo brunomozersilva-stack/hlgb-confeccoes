@@ -11,5 +11,19 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/producao
  const conflict=server({conflict:true});ok(!(await api.submit(m,conflict,files)).confirmed&&conflict.counts().uploads===0,'revision conflict');
  const bad=server({badFile:true});ok(!(await api.submit(m,bad,files)).confirmed&&bad.counts().writes===0,'file proof');
  ok(!(await api.submit(m,server({badRead:true}),files)).confirmed,'no readback no success');ok(!(await api.submit(m,null,files)).confirmed,'adapter absent');ok(!(await api.submit(m,server(),[])).confirmed,'missing bytes');ok(JSON.stringify(m)===before,'immutable');ok(!one.separationChanged&&!one.stockChanged,'no operational write');
+ // A response that was authorized at request start may arrive after permission revocation.
+ for(const [method,nth,expectedWrites,expectedUploads] of [['read',1,0,0],['reserve',1,0,0],['put',1,0,1],['commit',1,1,1],['read',2,1,1]]){
+  const srv=server(),orig=srv[method];let seen=0,revoked=false;
+  srv.authorize=async()=>!revoked;
+  srv[method]=async(...args)=>{const value=await orig(...args);if(++seen===nth)revoked=true;return value};
+  const r=await api.submit(m,srv,files);
+  ok(!r.confirmed&&r.reason==='permission-denied','revocation after '+method+' #'+nth);
+  ok(srv.counts().writes===expectedWrites&&srv.counts().uploads===expectedUploads,'no further effects after '+method+' #'+nth);
+  revoked=false;
+  const retry=await api.submit(m,srv,files);
+  ok(retry.confirmed&&srv.counts().writes===1&&srv.counts().uploads===1,'reauthorized retry uses original operation '+method+' #'+nth);
+ }
+ const committed=server();await api.submit(m,committed,files);let revoked=false;const committedRead=committed.read;committed.authorize=async()=>!revoked;committed.read=async(...args)=>{const r=await committedRead(...args);revoked=true;return r};
+ const blocked=await api.submit(m,committed,files);ok(!blocked.confirmed&&blocked.reason==='permission-denied'&&committed.counts().writes===1,'revocation during idempotent read');
  for(const x of [{...m,attachments:[attachment,attachment]},{...m,attachments:[{...attachment,name:'../file.pdf'}]},{...m,lines:[{...m.lines[0],actual:-1}]},{...m,attachments:[{...attachment,mime:'text/html'}]}]){let fail=false;try{api.manifest(x)}catch(_){fail=true}ok(fail,'invalid manifest')}
 })(api,(v,m)=>assert.ok(v,m)).then(()=>console.log('PASS archive confirmation and retry contracts')).catch(e=>{console.error(e);process.exit(1)});
