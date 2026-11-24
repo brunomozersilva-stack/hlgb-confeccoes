@@ -5,6 +5,10 @@ on:
       - 'hlgb-modules/financeiro/live-personnel-finance-view-v9656.js'
       - 'tests/hlgb-live-personnel-finance-v9656.cjs'
       - 'tests/hlgb-live-finance-integrated-v9657.cjs'
+      - 'hlgb-modules/financeiro/rh-planning-v9636.js'
+      - 'hlgb-modules/financeiro/rh-live-view-v9667.js'
+      - 'tests/hlgb-rh-planning-v9636.cjs'
+      - 'tests/hlgb-rh-live-view-v9667.cjs'
       - 'app-stable3.html'
   workflow_dispatch:
 permissions:
@@ -21,4 +25,6 @@ jobs:
         with: {node-version: '22'}
       - run: node tests/hlgb-live-personnel-finance-v9656.cjs
       - run: node tests/hlgb-live-finance-integrated-v9657.cjs
+      - run: node tests/hlgb-rh-planning-v9636.cjs
+      - run: node tests/hlgb-rh-live-view-v9667.cjs
       - run: node tests/hlgb-integration-v9651.cjs
