@@ -12,7 +12,7 @@ module.exports=function assertCompact(out){
   assert.ok(['ok','no-store'].includes(w.status),'invalid inventory status');
   if(w.count>0){assert.equal(w.status,'ok');expected.push('sync:indexeddb-wal')}
  }
- const ids=rows=>{assert.ok(Array.isArray(rows));return rows.map(x=>x.id).sort()};
+ const ids=rows=>{assert.ok(Array.isArray(rows));return Array.from(rows,x=>x.id).sort()};
  assert.deepEqual(ids(out.needsCode),expected.slice().sort(),'exact code tasks and independent WAL evidence');
  assert.deepEqual(ids(out.unverified),expected.slice().sort(),'exact unverified tasks');
  assert.deepEqual(ids(out.businessBlocked),['c','d'],'protected business tasks');
