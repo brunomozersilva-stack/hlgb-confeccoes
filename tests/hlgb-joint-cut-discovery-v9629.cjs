@@ -11,5 +11,12 @@ const assert=require('node:assert/strict');const api=require('../hlgb-modules/pr
  ok(p({...db,production:[{id:3}]}).unlinkedActivity===true,'unlinked activity visible');
  ok(p({...db,operationalWriteoffs:undefined}).state==='unavailable','missing collection');
  ok(p({...db,products:[{...db.products[0],materials:[...db.products[0].materials,...db.products[0].materials]},db.products[1]]}).groups[0].orderedPieces===180,'duplicate material does not inflate');
+ const planned={id:77,orderId:2,productId:12,op:'PED-2',status:'Planejado',pieces:80,layers:0,meters:0};
+ ok(p({...db,cuts:[planned]}).groups[0].orderedPieces===180,'automatic planned placeholder must remain a candidate');
+ ok(p({...db,cuts:[planned]}).plannedRows===1,'planned row diagnostic');
+ for(const patch of [{status:'Finalizado'},{finishedAt:'2026-11-24'},{layers:2},{pieces:79},{op:'other'},{cutWeightV9579:{totalKg:1}}])ok(p({...db,cuts:[{...planned,...patch}]}).groups.length===0,'unsafe or mismatched cut stays blocked '+JSON.stringify(patch));
+ const o={id:3,status:'Aguardando corte',grade:[{productId:11,color:'Preto',size:'P',qty:20},{productId:12,color:'Preto',size:'M',qty:40}]},parent={id:90,orderId:3,modelSplitParentV1:true,hiddenByModelSplitV1:true,status:'Desmembrado por modelo'},children=o.grade.map((g,i)=>({id:91+i,orderId:3,productId:g.productId,modelSplitChildV1:true,modelSplitFromOrderId:3,modelSplitFromParentCutId:90,status:'Planejado',originalGrade:[g],actualCutGrade:[g],pieces:g.qty}));
+ const split={...db,orders:[o],cuts:[parent,...children]};ok(p(split).groups[0].orderedPieces===60,'planned split defaults are not physical activity');ok(p({...split,cuts:[parent,children[0]]}).groups.length===0,'incomplete parent stays blocked');
+ ok(p({...split,cuts:[parent,children[0],{...children[1],status:'Finalizado'}]}).groups.length===0,'completed child excluded');
  ok(before===JSON.stringify(db),'no mutation');
 })(api,(function fixture(){return {orders:[{id:1,status:'Aberto',grade:[{productId:11,color:'Preto',size:'P',qty:100}]},{id:2,status:'Aberto',grade:[{productId:12,color:'Preto',size:'M',qty:80}]}],products:[{id:11,name:'Camisola exemplo',materials:[{materialId:10}]},{id:12,name:'Short Doll exemplo',materials:[{materialId:10}]}],materials:[{id:10,name:'Malha exemplo',cat:'Tecido',unit:'kg'}],cuts:[],production:[],operationalWriteoffs:[]}})(),(ok,msg)=>{assert.ok(ok,msg);console.log('PASS',msg)});
