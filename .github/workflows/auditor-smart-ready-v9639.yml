@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'release-auditor-smart-v9360.js'
+      - 'release-health-monitor-panel-v9541.js'
+      - 'tests/hlgb-health-monitor-coverage-v9670.cjs'
       - 'tests/auditor-smart-ready-v9639*'
       - '.github/workflows/auditor-smart-ready-v9639.yml'
   workflow_dispatch:
@@ -16,6 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: node tests/auditor-smart-ready-v9639.cjs
+      - run: node tests/hlgb-health-monitor-coverage-v9670.cjs
   browser:
     runs-on: ubuntu-24.04
     strategy:
