@@ -1,0 +1,7 @@
+# Salvamento de política de sobra — contrato isolado (#278)
+ 
+A inspeção somente leitura do banco comercial em 24/11 confirmou que a RPC existente `hlgb_save_record` verifica `hlgb_pode_escrever_modulo`, revisão esperada, tombstone e devolve applied/revision/data. Permissões de SELECT e UPDATE em hlgb_records estão sujeitas a RLS. A RPC também pode devolver applied=true sem incrementar a revisão; portanto um ACK genérico não basta.
+ 
+O contrato novo **não está conectado ao navegador**. Não há chamada à RPC real nem alteração de schema. Requer adaptador servidor que valide em uma única transação a revisão do produto e o grafo de destinos (incluindo material compartilhado, alvos ativos e ciclos), derive o novo registro a partir da versão bloqueada e delegue à autoridade existente. Não enviar o produto completo do rascunho como payload. A proteção de revisão apenas do produto de origem não impede ciclos criados por duas sessões em produtos distintos.
+ 
+Antes de habilitar: validar permissão real, preservação do campo no editor legado, integração com WAL/IndexedDB e readback, concorrência de duas sessões, perda de resposta, logout, atualização de materiais/destinos e rollback em banco isolado. Não habilitar flag no cliente como substituto da garantia transacional. O contrato simulado prova apenas comportamento do controlador, não o servidor. Resultado incerto exige releitura; não repetir gravação automaticamente. A cópia local não é substituída por este contrato. Nenhum registro comercial usado nos testes.
