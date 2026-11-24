@@ -195,18 +195,8 @@
       "origin": 318
     },
     {
-      "path": "hlgb-modules/producao/cut-evidence-archive-contract-v9646.cjs",
-      "sha": "2f9d9344914e240e34f345a100b77349f5feb98e",
-      "origin": 318
-    },
-    {
       "path": "hlgb-modules/producao/cut-separation-core-v9647.js",
       "sha": "fc292cc2aadae3ef641bb987ebb9d37f89f43afa",
-      "origin": 318
-    },
-    {
-      "path": "tests/cut-evidence-archive-contract-v9646.cjs",
-      "sha": "628fb4a6ba2baf288b906a0a2867233ae4141de4",
       "origin": 318
     },
     {
@@ -320,6 +310,18 @@
       "sha": "a5d5545495003bb87dbe3f870ec5b04de3366f6a",
       "origin": 318,
       "reason": "v96.61 local dossier export action added; existing checklist, selection, separation and print retained"
+    },
+    {
+      "path": "hlgb-modules/producao/cut-evidence-archive-contract-v9646.cjs",
+      "sha": "2f9d9344914e240e34f345a100b77349f5feb98e",
+      "origin": 318,
+      "reason": "v96.63: revalidar autorização do arquivo após cada operação assíncrona; regressão de revogação e retry"
+    },
+    {
+      "path": "tests/cut-evidence-archive-contract-v9646.cjs",
+      "sha": "628fb4a6ba2baf288b906a0a2867233ae4141de4",
+      "origin": 318,
+      "reason": "v96.63: revalidar autorização do arquivo após cada operação assíncrona; regressão de revogação e retry"
     }
   ],
   "followupProduction": {
@@ -333,5 +335,20 @@
       "hlgb-modules/producao/production-planning-view-v9661.js"
     ],
     "controllerChanged": "release-cut-organization.js"
+  },
+  "followupHardening": {
+    "version": "96.64",
+    "base": "186c99bdf7ede493c4380e4aa1768b11ab676d06",
+    "archiveFix": "c99a55bf63eda6af3d2c14900a458968335e2acc",
+    "changed": [
+      "hlgb-modules/producao/cut-evidence-archive-contract-v9646.cjs",
+      "tests/cut-evidence-archive-contract-v9646.cjs",
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js",
+      "hlgb-modules/financeiro/settlement-history-view-v9654.js",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-settlement-history-view-v9654.cjs"
+    ],
+    "mode": "isolated-no-production",
+    "tests": "34 archive + 22 finance + 13 settlement controlled assertions; browser/CI pending"
   }
 }
