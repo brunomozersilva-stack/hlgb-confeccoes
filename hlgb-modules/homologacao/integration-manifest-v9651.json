@@ -265,7 +265,7 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 179,
+  "integratedScripts": 181,
   "mode": "candidate-not-production",
   "followup": {
     "version": "96.52",
@@ -310,5 +310,13 @@
       "hlgb-modules/financeiro/attendance-transport-preview-v9658.js",
       "hlgb-modules/financeiro/attendance-transport-view-v9658.js"
     ]
+  },
+  "followupWorkerRegistry": {
+    "version": "96.59",
+    "added": [
+      "hlgb-modules/financeiro/worker-registry-v9659.js",
+      "hlgb-modules/financeiro/worker-registry-view-v9659.js"
+    ],
+    "schemaDraft": "hlgb-modules/financeiro/db-draft-worker-registry-v9659.sql"
   }
 }

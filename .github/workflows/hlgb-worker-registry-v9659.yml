@@ -1,0 +1,24 @@
+name: HLGB Comercial - Cadastro e acerto semanal v96.59
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/worker-registry-v9659.js'
+      - 'hlgb-modules/financeiro/worker-registry-view-v9659.js'
+      - 'tests/hlgb-worker-registry-v9659.cjs'
+      - 'app-stable3.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check hlgb-modules/financeiro/worker-registry-view-v9659.js
+      - run: node tests/hlgb-worker-registry-v9659.cjs
+      - run: node tests/hlgb-integration-v9651.cjs
