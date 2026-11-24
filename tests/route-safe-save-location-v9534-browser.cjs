@@ -89,6 +89,41 @@ const kind=process.env.HLGB_BROWSER||'chromium';
    assert.match(await first.locator('.ops-route-carry').nth(1).inputValue(),/Calcinha Penelope/,'Other stop unchanged');
    console.log('PASS '+kind+' — no implicit Roseli, independent stop and manual text safe');
   }finally{await first.close()}
+  // Reproduce the reported case with anonymized fixture IDs: assignments exist
+  // remotely, but the browser still holds only an older production snapshot.
+  const edit=await fixture();
+  try{
+   await edit.evaluate(()=>{
+    db.factionMasters.push({id:'cris',name:'Cris'});
+    db.products.push({id:'mayte',name:'Calcinha Mayte'},{id:'tatielly',name:'Calcinha Tatielly'});
+    db.orders.push({id:'ord55',orderNumber:55},{id:'ord54',orderNumber:54});
+    db.routePlans.push({id:'route-existing',date:'2026-11-24',driver:'Motorista',status:'Planejada',notes:'Preservar observação',stops:[{order:1,type:'Facção',locationId:'cris',name:'Cris',carry:['Conferir etiquetas'],pickup:[],routeItems:[]},{order:2,type:'Facção',locationId:'lu',name:'Luana',carry:[],pickup:[],routeItems:[]}]});
+    const original=window.cloudRequest;window.cloudRequest=async(path,opts)=>{
+     if(path.includes('module=eq.production')){
+      if(opts?.method!=='GET'||!path.includes('=eq.cris'))throw Error('Unexpected scoped query');
+      return [{entity_id:'p-m',deleted_at:null,data:{id:'p-m',factionId:'cris',productId:'mayte',orderId:'ord55',product:'Calcinha Mayte',planned:480,done:0,stage:'Em produção'}},{entity_id:'p-t',deleted_at:null,data:{id:'p-t',factionId:'cris',productId:'tatielly',orderId:'ord54',product:'Calcinha Tatielly',planned:360,done:0,stage:'Em produção'}}];
+     }return original(path,opts);
+    };
+    window.__routeBefore=JSON.stringify(db.production);window.editRoute9249('route-existing');
+   });
+   const stop=edit.locator('.ops-route-stop').first();
+   assert.equal(await stop.locator('.ops-route-carry').inputValue(),'Conferir etiquetas');
+   await stop.getByRole('button',{name:'Atualizar modelos da nuvem'}).click();
+   await stop.getByText('2 modelo(s) novo(s) incluído(s)',{exact:false}).waitFor();
+   const carry=await stop.locator('.ops-route-carry').inputValue();assert.match(carry,/Pedido #55 — Calcinha Mayte — 480 pç/);assert.match(carry,/Pedido #54 — Calcinha Tatielly — 360 pç/);assert.match(carry,/Conferir etiquetas/);
+   await stop.getByRole('button',{name:'Atualizar modelos da nuvem'}).click();await stop.getByText('0 modelo(s) novo(s)',{exact:false}).waitFor();
+   assert.equal(await stop.locator('.ops-route-carry').inputValue(),carry);
+   const mayte=stop.locator('[data-route-item9249]').filter({hasText:'Calcinha Mayte'}),tatielly=stop.locator('[data-route-item9249]').filter({hasText:'Calcinha Tatielly'});
+   await mayte.getByRole('button',{name:'Retirar da rota'}).click();await tatielly.getByRole('button',{name:'BUSCAR'}).click();
+   assert.doesNotMatch(await stop.locator('.ops-route-carry').inputValue(),/Mayte|Tatielly/);assert.match(await stop.locator('.ops-route-pickup').inputValue(),/Tatielly/);
+   await mayte.getByRole('button',{name:'LEVAR'}).click();
+   await stop.getByRole('button',{name:'Descer parada'}).click();
+   assert.equal(await edit.locator('.ops-route-stop').nth(1).locator('.ops-route-carry').inputValue(),'Conferir etiquetas\nPedido #55 — Calcinha Mayte — 480 pç');
+   await edit.evaluate(()=>window.modalSave());
+   const result=await edit.evaluate(()=>({routes:db.routePlans,sent:window.__sentRouteRows,unchanged:JSON.stringify(db.production)===window.__routeBefore}));
+   assert.equal(result.routes.length,1);assert.equal(result.sent.length,1);assert.equal(result.sent[0].id,'route-existing');assert.equal(result.sent[0].stops[1].name,'Cris');assert.equal(result.sent[0].notes,'Preservar observação');assert.equal(result.unchanged,true);
+   console.log('PASS '+kind+' — existing route edit, scoped current assignments, no duplicate, no production writes');
+  }finally{await edit.close()}
   const timeout=await fixture('commit_timeout');
   try{
    await timeout.evaluate(()=>window.addRouteStop9249());
