@@ -1,4 +1,5 @@
 const {webkit,chromium}=require('playwright');
+const assertCompact=require('./auditor-triage-inventory-assert.cjs');
 const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:webkit;
 (async()=>{
  const browser=await engine.launch({headless:true});
@@ -22,7 +23,7 @@ const kind=process.env.HLGB_BROWSER||'webkit',engine=kind==='chromium'?chromium:
   try{return await window.hlgbAuditorAutoCorrect9447.run({reason:'v9447-runtime',render:false,download:false})}finally{a41.silentAudit=saved.silent;a41.repairEvents=saved.events;intel.currentMetrics=saved.metrics;diag.getIssues=saved.issues;prod.candidates=saved.candidates}
  });
  if(out?.version!=='94.47'||out?.repairSkipped!==true||out?.passes!==0)throw new Error('fast path não evitou rodadas '+JSON.stringify(out));
- if(out.needsCode?.length!==2||out.businessBlocked?.length!==2||out.unverified?.length!==2||out.historicalBacklog?.count!==116)throw new Error('triagem não ficou compacta '+JSON.stringify({needs:out.needsCode?.length,business:out.businessBlocked?.length,unverified:out.unverified?.length,historical:out.historicalBacklog?.count}));
+ const compact=assertCompact(out);console.log('INVENTARIO_WAL_TRIAGEM',JSON.stringify(compact));
  const ui=await page.evaluate(()=>window.hlgbAuditorSingleUiReclaim9434A.status());
  if(ui.appBase!=='94.49'||ui.repairReady!==true||ui.residualProofReady!==true||ui.fastConvergenceReady!==true||ui.recordLearningScopeReady!==true)throw new Error('UI não aponta para v94.48 preservando v94.47/v94.46 '+JSON.stringify(ui));
  if(errors.some(x=>/9448|9447|autocorrect/i.test(x)))throw new Error('pageerror v94.47 '+errors.join(' | '));

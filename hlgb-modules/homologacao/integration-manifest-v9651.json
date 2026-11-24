@@ -514,5 +514,34 @@
     "workerViewChanges": "explicit labels on RH, attendance, settlement; worker session and pending reopen guard; added browser retry/session cases",
     "ciEvidenceAssertions": 20,
     "productionWrite": false
+  },
+  "followupOperationalValidation": {
+    "version": "96.72",
+    "previousFunctionalHead": "41ef5af595c3ff0e2fdba5f4313654fc8420443b",
+    "stabilizationHead": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
+    "stabilizationWorkflows": "77/77 success",
+    "browserInfrastructure": {
+      "failedRuns": [
+        45366807089,
+        45366807277,
+        45366805159
+      ],
+      "reason": "ubuntu-latest resolved to 26.04; Playwright 1.55 install failed before tests",
+      "fixedRunner": "ubuntu-24.04",
+      "noTestsRemoved": true
+    },
+    "auditor": {
+      "failedRun": 45366804467,
+      "observed": "3 code tasks, 2 business, 3 unverified, 116 history; extra task identity not present in log",
+      "test": "exact original IDs plus only independently reported IndexedDB inventory evidence; no unknown extra allowed; no production code changed"
+    },
+    "worker": {
+      "mockConcurrencyAssertions": 36,
+      "mode": "shared in-memory mock constraint, not real database",
+      "crossPending": "block profile save during pending weekly revision, block weekly save/load during pending profile",
+      "nativeBrowser": "pending"
+    },
+    "realHomologation": "no isolated HLGB Supabase project found; no production data or DDL",
+    "canPublish": false
   }
 }

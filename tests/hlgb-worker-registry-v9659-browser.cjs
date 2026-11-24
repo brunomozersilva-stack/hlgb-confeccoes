@@ -24,6 +24,22 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium,webki
   await page.evaluate(()=>window.__hideReadback=false);
   await box.getByRole('button',{name:'Salvar revisão do cadastro'}).click();
   await box.getByText('Cadastro confirmado por releitura · revisão 2',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>__profiles.length),2);
+  await box.getByLabel('Sexta-feira de referência').fill('2025-01-03');
+  await box.getByRole('button',{name:'Carregar revisão da semana'}).click();
+  await box.getByText('Revisão carregada: 1.',{exact:false}).waitFor();
+  await box.getByLabel('Dias efetivamente trabalhados').fill('5');
+  await page.evaluate(()=>window.__hideReadback=true);
+  await box.getByRole('button',{name:'Salvar conferência semanal'}).click();
+  await box.getByText('Conferência não confirmada:',{exact:false}).waitFor();
+  assert.equal(await page.evaluate(()=>__weeks.length),2);
+  const priorCalls=await page.evaluate(()=>__calls.length);
+  await box.getByRole('button',{name:'Salvar revisão do cadastro'}).click();
+  await box.getByText('Há conferência semanal não confirmada.',{exact:false}).waitFor();
+  assert.equal(await page.evaluate(()=>__calls.length),priorCalls);
+  await page.evaluate(()=>window.__hideReadback=false);
+  await box.getByRole('button',{name:'Salvar conferência semanal'}).click();
+  await box.getByText('Conferência semanal confirmada por releitura',{exact:false}).waitFor();
+  assert.equal(await page.evaluate(()=>__weeks.length),2);
   // Identity changes without an explicit logout event must discard the old panel.
   await page.evaluate(()=>{window.cloudUser={id:'other-fixture-user'};document.body.click()});
   await page.locator('#hlgbWorkers9659[data-actor="other-fixture-user"]').waitFor();
