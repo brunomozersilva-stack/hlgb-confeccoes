@@ -30,11 +30,6 @@
       "origin": 315
     },
     {
-      "path": ".github/workflows/hlgb-preventive-v9637.yml",
-      "sha": "00b6c95209ea09c361b9272f2421b15f971c3b1f",
-      "origin": 315
-    },
-    {
       "path": ".github/workflows/hlgb-timed-priority-v9642.yml",
       "sha": "24e63d856aa7b716fdf286b99f87efdde9906917",
       "origin": 315
@@ -42,11 +37,6 @@
     {
       "path": "hlgb-modules/engenharia/README-ast-v9641.md",
       "sha": "d875909b2c56cb2b3f47cf07be99a5d9d1f03ad4",
-      "origin": 315
-    },
-    {
-      "path": "hlgb-modules/engenharia/README-test-priority-v9638.md",
-      "sha": "848274f325b235753572b19704e5c986527fc317",
       "origin": 315
     },
     {
@@ -75,23 +65,8 @@
       "origin": 315
     },
     {
-      "path": "hlgb-modules/engenharia/preventive-cli-v9637.cjs",
-      "sha": "1b12d5a258754933cbb3ab285d839cb754e2faf6",
-      "origin": 315
-    },
-    {
       "path": "hlgb-modules/engenharia/preventive-core-v9637.cjs",
       "sha": "c8495a86d3cf12eb3310016067e8afccc5302a7f",
-      "origin": 315
-    },
-    {
-      "path": "hlgb-modules/engenharia/test-matrix-v9638.json",
-      "sha": "264a482a4e796020d479dde557ee39d0fdb1684b",
-      "origin": 315
-    },
-    {
-      "path": "hlgb-modules/engenharia/test-priority-v9638.cjs",
-      "sha": "6a6ec81b19e10fce9a784b32d8ef58e18a9551fb",
       "origin": 315
     },
     {
@@ -107,11 +82,6 @@
     {
       "path": "tests/hlgb-ast-preventive-v9641.cjs",
       "sha": "476b03ef0904e9a500ec9ebc1035ae7595baddc3",
-      "origin": 315
-    },
-    {
-      "path": "tests/hlgb-preventive-test-priority-v9638.cjs",
-      "sha": "cc77430808c1b30feb5b24a529df4718bd75ba66",
       "origin": 315
     },
     {
@@ -135,18 +105,8 @@
       "origin": 316
     },
     {
-      "path": ".github/workflows/mobile-real-pages-v9640.yml",
-      "sha": "0428e96d6f5d7f290dd4f36dd51edac4d6cfe542",
-      "origin": 317
-    },
-    {
       "path": "hlgb-modules/engenharia/README-mobile-real-pages-v9640.md",
       "sha": "4d7309fc67136006ed3a47409d531ebd2a3ae40c",
-      "origin": 317
-    },
-    {
-      "path": "release-mobile-friendly-v9512.js",
-      "sha": "25232d716614bd0f052a07c32d172cac9705a1de",
       "origin": 317
     },
     {
@@ -324,6 +284,54 @@
       "path": "tests/auditor-smart-ready-v9639.cjs",
       "sha": "7bb92fc2be8fd971742430549f6fbf2a9ed0d8b8",
       "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": ".github/workflows/hlgb-preventive-v9637.yml",
+      "sha": "00b6c95209ea09c361b9272f2421b15f971c3b1f",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "hlgb-modules/engenharia/README-test-priority-v9638.md",
+      "sha": "848274f325b235753572b19704e5c986527fc317",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "hlgb-modules/engenharia/preventive-cli-v9637.cjs",
+      "sha": "1b12d5a258754933cbb3ab285d839cb754e2faf6",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "hlgb-modules/engenharia/test-matrix-v9638.json",
+      "sha": "264a482a4e796020d479dde557ee39d0fdb1684b",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "hlgb-modules/engenharia/test-priority-v9638.cjs",
+      "sha": "6a6ec81b19e10fce9a784b32d8ef58e18a9551fb",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": "tests/hlgb-preventive-test-priority-v9638.cjs",
+      "sha": "cc77430808c1b30feb5b24a529df4718bd75ba66",
+      "origin": 315,
+      "reason": "v96.71: acrescentar testes de regressão atuais e evidência pareada, manter matriz anterior e gate de suíte completa"
+    },
+    {
+      "path": ".github/workflows/mobile-real-pages-v9640.yml",
+      "sha": "0428e96d6f5d7f290dd4f36dd51edac4d6cfe542",
+      "origin": 317,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "release-mobile-friendly-v9512.js",
+      "sha": "25232d716614bd0f052a07c32d172cac9705a1de",
+      "origin": 317,
       "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
     }
   ],
@@ -535,5 +543,86 @@
     ],
     "status": "branch preparada",
     "dependsOn": 324
+  },
+  "followupIntelligence": {
+    "version": "96.70",
+    "codeHead": "92d633783a50c4cdf17d972c237f4446fedff3a7",
+    "assistant": "consultas determinísticas de pedidos, materiais, acertos por pessoa e Hub semanal, autorização e sessão, sem modelo externo",
+    "auditor": "triagem somente leitura, WAL e ACK antes de qualquer repetição, versões e cobertura",
+    "bot": "status distinto por execução, tentativas deduplicadas, cobertura parcial e consulta desatualizada",
+    "mobile": "busca sem acentos, autorização de origem revalidada, foco, logout, formulários",
+    "ciCorrection": {
+      "before": "4fdc40ffb07678a2f12bbddec7590b1f3bbaaf7f",
+      "afterCandidate": "664a15e1090b8a79d0f782a921639525bd6c0c33",
+      "beforeRun": 45304497656,
+      "afterRun": 45359414421,
+      "status": "native-success",
+      "test": "tests/hlgb-production-planning-v9661-browser.cjs",
+      "cause": "ambiguous accessible label in fixture, exact:true",
+      "learned": true,
+      "learnedScope": "test-locator only; original logs and matching test steps reviewed"
+    },
+    "controlledAssertions": 93,
+    "tests": "30 assistant + 21 integrated assistant + 22 auditor + 15 monitor + 5 mobile search; native browser on functional batch not run",
+    "canPublish": false
+  },
+  "followupPreventive": {
+    "version": "96.71",
+    "validatedCodeHead": "911135a89c5adda6bc2e7a11ccabecb47ace2684",
+    "controlledAssertions": 47,
+    "confirmedBrowserPair": {
+      "before": 45304497656,
+      "after": 45359414421,
+      "category": "test-locator",
+      "requiredJobs": [
+        "chromium",
+        "webkit"
+      ],
+      "regressionTest": "tests/hlgb-production-planning-v9661-browser.cjs"
+    },
+    "workerLabel": {
+      "before": 45359414185,
+      "candidate": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
+      "isolatedChromium": "old selector count 0; explicit aria-label count 1; select yes passed",
+      "nativeWorkflow": "success",
+      "confirmedRun": 45361271637,
+      "confirmedJobs": [
+        138331647801,
+        138331647911
+      ]
+    },
+    "matrix": {
+      "areas": 14,
+      "oldUnique": 29,
+      "newUnique": 55,
+      "preserveOld": true
+    },
+    "ciEvidence": "offline consistency only; independent verification of original source necessary",
+    "automaticRepair": false,
+    "fullSuiteRequired": true,
+    "canPublish": false
+  },
+  "incrementalStage07": {
+    "base": "8432c5e51935538f385c6afe09be0b1e4a98c4d4",
+    "source": "eddd25b995ac98c21147f1423b3c89dbafc35444",
+    "sourceWorkflows": 82,
+    "scope": "menu mobile, engenharia preventiva e evidência de regressões; manter testes obrigatórios e não habilitar reparação automática",
+    "exactFiles": [
+      ".github/workflows/hlgb-preventive-v9637.yml",
+      ".github/workflows/mobile-real-pages-v9640.yml",
+      "hlgb-modules/engenharia/README-evidence-search-v9655.md",
+      "hlgb-modules/engenharia/README-test-priority-v9638.md",
+      "hlgb-modules/engenharia/ci-evidence-v9671.cjs",
+      "hlgb-modules/engenharia/ci-regression-cases-v9671.json",
+      "hlgb-modules/engenharia/preventive-cli-v9637.cjs",
+      "hlgb-modules/engenharia/test-matrix-v9638.json",
+      "hlgb-modules/engenharia/test-priority-v9638.cjs",
+      "release-mobile-friendly-v9512.js",
+      "tests/hlgb-ci-evidence-v9671.cjs",
+      "tests/hlgb-mobile-menu-v9670.cjs",
+      "tests/hlgb-preventive-test-priority-v9638.cjs"
+    ],
+    "status": "branch preparada",
+    "dependsOn": "etapa 06"
   }
 }

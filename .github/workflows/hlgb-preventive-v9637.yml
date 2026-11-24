@@ -14,7 +14,7 @@ jobs:
         with: {fetch-depth: 0}
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - run: node --test tests/hlgb-preventive-v9637.cjs tests/hlgb-preventive-test-priority-v9638.cjs
+      - run: node --test tests/hlgb-preventive-v9637.cjs tests/hlgb-preventive-test-priority-v9638.cjs tests/hlgb-ci-evidence-v9671.cjs
       - name: Map impact without executing commercial code
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.sha }}
