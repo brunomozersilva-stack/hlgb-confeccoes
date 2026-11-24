@@ -394,7 +394,48 @@
       "tests/hlgb-attendance-stage-view.cjs"
     ],
     "infrastructure": "3 runners browser fixados em Ubuntu 24.04",
+    "status": "merged",
+    "userValidatedPreviousStage": true,
+    "mergeCommit": "0da49309e74e774d3821f15e38a3d5cef4930a81",
+    "workflowsApproved": 72,
+    "operationalConfirmation": "pending"
+  },
+  "followupOperationalFinance": {
+    "version": "96.66",
+    "changed": [
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-live-finance-integrated-v9657.cjs"
+    ],
+    "history": "recorded-only, no official baseline",
+    "receiptDelayDays": [
+      0,
+      7,
+      14,
+      21,
+      28
+    ],
+    "tests": [
+      "tests/hlgb-hub-intelligence-adapter-v9633.cjs",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-live-finance-integrated-v9657.cjs"
+    ]
+  },
+  "incrementalStage03": {
+    "base": "0da49309e74e774d3821f15e38a3d5cef4930a81",
+    "source": "eddd25b995ac98c21147f1423b3c89dbafc35444",
+    "sourceWorkflows": 82,
+    "scope": "prévia salarial e calendário candidato; Hub semanal, histórico observado e cenários de atraso em 13 semanas; sem publicação automática, caixa confirmado ou novas gravações",
+    "exactFiles": [
+      "hlgb-modules/financeiro/hub-intelligence-adapter-v9633.js",
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js",
+      "hlgb-modules/financeiro/README-live-personnel-finance-v9656.md",
+      "tests/hlgb-hub-intelligence-adapter-v9633.cjs",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-live-finance-integrated-v9657.cjs",
+      "tests/hlgb-rh-finance-v9667-browser.cjs"
+    ],
     "status": "CI específica pendente",
-    "userValidatedPreviousStage": true
+    "requiresPreviousOperationalConfirmation": true
   }
 }
