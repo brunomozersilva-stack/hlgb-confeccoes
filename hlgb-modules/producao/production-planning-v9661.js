@@ -16,6 +16,32 @@
    return {...x,groups:x.groups.map(g=>({...g,models:[...new Set(g.lines.map(l=>pair(l.orderId,l.productId)))].map(k=>{const lines=g.lines.filter(l=>pair(l.orderId,l.productId)===k),o=safeOrders.find(z=>id(z.id)===lines[0].orderId);return {key:k,orderId:lines[0].orderId,orderNumber:id(o?.orderNumber||o?.id),productId:lines[0].productId,productName:lines[0].productName,pieces:lines.reduce((a,l)=>a+l.ordered,0),grade:lines.map(l=>({color:l.color,size:l.size,qty:l.ordered}))}})})),verifiedAvailable:null,canWrite:false};
   }catch(_){return {state:'unavailable',groups:[],reason:'Conferir fontes e baixas.'}}
  }
+ // Exact arithmetic proposal per order colour; never represents a physical marker.
+ function gradeSuggestions(group,maxLayers=null){
+  if(!group||!Array.isArray(group.models)||group.models.length>1000||maxLayers!==null&&(!Number.isSafeInteger(maxLayers)||maxLayers<1||maxLayers>10000))return [];
+  const colors=new Map(),seen=new Set();
+  for(const m of group.models){
+   if(!m.key||seen.has(m.key)||!Array.isArray(m.grade))return [];seen.add(m.key);
+   for(const x of m.grade){if(!id(x.color)||!id(x.size)||!Number.isSafeInteger(x.qty)||x.qty<=0||x.qty>10000000)return [];
+    const rows=colors.get(x.color)||new Map(),k=JSON.stringify([m.key,x.size]);if(rows.has(k))return [];
+    rows.set(k,{key:m.key,orderNumber:m.orderNumber,productId:m.productId,productName:m.productName,size:x.size,qty:x.qty});colors.set(x.color,rows)
+   }
+  }
+  const gcd=(a,b)=>{while(b){const r=a%b;a=b;b=r}return a};
+  return [...colors].map(([color,map])=>{const rows=[...map.values()],factor=rows.reduce((a,x)=>gcd(a,x.qty),0),upper=maxLayers===null?factor:Math.min(maxLayers,factor);
+   let layers=upper;while(layers>1&&factor%layers!==0)layers--;
+   const total=rows.reduce((a,x)=>a+x.qty,0);if(!Number.isSafeInteger(total))return null;
+   const modelCount=new Set(rows.map(x=>x.key)).size,base=rows.map(x=>({...x,perLayer:x.qty/layers,planned:x.qty,remainder:0}));
+   const alternative=maxLayers!==null&&maxLayers>layers?{layers:maxLayers,rows:rows.map(x=>({...x,perLayer:Math.floor(x.qty/maxLayers),planned:Math.floor(x.qty/maxLayers)*maxLayers,remainder:x.qty%maxLayers}))}:null;
+   return {color,layers,commonFactor:factor,total,modelCount,base,alternative:alternative&&alternative.rows.some(x=>x.perLayer>0)?alternative:null,geometryVerified:false,canWrite:false}
+  }).filter(Boolean).sort((a,b)=>b.modelCount-a.modelCount||b.total-a.total||a.color.localeCompare(b.color,'pt-BR'));
+ }
+ function catalogGroups(db,allowed){
+  if(allowed!==true||!Array.isArray(db?.products)||!Array.isArray(db?.materials))return [];
+  const index=rows=>{const m=new Map();for(const x of rows.filter(live)){const k=id(x.id);if(k)m.set(k,m.has(k)?null:x)}return m},materials=index(db.materials),products=index(db.products),valid=fabrics(db.materials),groups=new Map();
+  for(const [pid,p] of products){if(!p||p.active===false||!Array.isArray(p.materials))continue;for(const mid of new Set(p.materials.map(x=>id(x.materialId)).filter(x=>valid.has(x)))){const mat=materials.get(mid),g=groups.get(mid)||{materialId:mid,materialName:id(mat.name),products:[]};g.products.push({productId:pid,productName:id(p.name)||pid});groups.set(mid,g)}}
+  return [...groups.values()].filter(g=>g.products.length>=2).sort((a,b)=>b.products.length-a.products.length||a.materialName.localeCompare(b.materialName,'pt-BR'));
+ }
  function combine(group,keys){
   if(!group||!Array.isArray(group.models)||!Array.isArray(keys)||new Set(keys).size!==keys.length||keys.some(k=>!group.models.some(m=>m.key===k)))throw Error('selection-invalid');
   const models=group.models.filter(m=>keys.includes(m.key)),grades=new Map();
@@ -83,5 +109,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,candidates,weights,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
