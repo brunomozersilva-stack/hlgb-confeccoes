@@ -4,6 +4,7 @@ on:
     paths:
       - 'release-cut-organization.js'
       - 'tests/cut-separation-workspace-v9643*'
+      - 'tests/cut-separation-checklist-v9644.cjs'
       - '.github/workflows/cut-separation-workspace-v9643.yml'
   workflow_dispatch:
 permissions:
@@ -17,6 +18,7 @@ jobs:
         with: {node-version: '22'}
       - run: node --check release-cut-organization.js
       - run: node tests/cut-separation-workspace-v9643.cjs
+      - run: node tests/cut-separation-checklist-v9644.cjs
       - run: node tests/audit-cut-organization-regression.cjs
       - run: node tests/audit-separation-commit-v9319.cjs
       - run: node tests/cutter-sheet-print-route-v9620.cjs
