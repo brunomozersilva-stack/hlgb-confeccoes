@@ -28,7 +28,7 @@
   const bulk=el('details','',host);bulk.className='panel';el('summary','Conferência coletiva de ponto e passagem por confecção',bulk);
   el('p','Selecione os funcionários, confira a tarifa de cada um e a data até a qual a passagem foi antecipada. O valor sugerido de cobertura é somente calendário; não comprova pagamento. A prévia não altera a edição individual da Folha.',bulk);
   const bulkField=(label,type,val='',parent=bulk)=>{const l=el('label',label,parent);l.style.cssText='display:block;margin:6px 0;min-width:0';const x=el('input','',l);x.type=type;x.value=val;x.style.cssText='display:block;min-width:0;max-width:100%;width:100%;box-sizing:border-box';return x};
-  const bulkSelect=(label,parent=bulk)=>{const l=el('label',label,parent);const x=el('select','',l);x.style.cssText='display:block;max-width:100%;width:100%';return x};
+  const bulkSelect=(label,parent=bulk)=>{const l=el('label',label,parent);const x=el('select','',l);x.setAttribute('aria-label',label);x.style.cssText='display:block;max-width:100%;width:100%';return x};
   const bbtn=(label,parent,fn)=>{const x=el('button',label,parent);x.type='button';x.className='secondary';x.style.cssText='max-width:100%;white-space:normal;margin:4px 4px 4px 0';x.onclick=fn;return x};
   const check=(label,parent)=>{const l=el('label','',parent);l.style.cssText='display:block';const x=el('input','',l);x.type='checkbox';el('span',' '+label,l);return x};
   const holidays=bulkField('Feriados informados (datas separadas por vírgula)','text'),closed=bulkField('Outros dias sem expediente (datas separadas por vírgula)','text');
