@@ -49,3 +49,4 @@ const assert=require('node:assert/strict'),crypto=require('node:crypto'),plan=re
  for(const args of [[row,checklist.initial(row),[]],[{...row,ordered:31},d,[]],[row,d,[{name:'wrong.pdf',bytes:api.utf8('not a document')}]], [row,d,[{name:'a.pdf',bytes},{name:'b.pdf',bytes}]]]){let bad=false;try{await api.build(...args,checklist,digest)}catch(_){bad=true}ok(bad,'invalid export')}
  let unsafe=false;try{api.zip([{name:'../x',bytes}])}catch(_){unsafe=true}ok(unsafe,'zip traversal');
 })(dossier,checklist,async b=>crypto.createHash('sha256').update(b).digest('hex'),(v,m)=>assert.ok(v,m)).then(()=>console.log('PASS production planning and ZIP export')).catch(e=>{console.error(e);process.exit(1)});
+require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);process.exitCode=1});
