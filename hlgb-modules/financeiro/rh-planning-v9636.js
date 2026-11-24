@@ -90,7 +90,8 @@
   }
   const result=vacations({periods:input.periods,employees:valid,priorPeriodsByYear:input.priorPeriodsByYear||{},calendarVerified:false,closedDays:[]});
   const partial=result.people.some(x=>x.periods.some(p=>p.status==='review'));
-  return {...result,selectedCount:input.reviews.length,reviewedCount:valid.length,reviewIssues:issues,observedGrossCents:valid.length?result.observedGrossCents:null,coverage:!issues.length&&!partial?'reviewed-local-input':'partial-review',canPublish:false};
+  const totals=result.totals.map((t,i)=>{const rows=result.people.map(p=>p.periods[i]),grossCount=rows.filter(x=>Number.isSafeInteger(x?.grossVacationCents)).length,leaveCount=rows.filter(x=>Number.isSafeInteger(x?.paidLeaveCents)).length;return {...t,grossVacationCents:grossCount?t.grossVacationCents:null,paidLeaveCents:leaveCount?t.paidLeaveCents:null,grossCount,leaveCount,partial:grossCount<input.reviews.length||leaveCount<input.reviews.length||rows.some(x=>x?.status==='review')}});
+  return {...result,totals,selectedCount:input.reviews.length,reviewedCount:valid.length,reviewIssues:issues,observedGrossCents:valid.length?result.observedGrossCents:null,coverage:!issues.length&&!partial?'reviewed-local-input':'partial-review',canPublish:false};
  }
  // Multiple acquisition cycles per person. Overlapping cycles and duplicate identifiers are not counted.
  function provisionCycles(source,rows,asOf,filter='all'){
