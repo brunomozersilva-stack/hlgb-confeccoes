@@ -16,6 +16,32 @@
    return {...x,groups:x.groups.map(g=>({...g,models:[...new Set(g.lines.map(l=>pair(l.orderId,l.productId)))].map(k=>{const lines=g.lines.filter(l=>pair(l.orderId,l.productId)===k),o=safeOrders.find(z=>id(z.id)===lines[0].orderId);return {key:k,orderId:lines[0].orderId,orderNumber:id(o?.orderNumber||o?.id),productId:lines[0].productId,productName:lines[0].productName,pieces:lines.reduce((a,l)=>a+l.ordered,0),grade:lines.map(l=>({color:l.color,size:l.size,qty:l.ordered}))}})})),verifiedAvailable:null,canWrite:false};
   }catch(_){return {state:'unavailable',groups:[],reason:'Conferir fontes e baixas.'}}
  }
+ // Arithmetic alternatives only. At most eight spreads, no excess and no geometry proof.
+ function multiSpreadPlans(rows,maxLayers){
+  if(!rows.length||rows.length>2000)return [];
+  const largest=Math.max(...rows.map(r=>r.qty)),smallest=Math.min(...rows.map(r=>r.qty));
+  const cap=Math.min(maxLayers??10000,largest);
+  if(cap<2)return [];
+  const heights=[...new Set([Math.min(cap,smallest),Math.max(1,Math.floor(cap/2)),cap])].filter(h=>h>1);
+  const plans=[],seen=new Set();
+  for(const first of heights){
+   let remaining=rows.map(r=>r.qty),layers=first;const spreads=[];
+   for(let step=0;step<8&&remaining.some(q=>q>0);step++){
+    if(step===7)layers=1; // explicit final remainder spread, never overcuts
+    const entries=[];
+    for(let i=0;i<rows.length;i++){const perLayer=Math.floor(remaining[i]/layers);if(!perLayer)continue;const planned=perLayer*layers;remaining[i]-=planned;entries.push({...rows[i],perLayer,planned})}
+    if(entries.length)spreads.push({layers,rows:entries,pieces:entries.reduce((n,r)=>n+r.planned,0),piecesPerLayer:entries.reduce((n,r)=>n+r.perLayer,0),modelCount:new Set(entries.map(r=>r.key)).size});
+    layers=Math.min(cap,Math.max(...remaining));
+   }
+   if(spreads.length<2||remaining.some(q=>q!==0))continue;
+   const signature=JSON.stringify(spreads.map(s=>[s.layers,s.rows.map(r=>[r.key,r.size,r.perLayer])]));
+   if(seen.has(signature))continue;seen.add(signature);
+   plans.push({spreads,total:spreads.reduce((n,s)=>n+s.pieces,0),combinedPieces:spreads.filter(s=>s.modelCount>=2).reduce((n,s)=>n+s.pieces,0),peakPiecesPerLayer:Math.max(...spreads.map(s=>s.piecesPerLayer)),remaining:0,geometryVerified:false,canWrite:false});
+  }
+  // Rank by arithmetic coverage in combined spreads, then grade size and spread count.
+  // This is not a prediction of length, marker efficiency or actual cost.
+  return plans.sort((a,b)=>b.combinedPieces-a.combinedPieces||a.peakPiecesPerLayer-b.peakPiecesPerLayer||a.spreads.length-b.spreads.length);
+ }
  // Exact arithmetic proposal per order colour; never represents a physical marker.
  function gradeSuggestions(group,maxLayers=null){
   if(!group||!Array.isArray(group.models)||group.models.length>1000||maxLayers!==null&&(!Number.isSafeInteger(maxLayers)||maxLayers<1||maxLayers>10000))return [];
@@ -33,7 +59,7 @@
    const total=rows.reduce((a,x)=>a+x.qty,0);if(!Number.isSafeInteger(total))return null;
    const modelCount=new Set(rows.map(x=>x.key)).size,base=rows.map(x=>({...x,perLayer:x.qty/layers,planned:x.qty,remainder:0}));
    const alternative=maxLayers!==null&&maxLayers>layers?{layers:maxLayers,rows:rows.map(x=>({...x,perLayer:Math.floor(x.qty/maxLayers),planned:Math.floor(x.qty/maxLayers)*maxLayers,remainder:x.qty%maxLayers}))}:null;
-   return {color,layers,commonFactor:factor,total,modelCount,base,alternative:alternative&&alternative.rows.some(x=>x.perLayer>0)?alternative:null,geometryVerified:false,canWrite:false}
+   return {color,layers,commonFactor:factor,total,modelCount,base,alternative:alternative&&alternative.rows.some(x=>x.perLayer>0)?alternative:null,multiSpreads:factor===1||maxLayers!==null&&factor%maxLayers!==0?multiSpreadPlans(rows,maxLayers):[],geometryVerified:false,canWrite:false}
   }).filter(Boolean).sort((a,b)=>b.modelCount-a.modelCount||b.total-a.total||a.color.localeCompare(b.color,'pt-BR'));
  }
  function catalogGroups(db,allowed){
