@@ -30,14 +30,14 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   if(!allowed(deps,...areas))return invalid('permission');
   try{
    const p=deps.payrollApi(),c=deps.calendarApi();if(typeof p?.inspect!=='function'||typeof c?.salaryDate!=='function'||typeof deps.calc!=='function')return invalid('source-unavailable');
-   const rows=deps.read('payroll'),employees=deps.read('employees');if(!Array.isArray(rows)||!Array.isArray(employees))return invalid('source-unavailable');
+   const rows=deps.read('payroll');if(!allowed(deps,...areas))return invalid('permission');const employees=deps.read('employees');if(!allowed(deps,...areas))return invalid('permission');if(!Array.isArray(rows)||!Array.isArray(employees))return invalid('source-unavailable');
    const opts={competence:opt.competence,asOf:opt.asOf,holidays:opt.holidays||[],companyClosed:opt.companyClosed||[],bankClosed:opt.bankClosed||[]};
    const calendar=c.salaryDate(opts),v=p.inspect({authenticated:true,payrollAllowed:true,db:{payroll:copy(rows),employees:copy(employees)},payrollCalc:(row,e)=>deps.calc(row,e)},opts);
    if(!allowed(deps,...areas))return invalid('permission');
    if(v.state!=='local-preview-only')return invalid(v.reason||'payroll-review');
    const out={state:'local-preview-only',competence:opts.competence,calendar,observedEmployeeCount:v.observedEmployeeCount,localOpenCents:v.localOpenCents,localPaidCents:v.localPaidCents,issueCount:v.issues.length,officialAmountCents:null,canPublish:false};
    if(fromHub){
-    const raw=deps.read('hubFinanceEntries'),a=deps.reconcileApi();
+    const raw=deps.read('hubFinanceEntries');if(!allowed(deps,...areas))return invalid('permission');const a=deps.reconcileApi();if(!allowed(deps,...areas))return invalid('permission');
     if(!Array.isArray(raw)||typeof a?.inspect!=='function')return {...out,reconciliation:{state:'source-unavailable',canPublish:false}};
     const res=a.inspect({authenticated:true,payrollAllowed:true,financeAllowed:true,rows:copy(raw),pendingOrigins:[],snapshotVerified:false,coverageVerified:false,pendingVerified:false},{kind:'salary',competence:opts.competence,dueDate:calendar.scheduledCandidate,amountCents:v.localOpenCents,sourceVerified:false,calendarVerified:false});
     if(!allowed(deps,...areas))return invalid('permission');
@@ -50,7 +50,7 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   if(!allowed(deps,'hubFinanceiro','folhaPagamento'))return invalid('permission');
   try{
    if(!date(opt.asOf)||!date(opt.targetDate))return invalid('invalid-period');
-   const api=deps.financeApi(),pd=deps.paidDateApi(),rows=deps.read('hubFinanceEntries'),payroll=deps.read('payroll');
+   const api=deps.financeApi(),pd=deps.paidDateApi();if(!allowed(deps,'hubFinanceiro','folhaPagamento'))return invalid('permission');const rows=deps.read('hubFinanceEntries');if(!allowed(deps,'hubFinanceiro','folhaPagamento'))return invalid('permission');const payroll=deps.read('payroll');if(!allowed(deps,'hubFinanceiro','folhaPagamento'))return invalid('permission');
    if(typeof api?.inspect!=='function'||typeof pd?.rows!=='function'||!Array.isArray(rows)||!Array.isArray(payroll))return invalid('source-unavailable');
    const x=api.inspect({authenticated:true,financeAllowed:true,payrollAggregateAllowed:true,db:{hubFinanceEntries:copy(rows),payroll:copy(payroll)},paidDateApi:pd},{asOf:opt.asOf,targetDate:opt.targetDate,historyWeeks:opt.historyWeeks});
    if(!allowed(deps,'hubFinanceiro','folhaPagamento'))return invalid('permission');
