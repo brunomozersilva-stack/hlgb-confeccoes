@@ -40,4 +40,6 @@ const assert=require('node:assert/strict');const api=require('../hlgb-modules/fi
  const n2=api.reviewedNotice(roster,{...n1,approvedItems:[{id:'credit1',kind:'credit',status:'open',amountCents:200000,verified:true},{id:'discount1',kind:'discount',status:'open',amountCents:10000,verified:true},{id:'paid1',kind:'credit',status:'paid',amountCents:50000,verified:true}]});
  ok(n2.observedItemsDifferenceCents===190000&&n2.officialNetCents===null&&!n2.canPublish,'reviewed items only no double paid');
  let stale=false;try{api.reviewedNotice(roster,{...n1,reviewed:false})}catch(_){stale=true}ok(stale,'notice review required');ok(JSON.stringify(raw)===rb,'roster immutable');
+
+ const prop=api.reviewedVacations(roster,{...review,reviews:[{...r2,reviewed:true,paidLeaveApproved:true}]});ok(prop.totals[0].grossCount===1&&prop.totals[1].grossVacationCents===null&&prop.totals[1].partial,'second proportional cycle unknown not zero');ok(api.reviewedVacations(roster,{...review,reviews:[r2]}).totals.every(t=>t.grossVacationCents===null),'unreviewed periods unknown');
 })(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});
