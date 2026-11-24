@@ -13,5 +13,6 @@ const testMatrix=JSON.parse(read('hlgb-modules/engenharia/test-matrix-v9638.json
 const available=[...new Set(Object.values(testMatrix).flat())].filter(p=>/^tests\/[A-Za-z0-9_./-]+\.(?:cjs|js)$/.test(p)&&!p.split('/').includes('..')&&fs.existsSync(path.join(root,p)));
 const priority=plan(testMatrix,risk,available);
 const learned=api.learning(JSON.parse(read('hlgb-modules/engenharia/incident-cases-v9637.json')));
-process.stdout.write(JSON.stringify({schema:'hlgb-preventive-v9637',base,head,graph,risk,priority,learned},null,2)+'\n');
+const ciEvidence=require('./ci-evidence-v9671.cjs').review(JSON.parse(read('hlgb-modules/engenharia/ci-regression-cases-v9671.json')));
+process.stdout.write(JSON.stringify({ciEvidence,schema:'hlgb-preventive-v9637',base,head,graph,risk,priority,learned},null,2)+'\n');
 if(graph.findings.length||priority.missing.length)process.exitCode=1;
