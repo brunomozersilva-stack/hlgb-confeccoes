@@ -48,6 +48,16 @@ function install(){
     if(row.number)el('p','Nota '+row.number+' · Vencimento '+(row.due||'Não informado')+' · '+(row.source||'Nota'),item);
     if(row.competence)el('p','Competência '+row.competence,item);
     if(row.netOfAdjustments)el('p','Total líquido do grupo conforme módulo original. Ajustes já incorporados não são descontados outra vez.',item);
+    const actions={
+     factionPdf:id=>root.hlgbFactionManual9566.downloadSummaryPdfV9590(id),
+     noteView:id=>root.hlgbViewNote9411(id),
+     notePdf:id=>root.hlgbDownloadNotePdf9411(id),
+     orderView:id=>root.viewOrderDetails(id)
+    };
+    function launch(action){if(!active())return;const result=api.originalAction(deps,kind,row,action,actions,active);if(!result.opened&&active())el('p','A origem mudou, está indisponível ou o acesso não foi confirmado. Atualize a consulta.',item)}
+    if(kind==='faccao'&&row.id.startsWith('group:')&&typeof root.hlgbFactionManual9566?.downloadSummaryPdfV9590==='function')button('Baixar PDF detalhado do acerto original',item,()=>launch('factionPdf'));
+    if(kind==='cliente'&&row.id.startsWith('note:projection:')){if(typeof root.hlgbViewNote9411==='function')button('Consultar nota original',item,()=>launch('noteView'));if(typeof root.hlgbDownloadNotePdf9411==='function')button('Baixar PDF da nota original',item,()=>launch('notePdf'))}
+    if(kind==='cliente'&&row.id.startsWith('note:order:')&&typeof root.viewOrderDetails==='function')button('Consultar pedido original',item,()=>launch('orderView'));
     const detail=el('details','',item);el('summary','Referências e detalhes do acerto',detail);el('p','Linhas '+row.lines.join(', '),detail);
     for(const l of row.details||[]){el('h4',l.description+' · ID '+l.id,detail);el('p','Quantidade '+(l.quantity??'Não informada')+' · Valor unitário '+money(l.unitPriceCents)+' · Serviço '+money(l.serviceCents)+' · Pago '+money(l.paidCents)+' · Travetada descontada '+money(l.travetaCents),detail);if(l.note)el('p','Observação: '+l.note,detail)}
    }
@@ -111,5 +121,21 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   for(const [k,value] of Object.entries(result.totals||{}))lines.push([k,cash(value)]);
   lines.push(['Lacunas ou inconsistências',result.issues?.length??0]);return '\uFEFF'+lines.map(r=>r.map(cell).join(';')).join('\r\n');
  }
- return {read,scopes,csv,eventCsv};
+ function originalAction(deps,kind,row,action,actions,active){
+  const fail=reason=>({opened:false,reason});try{
+   if(typeof active!=='function'||active()!==true||!row||row.kind!==kind||typeof actions?.[action]!=='function')return fail('unavailable');
+   const matches={factionPdf:['faccao','group:'],noteView:['cliente','note:projection:'],notePdf:['cliente','note:projection:'],orderView:['cliente','note:order:']};
+   const spec=Object.hasOwn(matches,action)?matches[action]:null;
+   if(!spec||spec[0]!==kind||typeof row.id!=='string'||!row.id.startsWith(spec[1])||!row.ownerId||!row.date)return fail('invalid-action');
+   const id=row.id.slice(spec[1].length);if(!id||id.length>120)return fail('invalid-action');
+   const latest=read(deps,kind,{ownerId:row.ownerId,from:row.date,to:row.date,export:true});
+   if(latest.state!=='local-observation'||!Array.isArray(latest.rows)||active()!==true)return fail('unavailable');
+   const current=latest.rows.filter(x=>x.id===row.id&&x.ownerId===row.ownerId);
+   const sig=x=>JSON.stringify([x.kind,x.id,x.ownerId,x.date,x.status,x.totalCents,x.paidCents,x.creditCents,x.balanceCents,x.lines,x.details,x.document]);
+   if(current.length!==1||sig(current[0])!==sig(row))return fail('stale');
+   if(active()!==true||deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return fail('forbidden');
+   actions[action](id);return {opened:true,reason:'invoked-original-read-action'};
+  }catch(_){return fail('unavailable')}
+ }
+ return {read,scopes,csv,eventCsv,originalAction};
 })());
