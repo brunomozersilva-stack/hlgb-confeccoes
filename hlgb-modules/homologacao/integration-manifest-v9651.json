@@ -1,0 +1,354 @@
+{
+  "base": "17ccdbd43203afc282c0778b0df17396d07663bf",
+  "previousCandidate": "a8826ba572ef77fc73dde4363e0bfd9c92bb2e07",
+  "origins": [
+    {
+      "pr": 315,
+      "sha": "bb9e4e4f613806946b5b76497e3168c24f207c46"
+    },
+    {
+      "pr": 316,
+      "sha": "9f6f0ee0422ec59e5b2cc21aac384bfd494de66d"
+    },
+    {
+      "pr": 317,
+      "sha": "7a894df62fd888f1d5f0fbfe7fd835d840cac99d"
+    },
+    {
+      "pr": 318,
+      "sha": "e5eb734c069ed71a69232abed521f48e2819d152"
+    },
+    {
+      "pr": 319,
+      "sha": "68eafc7f1c39922ce875b194309297f24078df72"
+    }
+  ],
+  "preservedFiles": [
+    {
+      "path": ".github/workflows/hlgb-ast-preventive-v9641.yml",
+      "sha": "969b4c273eb103b1efbe163d703a34e7fbf0edb8",
+      "origin": 315
+    },
+    {
+      "path": ".github/workflows/hlgb-preventive-v9637.yml",
+      "sha": "00b6c95209ea09c361b9272f2421b15f971c3b1f",
+      "origin": 315
+    },
+    {
+      "path": ".github/workflows/hlgb-timed-priority-v9642.yml",
+      "sha": "24e63d856aa7b716fdf286b99f87efdde9906917",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/README-ast-v9641.md",
+      "sha": "d875909b2c56cb2b3f47cf07be99a5d9d1f03ad4",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/README-test-priority-v9638.md",
+      "sha": "848274f325b235753572b19704e5c986527fc317",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/README-timed-priority-v9642.md",
+      "sha": "42ab954238f665c64019fbaaefc13935372a81be",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/README-v9637.md",
+      "sha": "610413a30236c974c247500e91a843a0d1db8311",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/ast-cli-v9641.cjs",
+      "sha": "84ecaf21d832d61762b58972286d559bcd454189",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/ast-preventive-v9641.cjs",
+      "sha": "679bf44a4a25ab60f81a163cc11063869e2475b9",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/incident-cases-v9637.json",
+      "sha": "c0cf24a139a322aab42eea4a5cf6d7db50354713",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/preventive-cli-v9637.cjs",
+      "sha": "1b12d5a258754933cbb3ab285d839cb754e2faf6",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/preventive-core-v9637.cjs",
+      "sha": "c8495a86d3cf12eb3310016067e8afccc5302a7f",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/test-matrix-v9638.json",
+      "sha": "264a482a4e796020d479dde557ee39d0fdb1684b",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/test-priority-v9638.cjs",
+      "sha": "6a6ec81b19e10fce9a784b32d8ef58e18a9551fb",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/timed-priority-core-v9642.cjs",
+      "sha": "6db37689d83b0404028dc66e19b5e3c8b54b5d61",
+      "origin": 315
+    },
+    {
+      "path": "hlgb-modules/engenharia/timed-priority-v9642.cjs",
+      "sha": "41a69536a626c94bd0f9796392967f66e224589f",
+      "origin": 315
+    },
+    {
+      "path": "tests/hlgb-ast-preventive-v9641.cjs",
+      "sha": "476b03ef0904e9a500ec9ebc1035ae7595baddc3",
+      "origin": 315
+    },
+    {
+      "path": "tests/hlgb-preventive-test-priority-v9638.cjs",
+      "sha": "cc77430808c1b30feb5b24a529df4718bd75ba66",
+      "origin": 315
+    },
+    {
+      "path": "tests/hlgb-preventive-v9637.cjs",
+      "sha": "a271457de8e93baee3976b18181e3506ae4026c8",
+      "origin": 315
+    },
+    {
+      "path": ".github/workflows/auditor-smart-ready-v9639.yml",
+      "sha": "75aed3ec2afaa2696082484a0cf7bd933b1d8316",
+      "origin": 316
+    },
+    {
+      "path": "hlgb-modules/engenharia/README-auditor-smart-readiness-v9639.md",
+      "sha": "227dbec3b071eac1eea1cdb3296aae86a0615492",
+      "origin": 316
+    },
+    {
+      "path": "release-auditor-smart-v9360.js",
+      "sha": "9b72a87e43eb4271a28604f918554f40948696a1",
+      "origin": 316
+    },
+    {
+      "path": "tests/auditor-smart-ready-v9639-browser.cjs",
+      "sha": "994b9c66d61590e880be7bd449966bd22a8b25c1",
+      "origin": 316
+    },
+    {
+      "path": "tests/auditor-smart-ready-v9639.cjs",
+      "sha": "7bb92fc2be8fd971742430549f6fbf2a9ed0d8b8",
+      "origin": 316
+    },
+    {
+      "path": "tests/auditor-smart-ready-v9639.html",
+      "sha": "0264dbbefbbce3a61539d4cf77a51017e3a49dfd",
+      "origin": 316
+    },
+    {
+      "path": ".github/workflows/mobile-real-pages-v9640.yml",
+      "sha": "0428e96d6f5d7f290dd4f36dd51edac4d6cfe542",
+      "origin": 317
+    },
+    {
+      "path": "hlgb-modules/engenharia/README-mobile-real-pages-v9640.md",
+      "sha": "4d7309fc67136006ed3a47409d531ebd2a3ae40c",
+      "origin": 317
+    },
+    {
+      "path": "release-mobile-friendly-v9512.js",
+      "sha": "25232d716614bd0f052a07c32d172cac9705a1de",
+      "origin": 317
+    },
+    {
+      "path": "tests/mobile-real-pages-v9640.cjs",
+      "sha": "d2b6067c0f5073e24d3184e6b9ef6807cf0a1085",
+      "origin": 317
+    },
+    {
+      "path": ".github/workflows/cut-separation-workspace-v9643.yml",
+      "sha": "aec68fb71d7d8a00d280052007bbdf6c0c9e4e9a",
+      "origin": 318
+    },
+    {
+      "path": "hlgb-modules/producao/README-cut-checklist-v9644.md",
+      "sha": "c0b405ca67a97f8fbc3e350d3a27445e5f2e8d30",
+      "origin": 318
+    },
+    {
+      "path": "hlgb-modules/producao/README-cut-evidence-archive-v9646.md",
+      "sha": "a078f97d48857ab0e3589ea8e5c56c814a99fcbb",
+      "origin": 318
+    },
+    {
+      "path": "hlgb-modules/producao/README-cut-separation-core-v9647.md",
+      "sha": "b896fc2578bf58356a3d83d070fb1db50a9844d5",
+      "origin": 318
+    },
+    {
+      "path": "hlgb-modules/producao/README-cut-separation-workspace-v9643.md",
+      "sha": "56f256936d31cb17c455ba9c2b97a4bba9a2f12f",
+      "origin": 318
+    },
+    {
+      "path": "hlgb-modules/producao/cut-separation-core-v9647.js",
+      "sha": "fc292cc2aadae3ef641bb987ebb9d37f89f43afa",
+      "origin": 318
+    },
+    {
+      "path": "tests/cut-separation-checklist-v9644.cjs",
+      "sha": "7ed98aec3149554ea4d5b68a14bcb07fca37f91d",
+      "origin": 318
+    },
+    {
+      "path": "tests/cut-separation-workspace-v9643-browser.cjs",
+      "sha": "d21a589017625b42dcc1feeea7689ada03947258",
+      "origin": 318
+    },
+    {
+      "path": "tests/cut-separation-workspace-v9643.cjs",
+      "sha": "3f050cb2829ee4b007587559ff65bb055bb0cc05",
+      "origin": 318
+    },
+    {
+      "path": ".github/workflows/hlgb-payroll-provision-core-v9649.yml",
+      "sha": "d4db13977d1fea326b9d7836000e3b18b33f4ace",
+      "origin": 319
+    },
+    {
+      "path": "hlgb-modules/financeiro/README-payroll-provision-core-v9649.md",
+      "sha": "7adc30bf0654a67eedfcc339bf4567a8ff61e837",
+      "origin": 319
+    },
+    {
+      "path": "hlgb-modules/financeiro/payroll-provision-core-v9649.js",
+      "sha": "7e865635f70f7dc4b4367578ea492a6309aafc46",
+      "origin": 319
+    },
+    {
+      "path": "release-payroll-integrity.js",
+      "sha": "972a1d1eb98e45eb983d68a5f8dff8bac3330db0",
+      "origin": 319
+    },
+    {
+      "path": "tests/audit-payroll-integrity-regression.cjs",
+      "sha": "596fcc8c63dcfaa3e7fd0207c48966fb9c20bba3",
+      "origin": 319
+    },
+    {
+      "path": "tests/hlgb-payroll-provision-core-v9649.cjs",
+      "sha": "a1dfcbcdac37897d471127d8644e89488b411e66",
+      "origin": 319
+    }
+  ],
+  "reconciled": [
+    "app-stable3.html",
+    "hlgb-modules/ownership-v9600.json"
+  ],
+  "originalScripts": 163,
+  "integratedScripts": 187,
+  "mode": "candidate-not-production",
+  "followup": {
+    "version": "96.52",
+    "addedCore": "hlgb-modules/producao/product-history-search-v9652.js",
+    "changedController": "release-product-traceability-v9580.js"
+  },
+  "followupSettlement": {
+    "version": "96.54",
+    "added": [
+      "hlgb-modules/financeiro/settlement-history-v9653.js",
+      "hlgb-modules/financeiro/settlement-history-view-v9654.js"
+    ]
+  },
+  "followupAssistant": {
+    "version": "96.55",
+    "added": "hlgb-modules/assistente/evidence-query-v9655.js"
+  },
+  "followupLiveFinance": {
+    "version": "96.56",
+    "added": [
+      "hlgb-modules/financeiro/weekly-intelligence-core-v9627.js",
+      "hlgb-modules/financeiro/cash-projection-v9631.js",
+      "hlgb-modules/financeiro/hub-intelligence-adapter-v9633.js",
+      "hlgb-modules/financeiro/payroll-fifth-day-v9632.js",
+      "hlgb-modules/financeiro/payroll-preview-adapter-v9634.js",
+      "hlgb-modules/financeiro/payroll-calendar-transport-workers-v9645.js",
+      "hlgb-modules/financeiro/hub-personnel-forecast-reconcile-v9650.js",
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js"
+    ]
+  },
+  "followupSecurity": {
+    "version": "96.57",
+    "changed": [
+      "release-product-traceability-v9580.js",
+      "hlgb-modules/producao/product-history-search-v9652.js"
+    ],
+    "test": "tests/hlgb-live-finance-integrated-v9657.cjs"
+  },
+  "followupAttendance": {
+    "version": "96.58",
+    "added": [
+      "hlgb-modules/financeiro/attendance-transport-preview-v9658.js",
+      "hlgb-modules/financeiro/attendance-transport-view-v9658.js"
+    ]
+  },
+  "followupWorkerRegistry": {
+    "version": "96.59",
+    "added": [
+      "hlgb-modules/financeiro/worker-registry-v9659.js",
+      "hlgb-modules/financeiro/worker-registry-view-v9659.js"
+    ],
+    "schemaDraft": "hlgb-modules/financeiro/db-draft-worker-registry-v9659.sql"
+  },
+  "supersededFiles": [
+    {
+      "path": "release-cut-organization.js",
+      "sha": "a5d5545495003bb87dbe3f870ec5b04de3366f6a",
+      "origin": 318,
+      "reason": "v96.61 local dossier export action added; existing checklist, selection, separation and print retained"
+    },
+    {
+      "path": "hlgb-modules/producao/cut-evidence-archive-contract-v9646.cjs",
+      "sha": "2f9d9344914e240e34f345a100b77349f5feb98e",
+      "origin": 318,
+      "reason": "v96.63: revalidar autorização do arquivo após cada operação assíncrona; regressão de revogação e retry"
+    },
+    {
+      "path": "tests/cut-evidence-archive-contract-v9646.cjs",
+      "sha": "628fb4a6ba2baf288b906a0a2867233ae4141de4",
+      "origin": 318,
+      "reason": "v96.63: revalidar autorização do arquivo após cada operação assíncrona; regressão de revogação e retry"
+    }
+  ],
+  "followupProduction": {
+    "version": "96.61",
+    "added": [
+      "hlgb-modules/producao/cut-dossier-export-v9661.js",
+      "hlgb-modules/producao/joint-cut-core-v9628.js",
+      "hlgb-modules/producao/joint-cut-discovery-v9629.js",
+      "hlgb-modules/producao/fabric-remnant-policy-v9630.js",
+      "hlgb-modules/producao/production-planning-v9661.js",
+      "hlgb-modules/producao/production-planning-view-v9661.js"
+    ],
+    "controllerChanged": "release-cut-organization.js"
+  },
+  "followupHardening": {
+    "version": "96.64",
+    "base": "186c99bdf7ede493c4380e4aa1768b11ab676d06",
+    "archiveFix": "c99a55bf63eda6af3d2c14900a458968335e2acc",
+    "changed": [
+      "hlgb-modules/producao/cut-evidence-archive-contract-v9646.cjs",
+      "tests/cut-evidence-archive-contract-v9646.cjs",
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js",
+      "hlgb-modules/financeiro/settlement-history-view-v9654.js",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-settlement-history-view-v9654.cjs"
+    ],
+    "mode": "isolated-no-production",
+    "tests": "34 archive + 22 finance + 13 settlement controlled assertions; browser/CI pending"
+  }
+}

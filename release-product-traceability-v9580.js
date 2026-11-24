@@ -253,10 +253,34 @@ function detail(d){
  if(d.after?.totalKg!=null)add('Peso medido',num(d.after.totalKg)+' kg');
  return lines.join(' · ');
 }
+
+/* v96.52 — independent read-only search of the loaded catalog and records. */
+function historySearchPermissions9652(){
+ const can=p=>{try{return auth()&&typeof canOpenPage==='function'&&canOpenPage(p)===true}catch(_){return false}};
+ const modules=[];if(can('pedidos'))modules.push('orders');if(can('corte'))modules.push('cuts');if(can('producao'))modules.push('production');if(can('faccoes'))modules.push('factions','materialChecklists');const financialAllowed=can('pagamentosFaccoes')&&can('financeiro');if(financialAllowed)modules.push('factionPayments');
+ return {allowed:can('produtos'),ordersAllowed:modules.includes('orders'),factionsAllowed:modules.includes('factions'),financialAllowed,modules};
+}
+function mountHistorySearch9652(host){
+ const api=window.HLGBProductHistory9652;if(!api)return;
+ const el=(tag,txt,parent)=>{const e=document.createElement(tag);e.textContent=txt;parent.appendChild(e);return e};
+ const box=el('section','',host);box.className='panel';el('h3','Pesquisa ampliada e histórico por origem',box);el('p','Consulta dos registros locais autorizados. Não prova cobertura integral da nuvem.',box);
+ const label=el('label','Pesquisar nome, SKU, código, pedido, cor ou tamanho',box);label.style.display='block';const input=el('input','',label);input.type='search';input.style.cssText='width:100%;min-width:0;box-sizing:border-box';
+ const choices=el('div','',box),results=el('div','',box);let offset=0,selected='',eventOffset=0;
+ function drawEvents(){results.replaceChildren();if(!selected)return;const p=historySearchPermissions9652(),x=api.timeline(database(),selected,{...p,offset:eventOffset,limit:30});el('h4','Eventos por origem · '+x.total,results);if(x.state!=='local-observation'){el('p','Consulta indisponível.',results);return}
+ for(const r of x.rows){const item=el('article','',results);item.className='panel';el('strong',r.source+' · '+r.sourceId,item);el('p',(r.date||'Data não registrada')+' · Pedido '+(r.orderId||'sem vínculo')+' · '+(r.quantity===null?'Quantidade não informada':r.quantity+' peças'),item);if(r.destination||r.actor||r.status)el('p',[r.destination,r.actor,r.status].filter(Boolean).join(' · '),item);if(r.grade.length)el('p',r.grade.map(g=>[g.color,g.size,g.qty===null?'?':g.qty].join(' ')).join(' · '),item);if(r.source==='factionPayments')el('p','Valor do lançamento: '+(r.estimatedAmount===null?'Não informado':money(r.estimatedAmount))+' · Pago registrado: '+(r.paidAmount===null?'Não informado':money(r.paidAmount))+(r.document?' · Comprovante registrado':''),item)}
+ if(x.issues.length)el('p','Lacunas para revisar: '+x.issues.join(' · '),results);if(eventOffset>0){const b=el('button','Eventos anteriores',results);b.type='button';b.onclick=()=>{eventOffset=Math.max(0,eventOffset-30);drawEvents()}}if(eventOffset+30<x.total){const b=el('button','Mais eventos',results);b.type='button';b.onclick=()=>{eventOffset+=30;drawEvents()}}}
+ function draw(){choices.replaceChildren();const p=historySearchPermissions9652(),x=api.search(database(),input.value,{...p,offset,limit:30});el('p',x.state==='local-observation'?x.total+' modelos encontrados nos dados locais.':'Consulta indisponível.',choices);for(const r of x.rows){const b=el('button',r.name+' · '+(r.code||r.id)+' · ID '+r.id+(r.active?'':' · Inativo'),choices);b.type='button';b.className='secondary';b.style.cssText='display:block;max-width:100%;white-space:normal;margin:4px 0';b.onclick=()=>{selected=r.id;eventOffset=0;drawEvents()}}if(offset>0){const b=el('button','Modelos anteriores',choices);b.type='button';b.onclick=()=>{offset=Math.max(0,offset-30);draw()}}if(offset+30<x.total){const b=el('button','Mais modelos',choices);b.type='button';b.onclick=()=>{offset+=30;draw()}}}
+ input.addEventListener('input',()=>{offset=0;selected='';results.replaceChildren();draw()});draw();
+}
+
 function renderHistory(){
  const host=document.getElementById(PAGES.history+'Host');if(!host)return false;
  if(!state.historyProduct)state.historyProduct=sid(arr('products').find(p=>p?.id!=null)?.id||'');
- const events=timeline(state.historyProduct);
+ const permission=historySearchPermissions9652();
+ if(!permission.allowed){host.textContent='Acesso ao histórico indisponível.';return false}
+ const scope=window.HLGBProductHistory9652?.scopeLegacy;
+ if(typeof scope!=='function'){host.textContent='Histórico em atualização. Reabra o programa para carregar a consulta segura.';return false}
+ const events=scope(timeline(state.historyProduct),permission);
  const name=one('products',state.historyProduct)?.name||'';
  host.innerHTML='<div class="panel"><h2 style="margin-top:0">📚 Histórico completo de produtos</h2>'+
  '<p class="sub">Eventos reunidos por ID de produto das etapas de pedido, corte, produção, facção, pagamentos e checklists. Valor previsto é separado de valor efetivamente pago.</p>'+
@@ -268,6 +292,7 @@ function renderHistory(){
  '<div class="empty">Não há eventos vinculados a este produto nos registros carregados.</div>')+
  '<p class="sub">Atenção: esta linha do tempo é reconstruída das informações operacionais atuais e dos novos eventos de checklist. Não substitui o histórico de revisões anteriores do banco.</p></div>';
  host.querySelector('#ptr80-product')?.addEventListener('change',e=>{state.historyProduct=e.target.value;renderHistory()});
+ mountHistorySearch9652(host);
  state.historyRenders++;return {count:events.length,productId:state.historyProduct,name};
 }
 function orderOptions(pid){
@@ -378,6 +403,8 @@ window.hlgbProductTraceability9580={version:V,STEPS,WORK_STAGES,timeline,roundSt
  remoteProduct,renderHistory,renderChecklist,install,status:()=>({...state})};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [500,1600,3300].forEach(ms=>setTimeout(install,ms));
-window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,500));
+function clearHistory9657(){const host=document.getElementById(PAGES.history+'Host');host?.replaceChildren();state.historyProduct=''}
+window.addEventListener?.('hlgb:logout',clearHistory9657);
+window.addEventListener?.('hlgb:authenticated',()=>{clearHistory9657();setTimeout(()=>{install();if(document.getElementById(PAGES.history)?.classList.contains('active'))renderHistory()},500)});
 console.info('[HLGB] v'+V+' timeline de produção e checklist universal com eventos imutáveis');
 })();

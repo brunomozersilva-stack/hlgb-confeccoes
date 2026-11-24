@@ -1,0 +1,3 @@
+# Fila de CI — v96.60
+
+Na consulta antes da etapa, 718 execuções aguardavam no repositório, 74 no head anterior #310. Conector não oferece cancelamento de runs. Não apagar testes, não cancelar outras PRs nem repetir runs indiscriminadamente. Grupos de concorrência adicionados a quatro workflows desenvolvidos nesta candidata, além do novo workflow de cadastro: novos commits da mesma PR substituem execução obsoleta do mesmo workflow. Dispatch e outras PRs separados. A alteração não elimina fila histórica de workflows sem esse grupo, nem prova redução de tempo. Testes antigos preservados. Próximo passo: depois de validar, revisar workflows legados por trigger e medir tempo de fila e execução; não retirar gates sem equivalência.

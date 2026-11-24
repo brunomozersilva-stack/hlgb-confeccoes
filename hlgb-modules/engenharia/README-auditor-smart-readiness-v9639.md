@@ -1,0 +1,3 @@
+# Auditor #287 — reprodução e correção candidata
+
+Log WebKit run 45282479588, job 138070241561: três pageerrors. Scripts originais reproduziram os três erros em ambiente controlado document.loading. Proposta: API e listeners imediatos, observadores e tarefa diária no DOMContentLoaded. 10 verificações passaram, wrappers preservados, sem storage writes. Teste Chromium/WebKit com atraso 0/150/600ms configurado. Não demonstra ainda a causa de toda falha no boot real; CI completa e homologação necessárias. Sem login, DB, WAL ou pagamentos.

@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium,webkit}=require('playwright');
+const raw=fs.readFileSync('app9240.html','utf8'),release=fs.readFileSync('release-mobile-friendly-v9512.js','utf8');
+const start=raw.indexOf('<div id="appShell"'),end=raw.indexOf('</main>',start);
+assert(start>=0&&end>start);
+const clean=raw.slice(start,end+7).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'');
+const head=raw.slice(0,raw.indexOf('</head>'));
+const styles=[...head.matchAll(/<style\b[^>]*>[\s\S]*?<\/style>/gi)].map(m=>m[0]).join('\n');
+const mobile=release.match(/const css=String\.raw`([\s\S]*?)`;/)?.[1];assert(mobile);
+const pages=[...clean.matchAll(/<section id="([^"]+)" class="page(?: active)?">/g)].map(m=>m[1]);assert(pages.length>=30);
+const critical=['pedidos','produtos','folhaPagamento','hubFinanceiro','corte','faccoes','cortadores'];
+(async()=>{const b=await(process.env.HLGB_BROWSER==='webkit'?webkit:chromium).launch();try{const evidence=[];for(const width of [320,360,375,390,430,700,768,1280]){const p=await b.newPage({viewport:{width,height:850}});await p.route('**/*',r=>r.abort());await p.setContent('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'none\'; form-action \'none\'">'+styles+'<style>'+mobile+'</style></head><body>'+clean+'</div></div></body></html>');await p.evaluate(()=>{document.getElementById('appShell').style.setProperty('display','block','important')});
+for(const id of pages){const result=await p.evaluate(id=>{for(const x of document.querySelectorAll('#appShell .page'))x.classList.toggle('active',x.id===id);const root=document.getElementById(id),pr=root.getBoundingClientRect();const issues=[];for(const e of root.querySelectorAll('.toolbar > .field,.product-filter-box > .field,.toolbar > button,.product-filter-box > button')){if(!e.getClientRects().length||getComputedStyle(e).visibility==='hidden')continue;const r=e.getBoundingClientRect();if(r.left<pr.left-2||r.right>pr.right+2)issues.push({id:e.id||e.querySelector('input,select')?.id||null,tag:e.tagName,width:Math.round(r.width),left:Math.round(r.left),right:Math.round(r.right)});}return {page:id,width:innerWidth,rootWidth:Math.round(pr.width),scrollWidth:document.documentElement.scrollWidth,issues,actions:root.querySelectorAll('button[onclick]').length}},id);evidence.push(result);
+if(width<=700&&critical.includes(id)){assert(result.rootWidth<=width+2,JSON.stringify(result));assert.equal(result.issues.length,0,JSON.stringify(result));}}
+if(width<=700){await p.evaluate(()=>{for(const el of document.querySelectorAll('.page'))el.classList.toggle('active',el.id==='folhaPagamento')});const field=await p.locator('#payrollMonthButtons').evaluate(el=>({min:getComputedStyle(el.parentElement).minWidth,w:el.parentElement.getBoundingClientRect().width}));assert.equal(field.min,'0px');assert(field.w<=width);await p.evaluate(()=>{for(const el of document.querySelectorAll('.page'))el.classList.toggle('active',el.id==='produtos')});assert.equal(await p.locator('#productSearchName').evaluate(el=>getComputedStyle(el).minWidth),'0px');}
+await p.close();}
+fs.mkdirSync('mobile-audit-artifact',{recursive:true});fs.writeFileSync('mobile-audit-artifact/layout-'+(process.env.HLGB_BROWSER||'chromium')+'.json',JSON.stringify({mode:'real-static-markup-no-runtime',pages:pages.length,evidence},null,2));console.log('PASS static commercial pages '+pages.length+' x 8 widths; 7 priority pages gated for mobile');
+}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});

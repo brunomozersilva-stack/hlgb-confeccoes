@@ -1,0 +1,61 @@
+{
+  "base-infraestrutura": [
+    "tests/audit-canonical-routing-v9316.cjs",
+    "tests/audit-app-stable3-restored-render-regression.cjs"
+  ],
+  "sincronizacao-wal": [
+    "tests/audit-wal-idb-only-regression.cjs",
+    "tests/audit-wal-equivalent-production-regression.cjs",
+    "tests/audit-record-integrity-regression.cjs"
+  ],
+  "pedidos-projecao": [
+    "tests/audit-projection-delivery-integrity-regression.cjs",
+    "tests/audit-projection-missing-behavior-regression.cjs"
+  ],
+  "corte-cortadores": [
+    "tests/audit-cutter-planner-regression.cjs",
+    "tests/audit-cut-material-usage-regression.cjs",
+    "tests/hlgb-live-cut-weight-core-v9623.cjs"
+  ],
+  "producao-separacao": [
+    "tests/audit-production-assignment-behavior-regression.cjs",
+    "tests/audit-production-reconcile-regression.cjs"
+  ],
+  "faccoes-acertos": [
+    "tests/audit-faction-manual-payment-regression.cjs",
+    "tests/audit-faction-master-integrity-regression.cjs"
+  ],
+  "financeiro-hub-notas": [
+    "tests/audit-hub-period-detail-regression.cjs",
+    "tests/audit-hub-integrity-regression.cjs",
+    "tests/audit-note-integrity-regression.cjs"
+  ],
+  "folha-pessoal": [
+    "tests/audit-payroll-integrity-regression.cjs",
+    "tests/hub-payroll-paid-date-v9515.cjs",
+    "tests/audit-payroll-provision-sort-total-regression.cjs"
+  ],
+  "compras-estoque": [
+    "tests/audit-material-tools-regression.cjs",
+    "tests/audit-purchase-checkers-regression.cjs"
+  ],
+  "utilidades-etiquetas": [
+    "tests/audit-canonical-routing-v9316.cjs",
+    "tests/audit-ui-stability-regression.cjs"
+  ],
+  "auditor-monitor": [
+    "tests/audit-internal-auditor-regression.cjs",
+    "tests/auditor-rapid-learning-v9437-webkit.js"
+  ],
+  "assistente-ia": [
+    "tests/audit-assistant-query-regression.cjs",
+    "tests/audit-assistant-system-wide-regression.cjs"
+  ],
+  "impressora-3d": [
+    "tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs"
+  ],
+  "interface-mobile": [
+    "tests/audit-ui-stability-regression.cjs",
+    "tests/mobile-friendly-v9512-browser.js"
+  ]
+}

@@ -15,6 +15,30 @@ const css=String.raw`
   #appShell .page h1{font-size:clamp(20px,6vw,28px)!important;line-height:1.2}
   #appShell .page :is(.panel,.card,.toolbar,.field){min-width:0;max-width:100%;box-sizing:border-box}
   #appShell .page :is(.toolbar,.actions){display:flex;flex-wrap:wrap;gap:8px}
+  /* v96.40: keep original actions and wide-table scroll, override legacy inline minimums on fields. */
+  #appShell .page :is(.toolbar,.actions,.product-filter-box){min-width:0!important;max-width:100%!important;box-sizing:border-box}
+  #appShell .page :is(.toolbar,.actions,.product-filter-box) > :not(table){min-width:0!important;max-width:100%!important;box-sizing:border-box}
+  #appShell .page :is(.field,.search){min-width:0!important;max-width:100%!important;box-sizing:border-box}
+  #appShell .page .toolbar > .field,#appShell .page .product-filter-box > .field{flex:1 1 min(100%,180px)}
+  #appShell .page .field :is(input,select,textarea){width:100%;min-width:0!important}
+  #appShell .page .toolbar > button,#appShell .page .actions > button,#appShell .page .product-filter-box > button{min-width:0!important;max-width:100%!important;overflow-wrap:anywhere;flex-shrink:1;box-sizing:border-box}
+  #appShell .page .cards{grid-template-columns:repeat(2,minmax(0,1fr));min-width:0}
+  #appShell .page .cards > *{min-width:0;overflow-wrap:anywhere}
+  #appShell .page #payrollMonthButtons{min-width:0!important;max-width:100%;flex-wrap:wrap!important}
+  #appShell .page #payrollMonthButtons > button{min-width:0!important;max-width:100%;flex:1 1 68px}
+  #appShell .page :is(.order-matrix-wrap,.hlgb9189-table-wrap,.hlgb9228-grade-wrap,.hlgb9228-grade-editor){min-width:0;max-width:100%;overflow-x:auto}
+  #modal.modal{box-sizing:border-box;padding:8px;align-items:center}
+  #modal .modalbox{box-sizing:border-box;min-width:0;max-width:100%;max-height:calc(100dvh - 16px);padding:12px;overflow:auto}
+  #modal .modalbox :is(.field,.grid,.toolbar,.actions){min-width:0!important;max-width:100%;box-sizing:border-box}
+  #modal .modalbox :is(.grid,.form-grid){grid-template-columns:minmax(0,1fr)!important}
+  #modal .modalbox :is(input,select,textarea,button){min-width:0!important;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+  #modal .modalbox :is(input,select,textarea){font-size:16px!important}
+  #modal .modalbox button{white-space:normal;min-height:42px}
+  #modal .modalbox table{display:block;max-width:100%;overflow-x:auto}
+  /* Account for both nav and assistant; don't hide controls or change their handlers. */
+  #appShell main{padding-bottom:calc(164px + env(safe-area-inset-bottom))!important}
+  #hlgbAssistantMobileFab9250{box-sizing:border-box;max-width:calc(100vw - 24px);min-width:0!important}
+
   #appShell .page :is(.grid,.form-grid){grid-template-columns:minmax(0,1fr)!important}
   #appShell .page :is(input,select,textarea){font-size:16px!important;max-width:100%!important;box-sizing:border-box}
   #appShell .page button{min-height:42px;max-width:100%;touch-action:manipulation;white-space:normal}

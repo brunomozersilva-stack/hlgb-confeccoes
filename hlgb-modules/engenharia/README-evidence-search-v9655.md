@@ -1,0 +1,3 @@
+# Assistente e pesquisas — #313 #301
+
+15 verificações controladas. Nova ação de consulta com evidências no Assistente existente, separada do roteador legado. Pedidos e modelos por referência, fontes e IDs explícitos, reavalia permissões antes de ler, sem valores financeiros, sem gravação, sem IA externa. Não resolve todos os comandos existentes nem prova sincronização. Inventário inicial de 37 campos em 15 páginas do HTML original, não inclui campos montados dinamicamente, todos marcados como inventariados/não testados. Teste de paridade com HTML e CI acrescentados. Próximo: teste de UI real com login simulado, cobertura das buscas dinâmicas e autorização no servidor; preservar voz/importação/edição originais.

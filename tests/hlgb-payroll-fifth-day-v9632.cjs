@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict');const api=require('../hlgb-modules/financeiro/payroll-fifth-day-v9632.cjs');(function tests(api,ok){
+ const base={competence:'2026-10',asOf:'2026-11-07',holidays:['2026-11-02'],bankClosed:[],holidayCoverageVerified:true,agreementVerified:true,bankCoverageVerified:true};
+ const d=api.due(base);
+ ok(d.fifthDay==='2026-11-07'&&d.legalLimit==='2026-11-07','Saturday included and holiday excluded');
+ ok(d.operationalDate==='2026-11-06'&&d.bankAdvanceRequired===true,'advance bank');
+ ok(d.fifthDaySignal==='today'&&d.paymentStatus==='not-determined','today not paid');
+ ok(api.due({...base,asOf:'2026-11-06'}).deadlineSignal==='upcoming','before');
+ ok(api.due({...base,asOf:'2026-11-08'}).deadlineSignal==='passed','after');
+ ok(api.due({...base,holidayCoverageVerified:false}).legalLimit===null,'unverified holiday');
+ ok(api.due({...base,agreementVerified:false}).fifthDaySignal==='unverified-calendar','agreement');
+ ok(api.due({...base,bankCoverageVerified:false}).operationalDate===null,'bank unknown');
+ ok(api.due({...base,agreementEarlierDate:'2026-11-05'}).legalLimit==='2026-11-05','earlier agreement');
+ ok(api.due({...base,bankClosed:['2026-11-06']}).operationalDate==='2026-11-05','bank holiday');
+ ok(api.due({...base,competence:'2026-12',asOf:'2027-01-01',holidays:['2027-01-01']}).fifthDay==='2027-01-07','year rollover');
+ const e={employeeId:'1',competence:'2026-10',verified:true,status:'open',netCents:200000},x={...base,employees:[e,{...e,employeeId:'2',status:'paid'}],employeeCoverageVerified:true,sourceVerified:true},before=JSON.stringify(x),p=api.preview(x);
+ ok(p.netPayrollCents===400000&&p.remainingPayrollCents===200000,'paid not repeated');
+ ok(p.forecastKey==='payroll-preview:2026-10'&&!p.canPublish,'stable key and no publish');
+ ok(api.preview({...x,employees:[e,e]}).remainingPayrollCents===null,'duplicate');
+ ok(api.preview({...x,sourceVerified:false}).netPayrollCents===null,'source unverified');
+ ok(api.preview({...x,employees:[{...e,competence:'2026-09'}]}).amountQuality==='incomplete','wrong competence');
+ ok(JSON.stringify(x)===before,'immutable');
+})(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});

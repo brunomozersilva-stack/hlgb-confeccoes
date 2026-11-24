@@ -1,0 +1,24 @@
+name: HLGB Comercial - Ponto e passagem v96.58
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/attendance-transport-preview-v9658.js'
+      - 'hlgb-modules/financeiro/attendance-transport-view-v9658.js'
+      - 'tests/hlgb-attendance-transport-v9658.cjs'
+      - 'app-stable3.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check hlgb-modules/financeiro/attendance-transport-view-v9658.js
+      - run: node tests/hlgb-attendance-transport-v9658.cjs
+      - run: node tests/hlgb-integration-v9651.cjs

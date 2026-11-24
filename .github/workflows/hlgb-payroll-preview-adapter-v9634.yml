@@ -1,0 +1,19 @@
+name: HLGB Comercial - Adaptador Previa Folha v96.34
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/payroll-*'
+      - 'tests/hlgb-payroll-*-v9634.cjs'
+      - '.github/workflows/hlgb-payroll-preview-adapter-v9634.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/hlgb-payroll-fifth-day-v9632.cjs && node tests/hlgb-payroll-preview-adapter-v9634.cjs
+      - run: node tests/hub-payroll-paid-date-v9515.cjs

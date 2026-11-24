@@ -1,0 +1,26 @@
+name: HLGB Comercial - Assistente e inventario de pesquisas v96.55
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/assistente/evidence-query-v9655.js'
+      - 'hlgb-modules/engenharia/search-inventory-v9655.json'
+      - 'tests/hlgb-assistant-evidence-v9655.cjs'
+      - 'tests/hlgb-search-inventory-v9655.cjs'
+      - 'app-stable3.html'
+      - 'app9240.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/hlgb-assistant-evidence-v9655.cjs
+      - run: node tests/hlgb-search-inventory-v9655.cjs
+      - run: node tests/hlgb-integration-v9651.cjs

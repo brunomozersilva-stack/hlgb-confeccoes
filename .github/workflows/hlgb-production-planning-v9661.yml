@@ -1,0 +1,40 @@
+name: HLGB Comercial - Planejamento e dossie de Corte v96.61
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/*v9661.js'
+      - 'release-cut-organization.js'
+      - 'tests/hlgb-production-planning-v9661*'
+      - 'app-stable3.html'
+      - '.github/workflows/hlgb-production-planning-v9661.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check hlgb-modules/producao/production-planning-view-v9661.js
+      - run: node --check release-cut-organization.js
+      - run: node tests/hlgb-production-planning-v9661.cjs
+      - run: node tests/hlgb-integration-v9651.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/hlgb-production-planning-v9661-browser.cjs

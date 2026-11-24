@@ -1,0 +1,7 @@
+# Corte Conjunto — núcleo isolado #277 #280
+
+Fontes reais examinadas: release-cutter-planner.js (orders.grade productId/color/size/qty; cuts por pedido e modelo ou agregado); release-material-tools.js (products.materials, materialId, qty, calcMode, loss, unit); release-weekly-material-planner-v9583.js (material/unidade/cor; não prova lote/largura); release-production-writeoff-integrity-v9391.js (baixa por par ou wildcard). Nenhuma alteração dessas fontes.
+
+Discovery cruza ID de material de corte cadastrado; quantidades PEDIDAS, não disponíveis, podem aparecer em vários materiais. Suggestion exige prova externa de saldo, snapshot, baixa, material único, cor física, lote, largura, composição, elasticidade, fio, restrição e unidade. Saldo = pedido - cortado - reservado. Agregados sem modelo bloqueados; atividades existentes requerem conciliação. Não inventa consumo quando ficha incompleta, nem economia geométrica. IDs normalizados como texto. Nenhum dado real usado.
+
+Contrato evidence ainda sem adaptador: flags de prova não podem ser presumidas. Exige verificação de WAL, permissões, cobertura, status, saldo por linha, baixa e atributos do lote. Não comprova estoque físico, capacidade da mesa ou encaixe. Nenhuma reserva, confirmação, interface, carregador, Supabase ou publicação. Próximo: adaptador read-only, tela mobile de descoberta e revisão, testes reais controlados. Sobras/Audaces separados.
