@@ -265,6 +265,11 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 165,
-  "mode": "candidate-not-production"
+  "integratedScripts": 166,
+  "mode": "candidate-not-production",
+  "followup": {
+    "version": "96.52",
+    "addedCore": "hlgb-modules/producao/product-history-search-v9652.js",
+    "changedController": "release-product-traceability-v9580.js"
+  }
 }

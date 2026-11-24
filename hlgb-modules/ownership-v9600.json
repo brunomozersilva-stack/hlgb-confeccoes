@@ -84,6 +84,7 @@
     "release-cutter-history-v9250.js",
     "release-whatsapp-pilot-v9250.js",
     "release-business-expansion-v9400.js",
+    "hlgb-modules/producao/product-history-search-v9652.js",
     "release-product-traceability-v9580.js",
     "release-printer3d-nav-guard-v9516.js",
     "release-product-catalog-v9419.js",
@@ -204,6 +205,7 @@
       "release-projection-team-view.js",
       "release-assistant-orders.js",
       "release-assistant-order-import.js",
+      "hlgb-modules/producao/product-history-search-v9652.js",
       "release-product-traceability-v9580.js",
       "release-product-catalog-v9419.js",
       "release-catalog-recovery-v9254.js",
@@ -365,7 +367,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "HLGB Comercial: candidata integrada, 165 scripts = 158 baseline + 7 cores aprovados; ordem prévia preservada. Sem grupos paralelos.",
+  "notes": "HLGB Comercial: candidata integrada 166 scripts, 158 baseline + 8 cores; ordem preservada.",
   "criticalFileBlobs": {
     "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -547,7 +549,8 @@
     "hlgb-modules/producao/corte-pesagem-core-v9623.js",
     "hlgb-modules/producao/corte-consumo-core-v9624.js",
     "hlgb-modules/producao/cut-separation-core-v9647.js",
-    "hlgb-modules/financeiro/payroll-provision-core-v9649.js"
+    "hlgb-modules/financeiro/payroll-provision-core-v9649.js",
+    "hlgb-modules/producao/product-history-search-v9652.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {

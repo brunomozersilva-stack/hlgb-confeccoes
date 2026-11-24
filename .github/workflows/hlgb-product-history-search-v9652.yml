@@ -1,0 +1,21 @@
+name: HLGB Comercial - Historico e pesquisa v96.52
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/product-history-search-v9652.js'
+      - 'release-product-traceability-v9580.js'
+      - 'tests/hlgb-product-history-search-v9652.cjs'
+      - 'app-stable3.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-product-traceability-v9580.js
+      - run: node tests/hlgb-product-history-search-v9652.cjs
+      - run: node tests/hlgb-integration-v9651.cjs
