@@ -486,7 +486,12 @@
       "before": 45359414185,
       "candidate": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
       "isolatedChromium": "old selector count 0; explicit aria-label count 1; select yes passed",
-      "nativeWorkflow": "pending"
+      "nativeWorkflow": "success",
+      "confirmedRun": 45361271637,
+      "confirmedJobs": [
+        138331647801,
+        138331647911
+      ]
     },
     "matrix": {
       "areas": 14,
@@ -498,5 +503,16 @@
     "automaticRepair": false,
     "fullSuiteRequired": true,
     "canPublish": false
+  },
+  "followupFinalValidation": {
+    "candidate": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
+    "observedWorkflows": 77,
+    "success": 77,
+    "pending": 0,
+    "failure": 0,
+    "mode": "CI confirmed for stabilization SHA only; functional branch not validated",
+    "workerViewChanges": "explicit labels on RH, attendance, settlement; worker session and pending reopen guard; added browser retry/session cases",
+    "ciEvidenceAssertions": 20,
+    "productionWrite": false
   }
 }
