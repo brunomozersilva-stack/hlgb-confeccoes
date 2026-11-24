@@ -120,18 +120,8 @@
       "origin": 315
     },
     {
-      "path": ".github/workflows/auditor-smart-ready-v9639.yml",
-      "sha": "75aed3ec2afaa2696082484a0cf7bd933b1d8316",
-      "origin": 316
-    },
-    {
       "path": "hlgb-modules/engenharia/README-auditor-smart-readiness-v9639.md",
       "sha": "227dbec3b071eac1eea1cdb3296aae86a0615492",
-      "origin": 316
-    },
-    {
-      "path": "release-auditor-smart-v9360.js",
-      "sha": "9b72a87e43eb4271a28604f918554f40948696a1",
       "origin": 316
     },
     {
@@ -140,28 +130,13 @@
       "origin": 316
     },
     {
-      "path": "tests/auditor-smart-ready-v9639.cjs",
-      "sha": "7bb92fc2be8fd971742430549f6fbf2a9ed0d8b8",
-      "origin": 316
-    },
-    {
       "path": "tests/auditor-smart-ready-v9639.html",
       "sha": "0264dbbefbbce3a61539d4cf77a51017e3a49dfd",
       "origin": 316
     },
     {
-      "path": ".github/workflows/mobile-real-pages-v9640.yml",
-      "sha": "0428e96d6f5d7f290dd4f36dd51edac4d6cfe542",
-      "origin": 317
-    },
-    {
       "path": "hlgb-modules/engenharia/README-mobile-real-pages-v9640.md",
       "sha": "4d7309fc67136006ed3a47409d531ebd2a3ae40c",
-      "origin": 317
-    },
-    {
-      "path": "release-mobile-friendly-v9512.js",
-      "sha": "25232d716614bd0f052a07c32d172cac9705a1de",
       "origin": 317
     },
     {
@@ -322,6 +297,36 @@
       "sha": "628fb4a6ba2baf288b906a0a2867233ae4141de4",
       "origin": 318,
       "reason": "v96.63: revalidar autorização do arquivo após cada operação assíncrona; regressão de revogação e retry"
+    },
+    {
+      "path": "release-auditor-smart-v9360.js",
+      "sha": "9b72a87e43eb4271a28604f918554f40948696a1",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "tests/auditor-smart-ready-v9639.cjs",
+      "sha": "7bb92fc2be8fd971742430549f6fbf2a9ed0d8b8",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "release-mobile-friendly-v9512.js",
+      "sha": "25232d716614bd0f052a07c32d172cac9705a1de",
+      "origin": 317,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": ".github/workflows/mobile-real-pages-v9640.yml",
+      "sha": "0428e96d6f5d7f290dd4f36dd51edac4d6cfe542",
+      "origin": 317,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": ".github/workflows/auditor-smart-ready-v9639.yml",
+      "sha": "75aed3ec2afaa2696082484a0cf7bd933b1d8316",
+      "origin": 316,
+      "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
     }
   ],
   "followupProduction": {
@@ -434,5 +439,26 @@
     },
     "nativeBrowser": false,
     "remotePersistence": false
+  },
+  "followupIntelligence": {
+    "version": "96.70",
+    "codeHead": "824a0a1ccd0457688f9026bfb4d6520cc803d77c",
+    "assistant": "consultas determinísticas de pedidos, materiais, acertos por pessoa e Hub semanal, autorização e sessão, sem modelo externo",
+    "auditor": "triagem somente leitura, WAL e ACK antes de qualquer repetição, versões e cobertura",
+    "bot": "status distinto por execução, tentativas deduplicadas, cobertura parcial e consulta desatualizada",
+    "mobile": "busca sem acentos, autorização de origem revalidada, foco, logout, formulários",
+    "ciCorrection": {
+      "before": "4fdc40ffb07678a2f12bbddec7590b1f3bbaaf7f",
+      "afterCandidate": "664a15e1090b8a79d0f782a921639525bd6c0c33",
+      "beforeRun": 45304497656,
+      "afterRun": 45359414421,
+      "status": "pending-native",
+      "test": "tests/hlgb-production-planning-v9661-browser.cjs",
+      "cause": "ambiguous accessible label in fixture, exact:true",
+      "learned": false
+    },
+    "controlledAssertions": 72,
+    "tests": "30 assistant + 22 auditor + 15 monitor + 5 mobile search; native browser not run",
+    "canPublish": false
   }
 }
