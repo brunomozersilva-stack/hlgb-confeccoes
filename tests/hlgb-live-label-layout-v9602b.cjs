@@ -49,7 +49,20 @@ test('carregador preserva os scripts originais e os núcleos opcionais por manif
  const weightAddon='hlgb-modules/producao/corte-pesagem-core-v9623.js';
  assert.equal(files.length,manifest.releaseScripts.length);assert.equal(new Set(files).size,files.length);
  assert.deepEqual(files,manifest.releaseScripts);
- assert.deepEqual(files.filter(f=>f!==addon&&f!==authAddon&&f!==separationAddon&&f!==cutAddon&&f!==plannerAddon&&f!==weightAddon&&f!==materialAddon),original);
+ // The original independent 156-entry baseline remains immutable. Future modules must
+ // be individually listed in the manifest, never silently ignored by path/prefix.
+ const approved=manifest.approvedNewScripts;
+ assert.ok(Array.isArray(approved));
+ assert.equal(new Set(approved).size,approved.length);
+ assert.ok(approved.every(f=>typeof f==='string'&&f.startsWith('hlgb-modules/')&&f.endsWith('.js')&&!original.includes(f)&&f!==addon&&f!==authAddon));
+ for(const f of [separationAddon,cutAddon,plannerAddon,weightAddon,materialAddon])assert.ok(approved.includes(f),'núcleo anteriormente aprovado desapareceu: '+f);
+ assert.deepEqual(manifest.preExtractionScripts.filter(f=>f!==addon&&f!==authAddon),original,'baseline original independente');
+ assert.deepEqual(files.filter(f=>!approved.includes(f)),manifest.preExtractionScripts,'ordem dos 158 scripts anteriores');
+ assert.deepEqual(files.filter(f=>f!==addon&&f!==authAddon&&!approved.includes(f)),original,'ordem original das 156 rotinas');
+ assert.equal(files.length,original.length+2+approved.length);
+ for(const f of approved)assert.ok(fs.existsSync(path.join(root,f)),'arquivo aprovado não existe: '+f);
+ assert.ok(approved.includes('hlgb-modules/producao/cut-separation-core-v9647.js'),'novo núcleo aprovado ausente');
+ assert.equal(files.indexOf('hlgb-modules/producao/cut-separation-core-v9647.js')+1,files.indexOf('release-cut-organization.js'),'núcleo deve carregar antes do controlador legado');
  assert.equal(files[files.length-1],authAddon,'Auth opcional continua por último');
  assert.equal(files.indexOf(separationAddon)+1,files.indexOf('release-separation-commit-v9319.js'),'Cálculo novo deve carregar antes do controlador legado');
  assert.equal(files.indexOf(cutAddon)+1,files.indexOf('release-separation-cut-target-v9335.js'),'Corte alvo deve carregar antes do controlador legado');

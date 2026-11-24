@@ -1,0 +1,46 @@
+name: HLGB Comercial - Corte e Separacao v96.43
+on:
+  pull_request:
+    paths:
+      - 'release-cut-organization.js'
+      - 'hlgb-modules/producao/cut-separation-core-v9647.js'
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
+      - 'tests/cut-separation-workspace-v9643*'
+      - 'tests/cut-separation-checklist-v9644.cjs'
+      - 'tests/cut-evidence-archive-contract-v9646.cjs'
+      - 'hlgb-modules/producao/cut-evidence-archive-contract-v9646.cjs'
+      - '.github/workflows/cut-separation-workspace-v9643.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --check release-cut-organization.js
+      - run: node --check hlgb-modules/producao/cut-separation-core-v9647.js
+      - run: node --test tests/hlgb-live-monolith-inventory-v9601b.cjs
+      - run: node tests/cut-separation-workspace-v9643.cjs
+      - run: node tests/cut-separation-checklist-v9644.cjs
+      - run: node tests/cut-evidence-archive-contract-v9646.cjs
+      - run: node tests/audit-cut-organization-regression.cjs
+      - run: node tests/audit-separation-commit-v9319.cjs
+      - run: node tests/cutter-sheet-print-route-v9620.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/cut-separation-workspace-v9643-browser.cjs
