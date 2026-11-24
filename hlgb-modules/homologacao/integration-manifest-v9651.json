@@ -265,7 +265,7 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 177,
+  "integratedScripts": 179,
   "mode": "candidate-not-production",
   "followup": {
     "version": "96.52",
@@ -303,5 +303,12 @@
       "hlgb-modules/producao/product-history-search-v9652.js"
     ],
     "test": "tests/hlgb-live-finance-integrated-v9657.cjs"
+  },
+  "followupAttendance": {
+    "version": "96.58",
+    "added": [
+      "hlgb-modules/financeiro/attendance-transport-preview-v9658.js",
+      "hlgb-modules/financeiro/attendance-transport-view-v9658.js"
+    ]
   }
 }
