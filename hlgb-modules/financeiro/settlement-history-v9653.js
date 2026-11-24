@@ -60,7 +60,8 @@
   const aggregate=map=>[...map.values()].map(({list,...x})=>({...x,...sum(list)}));
   const totals=sum(filtered),ownerRows=aggregate(personGroups);
   const limit=Number.isSafeInteger(filter.limit)?Math.min(200,Math.max(1,filter.limit)):50,offset=Number.isSafeInteger(filter.offset)?Math.max(0,filter.offset):0;
-  return {state:'local-observation',rows:filtered.slice(offset,offset+limit),total:filtered.length,groups:aggregate(groups).slice(offset,offset+limit),groupTotal:groups.size,ownerGroups:ownerRows.slice(offset,offset+limit),ownerTotal:ownerRows.length,owners:[...owners.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.ownerId.localeCompare(b.ownerId)),totals,issues:[...new Set(issues)],officialTotals:false,canWrite:false};
+  if(filter.export===true&&filtered.length>5000)return {state:'export-limit',rows:[],groups:[],issues:[],total:filtered.length};
+  return {state:'local-observation',rows:filter.export===true?filtered:filtered.slice(offset,offset+limit),total:filtered.length,groups:aggregate(groups).slice(offset,offset+limit),groupTotal:groups.size,ownerGroups:ownerRows.slice(offset,offset+limit),ownerTotal:ownerRows.length,owners:[...owners.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.ownerId.localeCompare(b.ownerId)),totals,issues:[...new Set(issues)],officialTotals:false,canWrite:false};
  }
  return {inspect};
 })());
