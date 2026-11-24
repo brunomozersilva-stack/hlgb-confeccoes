@@ -21,4 +21,20 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  ok(f({payroll:[{...payroll,_deleted:true}]}).total===2,'deleted payroll excluded');
  ok(f({payroll:[{...payroll,paidValue:2000.001}]}).total===2,'fractional cents excluded');
  ok(f({}, {limit:1,export:true}).rows.length===3,'export includes all filtered rows');ok(f({}, {kind:'cliente',export:true}).rows.length===1,'export preserves scope');
+
+ const note={...n,paid:5000,credit:1000,balance:4000,number:'NF 100'},record={id:'1',paymentHistory:[{id:'a',date:'2026-11-21',value:30,method:'PIX'},{id:'b',date:'2026-11-22',value:20,method:'Abatimento matéria-prima',tradeSettlementId:'trade-1'}],acertoReturnsV9565:[{id:'r1',date:'2026-11-23',value:10,reason:'Devolução'},{id:'r2',date:'2026-11-22',value:5,reversedAt:'2026-11-23T12:00:00Z'}]},ctx={authenticated:true,clientsAllowed:true,notes:[note],noteSources:[{key:note.key,record}]},eventBefore=JSON.stringify(ctx);
+ const events=api.noteEvents(ctx);ok(events.eventTotal===4&&events.totals.paymentRecordedCents===3000&&events.totals.materialOffsetCents===2000,'receipt and trade separate');
+ ok(events.totals.activeReturnCents===1000&&events.totals.reversedReturnReferenceCents===500,'reversed return separate not credit');
+ ok(api.noteEvents(ctx,{from:'2026-11-22',to:'2026-11-22'}).eventTotal===2,'actual event date not invoice date');
+ ok(api.noteEvents(ctx,{eventType:'payment-recorded'}).eventTotal===1,'event type filter');
+ ok(api.noteEvents(ctx,{query:'nf 100',ownerId:'C1',limit:1}).eventTotal===4,'filter note and owner, totals before page');
+ ok(api.noteEvents(ctx,{export:true,limit:1}).events.length===4,'complete export');
+ ok(api.noteEvents({...ctx,clientsAllowed:false}).state==='forbidden','event permission');
+ ok(api.noteEvents({...ctx,noteSources:[]}).eventTotal===0,'missing original note');
+ ok(api.noteEvents({...ctx,noteSources:[...ctx.noteSources,...ctx.noteSources]}).eventTotal===0,'ambiguous source');
+ ok(api.noteEvents({...ctx,noteSources:[{key:note.key,record:{...record,paymentHistory:[]}}]}).eventTotal===0,'scalar balance not dated history');
+ ok(api.noteEvents({...ctx,noteSources:[{key:note.key,record:{...record,paymentHistory:[...record.paymentHistory,record.paymentHistory[0]]}}]}).eventTotal===0,'duplicate payment event');
+ ok(api.noteEvents({...ctx,noteSources:[{key:note.key,record:{...record,acertoReturnsV9565:[{...record.acertoReturnsV9565[0],reversedAt:'2026-11-01'}]}}]}).eventTotal===0,'invalid return reversal');
+ ok(api.noteEvents(ctx,{from:'2026-11-30'}).totals.paymentRecordedCents===null,'no event not zero');
+ ok(JSON.stringify(ctx)===eventBefore,'events immutable');
 })(api,(v,m)=>assert.ok(v,m));console.log('PASS settlement history');
