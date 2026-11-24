@@ -22,12 +22,13 @@
   for(const m of models)for(const g of m.grade){const k=JSON.stringify([g.color,g.size]),v=grades.get(k)||{color:g.color,size:g.size,qty:0};v.qty+=g.qty;grades.set(k,v)}
   return {materialId:group.materialId,models,orderedPieces:models.reduce((n,m)=>n+m.pieces,0),combinedGrade:[...grades.values()].sort((a,b)=>a.color.localeCompare(b.color)||a.size.localeCompare(b.size)),isCombined:models.length>=2,verifiedAvailable:null,optimizedNeed:null,savings:null,canWrite:false};
  }
- function candidates(products,sourceId,query='',offset=0){
+ function fabrics(materials){const map=new Map();for(const m of (Array.isArray(materials)?materials:[]).filter(live)){const k=id(m.id);if(k)map.set(k,map.has(k)?null:m)}return new Set([...map].filter(([k,m])=>m&&['tecido','malha','renda','tule'].includes(norm(m.cat))).map(([k])=>k))}
+ function candidates(products,sourceId,query='',offset=0,catalog){
   if(!Array.isArray(products)||!Number.isSafeInteger(offset)||offset<0)return {state:'unavailable',rows:[],total:0};
   const map=new Map();for(const p of products.filter(live)){const k=id(p.id);if(k)map.set(k,map.has(k)?null:p)}
   const s=map.get(id(sourceId));if(!s)return {state:'source-review',rows:[],total:0};
   const count=(p,m)=>(Array.isArray(p.materials)?p.materials:[]).filter(b=>id(b.materialId)===m).length;
-  const materials=[...new Set((Array.isArray(s.materials)?s.materials:[]).map(x=>id(x.materialId)).filter(Boolean))].filter(m=>count(s,m)===1);
+  const materials=[...new Set((Array.isArray(s.materials)?s.materials:[]).map(x=>id(x.materialId)).filter(Boolean))].filter(m=>count(s,m)===1&&fabrics(catalog).has(m));
   const rows=[];for(const [k,p] of map){if(!p||k===id(sourceId)||p.active===false||!norm([id(p.name),id(p.code),id(p.sku),k].join(' ')).includes(norm(query)))continue;for(const m of materials.filter(m=>count(p,m)===1))rows.push({productId:k,productName:id(p.name),materialId:m,materialName:id(s.materials.find(x=>id(x.materialId)===m)?.name)||m})}
   rows.sort((a,b)=>a.productName.localeCompare(b.productName)||a.productId.localeCompare(b.productId)||a.materialId.localeCompare(b.materialId));
   return {state:'local-observation',rows:rows.slice(offset,offset+30),total:rows.length,policyState:remnant.state(s),canWrite:false};
@@ -37,5 +38,5 @@
   const rows=cuts.filter(x=>live(x)&&id(x.productId)===id(productId)&&!x.hiddenByModelSplitV1&&x.cutWeightV9579),counts=new Map();for(const x of rows)counts.set(id(x.id),(counts.get(id(x.id))||0)+1);
   return rows.filter(x=>id(x.id)&&counts.get(id(x.id))===1).map(x=>({cutId:id(x.id),orderId:id(x.orderId),...remnant.inspectWeight(x.cutWeightV9579)}));
  }
- return {discover,combine,candidates,weights,preview:(...a)=>remnant.preview(...a)};
+ return {discover,combine,candidates,weights,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });

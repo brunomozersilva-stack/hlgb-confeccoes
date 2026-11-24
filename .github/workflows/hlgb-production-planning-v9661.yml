@@ -24,3 +24,17 @@ jobs:
       - run: node --check release-cut-organization.js
       - run: node tests/hlgb-production-planning-v9661.cjs
       - run: node tests/hlgb-integration-v9651.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/hlgb-production-planning-v9661-browser.cjs
