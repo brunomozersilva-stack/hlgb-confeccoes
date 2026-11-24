@@ -162,6 +162,24 @@
   return {...empty('local-estimate'),rows,coveredPieces,uncoveredPieces,estimatedKg};
  }
 
+ // Current local catalogue reference price, not paid cost or purchasing requirement.
+ function materialCostEstimate(group,estimate,materials,allowed){
+  const empty=(state,reason)=>({state,reason,rows:[],referencePricePerKg:null,estimatedCents:null,coveredPieces:0,uncoveredPieces:null,canWrite:false,savings:null});
+  if(allowed!==true)return empty('forbidden','permission');
+  if(estimate?.state!=='local-estimate'||!Array.isArray(estimate.rows)||!Array.isArray(materials)||!group||!id(group.materialId))return empty('unavailable','input');
+  const mid=id(group.materialId),matches=materials.filter(m=>live(m)&&id(m.id)===mid);
+  if(matches.length!==1||!fabrics(materials).has(mid))return empty('unavailable','material');
+  const m=matches[0],unit=norm(m.unit),price=typeof m.price==='number'?m.price:typeof m.price==='string'&&/^\d+(?:\.\d+)?$/.test(m.price)?Number(m.price):NaN;
+  if(!Number.isFinite(price)||price<=0||!['kg','g','grama','gramas'].includes(unit))return empty('unavailable','price-or-unit');
+  const referencePricePerKg=unit==='kg'?price:price*1000;
+  if(!Number.isFinite(referencePricePerKg))return empty('unavailable','price');
+  const rows=estimate.rows.map(r=>({...r,estimatedCents:r.estimatedKg===null?null:Math.round(r.estimatedKg*referencePricePerKg*100)}));
+  if(rows.some(r=>r.estimatedCents!==null&&(!Number.isSafeInteger(r.estimatedCents)||r.estimatedCents<0)))return empty('unavailable','amount');
+  const coveredPieces=rows.reduce((n,r)=>n+(r.estimatedCents===null?0:r.pieces),0),uncoveredPieces=rows.reduce((n,r)=>n+(r.estimatedCents===null?r.pieces:0),0),estimatedCents=coveredPieces?rows.reduce((n,r)=>n+(r.estimatedCents??0),0):null;
+  if(!Number.isSafeInteger(coveredPieces)||!Number.isSafeInteger(uncoveredPieces)||estimatedCents!==null&&!Number.isSafeInteger(estimatedCents))return empty('unavailable','amount');
+  return {...empty('local-estimate',null),rows,referencePricePerKg,estimatedCents,coveredPieces,uncoveredPieces};
+ }
+
  // Read-only preparation for eventual official product editor integration.
  // Exact snapshot match is intentionally conservative; no retry, mutation or RPC here.
  function prepareRemnantChange({productId,input,products,materials,remote,snapshot,pending,allowed}={}){
@@ -234,5 +252,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
