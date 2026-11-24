@@ -63,5 +63,42 @@
   if(filter.export===true&&filtered.length>5000)return {state:'export-limit',rows:[],groups:[],issues:[],total:filtered.length};
   return {state:'local-observation',rows:filter.export===true?filtered:filtered.slice(offset,offset+limit),total:filtered.length,groups:aggregate(groups).slice(offset,offset+limit),groupTotal:groups.size,ownerGroups:ownerRows.slice(offset,offset+limit),ownerTotal:ownerRows.length,owners:[...owners.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.ownerId.localeCompare(b.ownerId)),totals,issues:[...new Set(issues)],officialTotals:false,canWrite:false};
  }
- return {inspect};
+
+ function noteEvents(ctx,filter={}){
+  const empty=state=>({state,events:[],eventTotal:0,owners:[],issues:[],totals:null,canWrite:false});
+  if(ctx?.authenticated!==true||ctx.clientsAllowed!==true)return empty('forbidden');
+  if(!Array.isArray(ctx.notes)||!Array.isArray(ctx.noteSources)||ctx.notes.length>50000||ctx.noteSources.length>100000)return empty('unavailable');
+  if((filter.from&&day(filter.from)!==filter.from)||(filter.to&&day(filter.to)!==filter.to)||(filter.from&&filter.to&&filter.from>filter.to)||filter.eventType&&!['all','payment-recorded','material-offset','return-active','return-reversed'].includes(filter.eventType))return empty('invalid-filter');
+  const notes=new Map(),raw=new Map(),issues=[],events=[],owners=new Map();
+  for(const n of ctx.notes){const k=sid(n?.key);if(k)notes.set(k,notes.has(k)?null:n)}
+  for(const x of ctx.noteSources){const k=sid(x?.key);if(k)raw.set(k,raw.has(k)?null:x.record)}
+  for(const [k,n] of notes){
+   if(!n||!sid(n.clientKey).startsWith('id:')||n.mismatch||![n.total,n.paid,n.credit,n.balance].every(valid)||n.total!==n.paid+n.credit+n.balance){issues.push('nota-revisar:'+k);continue}
+   const ownerId=sid(n.clientKey).slice(3);if(!ownerId){issues.push('nota-sem-cliente:'+k);continue}
+   owners.set(ownerId,{ownerId,name:sid(n.client)});
+   const record=raw.get(k);if(!record||!live(record)){issues.push('origem-nao-confirmada:'+k);continue}
+   const history=record.paymentHistory??[],returns=record.acertoReturnsV9565??[];
+   if(!Array.isArray(history)||!Array.isArray(returns)){issues.push('historico-invalido:'+k);continue}
+   const keys=new Set(),local=[];let paid=0,credit=0,invalid=false;
+   function append(x,type){
+    const eventId=sid(x?.id),date=day(x?.date),amount=cents(x?.value),id=JSON.stringify([k,type.startsWith('return')?'return':'payment',eventId]);
+    if(!eventId||!date||!valid(amount)||amount===0||keys.has(id)){invalid=true;return}
+    keys.add(id);const reversedAt=type==='return-reversed'?day(x.reversedAt):null;if(type==='return-reversed'&&(!reversedAt||reversedAt<date)){invalid=true;return}
+    local.push({kind:'cliente',id,ownerId,name:sid(n.client),noteKey:k,noteNumber:sid(n.number||n.id),date,type,amountCents:amount,reversedAt,method:sid(x.method).slice(0,120),description:sid(type.startsWith('return')?x.reason:x.note).slice(0,500)});
+    if(type==='payment-recorded'||type==='material-offset')paid+=amount;else if(type==='return-active')credit+=amount;
+   }
+   for(const x of history)append(x,x?.tradeSettlementId||norm(x?.method)==='abatimento materia-prima'?'material-offset':'payment-recorded');
+   for(const x of returns)append(x,x?.reversedAt?'return-reversed':'return-active');
+   // Scalar/legacy receipt values are not invented as dated events. Exclude ambiguous histories.
+   if(invalid||!Number.isSafeInteger(paid)||!Number.isSafeInteger(credit)||paid!==n.paid||credit!==n.credit){issues.push('eventos-sem-conciliacao:'+k);continue}
+   events.push(...local)
+  }
+  const q=norm(filter.query),filtered=events.filter(x=>(!filter.ownerId||x.ownerId===sid(filter.ownerId))&&(!filter.from||x.date>=filter.from)&&(!filter.to||x.date<=filter.to)&&(!filter.eventType||filter.eventType==='all'||x.type===filter.eventType)&&(!q||norm([x.name,x.ownerId,x.noteKey,x.noteNumber,x.id,x.method,x.description].join(' ')).includes(q))).sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id));
+  const totals={paymentRecordedCents:null,materialOffsetCents:null,activeReturnCents:null,reversedReturnReferenceCents:null};const fields={'payment-recorded':'paymentRecordedCents','material-offset':'materialOffsetCents','return-active':'activeReturnCents','return-reversed':'reversedReturnReferenceCents'};
+  for(const r of filtered){const k=fields[r.type];totals[k]=(totals[k]??0)+r.amountCents;if(!Number.isSafeInteger(totals[k]))return empty('unavailable')}
+  if(filter.export===true&&filtered.length>5000)return empty('export-limit');
+  const limit=Number.isSafeInteger(filter.limit)?Math.min(200,Math.max(1,filter.limit)):50,offset=Number.isSafeInteger(filter.offset)?Math.max(0,filter.offset):0;
+  return {state:'local-events',events:filter.export===true?filtered:filtered.slice(offset,offset+limit),eventTotal:filtered.length,owners:[...owners.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.ownerId.localeCompare(b.ownerId)),issues:[...new Set(issues)],totals,canWrite:false,officialTotals:false};
+ }
+ return {inspect,noteEvents};
 })());
