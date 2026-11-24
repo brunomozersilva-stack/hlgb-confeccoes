@@ -41,6 +41,14 @@ const assert=require('node:assert/strict'),crypto=require('node:crypto'),plan=re
  ok(bt.rows.find(x=>x.productId==='11').state==='insufficient','no history');
  ok(api.materialBacktest(v.groups[0],api.materialHistory({...datedDb,cuts:[...datedDb.cuts,dated(7,7,'2026-11-04T10:00:00Z')]},true),true).rows[0].state==='insufficient','latest timestamp tie blocked');
  ok(api.materialBacktest(v.groups[0],api.materialHistory(datedDb,true),false).state==='forbidden'&&JSON.stringify(datedDb)===datedSnap,'permission and immutable');
+ const forecastAt='2026-11-24T12:00:00.000Z',draft=api.forecastDraft(v.groups[0],measuredDb,mh,forecastAt,true);
+ ok(draft.state==='local-draft'&&draft.format==='hlgb-cut-forecast-v1'&&draft.entries.length===2&&draft.estimatedKg===1.2&&draft.coveredPieces===30&&draft.uncoveredPieces===40,'portable partial forecast');
+ ok(draft.entries.find(x=>x.productId==='10').estimatedKg===1.2&&draft.entries.find(x=>x.productId==='11').estimatedKg===null&&!draft.remoteSaved&&!draft.clockVerified&&!draft.canWrite&&draft.savings===null,'no false confirmation or missing zero');
+ ok(api.forecastDraft(v.groups[0],measuredDb,mh,forecastAt,false).reason==='permission','forecast forbidden');
+ ok(api.forecastDraft(v.groups[0],measuredDb,mh,'2026-11-24',true).reason==='date','ambiguous clock');
+ ok(api.forecastDraft({...v.groups[0],models:[...v.groups[0].models,v.groups[0].models[0]]},measuredDb,mh,forecastAt,true).state==='blocked','duplicate model');
+ ok(api.forecastDraft(v.groups[0],db,api.materialHistory(db,true),forecastAt,true).reason==='history','no forecast without measurements');
+ ok(JSON.stringify(measuredDb)===measuredSnap,'forecast immutable');
  const priced=[{...db.materials[0],price:25}],cost=api.materialCostEstimate(v.groups[0],me,priced,true);
  ok(cost.estimatedCents===3000&&cost.referencePricePerKg===25&&cost.coveredPieces===30&&cost.uncoveredPieces===40&&cost.rows.find(r=>r.productId==='11').estimatedCents===null&&!cost.canWrite&&cost.savings===null,'partial reference cost, not savings');
  ok(api.materialCostEstimate(v.groups[0],me,[{...priced[0],unit:'g',price:.025}],true).estimatedCents===3000,'price per gram');
