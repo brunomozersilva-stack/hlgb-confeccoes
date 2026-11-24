@@ -1,0 +1,266 @@
+{
+  "scope": "static-app9240-html",
+  "fields": [
+    {
+      "page": "pedidos",
+      "id": "orderNumberFilter",
+      "kind": "input",
+      "handler": "renderOrders()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "pedidos",
+      "id": "orderSearch",
+      "kind": "input",
+      "handler": "renderOrders()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "pedidos",
+      "id": "orderStatusFilter",
+      "kind": "select",
+      "handler": "renderOrders()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "pedidos",
+      "id": "orderPriorityFilter",
+      "kind": "select",
+      "handler": "renderOrders()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "pedidos",
+      "id": "orderStartFilter",
+      "kind": "input",
+      "handler": null,
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "pedidos",
+      "id": "orderEndFilter",
+      "kind": "input",
+      "handler": null,
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "pedidos",
+      "id": "separationProductSearch",
+      "kind": "input",
+      "handler": "renderSeparationList()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "lixeiraPedidos",
+      "id": "trashOrderSearch",
+      "kind": "input",
+      "handler": "renderOrderTrash()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "producao",
+      "id": "productionHubSearch",
+      "kind": "input",
+      "handler": "renderProductionHub()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "estoque",
+      "id": "stockSearch",
+      "kind": "input",
+      "handler": "renderStock()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "estoque",
+      "id": "stockCategoryFilter",
+      "kind": "select",
+      "handler": "renderStock()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "inventarioBens",
+      "id": "assetSearch",
+      "kind": "input",
+      "handler": "renderAssets()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "inventarioBens",
+      "id": "assetCategoryFilter",
+      "kind": "select",
+      "handler": "renderAssets()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "materiais",
+      "id": "materialSearch",
+      "kind": "input",
+      "handler": "renderMaterials()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "materiais",
+      "id": "materialTypeFilter",
+      "kind": "select",
+      "handler": "renderMaterials()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "materiais",
+      "id": "materialStockFilter",
+      "kind": "select",
+      "handler": "renderMaterials()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "faccoes",
+      "id": "hlgbFactionOpsSearch9520",
+      "kind": "input",
+      "handler": "window.hlgbFactionOperations9520?.render?.()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "pagamentosFaccoes",
+      "id": "factionPaymentFilter",
+      "kind": "select",
+      "handler": "renderFactionPayments()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "clientes",
+      "id": "clientPotentialFilter",
+      "kind": "select",
+      "handler": "renderClientPotentialReport()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "produtos",
+      "id": "productSearchName",
+      "kind": "input",
+      "handler": "renderProducts()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "exFuncionarios",
+      "id": "exEmployeeSearch",
+      "kind": "input",
+      "handler": "renderFormerEmployees()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "exFuncionarios",
+      "id": "exEmployeeCompanyFilter",
+      "kind": "select",
+      "handler": "renderFormerEmployees()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "folhaPagamento",
+      "id": "payrollCompanyFilter",
+      "kind": "select",
+      "handler": "renderPayroll()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "folhaPagamento",
+      "id": "payrollEmployeeFilter",
+      "kind": "input",
+      "handler": "renderPayroll()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "folhaPagamento",
+      "id": "terminationCompanyFilter",
+      "kind": "select",
+      "handler": "renderTerminations()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "projecao",
+      "id": "projectionClientFilter",
+      "kind": "input",
+      "handler": "renderProjection()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "projecao",
+      "id": "projectionProductFilter",
+      "kind": "input",
+      "handler": "renderProjection()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "projecao",
+      "id": "projectionOrderFilter",
+      "kind": "input",
+      "handler": "renderProjection()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "projecao",
+      "id": "projectionLocationFilter",
+      "kind": "select",
+      "handler": "renderProjection()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "projecao",
+      "id": "projectionPriorityFilter",
+      "kind": "select",
+      "handler": "renderProjection()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "projecao",
+      "id": "projectionStatusFilter",
+      "kind": "select",
+      "handler": "renderProjection()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "devolucoesDefeitos",
+      "id": "defectLocationFilter",
+      "kind": "select",
+      "handler": "renderDefectReturns()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "devolucoesDefeitos",
+      "id": "defectProductFilter",
+      "kind": "select",
+      "handler": "renderDefectReturns()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "config",
+      "id": "auditUserFilter",
+      "kind": "select",
+      "handler": "renderAuditLog()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "config",
+      "id": "auditStartFilter",
+      "kind": "input",
+      "handler": "renderAuditLog()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "config",
+      "id": "auditEndFilter",
+      "kind": "input",
+      "handler": "renderAuditLog()",
+      "state": "inventoried-not-tested"
+    },
+    {
+      "page": "config",
+      "id": "auditSearchFilter",
+      "kind": "input",
+      "handler": "renderAuditLog()",
+      "state": "inventoried-not-tested"
+    }
+  ],
+  "dynamicFieldsIncluded": false,
+  "behaviorCertified": false
+}

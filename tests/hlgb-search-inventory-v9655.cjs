@@ -1,0 +1,4 @@
+'use strict';const fs=require('node:fs'),assert=require('node:assert/strict');const inventory=function inventory(html){
+ const rows=[];for(const m of html.matchAll(/<section id="([^"]+)" class="page[^"]*"[^>]*>([\s\S]*?)<\/section>/g)){for(const t of m[2].matchAll(/<(input|select)\b[^>]*>/g)){if(!/search|filter|busca|pesquis|filtr/i.test(t[0]))continue;const id=t[0].match(/\bid="([^"]+)"/)?.[1];if(!id)continue;rows.push({page:m[1],id,kind:t[1],handler:t[0].match(/\bon(?:input|change)="([^"]+)"/)?.[1]||null,state:'inventoried-not-tested'});}}
+ return rows;
+};const expected=require('../hlgb-modules/engenharia/search-inventory-v9655.json');const actual=inventory(fs.readFileSync('app9240.html','utf8'));assert.deepEqual(actual,expected.fields);assert.equal(new Set(actual.map(x=>x.id)).size,actual.length);assert(actual.every(x=>x.state==='inventoried-not-tested'));console.log('PASS static search inventory, '+actual.length+' fields; behavior not certified');

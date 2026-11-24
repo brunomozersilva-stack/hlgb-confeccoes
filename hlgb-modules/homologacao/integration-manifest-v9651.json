@@ -265,7 +265,7 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 168,
+  "integratedScripts": 169,
   "mode": "candidate-not-production",
   "followup": {
     "version": "96.52",
@@ -278,5 +278,9 @@
       "hlgb-modules/financeiro/settlement-history-v9653.js",
       "hlgb-modules/financeiro/settlement-history-view-v9654.js"
     ]
+  },
+  "followupAssistant": {
+    "version": "96.55",
+    "added": "hlgb-modules/assistente/evidence-query-v9655.js"
   }
 }
