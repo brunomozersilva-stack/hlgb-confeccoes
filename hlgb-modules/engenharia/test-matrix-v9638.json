@@ -1,7 +1,9 @@
 {
   "base-infraestrutura": [
     "tests/audit-canonical-routing-v9316.cjs",
-    "tests/audit-app-stable3-restored-render-regression.cjs"
+    "tests/audit-app-stable3-restored-render-regression.cjs",
+    "tests/hlgb-integration-v9651.cjs",
+    "tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs"
   ],
   "sincronizacao-wal": [
     "tests/audit-wal-idb-only-regression.cjs",
@@ -10,34 +12,55 @@
   ],
   "pedidos-projecao": [
     "tests/audit-projection-delivery-integrity-regression.cjs",
-    "tests/audit-projection-missing-behavior-regression.cjs"
+    "tests/audit-projection-missing-behavior-regression.cjs",
+    "tests/hlgb-product-history-search-v9652.cjs",
+    "tests/hlgb-assistant-integrated-v9670.cjs"
   ],
   "corte-cortadores": [
     "tests/audit-cutter-planner-regression.cjs",
     "tests/audit-cut-material-usage-regression.cjs",
-    "tests/hlgb-live-cut-weight-core-v9623.cjs"
+    "tests/hlgb-live-cut-weight-core-v9623.cjs",
+    "tests/hlgb-production-planning-v9661.cjs",
+    "tests/hlgb-production-planning-v9661-browser.cjs",
+    "tests/hlgb-production-planning-v9661-selection-view.cjs"
   ],
   "producao-separacao": [
     "tests/audit-production-assignment-behavior-regression.cjs",
-    "tests/audit-production-reconcile-regression.cjs"
+    "tests/audit-production-reconcile-regression.cjs",
+    "tests/cut-separation-workspace-v9643.cjs",
+    "tests/cut-separation-checklist-v9644.cjs"
   ],
   "faccoes-acertos": [
     "tests/audit-faction-manual-payment-regression.cjs",
-    "tests/audit-faction-master-integrity-regression.cjs"
+    "tests/audit-faction-master-integrity-regression.cjs",
+    "tests/hlgb-settlement-history-v9653.cjs",
+    "tests/hlgb-settlement-history-view-v9654.cjs",
+    "tests/hlgb-operations-history-attendance-v9669.cjs"
   ],
   "financeiro-hub-notas": [
     "tests/audit-hub-period-detail-regression.cjs",
     "tests/audit-hub-integrity-regression.cjs",
-    "tests/audit-note-integrity-regression.cjs"
+    "tests/audit-note-integrity-regression.cjs",
+    "tests/hlgb-hub-intelligence-adapter-v9633.cjs",
+    "tests/hlgb-live-finance-integrated-v9657.cjs",
+    "tests/hlgb-rh-finance-v9667-browser.cjs"
   ],
   "folha-pessoal": [
     "tests/audit-payroll-integrity-regression.cjs",
     "tests/hub-payroll-paid-date-v9515.cjs",
-    "tests/audit-payroll-provision-sort-total-regression.cjs"
+    "tests/audit-payroll-provision-sort-total-regression.cjs",
+    "tests/hlgb-attendance-transport-v9658.cjs",
+    "tests/hlgb-rh-planning-v9636.cjs",
+    "tests/hlgb-rh-live-view-v9667.cjs",
+    "tests/hlgb-worker-registry-v9659.cjs",
+    "tests/hlgb-worker-registry-v9659-browser.cjs",
+    "tests/hlgb-operations-history-attendance-v9669.cjs",
+    "tests/hlgb-rh-finance-v9667-browser.cjs"
   ],
   "compras-estoque": [
     "tests/audit-material-tools-regression.cjs",
-    "tests/audit-purchase-checkers-regression.cjs"
+    "tests/audit-purchase-checkers-regression.cjs",
+    "tests/hlgb-production-planning-v9661-selection-view.cjs"
   ],
   "utilidades-etiquetas": [
     "tests/audit-canonical-routing-v9316.cjs",
@@ -45,17 +68,26 @@
   ],
   "auditor-monitor": [
     "tests/audit-internal-auditor-regression.cjs",
-    "tests/auditor-rapid-learning-v9437-webkit.js"
+    "tests/auditor-rapid-learning-v9437-webkit.js",
+    "tests/auditor-smart-ready-v9639.cjs",
+    "tests/auditor-smart-ready-v9639-browser.cjs",
+    "tests/hlgb-health-monitor-coverage-v9670.cjs",
+    "tests/hlgb-ci-evidence-v9671.cjs"
   ],
   "assistente-ia": [
     "tests/audit-assistant-query-regression.cjs",
-    "tests/audit-assistant-system-wide-regression.cjs"
+    "tests/audit-assistant-system-wide-regression.cjs",
+    "tests/hlgb-assistant-evidence-v9655.cjs",
+    "tests/hlgb-assistant-integrated-v9670.cjs"
   ],
   "impressora-3d": [
     "tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs"
   ],
   "interface-mobile": [
     "tests/audit-ui-stability-regression.cjs",
-    "tests/mobile-friendly-v9512-browser.js"
+    "tests/mobile-friendly-v9512-browser.js",
+    "tests/mobile-real-pages-v9640.cjs",
+    "tests/hlgb-mobile-menu-v9670.cjs",
+    "tests/hlgb-rh-finance-v9667-browser.cjs"
   ]
 }
