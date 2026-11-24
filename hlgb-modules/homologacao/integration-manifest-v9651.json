@@ -265,7 +265,7 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 169,
+  "integratedScripts": 177,
   "mode": "candidate-not-production",
   "followup": {
     "version": "96.52",
@@ -282,5 +282,18 @@
   "followupAssistant": {
     "version": "96.55",
     "added": "hlgb-modules/assistente/evidence-query-v9655.js"
+  },
+  "followupLiveFinance": {
+    "version": "96.56",
+    "added": [
+      "hlgb-modules/financeiro/weekly-intelligence-core-v9627.js",
+      "hlgb-modules/financeiro/cash-projection-v9631.js",
+      "hlgb-modules/financeiro/hub-intelligence-adapter-v9633.js",
+      "hlgb-modules/financeiro/payroll-fifth-day-v9632.js",
+      "hlgb-modules/financeiro/payroll-preview-adapter-v9634.js",
+      "hlgb-modules/financeiro/payroll-calendar-transport-workers-v9645.js",
+      "hlgb-modules/financeiro/hub-personnel-forecast-reconcile-v9650.js",
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js"
+    ]
   }
 }

@@ -169,6 +169,14 @@
     "release-faction-service-rates-v9577.js",
     "release-hub-save-proof-v9567.js",
     "release-hub-learning-v9568.js",
+    "hlgb-modules/financeiro/weekly-intelligence-core-v9627.js",
+    "hlgb-modules/financeiro/cash-projection-v9631.js",
+    "hlgb-modules/financeiro/hub-intelligence-adapter-v9633.js",
+    "hlgb-modules/financeiro/payroll-fifth-day-v9632.js",
+    "hlgb-modules/financeiro/payroll-preview-adapter-v9634.js",
+    "hlgb-modules/financeiro/payroll-calendar-transport-workers-v9645.js",
+    "hlgb-modules/financeiro/hub-personnel-forecast-reconcile-v9650.js",
+    "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js",
     "release-learning-cloud-v9573.js",
     "release-faction-feature-guard-v9598.js",
     "hlgb-modules/autenticacao/rede-segura-v9613.js"
@@ -286,7 +294,15 @@
       "release-note-price-reconcile-v95103.js",
       "release-note-receipts-v9576.js",
       "release-hub-save-proof-v9567.js",
-      "release-hub-learning-v9568.js"
+      "release-hub-learning-v9568.js",
+      "hlgb-modules/financeiro/weekly-intelligence-core-v9627.js",
+      "hlgb-modules/financeiro/cash-projection-v9631.js",
+      "hlgb-modules/financeiro/hub-intelligence-adapter-v9633.js",
+      "hlgb-modules/financeiro/payroll-fifth-day-v9632.js",
+      "hlgb-modules/financeiro/payroll-preview-adapter-v9634.js",
+      "hlgb-modules/financeiro/payroll-calendar-transport-workers-v9645.js",
+      "hlgb-modules/financeiro/hub-personnel-forecast-reconcile-v9650.js",
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js"
     ],
     "folha-pessoal": [
       "hlgb-modules/financeiro/payroll-provision-core-v9649.js",
@@ -373,7 +389,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "HLGB Comercial: 169 scripts únicos, 158 baseline e 11 novos; ordem anterior preservada.",
+  "notes": "HLGB Comercial: 177 scripts únicos, 158 baseline + 19 novos; ordem anterior preservada.",
   "criticalFileBlobs": {
     "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -559,7 +575,15 @@
     "hlgb-modules/producao/product-history-search-v9652.js",
     "hlgb-modules/financeiro/settlement-history-v9653.js",
     "hlgb-modules/financeiro/settlement-history-view-v9654.js",
-    "hlgb-modules/assistente/evidence-query-v9655.js"
+    "hlgb-modules/assistente/evidence-query-v9655.js",
+    "hlgb-modules/financeiro/weekly-intelligence-core-v9627.js",
+    "hlgb-modules/financeiro/cash-projection-v9631.js",
+    "hlgb-modules/financeiro/hub-intelligence-adapter-v9633.js",
+    "hlgb-modules/financeiro/payroll-fifth-day-v9632.js",
+    "hlgb-modules/financeiro/payroll-preview-adapter-v9634.js",
+    "hlgb-modules/financeiro/payroll-calendar-transport-workers-v9645.js",
+    "hlgb-modules/financeiro/hub-personnel-forecast-reconcile-v9650.js",
+    "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
