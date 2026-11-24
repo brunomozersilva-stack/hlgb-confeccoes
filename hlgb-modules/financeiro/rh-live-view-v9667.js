@@ -10,7 +10,7 @@
  const today=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=k=>p.find(x=>x.type===k)?.value;return v('year')+'-'+v('month')+'-'+v('day')};
  const el=(tag,text,host)=>{const x=document.createElement(tag);x.textContent=text;host.appendChild(x);return x};
  const field=(label,host,type='text',value='')=>{const w=el('label',label,host);w.style.cssText='display:block;margin:6px 0;min-width:0';const x=el('input','',w);x.type=type;x.value=value;x.style.cssText='display:block;min-width:0;max-width:100%;width:100%;box-sizing:border-box';return x};
- const select=(label,host,options)=>{const w=el('label',label,host);w.style.cssText='display:block;margin:6px 0';const x=el('select','',w);x.style.cssText='max-width:100%;width:100%';for(const [v,t] of options){const o=el('option',t,x);o.value=v}return x};
+ const select=(label,host,options)=>{const w=el('label',label,host);w.style.cssText='display:block;margin:6px 0';const x=el('select','',w);x.setAttribute('aria-label',label);x.style.cssText='max-width:100%;width:100%';for(const [v,t] of options){const o=el('option',t,x);o.value=v}return x};
  const checkbox=(label,host)=>{const w=el('label','',host);w.style.cssText='display:block;overflow-wrap:anywhere';const x=el('input','',w);x.type='checkbox';el('span',' '+label,w);return x};
  const button=(label,host,fn)=>{const x=el('button',label,host);x.type='button';x.className='secondary';x.style.cssText='max-width:100%;white-space:normal;margin:4px 4px 4px 0';x.onclick=fn;return x};
  const money=c=>c==null?'Não confirmado':(c/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
