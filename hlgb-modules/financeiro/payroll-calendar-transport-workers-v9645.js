@@ -43,11 +43,19 @@
  }
  function weekly(person,input){
   const p=worker(person),{friday,asOf,plannedDays,workedDays=null,commuteDays=null,calendarVerified=false,closedDays=[],existing=[]}=input||{};
-  if(p.mode!=='daily'||dt(friday)===null||new Date(dt(friday)).getUTCDay()!==5||dt(asOf)===null||!Number.isInteger(plannedDays)||plannedDays<0||plannedDays>7||!dayList(closedDays)||!Array.isArray(existing)||workedDays!==null&&(!Number.isInteger(workedDays)||workedDays<0||workedDays>7)||commuteDays!==null&&(!Number.isInteger(commuteDays)||commuteDays<0||workedDays===null||commuteDays>workedDays))throw Error('invalid-week');
+  if(p.mode!=='daily'||dt(friday)===null||new Date(dt(friday)).getUTCDay()!==5||dt(asOf)===null||plannedDays!==null&&(!Number.isInteger(plannedDays)||plannedDays<0||plannedDays>7)||!dayList(closedDays)||!Array.isArray(existing)||workedDays!==null&&(!Number.isInteger(workedDays)||workedDays<0||workedDays>7)||commuteDays!==null&&(!Number.isInteger(commuteDays)||commuteDays<0||workedDays===null||commuteDays>workedDays))throw Error('invalid-week');
   let due=dt(friday),min=due-4*DAY;const closed=new Set(closedDays);while(due>=min&&closed.has(iso(due)))due-=DAY;
-  const scheduled=due>=min?iso(due):null,key='worker-week:'+p.id+':'+friday,rows=existing.filter(x=>x?.origin===key),observedPlanned=plannedDays*(p.rateCents+p.transportCents),actual=workedDays===null||p.transportEnabled&&commuteDays===null?null:workedDays*p.rateCents+(commuteDays||0)*p.transportCents;
+  const scheduled=due>=min?iso(due):null,key='worker-week:'+p.id+':'+friday,rows=existing.filter(x=>x?.origin===key),observedPlanned=plannedDays===null?null:plannedDays*(p.rateCents+p.transportCents),actual=workedDays===null||p.transportEnabled&&commuteDays===null?null:workedDays*p.rateCents+(commuteDays||0)*p.transportCents;
   const status=rows.length>1?'duplicate-review':rows.some(x=>x.status==='paid')?'already-paid':rows.length?'existing-review':'new-draft';
-  return {key,scheduledCandidate:scheduled,scheduledConfirmed:calendarVerified?scheduled:null,plannedCents:observedPlanned,actualCents:actual,differenceCents:actual===null?null:actual-observedPlanned,status,requiresDays:!!scheduled&&asOf>=scheduled&&actual===null&&status!=='already-paid',requiresRegularizationReview:p.requiresRegularizationReview,benefits:p.benefits,canPublish:false,officialAmountCents:null};
+  return {key,scheduledCandidate:scheduled,scheduledConfirmed:calendarVerified?scheduled:null,plannedCents:observedPlanned,actualCents:actual,differenceCents:actual===null||observedPlanned===null?null:actual-observedPlanned,status,requiresDays:!!scheduled&&asOf>=scheduled&&actual===null&&!['already-paid','duplicate-review'].includes(status),requiresRegularizationReview:p.requiresRegularizationReview,benefits:p.benefits,canPublish:false,officialAmountCents:null};
  }
- return {salaryDate,transport,worker,weekly};
+ function monthly(person,input){
+  const p=worker(person),{competence,asOf,contractDate,commuteDays=null,existing=[]}=input||{};
+  if(p.mode!=='monthly'||typeof competence!=='string'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(competence)||dt(asOf)===null||dt(contractDate)===null||!Array.isArray(existing)||commuteDays!==null&&(!Number.isInteger(commuteDays)||commuteDays<0||commuteDays>31))throw Error('invalid-month');
+  const key='worker-month:'+p.id+':'+competence,rows=existing.filter(x=>x?.origin===key);
+  const status=rows.length>1?'duplicate-review':rows.some(x=>x.status==='paid')?'already-paid':rows.length?'existing-review':'new-draft';
+  const transportCents=p.transportEnabled?(commuteDays===null?null:p.transportCents*commuteDays):0;
+  return {key,contractDateCandidate:contractDate,scheduledConfirmed:null,baseCents:p.rateCents,transportCents,observedGrossCents:transportCents===null?null:p.rateCents+transportCents,status,requiresReview:status!=='already-paid',benefits:p.benefits,requiresRegularizationReview:p.requiresRegularizationReview,officialAmountCents:null,canPublish:false};
+ }
+ return {salaryDate,transport,worker,weekly,monthly};
 });
