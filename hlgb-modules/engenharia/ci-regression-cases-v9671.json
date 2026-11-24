@@ -126,10 +126,44 @@
         }
       ]
     },
-    "after": null,
+    "after": {
+      "commit": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
+      "runId": 45361271637,
+      "workflow": "HLGB Comercial - Cadastro e acerto semanal v96.59",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 138331647801,
+          "name": "browser (webkit)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Run node tests/hlgb-worker-registry-v9659-browser.cjs",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        },
+        {
+          "id": 138331647911,
+          "name": "browser (chromium)",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Run node tests/hlgb-worker-registry-v9659-browser.cjs",
+              "status": "completed",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
     "proposedCommit": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
     "observed": "Both browser fixtures timed out waiting for the exact Passagem select.",
-    "correction": "Explicit accessible label on select; new run still required.",
+    "correction": "Explicit aria-label on original select. Both browsers and contracts now pass.",
     "logReviewed": true
   }
 ]
