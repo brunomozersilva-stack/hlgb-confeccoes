@@ -49,9 +49,10 @@ const cutSeparationWorkspace9643=(function core(){
  const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
  const int=v=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0?v:typeof v==='string'&&/^\d+$/.test(v)&&Number.isSafeInteger(Number(v))?Number(v):null;
  const live=x=>x&&!x.deletedAt&&!x.deleted_at&&x.deleted!==true&&x._deleted!==true;
- function inspect(db,allowed){
+ function inspect(db,allowed,canonicalPairs){
   if(allowed!==true)return {state:'forbidden',rows:[],issues:[]};
   if(!db||!['orders','products','separations','cuts','production','operationalWriteoffs'].every(k=>Array.isArray(db[k])))return {state:'unavailable',rows:[],issues:['missing-source']};
+  if(!(canonicalPairs instanceof Set))return {state:'unavailable',rows:[],issues:['writeoff-authority-unavailable']};
   const rows=[],issues=[],orders=new Map(),products=new Map();
   for(const [arr,map] of [[db.orders,orders],[db.products,products]])for(const o of arr.filter(live)){const k=id(o.id);if(k)map.set(k,map.has(k)?null:o)}
   for(const [oid,o] of orders){
@@ -67,8 +68,8 @@ const cutSeparationWorkspace9643=(function core(){
     const p=products.get(g.pid),issuesFor=[],matches=db.cuts.filter(c=>live(c)&&id(c.orderId)===oid&&(id(c.productId)===g.pid||!id(c.productId)));
     const production=db.production.some(c=>live(c)&&id(c.orderId)===oid&&(!id(c.productId)||id(c.productId)===g.pid));
     const writeoffs=db.operationalWriteoffs.some(w=>live(w)&&((id(w.orderId)===oid&&(!id(w.productId)||id(w.productId)===g.pid))||[...(Array.isArray(w.orderProductRefs)?w.orderProductRefs:[]),...(Array.isArray(w.sourceRefs)?w.sourceRefs:[])].some(x=>typeof x==='object'&&x&&id(x.orderId)===oid&&(!id(x.productId)||id(x.productId)===g.pid))));
-    if(production||writeoffs||matches.some(c=>norm(c.status).includes('finalizado')))continue;
-    if(matches.some(c=>!id(c.productId)||c.modelSplitParentV1||c.hiddenByModelSplitV1)||matches.length>1)issuesFor.push('ambiguous-cut');
+    if(production||writeoffs||canonicalPairs.has(oid+'|'+g.pid)||canonicalPairs.has(oid+'|*')||matches.some(c=>norm(c.status).includes('finalizado')))continue;
+    if(matches.some(c=>!id(c.productId)||c.modelSplitParentV1||c.hiddenByModelSplitV1||(groups.size>1&&(id(c.id)===oid||Number(c.pieces)>=Array.from(groups.values()).reduce((sum,x)=>sum+x.qty,0)||new Set([...(c.originalGrade||[]),...(c.actualCutGrade||[])].map(x=>id(x?.productId)).filter(Boolean)).size>1)))||matches.length>1)issuesFor.push('ambiguous-cut');
     const entries=Object.entries(s?.modelProgress||{}).filter(([k])=>k===g.pid||k.split(':').pop()===g.pid);
     let separated=null;if(seps.length>1)issuesFor.push('multiple-separations');else if(entries.length>1)issuesFor.push('ambiguous-progress');else if(entries.length===1){const q=int(entries[0][1]?.qty);if(q!==null&&q<=g.qty)separated=q;else issuesFor.push('invalid-progress')}else if(s?.done)issuesFor.push('legacy-done-without-model-proof');else if(!s||s.done===false)separated=0;
     const materials=[];for(const m of Array.isArray(p.materials)?p.materials:[]){const q=Number(m.qty),loss=Number(m.loss||0),unit=String(m.unit||'');if(!m.name||!Number.isFinite(q)||q<=0||!Number.isFinite(loss)||loss<0||!unit||!['yield','consumption'].includes(m.calcMode||'consumption')){issuesFor.push('material-review');continue}const amount=(m.calcMode==='yield'?g.qty/q:g.qty*q)*(1+loss/100);if(!Number.isFinite(amount)){issuesFor.push('material-review');continue}materials.push({name:String(m.name),unit,amount})}
@@ -81,6 +82,10 @@ const cutSeparationWorkspace9643=(function core(){
  return {inspect};
 })();
 function separationAllowed9643(){try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('corte')&&canOpenPage('pedidos')&&canOpenPage('materiais')&&canOpenPage('produtos')}catch(_){return false}}
+function inspectWorkspace9643(){
+ const authority=window.hlgbWriteoffIntegrity9391;if(typeof authority?.pairIndex!=='function')return {state:'unavailable',rows:[],issues:['writeoff-authority-unavailable']};
+ const pairs=authority.pairIndex();return cutSeparationWorkspace9643.inspect(typeof db!=='undefined'?db:window.db,separationAllowed9643(),pairs);
+}
 function renderSeparationWorkspace9643(){
  const root=document.getElementById('corte'),table=document.getElementById('cutTable');if(!root||!table)return;
  let host=document.getElementById('hlgbCutSeparation9643');
@@ -88,10 +93,11 @@ function renderSeparationWorkspace9643(){
  if(!root.classList.contains('active')){host?.remove();return}
  if(!host){host=document.createElement('section');host.id='hlgbCutSeparation9643';host.className='panel';table.closest('.panel')?.insertAdjacentElement('beforebegin',host)}
  const el=(tag,text,parent=host)=>{const x=document.createElement(tag);x.textContent=text;parent.appendChild(x);return x};
+ const previousQuery=host.querySelector('input[type=search]')?.value||'';
  host.replaceChildren();el('h2','Materiais e separação por modelo');el('p','Consulta dos pedidos e do progresso local. Conferência e baixa continuam na rotina existente.');
- let result;try{result=cutSeparationWorkspace9643.inspect(typeof db!=='undefined'?db:window.db,true)}catch(_){result={state:'unavailable',rows:[],issues:[]}}
+ let result;try{result=inspectWorkspace9643()}catch(_){result={state:'unavailable',rows:[],issues:[]}}
  if(result.state!=='local-observation'){el('p','Dados necessários ainda não disponíveis.');return}
- const field=el('input','');field.type='search';field.placeholder='Buscar pedido ou modelo';field.setAttribute('aria-label','Buscar pedido ou modelo em separação');
+ const field=el('input','');field.type='search';field.value=previousQuery;field.placeholder='Buscar pedido ou modelo';field.setAttribute('aria-label','Buscar pedido ou modelo em separação');
  const list=el('div','');const fmt=x=>Number(x).toLocaleString('pt-BR',{maximumFractionDigits:3});
  function draw(){
   list.replaceChildren();const q=norm(field.value);const visible=result.rows.filter(x=>!q||norm(x.orderNumber+' '+x.productName).includes(q));
@@ -102,7 +108,7 @@ function renderSeparationWorkspace9643(){
    if(row.issues.length)el('p','Revisão necessária: '+row.issues.join(', '),detail);
    const actions=el('div','',card);actions.className='toolbar';
    const sep=el('button','Abrir separação do pedido',actions);sep.type='button';sep.className='secondary';sep.onclick=()=>{if(!separationAllowed9643())return;try{if(typeof page==='function'&&typeof selectSeparationOrder==='function'){page('pedidos',null);selectSeparationOrder(row.orderId)}}catch(_){alert('Separação indisponível. Abra pelo menu de Pedidos.')}};
-   const print=el('button','Folha de corte do modelo',actions);print.type='button';print.className='secondary';print.disabled=!row.cutId;print.onclick=()=>{if(!separationAllowed9643()||!row.cutId)return;const fresh=cutSeparationWorkspace9643.inspect(typeof db!=='undefined'?db:window.db,true).rows.find(x=>x.orderId===row.orderId&&x.productId===row.productId&&x.cutId===row.cutId);if(!fresh||typeof window.printCuttingSheet!=='function'){alert('Corte precisa de revisão antes de imprimir.');return}window.printCuttingSheet(row.orderId,row.cutId)};
+   const print=el('button','Folha de corte do modelo',actions);print.type='button';print.className='secondary';print.disabled=!row.cutId;print.onclick=()=>{if(!separationAllowed9643()||!row.cutId)return;const fresh=inspectWorkspace9643().rows.find(x=>x.orderId===row.orderId&&x.productId===row.productId&&x.cutId===row.cutId);if(!fresh||typeof window.printCuttingSheet!=='function'){alert('Corte precisa de revisão antes de imprimir.');return}window.printCuttingSheet(row.orderId,row.cutId)};
    if(!row.cutId)el('p','Folha individual disponível quando houver corte identificado; impressão antiga permanece em Pedidos.',card);
   }
   if(visible.length>100)el('p','Mostrando 100 resultados; refine a busca para consultar os demais.',list);
@@ -124,7 +130,7 @@ window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.
 const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{apply();applyExtraState();renderSeparationWorkspace9643()},0);return r};w.__hlgbOrgV1=true;w.__original=old;window.renderCuts=w}
 function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
-window.addEventListener('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
-window.addEventListener('hlgb:logout',()=>document.getElementById('hlgbCutSeparation9643')?.remove());
+window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
+window.addEventListener?.('hlgb:logout',()=>document.getElementById('hlgbCutSeparation9643')?.remove());
 console.info('[HLGB] organização da aba Corte ativa');
 })();

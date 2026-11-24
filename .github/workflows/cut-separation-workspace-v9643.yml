@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'release-cut-organization.js'
-      - 'tests/cut-separation-workspace-v9643.cjs'
+      - 'tests/cut-separation-workspace-v9643*'
       - '.github/workflows/cut-separation-workspace-v9643.yml'
   workflow_dispatch:
 permissions:
@@ -20,3 +20,17 @@ jobs:
       - run: node tests/audit-cut-organization-regression.cjs
       - run: node tests/audit-separation-commit-v9319.cjs
       - run: node tests/cutter-sheet-print-route-v9620.cjs
+  browser:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps ${{ matrix.browser }}
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/cut-separation-workspace-v9643-browser.cjs
