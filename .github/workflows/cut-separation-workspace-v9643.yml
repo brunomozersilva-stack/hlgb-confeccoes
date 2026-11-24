@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'release-cut-organization.js'
+      - 'hlgb-modules/producao/cut-separation-core-v9647.js'
+      - 'app-stable3.html'
+      - 'hlgb-modules/ownership-v9600.json'
       - 'tests/cut-separation-workspace-v9643*'
       - 'tests/cut-separation-checklist-v9644.cjs'
       - 'tests/cut-evidence-archive-contract-v9646.cjs'
@@ -19,6 +22,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: node --check release-cut-organization.js
+      - run: node --check hlgb-modules/producao/cut-separation-core-v9647.js
+      - run: node --test tests/hlgb-live-monolith-inventory-v9601b.cjs
       - run: node tests/cut-separation-workspace-v9643.cjs
       - run: node tests/cut-separation-checklist-v9644.cjs
       - run: node tests/cut-evidence-archive-contract-v9646.cjs

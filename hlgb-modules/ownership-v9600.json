@@ -12,6 +12,7 @@
     "release-wal-idb-convergence-v9536.js",
     "release-pricing.js",
     "release-limits.js",
+    "hlgb-modules/producao/cut-separation-core-v9647.js",
     "release-cut-organization.js",
     "hlgb-modules/producao/corte-consumo-core-v9624.js",
     "release-cut-material-usage.js",
@@ -209,6 +210,7 @@
       "release-order-delivery-trace-v9539.js"
     ],
     "corte-cortadores": [
+      "hlgb-modules/producao/cut-separation-core-v9647.js",
       "release-cut-organization.js",
       "hlgb-modules/producao/corte-consumo-core-v9624.js",
       "release-cut-material-usage.js",
@@ -361,7 +363,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "HLGB Comercial: 163 scripts = 158 baseline originais e 5 cores puros opcionais. Ordem antiga preservada; nenhum carregamento por grupos. Pesagem, consumo, corte, separação com fallback.",
+  "notes": "HLGB Comercial: 164 scripts = 158 baseline originais e 6 cores separados. Ordem anterior preservada; carregamento sequencial. Núcleo novo de Separação/Corte sem acesso a dados; se ausente, somente novo painel fica indisponível.",
   "criticalFileBlobs": {
     "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -541,7 +543,8 @@
     "hlgb-modules/producao/corte-alvo-v9618.js",
     "hlgb-modules/producao/cortadores-grade-core-v9622.js",
     "hlgb-modules/producao/corte-pesagem-core-v9623.js",
-    "hlgb-modules/producao/corte-consumo-core-v9624.js"
+    "hlgb-modules/producao/corte-consumo-core-v9624.js",
+    "hlgb-modules/producao/cut-separation-core-v9647.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
