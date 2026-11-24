@@ -20,4 +20,5 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  ok(f({notes:[{...n,paid:9000,credit:1000,balance:0}]},{status:'compensated'}).total===1,'compensated notes');
  ok(f({payroll:[{...payroll,_deleted:true}]}).total===2,'deleted payroll excluded');
  ok(f({payroll:[{...payroll,paidValue:2000.001}]}).total===2,'fractional cents excluded');
+ ok(f({}, {limit:1,export:true}).rows.length===3,'export includes all filtered rows');ok(f({}, {kind:'cliente',export:true}).rows.length===1,'export preserves scope');
 })(api,(v,m)=>assert.ok(v,m));console.log('PASS settlement history');
