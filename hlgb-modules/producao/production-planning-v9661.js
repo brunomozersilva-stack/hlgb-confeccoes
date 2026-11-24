@@ -162,6 +162,34 @@
   return {...empty('local-estimate'),rows,coveredPieces,uncoveredPieces,estimatedKg};
  }
 
+ // Read-only preparation for eventual official product editor integration.
+ // Exact snapshot match is intentionally conservative; no retry, mutation or RPC here.
+ function prepareRemnantChange({productId,input,products,materials,remote,snapshot,pending,allowed}={}){
+  const fail=reason=>({state:'blocked',reason,canWrite:false});
+  if(allowed!==true)return fail('permission');
+  if(pending!==false)return fail('pending-or-unverified');
+  const pid=id(productId);
+  if(!pid||!Array.isArray(products)||!Array.isArray(materials))return fail('missing-source');
+  const found=products.filter(p=>live(p)&&id(p.id)===pid);
+  if(found.length!==1||found[0].active===false)return fail('missing-source');
+  if(remote?.module!=='products'||id(remote.entity_id)!==pid||remote.deleted_at||!live(remote.data)||id(remote.data.id)!==pid||remote.data.active===false)return fail('remote-missing');
+  if(!Number.isSafeInteger(remote.revision)||remote.revision<1||snapshot?.revision!==remote.revision||snapshot.deleted_at||!live(snapshot.data))return fail('revision-changed');
+  // Stable comparison of JSON records; key order is not a business change.
+  const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
+  const same=(a,b)=>JSON.stringify(stable(a))===JSON.stringify(stable(b));
+  if(!same(snapshot.data,remote.data)||!same(found[0],remote.data))return fail('record-changed');
+  if(!Array.isArray(input?.eligible)||input.eligible.length>50||(Array.isArray(remote.data.fabricRemnantPolicyV9630?.eligible)&&remote.data.fabricRemnantPolicyV9630.eligible.length>50))return fail('policy-limit');
+  try{
+   const valid=fabrics(materials);
+   if(input.eligible.some(x=>!valid.has(id(x?.materialId))||!products.some(p=>live(p)&&p.active!==false&&id(p.id)===id(x?.productId))))return fail('material-or-target');
+   const policy=remnant.preview(pid,input,products).policy;
+   const next=JSON.parse(JSON.stringify(remote.data));
+   // The draft-only marker must not become a persisted approval marker.
+   const {mode,...fields}=policy;next.fabricRemnantPolicyV9630=fields;
+   return {state:'prepared-only',expectedRevision:remote.revision,changed:!same(remote.data.fabricRemnantPolicyV9630,fields),next,canWrite:false,remoteTargetsVerified:false};
+  }catch(_){return fail('invalid-policy')}
+ }
+
  // A model/order may appear under several materials. Build one selection by canonical pair.
  function modelSignature(m){return JSON.stringify([m.key,m.orderId,m.orderNumber,m.productId,m.productName,m.pieces,[...m.grade].map(x=>[x.color,x.size,x.qty]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))])}
  function planSelection(discovery,selected){
@@ -206,5 +234,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
