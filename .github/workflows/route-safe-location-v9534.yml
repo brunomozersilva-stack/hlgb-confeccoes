@@ -27,7 +27,7 @@ jobs:
           node --check release-operations-pack.js
           node --check tests/route-safe-save-location-v9534-browser.cjs
   browser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     strategy:
       fail-fast: false
