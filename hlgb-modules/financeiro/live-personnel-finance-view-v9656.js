@@ -9,11 +9,28 @@ function mount(pageId){const area=document.getElementById(pageId),id='hlgb-live-
  const host=el('section','',area);host.id=id;host.className='panel';host.dataset.liveFinance9656='1';el('h3',hub?'Inteligência financeira e prévia de pessoal':'Prévia salarial e calendário',host);el('p','Consulta dos registros locais. Não lança valores, não confirma pagamentos, nem altera a Folha. Feriados e convenção precisam de confirmação.',host);
  const controls=el('div','',host);controls.className='toolbar';const field=(label,type,value)=>{const l=el('label',label,controls);l.style.cssText='display:flex;flex-direction:column;min-width:0;max-width:100%';const x=el('input','',l);x.type=type;x.value=value;x.style.cssText='min-width:0;max-width:100%';return x};
  const month=field('Competência','month',document.getElementById('payrollMonth')?.value||previousMonth(today())),holidays=field('Feriados informados (AAAA-MM-DD, separados por vírgula)','text','');
- const b=el('button','Consultar prévia salarial',controls);b.type='button';b.className='secondary';
+ const companyClosed=field('Outros dias sem expediente (AAAA-MM-DD)','text',''),bankClosed=field('Dias sem operação bancária (AAAA-MM-DD)','text','');
+ const b=el('button','Atualizar prévia salarial',controls);b.type='button';b.className='secondary';
+ const salaryOut=el('div','',host);salaryOut.dataset.salaryOutput='1';salaryOut.setAttribute('aria-live','polite');
  const out=el('div','',host);out.dataset.financeOutput='1';out.setAttribute('aria-live','polite');
  const active=()=>area.classList.contains('active')&&auth()&&can('folhaPagamento')&&(!hub||can(pageId));
- b.onclick=()=>{out.replaceChildren();if(!active())return;const x=api.payroll(deps,{competence:month.value,asOf:today(),holidays:holidays.value.split(',').map(s=>s.trim()).filter(Boolean)},hub);if(x.state!=='local-preview-only'){el('p','Prévia indisponível. Confira acesso, competência e fontes.',out);return}el('p','Registros de funcionários considerados: '+x.observedEmployeeCount,out);el('p','Em aberto observado: '+money(x.localOpenCents)+' · Pago informado: '+money(x.localPaidCents),out);el('p','Quinto dia útil candidato: '+x.calendar.fifthDay+' · Expediente da empresa: '+x.calendar.companyFifthCandidate+' · Programação candidata: '+x.calendar.scheduledCandidate,out);el('p','Calendário não confirmado. '+x.issueCount+' registro(s) exigem revisão. Valor oficial não confirmado.',out);if(x.reconciliation)el('p','Conferência Hub: '+({'local-preview-only':'Sem prova suficiente para lançamento','legacy-or-unlinked-review':'Conciliar lançamento anterior','already-paid-review':'Pagamento registrado: revisar','duplicate-review':'Duplicidade: revisar','existing-conflict':'Conflito em lançamento','source-unavailable':'Fonte indisponível'}[x.reconciliation.state]||x.reconciliation.state),out)};
- if(hub){const target=field('Semana a consultar','date',today()),select=el('select','',controls);select.setAttribute('aria-label','Semanas de histórico');for(const n of [8,12,26]){const o=el('option',n+' semanas',select);o.value=String(n)}const f=el('button','Consultar inteligência financeira',controls);f.type='button';f.className='secondary';f.onclick=()=>{out.replaceChildren();if(!active())return;const x=api.finance(deps,{asOf:today(),targetDate:target.value,historyWeeks:Number(select.value)});if(x.state!=='local-observation-only'){el('p','Consulta indisponível. Confira período e fontes.',out);return}el('p',x.reason,out);for(const g of x.observations)el('p',g.flow+' · '+g.category+' · Previsto '+money(g.plannedCents)+' · Realizado informado '+money(g.paidCents),out);el('h4','Compromissos previstos — 13 semanas',out);for(const w of x.cash.base)el('p',w.start+' a '+w.end+' · Entradas '+money(w.incomingCents)+' · Saídas '+money(w.outgoingCents),out);el('p','Saldo bancário, diagnóstico de saúde e margens não confirmados. Registros omitidos: '+x.omitted,out)}}
+ const list=x=>x.value.split(',').map(s=>s.trim()).filter(Boolean);
+ function salaryDraw(){salaryOut.replaceChildren();if(!active())return;const asOf=today(),opt={competence:month.value,asOf,holidays:list(holidays),companyClosed:list(companyClosed),bankClosed:list(bankClosed)};const signal=api.salarySignal(deps,opt,hub);
+ if(signal.state!=='provisional'){el('p','Calendário indisponível. Confira competência, feriados e acesso.',salaryOut);return}
+ const dateLabel=d=>d.split('-').reverse().join('/');
+ const heading=el('h4',signal.schedule==='today'?'Hoje é a data candidata para programar o pagamento':signal.fifth==='today'?'Hoje é o quinto dia útil candidato':signal.schedule==='upcoming'?'Próxima programação salarial':'Data candidata já passou: confira a folha',salaryOut);
+ heading.setAttribute('role','status');el('p','Competência '+month.value+' · 5º dia útil salarial: '+dateLabel(signal.fifthDay)+' · 5º dia de expediente: '+dateLabel(signal.companyFifthDay)+' · Programação da empresa: '+dateLabel(signal.scheduledDay),salaryOut);
+ el('p','Calendário provisório. Sábado conta para o prazo salarial, mas não para o expediente da empresa. Feriados, convenção e banco precisam de confirmação.',salaryOut);
+ const x=api.payroll(deps,opt,hub);if(!active()){salaryOut.replaceChildren();return}if(x.state!=='local-preview-only'){el('p','Prévia indisponível. Confira acesso, competência e fontes.',salaryOut);return}
+ el('p','Funcionários considerados: '+x.observedEmployeeCount+' · '+x.issueCount+' registro(s) exigem revisão.',salaryOut);
+ el('p',x.observedEmployeeCount?'Em aberto observado: '+money(x.localOpenCents)+' · Pago informado: '+money(x.localPaidCents):'Nenhum registro salarial válido carregado. Valor desconhecido, não zero.',salaryOut);
+ el('p','Consulta local, não é previsão oficial gravada nem confirmação de pagamento.',salaryOut);
+ if(x.reconciliation)el('p','Conferência Hub: '+({'local-preview-only':'Sem prova suficiente para lançamento','legacy-or-unlinked-review':'Conciliar lançamento anterior','already-paid-review':'Pagamento registrado: revisar','duplicate-review':'Duplicidade: revisar','existing-conflict':'Conflito em lançamento','source-unavailable':'Fonte indisponível'}[x.reconciliation.state]||x.reconciliation.state),salaryOut);
+ }
+ b.onclick=salaryDraw;
+ for(const x of [month,holidays,companyClosed,bankClosed])x.addEventListener('change',salaryDraw);
+ salaryDraw();
+ if(hub){const target=field('Semana a consultar','date',today()),select=el('select','',controls);select.setAttribute('aria-label','Semanas de histórico');for(const n of [8,12,26]){const o=el('option',n+' semanas',select);o.value=String(n)}const f=el('button','Consultar inteligência financeira',controls);f.type='button';f.className='secondary';f.onclick=()=>{out.replaceChildren();if(!active())return;const x=api.finance(deps,{asOf:today(),targetDate:target.value,historyWeeks:Number(select.value)});if(x.state!=='local-observation-only'){el('p','Consulta indisponível. Confira período e fontes.',out);return}el('p',x.reason,out);const sum=api.weeklySummary(x);if(sum.state==='observed'){el('h4','Resumo da semana selecionada',out);el('p','Entradas previstas '+money(sum.plannedInCents)+' · Saídas previstas '+money(sum.plannedOutCents)+' · Diferença prevista '+money(sum.plannedDifferenceCents),out);el('p','Entradas realizadas informadas '+money(sum.paidInCents)+' · Saídas realizadas informadas '+money(sum.paidOutCents),out);if(sum.topExpense)el('p','Maior categoria de saída observada: '+sum.topExpense.category+' · '+money(sum.topExpense.totalCents),out)}else el('p','Sem registros válidos na semana selecionada. Não significa ausência de compromissos.',out);for(const g of x.observations)el('p',g.flow+' · '+g.category+' · Previsto '+money(g.plannedCents)+' · Realizado informado '+money(g.paidCents),out);el('h4','Compromissos previstos — 13 semanas',out);for(const w of x.cash.base)el('p',w.start+' a '+w.end+' · Entradas '+money(w.incomingCents)+' · Saídas '+money(w.outgoingCents),out);el('p','Saldo bancário, diagnóstico de saúde e margens não confirmados. Registros omitidos: '+x.omitted,out)}}
  for(const x of controls.querySelectorAll('input,select'))x.addEventListener('change',()=>out.replaceChildren());
 }
 function refresh(){for(const host of document.querySelectorAll('[data-live-finance9656]')){const page=host.closest('.page');if(!auth()||!can('folhaPagamento')||!page?.classList.contains('active')||page.id==='hubFinanceiro'&&!can(page.id))host.remove()}mount('folhaPagamento');mount('hubFinanceiro')}
@@ -58,5 +75,30 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
    return {...x,canPublish:false};
   }catch(_){return invalid('source-review')}
  }
- return {payroll,finance};
+ function salarySignal(deps,opt,fromHub=false){
+  const areas=fromHub?['folhaPagamento','hubFinanceiro']:['folhaPagamento'];
+  if(!allowed(deps,...areas))return invalid('permission');
+  try{
+   if(!date(opt.asOf))return invalid('invalid-period');
+   const calendar=deps.calendarApi();if(typeof calendar?.salaryDate!=='function'||!allowed(deps,...areas))return invalid('source-unavailable');
+   const c=calendar.salaryDate({competence:opt.competence,asOf:opt.asOf,holidays:opt.holidays||[],companyClosed:opt.companyClosed||[],bankClosed:opt.bankClosed||[]});
+   if(!allowed(deps,...areas))return invalid('permission');
+   if(![c.fifthDay,c.companyFifthCandidate,c.scheduledCandidate].every(date))return invalid('calendar-review');
+   const relation=d=>opt.asOf<d?'upcoming':opt.asOf===d?'today':'passed';
+   return {state:'provisional',fifthDay:c.fifthDay,companyFifthDay:c.companyFifthCandidate,scheduledDay:c.scheduledCandidate,fifth:relation(c.fifthDay),company:relation(c.companyFifthCandidate),schedule:relation(c.scheduledCandidate),paymentStatus:'not-determined',canPublish:false};
+  }catch(_){return invalid('calendar-review')}
+ }
+ function weeklySummary(x){
+  const empty=()=>({state:'unavailable',plannedInCents:null,plannedOutCents:null,plannedDifferenceCents:null,paidInCents:null,paidOutCents:null,topExpense:null,canPublish:false});
+  if(x?.state!=='local-observation-only'||!Array.isArray(x.observations)||!x.observations.length)return empty();
+  let plannedInCents=0,plannedOutCents=0,paidInCents=0,paidOutCents=0,topExpense=null;const seen=new Set();
+  for(const g of x.observations){
+   if(!['Entrada','Saída'].includes(g?.flow)||typeof g.category!=='string'||!g.category.trim()||![g.plannedCents,g.paidCents].every(n=>Number.isSafeInteger(n)&&n>=0))return empty();
+   const key=JSON.stringify([g.flow,g.category]);if(seen.has(key))return empty();seen.add(key);
+   if(g.flow==='Entrada'){plannedInCents+=g.plannedCents;paidInCents+=g.paidCents}else{plannedOutCents+=g.plannedCents;paidOutCents+=g.paidCents;const totalCents=g.plannedCents+g.paidCents;if(!Number.isSafeInteger(totalCents))return empty();if(!topExpense||totalCents>topExpense.totalCents||totalCents===topExpense.totalCents&&g.category<topExpense.category)topExpense={category:g.category,totalCents}}
+  }
+  if(![plannedInCents,plannedOutCents,paidInCents,paidOutCents].every(Number.isSafeInteger))return empty();
+  return {state:'observed',plannedInCents,plannedOutCents,plannedDifferenceCents:plannedInCents-plannedOutCents,paidInCents,paidOutCents,topExpense,coverage:'local-incomplete',canPublish:false};
+ }
+ return {payroll,finance,salarySignal,weeklySummary};
 })());
