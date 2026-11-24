@@ -20,7 +20,7 @@ const context={
    return {applied:true,data:JSON.parse(JSON.stringify(data)),deleted_at:deleted?'2026-09-17T12:00:00Z':null,revision:1,updated_at:'2026-09-17T12:00:00Z'};
  }
 };
-vm.createContext(context);vm.runInContext(src,context);
+vm.createContext(context);if(process.env.HLGB_PROVISION_CORE==='1')vm.runInContext(fs.readFileSync('hlgb-modules/financeiro/payroll-provision-core-v9649.js','utf8'),context);vm.runInContext(src,context);
 (async()=>{
 const api=context.window.hlgbPayrollIntegrity;
 assert(api,'payroll integrity API must load');
