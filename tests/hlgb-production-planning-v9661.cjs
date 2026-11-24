@@ -34,6 +34,13 @@ const assert=require('node:assert/strict'),crypto=require('node:crypto'),plan=re
  ok(api.materialHistory(measuredDb,false).state==='forbidden'&&api.materialEstimate(v.groups[0],mh,false).state==='forbidden','measured permissions');
  ok(api.materialEstimate(v.groups[0],api.materialHistory(db,true),true).estimatedKg===null,'no sample no estimate');
  ok(JSON.stringify(measuredDb)===measuredSnap,'measured immutable');
+ const dated=(i,weight,date)=>({id:i,productId:10,status:'Finalizado',pieces:100,materialUsageRecordedAt:date,materialUsage:[{materialId:1,weight,unit:'kg'}]});
+ const datedDb={...db,cuts:[dated(1,5,'2026-11-01T10:00:00Z'),dated(2,5,'2026-11-02T10:00:00Z'),dated(3,5,'2026-11-03T10:00:00Z'),dated(4,6,'2026-11-04T10:00:00Z'),dated(5,99,'2026-11-05'),dated(6,99,'invalid')]};
+ const datedSnap=JSON.stringify(datedDb),bt=api.materialBacktest(v.groups[0],api.materialHistory(datedDb,true),true),b10=bt.rows.find(x=>x.productId==='10');
+ ok(b10.state==='retrospective'&&b10.cutId==='4'&&b10.priorCuts===3&&b10.expectedKg===5&&b10.actualKg===6&&b10.deltaKg===1&&b10.deltaPct===20&&b10.undatedSamples===2&&b10.savings===null,'strict dated holdout no lookahead');
+ ok(bt.rows.find(x=>x.productId==='11').state==='insufficient','no history');
+ ok(api.materialBacktest(v.groups[0],api.materialHistory({...datedDb,cuts:[...datedDb.cuts,dated(7,7,'2026-11-04T10:00:00Z')]},true),true).rows[0].state==='insufficient','latest timestamp tie blocked');
+ ok(api.materialBacktest(v.groups[0],api.materialHistory(datedDb,true),false).state==='forbidden'&&JSON.stringify(datedDb)===datedSnap,'permission and immutable');
  const priced=[{...db.materials[0],price:25}],cost=api.materialCostEstimate(v.groups[0],me,priced,true);
  ok(cost.estimatedCents===3000&&cost.referencePricePerKg===25&&cost.coveredPieces===30&&cost.uncoveredPieces===40&&cost.rows.find(r=>r.productId==='11').estimatedCents===null&&!cost.canWrite&&cost.savings===null,'partial reference cost, not savings');
  ok(api.materialCostEstimate(v.groups[0],me,[{...priced[0],unit:'g',price:.025}],true).estimatedCents===3000,'price per gram');
