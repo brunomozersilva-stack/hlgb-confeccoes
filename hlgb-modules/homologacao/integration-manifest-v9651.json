@@ -358,7 +358,11 @@
       "hlgb-modules/financeiro/rh-live-view-v9667.js"
     ],
     "mode": "local-review-no-write",
-    "tests": "RH core and DOM fixture"
+    "tests": [
+      "tests/hlgb-rh-planning-v9636.cjs",
+      "tests/hlgb-rh-live-view-v9667.cjs",
+      "tests/hlgb-rh-finance-v9667-browser.cjs"
+    ]
   },
   "followupOperationalFinance": {
     "version": "96.66",
@@ -366,6 +370,41 @@
       "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js",
       "tests/hlgb-live-personnel-finance-v9656.cjs",
       "tests/hlgb-live-finance-integrated-v9657.cjs"
+    ],
+    "history": "recorded-only, no official baseline",
+    "receiptDelayDays": [
+      0,
+      7,
+      14,
+      21,
+      28
+    ],
+    "tests": [
+      "tests/hlgb-hub-intelligence-adapter-v9633.cjs",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-live-finance-integrated-v9657.cjs"
     ]
+  },
+  "followupProductionBasket": {
+    "version": "96.68",
+    "changed": [
+      "hlgb-modules/producao/production-planning-v9661.js",
+      "hlgb-modules/producao/production-planning-view-v9661.js"
+    ],
+    "tests": [
+      "tests/hlgb-production-planning-v9661.cjs",
+      "tests/hlgb-production-planning-v9661-selection-view.cjs",
+      "tests/hlgb-production-planning-v9661-browser.cjs"
+    ],
+    "mode": "local-draft-only"
+  },
+  "followupBatch": {
+    "base": "4fdc40ffb07678a2f12bbddec7590b1f3bbaaf7f",
+    "validatedCodeHead": "9c1222534c346f19ae6794701780b5b0fd1b154f",
+    "controlledAssertions": 274,
+    "details": "43 RH core + 65 RH DOM + 33 finance adapter + 37 finance view + 33 finance integrated + 34 planning core + 29 selection DOM; no native browser or remote database",
+    "loaderScripts": 189,
+    "baselineScripts": 158,
+    "mode": "next functional batch; no production"
   }
 }
