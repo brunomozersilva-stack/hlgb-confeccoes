@@ -1,0 +1,3 @@
+# Histórico por área — #276
+
+9 verificações de escopo. Integração candidata ao HTML comercial via loader: botão de consulta em pagamentos de facções, notas e Folha; consulta exclusivamente módulo autorizado, resolve APIs oficiais no clique. Resumo por pessoa/data e detalhe por documento, filtros e paginação. Sem escrita, sem conteúdo de comprovantes, sem totais oficiais. Notas podem conter valores derivados pelo módulo legado: são valores apresentados, não prova de pagamento. Não substitui histórico antigo, não inclui ainda vales/rescisões/benefícios e PDF; testes browser e de autorização real ainda necessários. Sem deploy.
