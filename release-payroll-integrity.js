@@ -6,6 +6,8 @@ function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
 function employeeById(id){return arr('employees').find(x=>sid(x?.id)===sid(id))||null}
 function cloudEmployee(id){try{const s=hlgbRecordSnapshots?.employees?.get?.(sid(id));if(s&&!s.deleted_at&&s.data)return clone(s.data)}catch(e){}return clone(employeeById(id))}
 function company(e){try{return typeof employeeCompanyName==='function'?employeeCompanyName(e):String(e?.companyName||'')}catch(_){return String(e?.companyName||'')}}
+const provisionCore9649=window.HLGB_PAYROLL_PROVISION_CORE_9649?.create({eligibleMonth:(...args)=>{if(typeof employeeWorkedAtLeast15DaysInMonth!=='function')throw Error('legacy fallback');return employeeWorkedAtLeast15DaysInMonth(...args)},salaryAt:(...args)=>{if(typeof salaryForEmployeeAtDate!=='function')throw Error('legacy fallback');return salaryForEmployeeAtDate(...args)}});
+/* Original calculations remain fallback for old cached loader; same write authority. */
 function provisionHistory(e){return Array.isArray(e?.provisionPaidHistory)?e.provisionPaidHistory:[]}
 function terminationHistory(e){return Array.isArray(e?.terminationPaidHistory)?e.terminationPaidHistory:[]}
 function sameYear(a,b){return String(a||'').slice(0,4)===String(b||'').slice(0,4)}
@@ -14,19 +16,19 @@ function eligibleMonth(e,y,m){
  if(!e?.hireDate)return false;const start=new Date(y,m-1,1,12),end=new Date(y,m,0,12),hire=new Date(e.hireDate+'T12:00:00'),term=e.terminationDate?new Date(e.terminationDate+'T12:00:00'):null,a=hire>start?hire:start,b=term&&term<end?term:end;return b>=a&&(Math.floor((b-a)/86400000)+1>=15)
 }
 function salaryAt(e,date){try{if(typeof salaryForEmployeeAtDate==='function')return q(salaryForEmployeeAtDate(e,date))}catch(_){}return q(e?.salary)}
-function gross13Until(e,date){
+function gross13Until(e,date){if(provisionCore9649)return provisionCore9649.gross13Until(e,date);
  if(!e?.hireDate||!date)return 0;const y=+String(date).slice(0,4),target=+String(date).slice(5,7);let total=0;
  const copy={...e,terminationDate:e.terminationDate||date};
  for(let m=1;m<=target;m++){if(!eligibleMonth(copy,y,m))continue;const last=String(new Date(y,m,0).getDate()).padStart(2,'0');total+=salaryAt(e,`${y}-${String(m).padStart(2,'0')}-${last}`)/12}
  return Math.round(total*100)/100;
 }
-function paid13(e,date,excludeSourceId){
+function paid13(e,date,excludeSourceId){if(provisionCore9649)return provisionCore9649.paid13(e,date,excludeSourceId);
  return provisionHistory(e).filter(x=>x&&x.type==='13º'&&(!date||String(x.date||'')<=date)&&(!date||sameYear(x.date,date))&&(!excludeSourceId||sid(x.sourceId)!==sid(excludeSourceId))).reduce((s,x)=>s+q(x.value),0)
 }
-function remaining13(e,date,excludeSourceId){return Math.max(0,Math.round((gross13Until(e,date)-paid13(e,date,excludeSourceId))*100)/100)}
+function remaining13(e,date,excludeSourceId){if(provisionCore9649)return provisionCore9649.remaining13(e,date,excludeSourceId);return Math.max(0,Math.round((gross13Until(e,date)-paid13(e,date,excludeSourceId))*100)/100)}
 function provisionEventIndex(hist,id,sourceType,sourceId){return hist.findIndex(x=>sid(x?.id)===sid(id)||(sourceType&&sourceId&&sid(x?.sourceType)===sid(sourceType)&&sid(x?.sourceId)===sid(sourceId)))}
-function upsertProvision(e,event){const next=clone(e)||{},h=provisionHistory(next).map(clone),i=provisionEventIndex(h,event.id,event.sourceType,event.sourceId);if(i>=0)h[i]={...h[i],...clone(event)};else h.push(clone(event));next.provisionPaidHistory=h;return next}
-function removeProvisionSource(e,sourceType,sourceId){const next=clone(e)||{};next.provisionPaidHistory=provisionHistory(next).filter(x=>!(sid(x?.sourceType)===sid(sourceType)&&sid(x?.sourceId)===sid(sourceId)));return next}
+function upsertProvision(e,event){if(provisionCore9649)return provisionCore9649.upsertProvision(e,event);const next=clone(e)||{},h=provisionHistory(next).map(clone),i=provisionEventIndex(h,event.id,event.sourceType,event.sourceId);if(i>=0)h[i]={...h[i],...clone(event)};else h.push(clone(event));next.provisionPaidHistory=h;return next}
+function removeProvisionSource(e,sourceType,sourceId){if(provisionCore9649)return provisionCore9649.removeProvisionSource(e,sourceType,sourceId);const next=clone(e)||{};next.provisionPaidHistory=provisionHistory(next).filter(x=>!(sid(x?.sourceType)===sid(sourceType)&&sid(x?.sourceId)===sid(sourceId)));return next}
 async function ready(){if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);if(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function'){const ok=await hlgbEnsureRecordsOnlineAfterLogin();if(!ok)throw new Error('A nuvem ainda não está pronta.')}if(typeof hlgbRecordSaveWithRetry!=='function')throw new Error('Gravação por registro indisponível.')}
 function replaceLocal(module,id,data,deleted){db[module]=Array.isArray(db[module])?db[module]:[];const i=db[module].findIndex(x=>sid(x?.id)===sid(id));if(deleted){if(i>=0)db[module].splice(i,1)}else if(i>=0)db[module][i]=clone(data);else db[module].push(clone(data));try{localSaveOnly?.()}catch(e){}}
 async function saveRecord(module,row,deleted=false){await ready();if(!row||row.id==null)throw new Error('Registro sem identificação.');const out=await hlgbRecordSaveWithRetry(module,sid(row.id),clone(row),deleted);if(!out?.applied)throw new Error('O Supabase não confirmou '+module+'.');replaceLocal(module,row.id,out.data||row,deleted);return clone(out.data||row)}

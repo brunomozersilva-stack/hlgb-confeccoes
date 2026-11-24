@@ -1,0 +1,3 @@
+# Modularização da Folha — #311 #302 #299
+
+Extrai fórmulas existentes de 13º, adiantamentos e edição de histórico do controlador release-payroll-integrity.js. Dependências de elegibilidade e salário por data injetadas, fallback literal para loader antigo. 288 comparações de comportamento + 2 de inventário executadas em dados sintéticos, sem alterar a fórmula nem o bloco de gravação/rescisão. O teste existente de retry de rescisão será executado com núcleo e sem núcleo; monólito inalterado. Preservar regras antigas não certifica cálculo trabalhista novo; revisões legais e novos requisitos de Folha permanecem separadas. A PR altera manifesto/loader: reconciliar com #318 antes de merge; não publicar até CI completa.
