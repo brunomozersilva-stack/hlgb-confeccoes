@@ -18,5 +18,7 @@ a=copy();a.before.jobs.push(a.before.jobs[0]);ok(api.check(a).state==='not-confi
 a=copy();a.after.jobs[0].steps.push(a.after.jobs[0].steps[0]);ok(api.check(a).state==='not-confirmed','ambiguous step');
 a=copy();a.logReviewed=false;ok(api.check(a).state==='not-confirmed','missing review');
 a=copy();a.regressionTest='tests/../unsafe.cjs';ok(api.check(a).state==='not-confirmed','unsafe path');
-ok(api.review(ledger).rejected.some(r=>r.id==='worker-passage-label-9659'),'pending worker remains unlearned');
+ok(api.review(ledger).accepted.some(r=>r.id==='worker-passage-label-9659'),'worker correction confirmed in both engines');
+const pending={...ledger[1],after:null};ok(api.check(pending).state==='not-confirmed','pending worker remains unlearned');
+ok(api.review(ledger).accepted.length===2,'two observed cases');
 console.log('PASS CI evidence pairs, cancellation, source and scope');
