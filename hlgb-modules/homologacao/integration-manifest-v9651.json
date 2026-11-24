@@ -250,7 +250,7 @@
     "hlgb-modules/ownership-v9600.json"
   ],
   "originalScripts": 163,
-  "integratedScripts": 187,
+  "integratedScripts": 189,
   "mode": "candidate-not-production",
   "followup": {
     "version": "96.52",
@@ -350,5 +350,22 @@
     ],
     "mode": "isolated-no-production",
     "tests": "34 archive + 22 finance + 13 settlement controlled assertions; browser/CI pending"
+  },
+  "followupRH": {
+    "version": "96.67",
+    "added": [
+      "hlgb-modules/financeiro/rh-planning-v9636.js",
+      "hlgb-modules/financeiro/rh-live-view-v9667.js"
+    ],
+    "mode": "local-review-no-write",
+    "tests": "RH core and DOM fixture"
+  },
+  "followupOperationalFinance": {
+    "version": "96.66",
+    "changed": [
+      "hlgb-modules/financeiro/live-personnel-finance-view-v9656.js",
+      "tests/hlgb-live-personnel-finance-v9656.cjs",
+      "tests/hlgb-live-finance-integrated-v9657.cjs"
+    ]
   }
 }
