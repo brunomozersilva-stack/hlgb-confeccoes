@@ -42,6 +42,14 @@ vm.createContext(ctx);vm.runInContext(code,ctx);
  ok(out.unverified?.length===2,'histórico antigo não pode inflar não verificados');
  ok(out.historicalBacklog?.count===116,'histórico antigo deveria ser resumido, não reprocessado');
  ok(out.triage?.signal?.operationalQueue?.unique===0&&out.triage?.signal?.reportedPendingUnique===21&&out.triage?.signal?.pendingBusiness===21,'mismatch fila real x negócio não foi preservado na triagem');
+ const compact=require('./auditor-triage-inventory-assert.cjs');compact(out);
+ for(const [status,count,id] of [['error',null,'sync:indexeddb-unverified'],['timeout',null,'sync:indexeddb-unverified'],['ok',1,'sync:indexeddb-wal']]){
+  const extra={id,classification:'needs-code'};
+  const candidate={...out,triage:{...out.triage,signal:{...out.triage.signal,indexedDbWal:{status,count}}},needsCode:[...out.needsCode,extra],unverified:[...out.unverified,extra]};
+  ok(compact(candidate).needs===3,'valid independent WAL finding');
+  let rejects=false;try{compact({...candidate,needsCode:out.needsCode})}catch(_){rejects=true}ok(rejects,'WAL evidence must not disappear');
+ }
+ let rejects=false;try{compact({...out,needsCode:[...out.needsCode,{id:'arbitrary'}]})}catch(_){rejects=true}ok(rejects,'arbitrary task rejected');
  // A falha de dependência deve expor o reparador que realmente faltou.
  window.hlgbAuditorAutoCorrect9446.prepare=async()=>({ok:false,ready:false,
   recordLearningIsolation:{saved:false},
