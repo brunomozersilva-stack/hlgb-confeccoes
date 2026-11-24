@@ -28,18 +28,23 @@ module.exports=(function archive(){
   try{
    if(await transport.authorize(m)!==true)return unknown('permission-denied',m.operationId);
    const existing=await transport.read(m.operationId);
+   if(await transport.authorize(m)!==true)return unknown('permission-denied',m.operationId);
    if(existing?.state==='committed')return receiptMatches(existing,m)?{state:'confirmed',confirmed:true,operationId:m.operationId,revision:existing.revision,separationChanged:false,stockChanged:false}:unknown('operation-conflict',m.operationId);
    const reserved=await transport.reserve(m);
+   if(await transport.authorize(m)!==true)return unknown('permission-denied',m.operationId);
    if(reserved?.state!=='reserved'||!eq(reserved.manifest,m))return unknown('revision-or-operation-conflict',m.operationId);
    for(const a of m.attachments){
     if(await transport.authorize(m)!==true)return unknown('permission-denied',m.operationId);
     const f=files.find(x=>x.sha256===a.sha256),ack=await transport.put(m.operationId,a,f.bytes);
+    if(await transport.authorize(m)!==true)return unknown('permission-denied',m.operationId);
     if(ack?.sha256!==a.sha256||ack?.size!==a.size||ack?.mime!==a.mime||ack?.private!==true||ack?.contentVerified!==true)return unknown('attachment-unconfirmed',m.operationId);
    }
    if(await transport.authorize(m)!==true)return unknown('permission-denied',m.operationId);
    const ack=await transport.commit(m);
+   if(await transport.authorize(m)!==true)return unknown('permission-denied',m.operationId);
    if(ack?.applied!==true)return unknown('commit-unconfirmed',m.operationId);
    const reread=await transport.read(m.operationId);
+   if(await transport.authorize(m)!==true)return unknown('permission-denied',m.operationId);
    if(!receiptMatches(reread,m))return unknown('readback-unconfirmed',m.operationId);
    return {state:'confirmed',confirmed:true,operationId:m.operationId,revision:reread.revision,separationChanged:false,stockChanged:false};
   }catch(_){return unknown('transport-interrupted-retry-same-operation',m.operationId)}
