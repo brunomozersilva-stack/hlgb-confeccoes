@@ -13,26 +13,66 @@
  const cutAllowed=()=>['corte','pedidos','produtos','materiais','producao'].every(can);
  const remAllowed=()=>can('produtos')&&can('materiais');
  function clear(){for(const x of document.querySelectorAll('[data-planning9661]'))x.remove()}
- function hostFor(page,id,allowed){const area=document.getElementById(page),old=document.getElementById(id);if(!allowed()||!area?.classList.contains('active')){old?.remove();return null}if(old||!root.HLGBProductionPlanning9661)return null;const host=el('section','',area);host.id=id;host.className='panel';host.dataset.planning9661='1';const actor=user();return {host,active:()=>host.isConnected&&allowed()&&area.classList.contains('active')&&user()===actor}}
+ function hostFor(page,id,allowed){const area=document.getElementById(page),old=document.getElementById(id),actor=user();if(!allowed()||!actor||!area?.classList.contains('active')){old?.remove();return null}if(old&&old.dataset.planningActor!==actor)old.remove();else if(old)return null;if(!root.HLGBProductionPlanning9661)return null;const host=el('section','',area);host.id=id;host.className='panel';host.dataset.planning9661='1';host.dataset.planningActor=actor;return {host,active:()=>host.isConnected&&allowed()&&area.classList.contains('active')&&user()===actor}}
+
  function mountCut(){
   const context=hostFor('corte','hlgbJointCut9661',cutAllowed);if(!context)return;const {host,active}=context,api=root.HLGBProductionPlanning9661;
   el('h2','Corte Conjunto — planejamento por matéria-prima',host);el('p','Agrupamento de pedidos locais por ID de matéria-prima. Não confirma saldo, lote, cor física do tecido, encaixe Audaces ou economia. Não cria corte nem baixa estoque.',host);
-  const search=field('Buscar matéria-prima, pedido ou modelo',host,'search'),out=el('div','',host);let offset=0;
+  const search=field('Buscar matéria-prima, pedido ou modelo',host,'search'),basket=el('section','',host);basket.className='panel';el('h3','Cesta única de planejamento',basket);
+  el('p','A mesma combinação pedido/modelo aparece uma única vez na cesta, mesmo que utilize vários materiais. A seleção permanece ao mudar o filtro ou página.',basket);
+  const basketOut=el('div','',basket),out=el('div','',host);let offset=0,visible=[],selected=new Map();
+  const fresh=()=>active()?api.discover(data(),root.hlgbWriteoffIntegrity9391,true):{state:'forbidden',groups:[]};
+  const plan=x=>api.planSelection(x,[...selected.values()]);
+  const clearAll=()=>{selected.clear();sync()};
+  function purchasePage(){return document.getElementById('purchaseTable')?.closest?.('.page')?.id||(document.getElementById('compras')?'compras':document.getElementById('purchases')?'purchases':'')}
+  function purchaseAllowed(){const p=purchasePage();return active()&&!!p&&can(p)&&can('estoque')&&can('fornecedores')}
+  function transfer(){
+   if(!purchaseAllowed())return;const current=fresh(),selection=plan(current),planner=root.hlgbWeeklyMaterialPlanner9583;
+   if(selection.state!=='local-preview'||!selection.byProduct.length||typeof planner?.setSelection!=='function'||typeof planner?.selected!=='function'){basketOut.replaceChildren();el('p','Planejamento indisponível ou seleção alterada. Atualize antes de enviar.',basketOut);return}
+   const prior=planner.selected();if(!Array.isArray(prior))return;
+   if(prior.length&&!confirm('Substituir a seleção local atual de Compras por estes modelos e quantidades? Não será criada compra.'))return;
+   if(!purchaseAllowed())return;const checked=plan(fresh());if(checked.state!=='local-preview'||JSON.stringify(checked.byProduct)!==JSON.stringify(selection.byProduct)){sync();return}
+   try{
+    const pageId=purchasePage();planner.setSelection(checked.byProduct.map(m=>({productId:m.productId,pieces:m.pieces})));
+    if(!purchaseAllowed())return;el('p','Seleção enviada ao rascunho local de Compras. Confira fichas, estoque, preço e embalagens antes de comprar.',basketOut);
+    if(typeof page==='function'&&can(pageId))page(pageId)
+   }catch(_){el('p','Não foi possível confirmar a abertura do planejamento. Confira Compras antes de repetir.',basketOut)}
+  }
+  function drawBasket(x){
+   basketOut.replaceChildren();if(!active())return;
+   el('p',selected.size+' combinações pedido/modelo selecionadas.',basketOut);
+   if(!selected.size)return;
+   const v=plan(x);if(v.state!=='local-preview'){el('p','Há seleção alterada ou ambígua. Limpe a cesta e selecione novamente. Não será calculada nem enviada para Compras.',basketOut);return}
+   el('h4',fmt(v.orderedPieces)+' peças únicas na cesta · '+v.byProduct.length+' modelos',basketOut);
+   const models=el('details','',basketOut);el('summary','Modelos consolidados por quantidade',models);
+   for(const m of v.byProduct)el('p',m.productName+' · '+fmt(m.pieces)+' peças · '+m.orderCount+' pedido(s)',models);
+   const d=api.materialDemand(v,data(),active());if(!active()){basketOut.replaceChildren();return}
+   if(d.state!=='local-estimate'){el('p','Fichas técnicas indisponíveis para estimativa.',basketOut);return}
+   el('h4','Necessidade bruta de materiais',basketOut);el('p',d.partial?'Estimativa parcial: existem fichas, unidades ou materiais a revisar.':'Estimativa de consumo e perdas das fichas técnicas locais; sem abatimento de estoque.',basketOut);
+   const materialList=el('details','',basketOut);materialList.open=true;el('summary',d.rows.length+' materiais/unidades/cores consolidados',materialList);
+   for(const r of d.rows){const item=el('div','',materialList);el('strong',r.materialName+' · '+(r.color||'cor da ficha não informada')+' · '+fmt(r.needed)+' '+r.unit,item);const detail=el('details','',item);el('summary','Ver consumo por modelo',detail);for(const m of r.models)el('p',m.productName+' · '+fmt(m.needed)+' '+r.unit,detail)}
+   if(d.issues.length){const detail=el('details','',basketOut);el('summary','Conferências necessárias ('+d.issues.length+')',detail);for(const m of d.models.filter(x=>x.issues.length))el('p',m.productName+' · '+m.issues.join(', '),detail)}
+   if(purchaseAllowed()&&typeof root.hlgbWeeklyMaterialPlanner9583?.setSelection==='function')button('Enviar cesta para planejamento semanal de Compras',basketOut,transfer);
+   else el('p','Envio para Compras requer acesso a compras, estoque e fornecedores.',basketOut);
+  }
+  function sync(x=fresh()){if(!active())return;drawBasket(x);for(const fn of visible)fn(x)}
+  function addGroup(g,on){if(!active())return;const add=g.models.filter(m=>!selected.has(m.key));if(on&&selected.size+add.length>1000){el('p','Limite de 1000 combinações por cesta. Separe o planejamento.',basketOut);return}for(const m of g.models){if(on){if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key)}sync()}
   function draw(){
-   out.replaceChildren();if(!active())return;const x=api.discover(data(),root.hlgbWriteoffIntegrity9391,true);
-   if(x.state!=='discovery-only'){el('p','Consulta indisponível. Confira pedidos, materiais, produção e baixas.',out);return}
-   const q=norm(search.value),groups=x.groups.filter(g=>!q||norm([g.materialName,...g.models.flatMap(m=>[m.orderNumber,m.productName])].join(' ')).includes(q));el('p',groups.length+' grupos de matéria-prima observados. Quantidades podem aparecer em mais de uma matéria-prima; não somar grupos como peças únicas.',out);
+   out.replaceChildren();visible=[];if(!active())return;const x=fresh();
+   if(x.state!=='discovery-only'){drawBasket(x);el('p','Consulta indisponível. Confira pedidos, materiais, produção e baixas.',out);return}
+   const q=norm(search.value),groups=x.groups.filter(g=>!q||norm([g.materialName,...g.models.flatMap(m=>[m.orderNumber,m.productName])].join(' ')).includes(q));el('p',groups.length+' grupos de matéria-prima observados. Quantidades podem aparecer em mais de uma matéria-prima; a cesta elimina a duplicidade.',out);
    if(x.unlinkedActivity)el('p','Há atividade sem pedido vinculado; disponibilidade exige revisão.',out);
    for(const g of groups.slice(offset,offset+15)){
     const card=el('article','',out);card.className='panel';el('h3',g.materialName+' · ID '+g.materialId,card);el('p',fmt(g.orderedPieces)+' peças pedidas em '+g.models.length+' modelos/pedidos candidatos.',card);
-    const controls=el('div','',card),selected=new Set();let shown=0;const result=el('div','',card);
-    const update=()=>{result.replaceChildren();if(!active())return;const current=api.discover(data(),root.hlgbWriteoffIntegrity9391,true).groups.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}const v=api.combine(current,[...selected]);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);for(const l of v.combinedGrade)el('p',l.color+' · '+l.size+' · '+l.qty,result);el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
-    function append(){for(const m of g.models.slice(shown,shown+50)){const label=el('label','',controls);label.style.cssText='display:block;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=selected.has(m.key);el('span',' Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' peças',label);c.onchange=()=>{if(!active())return;c.checked?selected.add(m.key):selected.delete(m.key);update()}}shown+=50;more.hidden=shown>=g.models.length}
-    const more=button('Mais modelos deste grupo',card,append);append();button('Selecionar todos deste grupo',card,()=>{if(!active())return;for(const m of g.models)selected.add(m.key);controls.querySelectorAll('input').forEach(c=>c.checked=true);update()});button('Limpar seleção',card,()=>{selected.clear();controls.querySelectorAll('input').forEach(c=>c.checked=false);update()});update()
+    const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
+    const update=(currentDiscovery)=>{result.replaceChildren();if(!active())return;for(const [key,c] of boxes)c.checked=selected.has(key);const current=currentDiscovery.groups?.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}
+     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key),v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);for(const l of v.combinedGrade)el('p',l.color+' · '+l.size+' · '+l.qty,result);el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
+    function append(){for(const m of g.models.slice(shown,shown+50)){const label=el('label','',controls);label.style.cssText='display:block;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=selected.has(m.key);boxes.set(m.key,c);el('span',' Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' peças',label);c.onchange=()=>{if(!active())return;if(c.checked){if(selected.size>=1000&&!selected.has(m.key)){c.checked=false;return}if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key);sync()}}shown+=50;more.hidden=shown>=g.models.length}
+    const more=button('Mais modelos deste grupo',card,append);append();button('Selecionar todos deste grupo',card,()=>addGroup(g,true));button('Limpar seleção',card,()=>addGroup(g,false));visible.push(update);
    }
-   if(offset>0)button('Grupos anteriores',out,()=>{offset=Math.max(0,offset-15);draw()});if(offset+15<groups.length)button('Mais grupos',out,()=>{offset+=15;draw()})
+   if(offset>0)button('Grupos anteriores',out,()=>{offset=Math.max(0,offset-15);draw()});if(offset+15<groups.length)button('Mais grupos',out,()=>{offset+=15;draw()});sync(x)
   }
-  button('Consultar / atualizar grupos',host,()=>{offset=0;draw()});search.addEventListener('input',()=>{offset=0;draw()});
+  button('Limpar toda a cesta',basket,clearAll);button('Consultar / atualizar grupos',host,()=>{offset=0;draw()});search.addEventListener('input',()=>{offset=0;draw()});draw()
  }
  function mountRemnants(){
   const context=hostFor('produtos','hlgbRemnant9661',remAllowed);if(!context)return;const {host,active}=context,api=root.HLGBProductionPlanning9661;
