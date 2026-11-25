@@ -1,0 +1,20 @@
+name: HLGB Navegação - transições canceláveis v97.00
+on:
+  pull_request:
+    paths:
+      - 'release-ui-stability.js'
+      - 'tests/ui-navigation-settle-v9700.cjs'
+      - '.github/workflows/ui-navigation-settle-v9700.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/ui-navigation-settle-v9700.cjs
+      - run: node tests/audit-ui-stability-regression.cjs
+      - run: node tests/ui-stability-local-order-render-v7.js

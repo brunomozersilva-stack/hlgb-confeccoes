@@ -4,7 +4,7 @@ const {webkit}=require('playwright');
  const page=await browser.newPage({viewport:{width:1280,height:900}});
  const errors=[];page.on('pageerror',e=>errors.push(String(e.message||e)));page.on('dialog',d=>d.dismiss().catch(()=>{}));
  await page.goto('http://127.0.0.1:4173/app-stable3.html',{waitUntil:'domcontentloaded',timeout:60000});
- await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_HARDENING_9399==='93.99',null,{timeout:60000});
+ await page.waitForFunction(()=>!!document.getElementById('loginScreen')&&!!document.getElementById('appShell')&&window.HLGB_AUDITOR_HARDENING_9399==='93.99'&&typeof window.hlgbAuditorSingleUiReclaim9434A?.heal==='function'&&typeof window.hlgbAuditorSingleAction9429?.run==='function',null,{timeout:60000});
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.dispatchEvent(new Event('hlgb:authenticated'))});
  await page.waitForFunction(()=>window.hlgbAuditorHardening9399?.captureHealth?.().openAuthorityLocked===true&&window.openHlgbAuditor===window.hlgbAuditorShell9382?.open,null,{timeout:60000});
  const override=await page.evaluate(()=>{
@@ -16,15 +16,22 @@ const {webkit}=require('playwright');
  if(!override.same||override.after.openOverrideAttempts<=override.before.openOverrideAttempts||override.after.lastOpenOverride?.name!=='legacyLateOpen')throw new Error('sobrescrita tardia não foi bloqueada/diagnosticada '+JSON.stringify(override));
  await page.evaluate(()=>{
   const login=document.getElementById('loginScreen');if(login)login.style.setProperty('display','none','important');
+  // Match the authenticated presentation used by the sibling shell smoke.
+  const app=document.getElementById('appShell');if(app){app.style.setProperty('display','block','important');app.style.setProperty('visibility','visible','important');app.style.setProperty('opacity','1','important')}
   const btn=document.getElementById('hlgbAuditorNavBtn');if(btn){document.body.appendChild(btn);Object.assign(btn.style,{display:'block',visibility:'visible',opacity:'1',position:'fixed',left:'20px',top:'20px',zIndex:'2147483647'})}
  });
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
- await page.waitForSelector('#hlgbSmartProblem',{state:'visible',timeout:10000});
+ await page.waitForSelector('#hlgbSmartStatus',{state:'visible',timeout:15000});
+ await page.waitForSelector('#hlgbAuditorUnifiedRun9434A',{state:'visible',timeout:15000}).catch(async e=>{const details=await page.evaluate(()=>({auth:window.__HLGB_AUTH_READY,canonical:window.hlgbAuditorSingleUiReclaim9434A?.status?.(),app:getComputedStyle(document.getElementById('appShell')).display,actions:!!document.querySelector('.hlgb-auditor-actions'),bootFailures:window.__HLGB_BOOT_FAILED_FILES_9477||[]}));throw Error('Ação única indisponível: '+JSON.stringify(details)+' · '+e.message)});
+ await page.waitForSelector('#hlgbSmartProblem',{state:'hidden',timeout:10000});
+ await page.waitForFunction(()=>typeof window.hlgbAuditorHardening9399?.captureProblem==='function',null,{timeout:10000});
  await page.evaluate(()=>{const s=document.getElementById('hlgbSmartStatus'),root=s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||document.body;const box=document.createElement('span');box.id='hlgbVisualControls9331';const run=document.createElement('button');run.id='hlgbVisualRun9331';run.textContent='👁️ Executar teste visual — somente leitura';box.appendChild(run);root.appendChild(box)});
  await page.waitForFunction(()=>!document.getElementById('hlgbVisualControls9331')&&!document.getElementById('hlgbVisualRun9331'),null,{timeout:5000});
  const before=await page.evaluate(()=>window.hlgbAuditorHardening9399.captureHealth());
  if(!before.shellAuthority||!before.openAuthorityLocked||before.legacyVisualPresent)throw new Error('hardening não consolidou autoridade antes da captura '+JSON.stringify(before));
- await page.click('#hlgbSmartProblem');
+ // The legacy button is intentionally hidden by the unified UI. Exercise
+ // the actual capture API without exposing retired controls or bypassing capture checks.
+ await page.evaluate(()=>window.hlgbAuditorHardening9399.captureProblem());
  await page.waitForSelector('#hlgbSafariDownload9368,#hlgbProblemDownload9399',{state:'visible',timeout:30000});
  const health=await page.evaluate(()=>window.hlgbAuditorHardening9399.captureHealth());
  if(health.lastResult!=='ready'||!health.problemAvailable||!health.problemReadyAt||!health.manualDownloadVisible||!health.shellAuthority||!health.openAuthorityLocked||health.legacyVisualPresent)throw new Error('captura/recuperação não ficou pronta '+JSON.stringify(health));
@@ -34,7 +41,8 @@ const {webkit}=require('playwright');
  const normalLateLoad=before.problemAvailable===false&&health.problemReadySource==='existing'&&health.problemReadyAttempts>=1;
  const waitedOrRecovered=health.problemLoaderAttempts>=1||health.problemReadyAttempts>=2||health.problemReadySource==='recovery-loader';
  if(before.problemAvailable===false&&!normalLateLoad&&!waitedOrRecovered)throw new Error('módulo começou indisponível e não houve carga tardia normal, espera nem recuperação registrada '+JSON.stringify({before,health}));
- const selector=await page.evaluate(()=>document.getElementById('hlgbSafariDownload9368')?'#hlgbSafariDownload9368':'#hlgbProblemDownload9399');
+ const selector=await page.evaluate(()=>{for(const id of ['hlgbSafariDownload9368','hlgbProblemDownload9399']){const el=document.getElementById(id);if(el&&el.getBoundingClientRect().width>0&&getComputedStyle(el).visibility!=='hidden')return '#'+id}return null});
+ if(!selector)throw Error('Nenhum link de diagnóstico visível');
  const downloadPromise=page.waitForEvent('download',{timeout:10000});await page.click(selector);const download=await downloadPromise;
  if(!/^HLGB-PROBLEMA-.*\.json$/i.test(download.suggestedFilename()))throw new Error('nome inesperado do diagnóstico: '+download.suggestedFilename());
  await page.waitForFunction(()=>!!window.hlgbAuditorIntelligence9396?.__hlgb9399,null,{timeout:10000});

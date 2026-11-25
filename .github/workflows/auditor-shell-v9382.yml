@@ -25,7 +25,7 @@ on:
       - '.github/workflows/auditor-shell-v9382.yml'
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -50,7 +50,7 @@ jobs:
       - name: Render local de Pedidos vence janela remota
         run: node tests/ui-stability-local-order-render-v7.js
   chromium:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -71,7 +71,7 @@ jobs:
           path: /tmp/hlgb-pedidos-refresh-chromium.png
           if-no-files-found: warn
   webkit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
