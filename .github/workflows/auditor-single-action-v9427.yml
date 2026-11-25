@@ -11,6 +11,7 @@ on:
       - 'release-auditor-boot-analysis-v9381.js'
       - 'release-auditor-intelligence-v9396.js'
       - 'tests/auditor-single-action-v9427-webkit.js'
+      - 'tests/auditor-retired-v9427-webkit.cjs'
       - '.github/workflows/auditor-single-action-v9427.yml'
   pull_request:
     branches: [main]
@@ -23,10 +24,11 @@ on:
       - 'release-auditor-boot-analysis-v9381.js'
       - 'release-auditor-intelligence-v9396.js'
       - 'tests/auditor-single-action-v9427-webkit.js'
+      - 'tests/auditor-retired-v9427-webkit.cjs'
       - '.github/workflows/auditor-single-action-v9427.yml'
 jobs:
   webkit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,8 +42,11 @@ jobs:
         run: |
           ! grep -q 'setInterval' release-auditor-single-action-v9427.js
           ! grep -q 'MutationObserver' release-auditor-single-action-v9427.js
-      - name: Loader v94.27 presente
-        run: grep -q 'release-auditor-single-action-v9427.js' release-cut-model-grade-adjust.js
+      - name: Loader preserva substituição histórica de v94.27 por v94.29
+        run: |
+          ! grep -q 'release-auditor-single-action-v9427.js' release-cut-model-grade-adjust.js
+          ! grep -q 'release-auditor-single-action-v9427.js' app-stable3.html
+          grep -q 'release-auditor-single-action-v9429.js' release-cut-model-grade-adjust.js
       - name: Relatório diário e histórico presentes no código
         run: |
           grep -q 'hlgb_auditor_daily_report_latest_v9427' release-auditor-single-action-v9427.js
@@ -56,5 +61,5 @@ jobs:
         run: |
           python3 -m http.server 4173 >/tmp/hlgb-http.log 2>&1 &
           sleep 2
-      - name: Auditor único gera relatório diário e aprende
-        run: node tests/auditor-single-action-v9427-webkit.js
+      - name: Versão aposentada não retoma autoridade no app vigente
+        run: node tests/auditor-retired-v9427-webkit.cjs
