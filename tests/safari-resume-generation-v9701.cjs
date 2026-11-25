@@ -1,0 +1,20 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('release-safari-resume-v9266.js','utf8');
+let now=1000,seq=0,recoveries=0,active,observer;
+const timers=new Map(),raf=[],events={},elements=new Map();
+function el(id){const cls=new Set();return {id,isConnected:true,hidden:false,nodeType:1,classList:{contains:x=>cls.has(x),add:x=>cls.add(x),remove:(...xs)=>xs.forEach(x=>cls.delete(x))},getBoundingClientRect:()=>({width:100,height:100}),querySelectorAll:()=>[]}}
+for(const id of ['appShell','pedidos','corte','hlgbPageSettleOverlay'])elements.set(id,el(id));active=elements.get('pedidos');
+const document={visibilityState:'visible',documentElement:el('html'),getElementById:id=>elements.get(id)||null,querySelector:s=>s==='#appShell .page.active'?active:null,querySelectorAll:s=>s==='.hlgb-page-settling'?[...elements.values()].filter(x=>x.classList.contains('hlgb-page-settling')):[],createElement:()=>el(''),head:{appendChild:x=>elements.set(x.id,x)},addEventListener:(n,f)=>events[n]=f};
+const window={__HLGB_AUTH_READY:true,addEventListener:(n,f)=>events[n]=f,hlgbTabResume9262:{recover(){recoveries++}}};
+const c={window,document,console,Date:class extends Date{static now(){return now}},WeakMap,requestAnimationFrame:f=>raf.push(f),setTimeout:(f,ms)=>{timers.set(++seq,{f,ms});return seq},clearTimeout:id=>timers.delete(id),setInterval:()=>1,MutationObserver:class{constructor(f){observer=f}observe(){}},getComputedStyle:()=>({visibility:'visible'})};
+vm.createContext(c);vm.runInContext(source,c);const api=window.hlgbSafariResume9266;
+const flushRaf=()=>{while(raf.length)raf.shift()()};
+api.resumed('visibility');api.resumed('focus');flushRaf();assert.equal(recoveries,1,'focus and visibility coalesce');
+const final=[...timers.values()].find(x=>x.ms===850).f;active=elements.get('corte');active.classList.add('hlgb-page-settling');elements.get('hlgbPageSettleOverlay').hidden=false;final();assert(active.classList.contains('hlgb-page-settling'));assert.equal(elements.get('hlgbPageSettleOverlay').hidden,false);
+now+=500;api.resumed('visibility');document.visibilityState='hidden';api.hidden();flushRaf();assert.equal(recoveries,1,'hidden invalidates resume callback');
+document.visibilityState='visible';now+=500;api.resumed('visibility');active=elements.get('pedidos');flushRaf();assert.equal(recoveries,1,'navigation invalidates resume callback');
+active.classList.add('hlgb-page-settling');observer([{type:'attributes',attributeName:'class',oldValue:'',target:active,addedNodes:[]}]);const old=[...timers.values()].filter(x=>x.ms===900).at(-1).f;
+active.classList.remove('hlgb-page-settling');observer([{type:'attributes',attributeName:'class',oldValue:'hlgb-page-settling',target:active,addedNodes:[]}]);active.classList.add('hlgb-page-settling');observer([{type:'attributes',attributeName:'class',oldValue:'',target:active,addedNodes:[]}]);now+=1000;old();assert(active.classList.contains('hlgb-page-settling'),'old stale timer cannot clear new transition');[...timers.values()].filter(x=>x.ms===900).at(-1).f();assert(!active.classList.contains('hlgb-page-settling'),'genuine stale transition clears');
+vm.runInContext(source,c);assert.equal(window.hlgbSafariResume9266,api,'duplicate inclusion is idempotent');
+console.log('PASS Safari resume coalescing, hidden/navigation cancellation, stale episode guard');
