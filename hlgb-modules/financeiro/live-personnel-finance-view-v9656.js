@@ -41,6 +41,20 @@ function mount(pageId){const area=document.getElementById(pageId),id='hlgb-live-
  const draw=()=>{historyOut.replaceChildren();if(!active())return;const g=h.categories.find(z=>z.category===picker.value);if(!g)return;el('p','Semana selecionada: realizado '+money(g.targetPaidCents)+' · previsto '+money(g.targetPlannedCents)+' · '+g.recordedWeeks+' semanas anteriores com registros realizados.',historyOut);const c=g.observedComparison;if(c?.medianRecordedCents!=null){el('p','Referência parcial: mediana '+money(c.medianRecordedCents)+' · intervalo registrado '+money(c.minRecordedCents)+' a '+money(c.maxRecordedCents)+' · '+c.recordedWeeks+'/'+c.totalWeeks+' semanas observadas.',historyOut);el('p','Semana selecionada (realizado + previsto observados): '+money(c.observedTotalCents)+' · '+({'above-recorded-range':'Acima do intervalo registrado — conferir compromissos e compras extraordinárias','below-recorded-range':'Abaixo do intervalo registrado — conferir lançamentos faltantes','within-recorded-range':'Dentro do intervalo registrado, sem diagnóstico de saúde','insufficient-observations':'Sem registros suficientes na semana selecionada'}[c.signal]||'Conferir registros'),historyOut);el('p','Comparação descritiva, não é orçamento aprovado nem prova de excesso ou economia. Semanas sem registro excluídas.',historyOut)}else el('p','São necessárias pelo menos 4 semanas com pagamentos registrados nesta categoria para uma referência parcial.',historyOut);for(const r of g.history)el('p',r.week+' · Realizado '+money(r.paidCents)+' · Ainda previsto '+money(r.plannedCents),historyOut)};
  picker.onchange=draw;draw();
  }
+ const review=x.cash.commitmentReview;
+ if(review?.state==='partial-simulation'){
+  el('h4','Planejamento de compromissos — próximos 7, 14, 30 e 91 dias',out);
+  el('p','Simulação apenas dos lançamentos previstos carregados: não é saldo bancário, necessidade real de capital de giro ou autorização de pagamento. Pagamentos considerados antes dos recebimentos no mesmo dia.',out);
+  el('p','Recebimentos vencidos sem nova data excluídos: '+review.overdueReceiptsExcluded+' · Pagamentos vencidos considerados no início: '+review.overduePaymentsIncluded+'.',out);
+  for(const [i,w] of review.base.entries()){
+   const z=review.delayed[i],item=el('div','',out);item.className='panel';
+   el('h4',w.horizon+' dias · '+w.start+' a '+w.end,item);
+   if(!w.activeDays&&!z.activeDays){el('p','Sem compromissos observados nesse intervalo; cobertura não confirmada.',item);continue}
+   el('p','Entradas previstas '+money(w.incomingCents)+' · Saídas previstas '+money(w.outgoingCents)+' · Diferença de fluxos '+money(w.netObservedCents),item);
+   el('p','Pico de diferença a cobrir partindo de zero: '+money(w.hypotheticalPeakGapCents)+' · Com atraso de '+x.cash.receiptDelayDays+' dias: '+money(z.hypotheticalPeakGapCents),item);
+   if(z.firstHypotheticalGapDate)el('p','Primeira data de atenção na simulação de atraso: '+z.firstHypotheticalGapDate,item);
+  }
+ }
  el('h4','Compromissos previstos — 13 semanas',out);
  for(const [i,w] of x.cash.base.entries()){const z=x.cash.conservative?.[i];el('p',w.start+' a '+w.end+' · Entradas '+money(w.incomingCents)+' · Saídas '+money(w.outgoingCents)+(z?' · Entradas com atraso de '+x.cash.receiptDelayDays+' dias '+money(z.incomingCents):''),out)}
  el('p','Saldo bancário, diagnóstico de saúde e margens não confirmados. Registros omitidos: '+x.omitted,out)}}
