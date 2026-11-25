@@ -35,6 +35,7 @@ vm.createContext(ctx);vm.runInContext(code,ctx);
 (async()=>{
  const out=await window.hlgbAuditorAutoCorrect9447.run({reason:'test-fast',render:false,download:false});
  ok(out?.version==='94.47','resultado não foi promovido para v94.47');
+ ok(out.auditCompleted===true&&out.report.auditCompleted===true,'auditoria concluída deve ter prova explícita no relatório');
  ok(out.repairSkipped===true&&out.passes===0,'não deveria executar reparo com fila operacional zerada');
  ok(legacyRuns===0,'motor legado foi chamado apesar de não existir trabalho técnico vivo');
  ok(out.needsCode?.length===2,'dois casos de prova incompleta deveriam virar tarefa de código');
@@ -50,6 +51,12 @@ vm.createContext(ctx);vm.runInContext(code,ctx);
   let rejects=false;try{compact({...candidate,needsCode:out.needsCode})}catch(_){rejects=true}ok(rejects,'WAL evidence must not disappear');
  }
  let rejects=false;try{compact({...out,needsCode:[...out.needsCode,{id:'arbitrary'}]})}catch(_){rejects=true}ok(rejects,'arbitrary task rejected');
+ // A report with no valid audit cannot be published as completed.
+ const savedAudit=window.hlgbAuditorAutoCorrect9441.silentAudit;
+ window.hlgbAuditorAutoCorrect9441.silentAudit=async()=>({...audit,main:{...audit.main,summary:{total:31,pass:29,warn:2,fail:1,result:'Falhou'}}});
+ const invalid=await window.hlgbAuditorAutoCorrect9447.run({reason:'invalid-summary',render:false,download:false});
+ ok(invalid.auditCompleted!==true&&/interrompida/i.test(invalid.stopReason),'resumo inválido não pode virar auditoria concluída');
+ window.hlgbAuditorAutoCorrect9441.silentAudit=savedAudit;
  // A falha de dependência deve expor o reparador que realmente faltou.
  window.hlgbAuditorAutoCorrect9446.prepare=async()=>({ok:false,ready:false,
   recordLearningIsolation:{saved:false},
