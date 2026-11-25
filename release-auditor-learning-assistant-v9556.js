@@ -40,6 +40,8 @@ function kind(x){
  return 'general';
 }
 function identity(x,k){
+ // One WAL finding is often repeated in needsCode, stillFailing, unverified and finalAudit.
+ if(k==='wal')return 'durable-wal';
  const r=Array.isArray(x?.refs)?x.refs[0]:null;
  const id=str(r?.id||x?.recordId||x?.id||'');
  if(k==='finance'&&id){const m=id.match(/\d{6,}/);if(m)return m[0]}
@@ -70,6 +72,9 @@ function findings(report){
    prev.affected++;groups.set(fingerprint,prev);
   }
  }
+ const wal=groups.get('wal'),inventory=run?.triage?.signal?.indexedDbWal;
+ // Prefer verified inventory, not the number of repeated alert objects.
+ if(wal&&inventory?.status==='ok'&&Number.isSafeInteger(inventory.count)&&inventory.count>0)wal.affected=inventory.count;
  return [...groups.values()].slice(0,LIMIT);
 }
 function readCases(){
