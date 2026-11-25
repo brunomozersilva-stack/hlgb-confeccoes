@@ -61,12 +61,23 @@ function event(source,category,kind,seed,evidence={},reference=''){
 }
 function queueRead(){const a=json(OUTBOX,[]);return Array.isArray(a)?a.filter(x=>x&&sid(x.id).startsWith(PREFIX)).slice(-MAX):[]}
 function queueWrite(a){try{localStorage.setItem(OUTBOX,JSON.stringify(a.slice(-MAX)));state.outboxCount=a.length;return true}catch(e){state.lastError='Não foi possível armazenar evidência técnica: '+sid(e?.message||e);return false}}
-function enqueue(e){if(!e||!sid(e.id).startsWith(PREFIX))return false;const q=queueRead();if(q.some(x=>x.id===e.id)||state.remote.some(x=>x.id===e.id))return false;return queueWrite([...q,e])}
+function sameEvent(a,b){
+ const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
+ const fields=x=>[x.id,x.kind,x.version,x.source,x.category,x.eventKind,x.fingerprint,x.reference,x.evidence];
+ return !!a&&!!b&&JSON.stringify(stable(fields(a)))===JSON.stringify(stable(fields(b)));
+}
+function enqueue(e){
+ if(!auth()||disabled()||!e||!sid(e.id).startsWith(PREFIX)||e.kind!=='technical_learning_event')return false;
+ const q=queueRead(),existing=q.find(x=>x.id===e.id)||state.remote.find(x=>x.id===e.id);
+ if(existing){if(!sameEvent(existing,e))state.lastError='Identidade técnica com conteúdo divergente; evidência preservada.';return false}
+ if(q.length>=MAX){state.lastError='Fila técnica cheia; publicar eventos existentes antes de coletar novos.';return false}
+ return queueWrite([...q,e]);
+}
 function collect(){
  if(!auth()||disabled())return 0;
  let added=0;
  const audit=window.hlgbAuditorLearningAssistant9556,pack=audit?.pack?.(),report=window.hlgbAuditorAutoCorrect9448?.exportReport?.();
- if(pack?.sourceRunId&&pack?.disabled!==true){
+ if(pack?.sourceRunId&&pack?.disabled!==true&&pack?.runSummary?.auditCompleted===true){
   for(const d of (pack.diagnoses||[]).slice(0,35)){
    const cat=safe(d.kind||'general');
    if(enqueue(event('auditor',cat,'observed',pack.sourceRunId+'|'+cat,{run:safe(pack.sourceRunId).slice(0,60),affected:Math.min(100,Number(d.affectedInReport)||0)})))added++;
@@ -74,7 +85,7 @@ function collect(){
  }
  const run=report?.run||{};
  const unresolved=new Set([...(run.unverified||[]),...(run.stillFailing||[])].filter(x=>sid(x?.id)).map(x=>sid(x.id)));
- for(const correction of (run.corrected||[]).slice(0,25)){
+ for(const correction of (report?.auditCompleted===true&&run.executionFailed!==true&&run.runId?run.corrected||[]:[]).slice(0,25)){
   const c=correction||{},proof=sid(c.verification||c.proof);
   if(!/remote-proof-and-queue-readback|server-semantic-match/i.test(proof)||unresolved.has(sid(c.id)))continue;
   const cat=safe(c.module||'general'),source=sid(run.runId||pack?.sourceRunId);
@@ -103,6 +114,7 @@ async function refresh(){
  if(!auth()||disabled()||state.reading)return {ok:false,reason:'disabled-or-unavailable'};
  state.reading=true;
  try{const rows=await request(query);if(!Array.isArray(rows))throw Error('Lista de aprendizagem não confirmada.');
+  if(!auth()||disabled())throw Error('Sessão encerrada durante a leitura.');
   state.remote=rows.map(normalizeRow).filter(Boolean);state.lastFetch=now();state.lastError='';
   return {ok:true,count:state.remote.length};
  }catch(e){state.lastError='Leitura da memória compartilhada: '+sid(e?.message||e);return {ok:false,error:state.lastError}}
@@ -113,32 +125,35 @@ async function exact(id){
  return Array.isArray(rows)?normalizeRow(rows[0]):null;
 }
 async function publishOne(e){
- const existed=await exact(e.id);if(existed)return true;
+ if(!auth()||disabled())throw Error('Sessão indisponível.');
+ const existed=await exact(e.id);if(existed){if(!sameEvent(existed,e))throw Error('ID técnico existente com conteúdo divergente.');state.lastReadback=now();return true}
+ if(!auth()||disabled())throw Error('Sessão encerrada antes do envio.');
  let out=await request('rpc/hlgb_save_record',{method:'POST',headers:{Prefer:'return=representation'},
   body:JSON.stringify({p_module:MODULE,p_entity_id:e.id,p_data:e,p_expected_revision:0,p_deleted:false})});
  if(Array.isArray(out))out=out[0];
  // Confirma a existência mesmo em conflito de criação simultânea; não apaga operações.
  const check=await exact(e.id);
- if(!check||check.kind!=='technical_learning_event'||check.source!==e.source||check.eventKind!==e.eventKind)
+ if(!auth()||disabled()||!sameEvent(check,e))
   throw Error('Memória técnica sem confirmação remota.');
  if(out?.applied!==true&&check?.id!==e.id)throw Error(out?.reason||'Gravação técnica não confirmada.');
  state.lastReadback=now();return true;
 }
 async function publish(){
  if(!auth()||disabled()||state.publishing||navigator.onLine===false)return {ok:false,reason:'offline-or-inactive'};
- state.publishing=true;
+ state.publishing=true;state.lastError='';
  let sent=0;
  try{
   const list=queueRead();
   for(const e of list.slice(0,10)){
-   try{if(await publishOne(e)){const current=queueRead();queueWrite(current.filter(x=>x.id!==e.id));sent++;}}
+   try{if(await publishOne(e)){if(!auth()||disabled())throw Error('Sessão encerrada; fila preservada.');const current=queueRead();if(!queueWrite(current.filter(x=>!sameEvent(x,e))))throw Error('Não foi possível confirmar a fila técnica local.');sent++;}}
    catch(err){state.lastError='Publicação técnica: '+sid(err?.message||err);break;}
   }
-  if(sent){state.lastPush=now();await refresh();}
+  if(sent){state.lastPush=now();const error=state.lastError;await refresh();if(error)state.lastError=error;}
   return {ok:!state.lastError,sent,pending:queueRead().length,error:state.lastError};
  }finally{state.publishing=false}
 }
 function snapshot(){
+ if(!auth())return {cases:[],events:0,githubFixes:0,githubLoaded:false,localPending:0,verifiedServer:false,error:'Sessão não autenticada.'};
  const map=new Map();
  for(const e of state.remote){
   const k=safe(e.category),c=map.get(k)||{category:k,events:0,observed:0,fixes:[],lastAt:''};
@@ -183,10 +198,11 @@ async function tick(){
  }
  render();
 }
-const api={version:V,collect,enqueue,refresh,publish,publishOne,loadGithubFixes,snapshot,render,tick,status:()=>({...state,remoteCount:state.remote.length,outboxCount:queueRead().length,disabled:disabled()}),
+const api={version:V,collect,enqueue,refresh,publish,publishOne,loadGithubFixes,snapshot,render,tick,status:()=>auth()?({...state,remoteCount:state.remote.length,outboxCount:queueRead().length,disabled:disabled()}):({version:V,remoteCount:0,outboxCount:0,verifiedServer:false}),
  disable:()=>{localStorage.setItem(DISABLED,'1');return true},enable:()=>{localStorage.removeItem(DISABLED);setTimeout(tick,100);return true}};
 window.hlgbLearningCloud9573=api;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(tick,1500));
+window.addEventListener?.('hlgb:logout',()=>{state.remote=[];state.lastFetch='';state.lastReadback='';state.lastError='';document.getElementById('hlgbCloudLearning9573')?.remove()});
 window.addEventListener?.('hlgb:auditor:open',()=>setTimeout(tick,500));
 window.addEventListener?.('hlgb:hub-save-ui-proof',()=>setTimeout(tick,600));
 if(!window.__HLGB_TEST__){setInterval(()=>{if(!document.hidden)tick()},60000);if(auth())setTimeout(tick,2000)}
