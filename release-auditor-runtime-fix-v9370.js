@@ -1,13 +1,14 @@
 /* HLGB Auditor v93.70 — linha do tempo real no pacote de diagnóstico */
 (function(){
 'use strict';
-if(window.HLGB_AUDITOR_RUNTIME_FIX_9370)return;
-window.HLGB_AUDITOR_RUNTIME_FIX_9370=true;
-const smart=window.hlgbAuditorSmart;
-if(!smart||typeof window.hlgbAuditorSmartProblem!=='function'){
-  window.HLGB_AUDITOR_RUNTIME_FIX_9370=false;
-  throw new Error('Auditor inteligente/Safari ainda não está pronto para o patch v93.70.');
-}
+if(window.HLGB_AUDITOR_RUNTIME_FIX_9370||window.hlgbAuditorReady9370?.state==='waiting')return;
+const readiness={state:'waiting',attempts:0,maxAttempts:40,error:''};
+window.hlgbAuditorReady9370=readiness;
+function install(){
+ if(window.HLGB_AUDITOR_RUNTIME_FIX_9370){readiness.state='ready';return true}
+ const smart=window.hlgbAuditorSmart;
+ if(!smart||typeof window.hlgbAuditorSmartProblem!=='function')return false;
+
 const MAX_AGE=120000,MAX_EVENTS=240,ring=[];
 const now=()=>new Date().toISOString();
 function page(){return document.querySelector('.page.active')?.id||''}
@@ -40,4 +41,15 @@ smart.problem=wrappedProblem;
 smart.eventsSnapshot=snapshot;
 smart.runtimeFix9370={version:'93.70',eventsSnapshot:snapshot,windowMs:MAX_AGE,maxEvents:MAX_EVENTS,listenerCount:4};
 console.info('[HLGB] Auditor runtime fix v93.70 ativo');
+window.HLGB_AUDITOR_RUNTIME_FIX_9370=true;
+readiness.state='ready';return true;
+}
+function tick(){
+ if(readiness.state!=='waiting')return;
+ readiness.attempts++;
+ try{if(install())return}catch(e){readiness.state='failed';readiness.error='initialization-error';console.warn('[HLGB] Auditor 9370 inicialização falhou',e);return}
+ if(readiness.attempts>=readiness.maxAttempts||typeof setTimeout!=='function'){readiness.state='unavailable';readiness.error='dependency-not-ready';console.warn('[HLGB] Auditor 9370 dependência indisponível após espera limitada');return}
+ setTimeout(tick,250);
+}
+tick();
 })();

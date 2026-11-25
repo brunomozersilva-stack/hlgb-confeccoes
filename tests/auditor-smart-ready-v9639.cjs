@@ -5,3 +5,28 @@ const a=w.hlgbAuditorSmart.classifyProblem({summary:{normalizedPending:3},runtim
 assert.equal(a.triage.priority,'critical');assert.equal(a.triage.items[0].code,'preserve-wal');assert.ok(a.triage.items.some(x=>x.code==='runtime-review'));assert.equal(a.triage.automaticRepair,false);assert.equal(a.triage.coverage.remoteWriteVerified,false);
 const missing=w.hlgbAuditorSmart.classifyProblem(null,{}, {},null);assert.equal(missing.triage.coverage.syncReadable,false);assert.equal(missing.triage.priority,'critical');
 const empty=w.hlgbAuditorSmart.classifyProblem({summary:{}},{findings:[]},{duplicates:[]},{});assert.equal(empty.triage.priority,'review');assert.equal(empty.triage.items[0].code,'reproduce');assert.equal(empty.triage.learningRequiresBeforeAfter,true);assert.equal(f.storage.size,0);
+
+// Delayed dependency, duplicate script and bounded permanent failure.
+for(const scenario of ['delayed','missing']){
+ const q=fixture(),c=vm.createContext(q.globals),w=q.globals.window;
+ for(const i of [2,3,2,3])vm.runInContext(fs.readFileSync(names[i],'utf8'),c);
+ assert.equal(w.hlgbAuditorReady9370.state,'waiting');assert.equal(w.hlgbAuditorReady9372.state,'waiting');
+ assert.equal(q.timers.length,2,'duplicate inclusion does not schedule another retry');
+ if(scenario==='delayed'){
+  vm.runInContext(fs.readFileSync(names[0],'utf8'),c);
+  for(const t of q.timers.splice(0))t.f();
+  assert.equal(w.hlgbAuditorReady9370.state,'ready');assert.equal(w.hlgbAuditorReady9372.state,'ready');
+  assert.equal(w.hlgbAuditorSmart.runtimeFix9370.listenerCount,4);
+  const problem=w.hlgbAuditorSmartProblem,clicks=q.listeners.click.length;
+  assert.equal(clicks,2,'Smart base and runtime patch each own a click listener');
+  for(const i of [2,3])vm.runInContext(fs.readFileSync(names[i],'utf8'),c);
+  assert.equal(w.hlgbAuditorSmartProblem,problem);assert.equal(q.listeners.click.length,clicks,'reloading patch must not add listeners');
+ }else{
+  for(let i=0;i<45&&q.timers.length;i++){for(const t of q.timers.splice(0))t.f()}
+  assert.equal(w.hlgbAuditorReady9370.state,'unavailable');assert.equal(w.hlgbAuditorReady9372.state,'unavailable');
+  assert.equal(w.hlgbAuditorReady9370.attempts,40);assert.equal(w.hlgbAuditorReady9372.attempts,40);
+  assert.equal(q.timers.length,0);assert.equal(w.HLGB_AUDITOR_RUNTIME_FIX_9370,undefined);assert.equal(w.HLGB_AUDITOR_RENDER_SIGNAL_9372,undefined);
+ }
+ assert.equal(q.storage.size,0);
+}
+console.log('PASS bounded auditor dependency readiness, no duplicate retry or false ready');

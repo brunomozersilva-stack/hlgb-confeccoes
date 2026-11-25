@@ -1,10 +1,14 @@
 /* HLGB Auditor v93.72 — sinal de render persistente, sem falso positivo de navegação/captura */
 (function(){
 'use strict';
-if(window.HLGB_AUDITOR_RENDER_SIGNAL_9372)return;
-const smart=window.hlgbAuditorSmart;
-if(!smart||typeof smart.regression!=='function'||typeof smart.classifyProblem!=='function')throw new Error('Auditor inteligente ainda não está pronto para v93.72.');
-window.HLGB_AUDITOR_RENDER_SIGNAL_9372=true;
+if(window.HLGB_AUDITOR_RENDER_SIGNAL_9372||window.hlgbAuditorReady9372?.state==='waiting')return;
+const readiness={state:'waiting',attempts:0,maxAttempts:40,error:''};
+window.hlgbAuditorReady9372=readiness;
+function install(){
+ if(window.HLGB_AUDITOR_RENDER_SIGNAL_9372){readiness.state='ready';return true}
+ const smart=window.hlgbAuditorSmart;
+ if(!smart||typeof smart.regression!=='function'||typeof smart.classifyProblem!=='function')return false;
+
 const baseRegression=smart.regression;
 const baseClassify=smart.classifyProblem;
 function soakState(support){
@@ -36,4 +40,15 @@ smart.regression=regression;
 smart.classifyProblem=classifyProblem;
 smart.renderSignal9372={version:'93.72',soakState,regression,classifyProblem};
 console.info('[HLGB] Auditor render signal v93.72 ativo');
+window.HLGB_AUDITOR_RENDER_SIGNAL_9372=true;
+readiness.state='ready';return true;
+}
+function tick(){
+ if(readiness.state!=='waiting')return;
+ readiness.attempts++;
+ try{if(install())return}catch(e){readiness.state='failed';readiness.error='initialization-error';console.warn('[HLGB] Auditor 9372 inicialização falhou',e);return}
+ if(readiness.attempts>=readiness.maxAttempts||typeof setTimeout!=='function'){readiness.state='unavailable';readiness.error='dependency-not-ready';console.warn('[HLGB] Auditor 9372 dependência indisponível após espera limitada');return}
+ setTimeout(tick,250);
+}
+tick();
 })();
