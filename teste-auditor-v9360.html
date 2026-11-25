@@ -33,20 +33,27 @@ function addScript(w,d,id,src,ready){
   (d.head||d.documentElement).appendChild(script);
  });
 }
-function legacyAuditorReady(w,d){
- return current(w,d)&&!!d.getElementById('loginScreen')&&!!d.getElementById('appShell')
-  && !!w.hlgbInternalAuditor&&!!w.hlgbAuditorBlackbox9299&&!!w.hlgbOperationalAuditor9314
+function preAuthReady(w,d){
+ return !!w&&!!d&&current(w,d)&&!!d.getElementById('loginScreen')&&!!d.getElementById('appShell')
   &&typeof w.hlgbAuditorSingleUiReclaim9434A?.heal==='function'
   &&typeof w.hlgbAuditorSingleAction9429?.run==='function';
+}
+function legacyAuditorReady(w,d){
+ return preAuthReady(w,d)&&!!w.hlgbInternalAuditor&&!!w.hlgbAuditorBlackbox9299&&!!w.hlgbOperationalAuditor9314;
 }
 async function waitForApp(){
  if(running||finished)return;running=true;tries++;
  let error='';
  try{
   const w=frame.contentWindow,d=frame.contentDocument;
+  // Operational Auditor initializes after the test authentication event.
+  // Never wait for that post-auth dependency before emitting the event.
+  if(preAuthReady(w,d)&&(authWindow!==w||authDocument!==d)){
+   setState('Ambiente de teste pronto. Inicializando módulos pós-login…');
+   authWindow=w;authDocument=d;w.__HLGB_AUTH_READY=true;w.dispatchEvent(new w.Event('hlgb:authenticated'));
+  }
   if(legacyAuditorReady(w,d)){
    setState('Sistema carregado. Ativando Auditor v93.60…');
-   if(authWindow!==w||authDocument!==d){authWindow=w;authDocument=d;w.__HLGB_AUTH_READY=true;w.dispatchEvent(new w.Event('hlgb:authenticated'))}
    await addScript(w,d,'hlgbAuditorSmart9360Script','./release-auditor-smart-v9360.js?fresh='+Date.now(),()=>w.HLGB_AUDITOR_SMART_9360===true&&typeof w.hlgbAuditorSmart?.run==='function');
    await addScript(w,d,'hlgbAuditorUiCompat9361Script','./release-auditor-ui-compat-v9361.js?fresh='+Date.now(),()=>!!w.HLGB_AUDITOR_UI_COMPAT_9361&&typeof w.hlgbAuditorUiCompat9361?.install==='function');
    if(!current(w,d))throw Error('Documento de teste substituído após carregamento');
