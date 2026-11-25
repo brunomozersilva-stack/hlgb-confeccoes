@@ -1,0 +1,20 @@
+name: HLGB Safari - retomada e transições v97.01
+on:
+  pull_request:
+    paths:
+      - 'release-safari-resume-v9266.js'
+      - 'tests/safari-resume-generation-v9701.cjs'
+      - '.github/workflows/safari-resume-generation-v9701.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/safari-resume-generation-v9701.cjs
+      - run: node tests/audit-v9266-regression.cjs
+      - run: node tests/audit-tab-resume-v9262.cjs
