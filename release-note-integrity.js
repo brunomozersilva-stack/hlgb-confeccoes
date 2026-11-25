@@ -271,7 +271,7 @@ function recalcManual(){
  const e=document.getElementById('hlgbManualGrand9411');if(e)e.textContent=money(total);return total;
 }
 window.hlgbAddManualNoteItem9411=function(){
- const tbody=document.getElementById('hlgbManualItems9411');if(!tbody)return;tbody.insertAdjacentHTML('beforeend',manualItemRow());bindManualRows();recalcManual();
+ const tbody=document.getElementById('hlgbManualItems9411');if(!tbody)return;tbody.insertAdjacentHTML('beforeend',manualItemRow());bindManualRows();bindManualSearch9411();recalcManual();
 };
 function bindManualRows(){
  document.querySelectorAll('.hlgb-manual-item9411').forEach(tr=>{
@@ -319,7 +319,8 @@ window.hlgbOpenManualNote9411=function(){
   '<div class="toolbar"><button type="button" class="secondary" id="hlgbManualAdd9411">+ Adicionar item</button></div><div class="field"><label>Observação</label><textarea id="hlgbManualObs9411" placeholder="Opcional"></textarea></div><div class="hlgb-manual-grand9411">Total: <strong id="hlgbManualGrand9411">R$ 0,00</strong></div><button type="button" class="primary modalSave">Criar nota avulsa</button>',
   saveManualNote
  );
- setTimeout(()=>{bindManualRows();bindManualSearch9411();recalcManual();const add=document.getElementById('hlgbManualAdd9411');if(add)add.onclick=window.hlgbAddManualNoteItem9411;const terms=document.getElementById('hlgbManualTerms9411');if(terms)terms.onchange=termsDetailToggle;},20);
+ // openModal installs the content synchronously; bind before the user can type.
+ bindManualRows();bindManualSearch9411();recalcManual();const add=document.getElementById('hlgbManualAdd9411');if(add)add.onclick=window.hlgbAddManualNoteItem9411;const terms=document.getElementById('hlgbManualTerms9411');if(terms)terms.onchange=termsDetailToggle;
 };
 function ensureManualNoteButton(){
  const page=document.getElementById('notas');if(!page||document.getElementById('hlgbManualNoteBar9411'))return !!page;
