@@ -40,7 +40,26 @@ try{if(!window.HLGB_STAGE_FLOW_INTEGRITY_GUARD&&!document.querySelector('script[
 try{if(!window.HLGB_AUDITOR_SINGLE_ACTION_9429&&!document.querySelector('script[data-hlgb-auditor-single-v9429]')){const s=document.createElement('script');s.dataset.hlgbAuditorSingleV9429='1';s.src='./release-auditor-single-action-v9429.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar Auditor v94.29',e)}
 try{if(!window.HLGB_GOALS_STABILITY_9430&&!document.querySelector('script[data-hlgb-goals-stability-v9430]')){const s=document.createElement('script');s.dataset.hlgbGoalsStabilityV9430='1';s.src='./release-goals-stability-v9430.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar estabilidade Metas v94.30',e)}
 try{if(!window.HLGB_AUDITOR_INTEGRITY_9430&&!document.querySelector('script[data-hlgb-auditor-integrity-v9430]')){const s=document.createElement('script');s.dataset.hlgbAuditorIntegrityV9430='1';s.src='./release-auditor-integrity-v9430.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar integridade Auditor v94.30',e)}
-try{if(!window.HLGB_PRINTER3D_PERSISTENCE_9431&&!document.querySelector('script[data-hlgb-printer3d-persistence-v9431]')){const s=document.createElement('script');s.dataset.hlgbPrinter3dPersistenceV9431='1';s.src='./release-printer3d-persistence-v9431.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar persistência Impressora 3D v94.31',e)}
+// The canonical parser loads persistence later in its own ordered list.
+// Do not race it from the grade module. The legacy standalone route still
+// receives at most one fallback after parsing, if the persistence guard is absent.
+function ensurePrinterPersistence9694(){
+ try{
+  if(window.HLGB_PRINTER3D_PERSISTENCE_9431||window.__HLGB_PRINTER3D_FALLBACK_9694)return;
+  if(document.querySelector('script[data-hlgb-printer3d-persistence-v9431]'))return;
+  window.__HLGB_PRINTER3D_FALLBACK_9694='loading';
+  const s=document.createElement('script');s.dataset.hlgbPrinter3dPersistenceV9431='1';
+  s.src='./release-printer3d-persistence-v9431.js?fresh='+Date.now();
+  s.onload=()=>{window.__HLGB_PRINTER3D_FALLBACK_9694=window.HLGB_PRINTER3D_PERSISTENCE_9431?'ready':'unavailable'};
+  s.onerror=()=>{window.__HLGB_PRINTER3D_FALLBACK_9694='failed';console.warn('[HLGB] persistência 3D indisponível após fallback')};
+  document.head.appendChild(s);
+ }catch(e){window.__HLGB_PRINTER3D_FALLBACK_9694='failed';console.warn('[HLGB '+V+'] carregar persistência Impressora 3D v94.31',e)}
+}
+if(!window.__HLGB_PRINTER3D_FALLBACK_SCHEDULED_9694){
+ window.__HLGB_PRINTER3D_FALLBACK_SCHEDULED_9694=true;
+ if(document.readyState==='loading'&&typeof document.addEventListener==='function')document.addEventListener('DOMContentLoaded',ensurePrinterPersistence9694,{once:true});
+ else ensurePrinterPersistence9694();
+}
 try{if(!window.HLGB_ASSISTANT_IMAGE_SAFETY_9432&&!document.querySelector('script[data-hlgb-assistant-image-safety-v9432]')){const s=document.createElement('script');s.dataset.hlgbAssistantImageSafetyV9432='1';s.src='./release-assistant-image-safety-v9432.js?fresh='+Date.now();document.head.appendChild(s)}}catch(e){console.warn('[HLGB '+V+'] carregar segurança de imagem do Assistente v94.32',e)}
 window.HLGB_CUT_MODEL_GRADE_ADJUST_GUARD=V;
 })();
