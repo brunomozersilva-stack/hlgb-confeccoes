@@ -1,7 +1,8 @@
 const {webkit}=require('playwright');
 (async()=>{
  const browser=await webkit.launch({headless:true});
- const page=await browser.newPage({viewport:{width:1280,height:900}});
+ const page=await browser.newPage({viewport:{width:1280,height:900},serviceWorkers:'block'});
+ await page.route('**/*',r=>r.request().url().startsWith('http://127.0.0.1:4173/')?r.continue():r.abort());
  const errors=[];
  page.on('pageerror',e=>errors.push(String(e.message||e)));
  await page.goto('http://127.0.0.1:4173/teste-auditor-v9360.html',{waitUntil:'domcontentloaded',timeout:60000});
@@ -16,7 +17,7 @@ const {webkit}=require('playwright');
     internal:!!w?.hlgbInternalAuditor,blackbox:!!w?.hlgbAuditorBlackbox9299,
     operational:!!w?.hlgbOperationalAuditor9314,
     authReady:w?.__HLGB_AUTH_READY===true,
-    bootFailures:w?.__HLGB_BOOT_FAILED_FILES_9477||[],
+    bootFailures:w?.__HLGB_BOOT_FAILED_FILES_9477||[],smart:!!w?.hlgbAuditorSmart,compat:!!w?.hlgbAuditorUiCompat9361,canonical:!!w?.hlgbAuditorSingleUiReclaim9434A,scripts:[...d?.querySelectorAll('script[id^="hlgbAuditor"]')||[]].map(x=>({id:x.id,src:x.src})),
     body:(d?.body?.innerText||'').slice(0,250)};
   });
   throw new Error('Auditor v93.60 harness não concluiu: '+JSON.stringify({diagnostic,errors})+' · '+e.message);
