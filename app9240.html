@@ -17918,12 +17918,12 @@ function enhanceCapacity9191(){
   document.querySelectorAll('#capacidadeProducao .cap940-unassigned-row').forEach(row=>{if(row.querySelector('.hlgb9191-cut-badge'))return;let bs=row.querySelectorAll('b');if(bs.length<2)return;let o=findOrderByDisplay9191(bs[0].textContent),model=bs[1].textContent?.trim()||'';if(!o)return;let item=(typeof projectionItemsForOrder==='function'?projectionItemsForOrder(o):[]).find(i=>norm9191(i.name)===norm9191(model));if(!item)return;bs[1].insertAdjacentHTML('afterend',badge9191(o,item))});
 }
 
-function gradeSignature9691(c){
+function gradeSignature9691(c,originalFallback=null){
  const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
- return JSON.stringify(stable([String(c?.id??''),String(c?.orderId??''),c?.status??'',c?.pieces??null,c?.originalGrade??null,c?.plannedGradeBeforeAdjustmentV9243??null,c?.actualCutGrade??null,c?.cutAdjustmentNote??'']));
+ return JSON.stringify(stable([String(c?.id??''),String(c?.orderId??''),c?.status??'',c?.pieces??null,Array.isArray(c?.originalGrade)&&c.originalGrade.length?c.originalGrade:originalFallback,c?.plannedGradeBeforeAdjustmentV9243??null,c?.actualCutGrade??null,c?.cutAdjustmentNote??'']));
 }
 function gradeMatches9691(c,next){
- return c&&String(c.id)===String(next.id)&&Number(c.pieces)===Number(next.pieces)&&gradeSignature9691({...c,status:next.status,orderId:next.orderId})===gradeSignature9691(next);
+ return c&&String(c.id)===String(next.id)&&Number(c.pieces)===Number(next.pieces)&&gradeSignature9691(c)===gradeSignature9691(next);
 }
 async function readCut9691(id){
  const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by&module=eq.cuts&entity_id=eq.'+encodeURIComponent(id)+'&limit=2',{method:'GET'});
@@ -17931,7 +17931,7 @@ async function readCut9691(id){
  if(!r||r.module!=='cuts'||String(r.entity_id)!==id||r.deleted_at||String(r.data?.id)!==id||!Number.isSafeInteger(Number(r.revision))||Number(r.revision)<1)throw Error('Corte ativo não confirmado na nuvem.');
  return r;
 }
-async function saveCut9191(next,backup,attempt,active){
+async function saveCut9191(next,backup,attempt,active,orig){
  const id=String(next.id),current=()=> (db.cuts||[]).find(x=>String(x.id)===id);
  if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
  if(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin();
@@ -17948,10 +17948,27 @@ async function saveCut9191(next,backup,attempt,active){
  // The snapshot revision must match the fresh read; never send a stale full record.
  const snap=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots.cuts?.get(id):null;
  if(!snap||snap.deleted_at||Number(snap.revision)!==Number(before.revision)||!hlgbRecordDataEqual(snap.data,before.data))throw Error('A versão da nuvem mudou ou não está carregada. Confira o registro antes de salvar.');
- if(gradeSignature9691(before.data)!==gradeSignature9691(backup))throw Error('A grade do corte mudou desde a abertura. Confira antes de salvar.');
+ if(orig.length&&(!Array.isArray(before.data.originalGrade)||!before.data.originalGrade.length)&&!before.data.plannedGradeBeforeAdjustmentV9243?.length){
+  const oid=String(before.data.orderId??'');
+  if(!oid)throw Error('Pedido original não identificado.');
+  const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision&module=eq.orders&entity_id=eq.'+encodeURIComponent(oid)+'&limit=2',{method:'GET'});
+  const order=Array.isArray(rows)&&rows.length===1?rows[0]:null;
+  if(!order||order.module!=='orders'||String(order.entity_id)!==oid||order.deleted_at||!hlgbRecordDataEqual(cutOriginalGrade(before.data,order.data),orig))throw Error('A grade original do pedido não foi confirmada.');
+ }
+ if(!active()||gradeSignature9691(current())!==gradeSignature9691(backup)||hlgbRecordSnapshots.cuts?.get(id)?.revision!==snap.revision)throw Error('O registro mudou durante a conferência.');
+ if(gradeSignature9691(before.data,orig.length?orig:null)!==gradeSignature9691(backup,orig.length?orig:null))throw Error('A grade do corte mudou desde a abertura. Confira antes de salvar.');
+ const guard=window.hlgbWalIdbGuard9536;
+ if(guard?.probe&&guard?.ids){
+  await guard.probe();
+  if(guard.status?.()?.readFailed)throw Error('Não foi possível conferir a fila de sincronização.');
+  const pending=new Set([...(guard.ids()||[]),...(window.hlgbRecordPendingIdentitySet9535?.()||[])].map(String));
+  if(pending.has('cuts::'+id)||pending.has('cuts|'+id))throw Error('Existe alteração pendente neste corte. Preserve a fila e confira a sincronização.');
+ }
+ if(!active()||gradeSignature9691(current())!==gradeSignature9691(backup)||hlgbRecordSnapshots.cuts?.get(id)?.revision!==snap.revision)throw Error('O registro mudou durante a conferência.');
  if(window.hlgbLogicalAutoCutTwin?.(id,before.data))throw Error('Existe outro corte vinculado a este pedido neste navegador. Confira a duplicidade antes de salvar.');
- const draft={...clone9191(before.data),actualCutGrade:clone9191(next.actualCutGrade),pieces:next.pieces,cutAdjustmentNote:next.cutAdjustmentNote,gradeAdjustedAt:next.gradeAdjustedAt};
- if(Array.isArray(next.originalGrade)&&!Array.isArray(draft.originalGrade))draft.originalGrade=clone9191(next.originalGrade);
+ const draft={...clone9191(before.data),pieces:next.pieces,cutAdjustmentNote:next.cutAdjustmentNote,gradeAdjustedAt:next.gradeAdjustedAt};
+ if(Array.isArray(next.actualCutGrade))draft.actualCutGrade=clone9191(next.actualCutGrade);
+ if(Array.isArray(next.originalGrade)&&(!Array.isArray(draft.originalGrade)||!draft.originalGrade.length))draft.originalGrade=clone9191(next.originalGrade);
  // Do not publish a local mutation before the remote write and proof.
  attempt.sent=clone9191(draft);
  let failure=null;
@@ -18010,10 +18027,10 @@ window.hlgbAdjustCutGrade9191=function(id){
     next.cutAdjustmentNote=document.getElementById('adjNote9191')?.value||'';next.gradeAdjustedAt=new Date().toISOString();
     saving=true;if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
     try{
-      const confirmed=await saveCut9191(next,backup,attempt,active);
+      const confirmed=await saveCut9191(next,backup,attempt,active,orig);
       const i=(db.cuts||[]).findIndex(x=>String(x.id)===String(confirmed.id));
       // A newer local edit must not be overwritten by the old callback.
-      if(i>=0&&(gradeSignature9691(db.cuts[i])===gradeSignature9691(backup)||gradeMatches9691(db.cuts[i],confirmed))){
+      if(i>=0&&(hlgbRecordDataEqual(db.cuts[i],backup)||hlgbRecordDataEqual(db.cuts[i],confirmed))){
         db.cuts[i]=clone9191(confirmed);try{localSaveOnly()}catch(e){}
       }else throw Error('A nuvem confirmou, mas o corte local mudou. Confira a sincronização.');
       if(!active())return true;
