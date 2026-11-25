@@ -1,7 +1,7 @@
 -- LAB ONLY. NOT A MIGRATION. Do not install in commercial database.
--- A short table lock proves atomic graph validation in the fixture; it would
--- contend with unrelated commercial writes, so deployment is prohibited
--- until a narrower authority and legacy editor integration are validated.
+-- LAB: a transaction-scoped catalog gate coordinates product/material writes.
+-- The fixture trigger must be installed for this proof. The gate alone does
+-- not validate policies submitted through legacy paths. Do not deploy.
 create or replace function public.hlgb_lab_save_remnant_v9686(p_product_id text,p_expected_revision bigint,p_policy jsonb)
 returns table(applied boolean,module text,entity_id text,data jsonb,deleted_at timestamptz,revision bigint,updated_at timestamptz,updated_by uuid)
 language plpgsql security invoker set search_path = '' as $$
@@ -21,7 +21,7 @@ begin
   if jsonb_typeof(p_policy) is distinct from 'object' then raise exception 'policy'; end if;
   if p_policy - array['state','notes','eligible'] <> '{}'::jsonb or jsonb_typeof(p_policy->'state') is distinct from 'string' or p_policy->>'state' not in ('yes','no','unknown') or jsonb_typeof(p_policy->'notes') is distinct from 'string' or length(p_policy->>'notes')>500 or jsonb_typeof(p_policy->'eligible') is distinct from 'array' then raise exception 'policy'; end if;
   if jsonb_array_length(p_policy->'eligible')>50 or (p_policy->>'state'<>'yes' and jsonb_array_length(p_policy->'eligible')>0) then raise exception 'policy-limit'; end if;
-  lock table public.hlgb_records in share row exclusive mode nowait;
+  if not pg_catalog.pg_try_advisory_xact_lock(9686,1) then raise exception 'catalog-busy' using errcode='55P03'; end if;
   select * into src from public.hlgb_records r where r.module='products' and r.entity_id=p_product_id and r.deleted_at is null;
   if not found or src.revision<>p_expected_revision or src.data->>'id' is distinct from p_product_id or src.data->'active'='false'::jsonb then raise exception 'source-revision'; end if;
   if jsonb_typeof(src.data->'fabricRemnantPolicyV9630'->'eligible')='array' and jsonb_array_length(src.data->'fabricRemnantPolicyV9630'->'eligible')>50 then raise exception 'legacy-policy-limit'; end if;
