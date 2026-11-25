@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'release-auditor-smart-v9360.js'
+      - 'release-auditor-runtime-fix-v9370.js'
+      - 'release-auditor-render-signal-v9372.js'
       - 'release-health-monitor-panel-v9541.js'
       - 'tests/hlgb-health-monitor-coverage-v9670.cjs'
       - 'tests/auditor-smart-ready-v9639*'
