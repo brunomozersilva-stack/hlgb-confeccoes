@@ -16,7 +16,7 @@ function editing(){try{if(document.querySelector('#modal.show'))return true;cons
 function readWal(){try{const w=JSON.parse(localStorage.getItem(WAL_KEY)||'null');if(!w||typeof w!=='object')return {version:1,entries:{}};w.entries=w.entries&&typeof w.entries==='object'?w.entries:{};return w}catch(e){return {version:1,entries:{}}}}
 function writeWal(w){try{localStorage.setItem(WAL_KEY,JSON.stringify(w));return true}catch(e){state.lastError=sid(e?.message||e);return false}}
 function idbPut(entry,key){return new Promise(resolve=>{if(typeof indexedDB==='undefined'){resolve(false);return}let r;try{r=indexedDB.open(DB)}catch(e){resolve(false);return}r.onupgradeneeded=()=>{try{const d=r.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:'key'})}catch(e){}};r.onerror=()=>resolve(false);r.onsuccess=()=>{const d=r.result;try{const tx=d.transaction(STORE,'readwrite'),s=tx.objectStore(STORE),v={...clone(entry),key:key||entry?.key};s.put(v);tx.oncomplete=()=>{d.close();resolve(true)};tx.onerror=tx.onabort=()=>{d.close();resolve(false)}}catch(e){try{d.close()}catch(_){}resolve(false)}}})}
-function idbAll(){return new Promise(resolve=>{if(typeof indexedDB==='undefined'){resolve([]);return}let r;try{r=indexedDB.open(DB)}catch(e){resolve([]);return}r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(e){};resolve([])};r.onerror=()=>resolve([]);r.onsuccess=()=>{const d=r.result;try{if(!d.objectStoreNames.contains(STORE)){d.close();resolve([]);return}const tx=d.transaction(STORE,'readonly'),s=tx.objectStore(STORE),g=s.getAll();g.onsuccess=()=>{const out=Array.isArray(g.result)?g.result:[];try{d.close()}catch(_){}resolve(out)};g.onerror=()=>{try{d.close()}catch(_){}resolve([])}}catch(e){try{d.close()}catch(_){}resolve([])}}})}
+function idbAll(strict=false){return new Promise(resolve=>{const fail=()=>resolve(strict?null:[]);if(typeof indexedDB==='undefined'){resolve([]);return}let r;try{r=indexedDB.open(DB)}catch(e){fail();return}r.onupgradeneeded=()=>{try{r.transaction.abort()}catch(e){};fail()};r.onerror=fail;r.onblocked=fail;r.onsuccess=()=>{const d=r.result;try{if(!d.objectStoreNames.contains(STORE)){d.close();fail();return}const tx=d.transaction(STORE,'readonly'),s=tx.objectStore(STORE),g=s.getAll();g.onsuccess=()=>{const out=Array.isArray(g.result)?g.result:null;try{d.close()}catch(_){}if(out)resolve(out);else fail()};g.onerror=()=>{try{d.close()}catch(_){}fail()};tx.onabort=()=>{try{d.close()}catch(_){}fail()}}catch(e){try{d.close()}catch(_){}fail()}}})}
 function newerWal(a,b){const ta=Date.parse(a?.updatedAt||a?.createdAt||'')||0,tb=Date.parse(b?.updatedAt||b?.createdAt||'')||0;return tb>ta?b:a}
 async function combinedEntries(){const w=readWal(),out={...(w.entries||{})};try{for(const e of await idbAll()){const key=sid(e?.key);if(!key)continue;out[key]=out[key]?newerWal(out[key],e):e}}catch(e){}return out}
 /* v94.86: an ACK from a save only authorizes the EXACT operation sent.
@@ -30,7 +30,8 @@ function sameOperation(current,expected,key){
  return !!(current&&expected&&sid(current.key)===sid(key)&&sid(expected.key)===sid(key)&&
   sid(current.module)===sid(expected.module)&&sid(current.id)===sid(expected.id)&&
   sid(current.opId)===sid(expected.opId)&&(current.deleted===true)===(expected.deleted===true)&&
-  JSON.stringify(exactData(current.data))===JSON.stringify(exactData(expected.data)))
+  JSON.stringify(exactData(current.data))===JSON.stringify(exactData(expected.data))&&
+  JSON.stringify(exactData(current.baseData??null))===JSON.stringify(exactData(expected.baseData??null))&&sid(current.baseUpdatedAt)===sid(expected.baseUpdatedAt))
 }
 function idbDeleteIfSame(key,expected){
  return new Promise(resolve=>{
@@ -51,18 +52,34 @@ function idbDeleteIfSame(key,expected){
   }
  })
 }
-async function markAttempt(key,op){const w=readWal();let cur=w.entries?.[key]||null;if(!cur||sid(cur.opId)!==sid(op.opId)){try{cur=(await idbAll()).find(x=>sid(x?.key)===sid(key)&&sid(x?.opId)===sid(op.opId))||null}catch(e){cur=null}}if(!cur)return null;const now=new Date().toISOString();cur.attempts=(+cur.attempts||0)+1;cur.lastAttemptAt=now;cur.updatedAt=now;cur.lastError='';cur.state='sending';if(w.entries?.[key]&&sid(w.entries[key].opId)===sid(cur.opId)){w.entries[key]=cur;writeWal(w)}await idbPut(cur,key);return clone(cur)}
-async function markFailure(key,opId,err){const w=readWal();let cur=w.entries?.[key]||null;if(!cur||sid(cur.opId)!==sid(opId)){try{cur=(await idbAll()).find(x=>sid(x?.key)===sid(key)&&sid(x?.opId)===sid(opId))||null}catch(e){cur=null}}if(!cur)return false;cur.lastError=sid(err?.message||err).slice(0,1200);cur.updatedAt=new Date().toISOString();cur.state='pending';if(w.entries?.[key]&&sid(w.entries[key].opId)===sid(cur.opId)){w.entries[key]=cur;writeWal(w)}await idbPut(cur,key);return true}
+// Replay bookkeeping is diagnostic only. Do not rewrite a queue copy from
+// an earlier asynchronous read, even if another edit reused its opId.
+async function markAttempt(key,op){
+ const rows=await idbAll(true);if(!rows)return null;
+ const idb=rows.find(x=>sid(x?.key)===sid(key))||null;
+ const local=readWal().entries?.[key]||null;
+ if(!op?.opId||(!local&&!idb))return null;
+ if(local&&!sameOperation(local,op,key)||idb&&!sameOperation(idb,op,key))return null;
+ return clone(op);
+}
+function markFailure(key,expected,err){
+ // The existing durable payload stays exactly as it was. Run status carries
+ // this attempt's failure; neither localStorage nor IDB is overwritten.
+ state.lastError=sid(err?.message||err).slice(0,1200);
+ return false;
+}
 async function confirmRemove(key,expected){
  if(!expected?.opId||!expected?.module||expected.id==null)return false;
  const wal=readWal(),local=wal?.entries?.[key]||null;
- const idb=(await idbAll()).find(x=>sid(x?.key)===sid(key))||null;
+ const rows=await idbAll(true);if(!rows)return false;
+ const idb=rows.find(x=>sid(x?.key)===sid(key))||null;
  if(local&&!sameOperation(local,expected,key))return false;
  if(idb&&!sameOperation(idb,expected,key))return false;
  if(!local&&!idb)return false;
  let removed=false;
  if(idb){if(!await idbDeleteIfSame(key,expected))return false;removed=true}
  const fresh=readWal(),cur=fresh?.entries?.[key]||null;
+ if(cur&&!sameOperation(cur,expected,key))return false;
  if(cur&&sameOperation(cur,expected,key)){
   delete fresh.entries[key];
   if(writeWal(fresh))removed=true;
@@ -85,8 +102,8 @@ async function protectCutReplay(op){
   return 'cut-content-already-on-server';
  }catch(_){return 'cut-remote-proof-failed'}
 }
-async function replayOne(key,op){const cutBlock=await protectCutReplay(op);if(cutBlock)return {key,ok:false,blocked:true,reason:cutBlock};const marked=await markAttempt(key,op);if(!marked)return {key,ok:false,reason:'replaced-before-send'};state.currentKey=key;state.currentSince=new Date().toISOString();try{const save=window.hlgbRecordSaveWithRetry;if(typeof save!=='function')throw new Error('hlgbRecordSaveWithRetry indisponível');const out=await saveWithTimeout(save,[marked.module,sid(marked.id),clone(marked.data),marked.deleted===true],key);if(out?.applied===true){const removed=await confirmRemove(key,marked);if(!removed){state.failed++;return {key,ok:false,applied:true,reason:'Gravação confirmada, mas operação WAL mudou antes de concluir a limpeza; manter pendência para inspeção'}}state.confirmed++;return {key,ok:true,applied:true,verifiedBy:out?.verifiedBy||''}}const msg=out?.reason||'Nuvem não confirmou applied:true';await markFailure(key,marked.opId,msg);state.failed++;return {key,ok:false,reason:msg}}catch(e){await markFailure(key,marked.opId,e);state.failed++;return {key,ok:false,reason:sid(e?.message||e)}}finally{state.currentKey='';state.currentSince=''}}
-async function run(reason='manual',force=false){if(state.busy||navigator.onLine===false||!loggedIn()||(!force&&editing()))return false;const items=Object.entries(await combinedEntries());if(!items.length)return true;state.busy=true;state.runs++;state.lastRunAt=new Date().toISOString();state.lastError='';const results=[];try{for(const [key,op] of items){if(!op?.module||op?.id==null){results.push({key,ok:false,reason:'entrada-invalida'});continue}results.push(await replayOne(key,op))}const left=await combinedEntries();const remainingKeys=Object.keys(left);
+async function replayOne(key,op){const cutBlock=await protectCutReplay(op);if(cutBlock)return {key,ok:false,blocked:true,reason:cutBlock};const marked=await markAttempt(key,op);if(!marked)return {key,ok:false,reason:'replaced-before-send'};state.currentKey=key;state.currentSince=new Date().toISOString();try{const save=window.hlgbRecordSaveWithRetry;if(typeof save!=='function')throw new Error('hlgbRecordSaveWithRetry indisponível');const out=await saveWithTimeout(save,[marked.module,sid(marked.id),clone(marked.data),marked.deleted===true],key);if(out?.applied===true&&!out.hlgbLogicalDuplicate&&!out.hlgbTombstonePruned&&!out.hlgbStalePendingQuarantined){const removed=await confirmRemove(key,marked);if(!removed){state.failed++;return {key,ok:false,applied:true,reason:'Gravação confirmada, mas operação WAL mudou antes de concluir a limpeza; manter pendência para inspeção'}}state.confirmed++;return {key,ok:true,applied:true,verifiedBy:out?.verifiedBy||''}}const msg=out?.reason||'Nuvem não confirmou applied:true';markFailure(key,marked,msg);state.failed++;return {key,ok:false,reason:msg}}catch(e){markFailure(key,marked,e);state.failed++;return {key,ok:false,reason:sid(e?.message||e)}}finally{state.currentKey='';state.currentSince=''}}
+async function run(reason='manual',force=false){if(state.busy||navigator.onLine===false||!loggedIn()||(!force&&editing()))return false;state.busy=true;const results=[];try{const items=Object.entries(await combinedEntries());if(!items.length)return true;state.runs++;state.lastRunAt=new Date().toISOString();state.lastError='';for(const [key,op] of items){if(!op?.module||op?.id==null){results.push({key,ok:false,reason:'entrada-invalida'});continue}results.push(await replayOne(key,op))}const left=await combinedEntries();const remainingKeys=Object.keys(left);
  state.lastResult={reason,at:new Date().toISOString(),results,remaining:remainingKeys.length,remainingKeys:remainingKeys.slice(0,30)};
  state.postReplayFullSyncSuppressed++;return state.lastResult.remaining===0&&results.every(r=>r.ok===true)}catch(e){state.lastError=sid(e?.message||e);return false}finally{state.busy=false;state.currentKey='';state.currentSince=''}}
 function stamp(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0'))||0;if(cur<94.38){window.HLGB_RELEASE_VERSION=V;const el=document.querySelector('#appShell .logo small');if(el)el.textContent='v'+V}}catch(e){}}
