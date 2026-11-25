@@ -41,6 +41,16 @@ begin
   raise exception 'catalog-busy' using errcode='55P03';
  end if;
  if tg_op='DELETE' then return old; end if;
+ -- Legacy editor may rebuild a product without the new policy key.
+ -- Preserve an omitted field; explicit null is not a valid reset.
+ -- This does NOT yet protect arbitrary explicit policy writes in legacy paths.
+ if tg_op='UPDATE' and old.module='products' and new.module='products' and old.data ? 'fabricRemnantPolicyV9630' then
+   if not (new.data ? 'fabricRemnantPolicyV9630') then
+     new.data:=jsonb_set(new.data,'{fabricRemnantPolicyV9630}',old.data->'fabricRemnantPolicyV9630',true);
+   elsif jsonb_typeof(new.data->'fabricRemnantPolicyV9630') is distinct from 'object' then
+     raise exception 'legacy-policy-invalid';
+   end if;
+ end if;
  return new;
 end; $$;
 create trigger hlgb_lab_catalog_gate_v9686 before insert or update or delete on public.hlgb_records
