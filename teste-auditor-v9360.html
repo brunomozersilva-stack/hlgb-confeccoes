@@ -15,47 +15,55 @@ html,body{margin:0;height:100%;font-family:Arial,sans-serif;background:#f7f7f8}#
 (function(){
 'use strict';
 const frame=document.getElementById('app'),state=document.getElementById('state');
-let injected=false,tries=0,authSimulated=false;
+let running=false,finished=false,tries=0,authWindow=null,authDocument=null;
 function setState(t){state.textContent=t}
-function addScript(d,id,src,onload){
- if(d.getElementById(id)){onload?.();return}
- const s=d.createElement('script');s.id=id;s.src=src;s.onload=()=>onload?.();s.onerror=()=>setState('Não foi possível carregar o Auditor de teste.');(d.head||d.documentElement).appendChild(s);
-}
-function simulateAuthenticatedTestSession(w,d){
- if(authSimulated||!w||!d?.getElementById('loginScreen')||!d?.getElementById('appShell'))return;
- authSimulated=true;
- /* O harness não possui backend/login real. Desde v93.38, pós-login só pode rodar
-    com a autoridade explícita usada pelo produto; por isso o teste simula apenas
-    esse marcador, dentro do iframe local, em vez de depender de .page.active. */
- w.__HLGB_AUTH_READY=true;
- try{w.dispatchEvent(new w.Event('hlgb:authenticated'))}catch(e){}
-}
-function inject(){
- if(injected)return true;
- let w,d;
- try{w=frame.contentWindow;d=frame.contentDocument||w.document}catch(e){setState('Falha ao acessar a versão de teste.');return false}
- if(!d||!d.documentElement)return false;
- addScript(d,'hlgbAuditorSmart9360Script','./release-auditor-smart-v9360.js?fresh='+Date.now(),()=>{
-  addScript(d,'hlgbAuditorUiCompat9361Script','./release-auditor-ui-compat-v9361.js?fresh='+Date.now(),()=>{injected=true;setState('Auditor v93.60/93.61 carregado — TESTE')});
+function current(w,d){return frame.contentWindow===w&&frame.contentDocument===d&&d.readyState==='complete'}
+function addScript(w,d,id,src,ready){
+ if(ready())return Promise.resolve();
+ return new Promise((resolve,reject)=>{
+  if(!current(w,d)){reject(Error('Documento de teste substituído'));return}
+  const existing=d.getElementById(id);
+  if(existing)existing.remove();
+  const script=d.createElement('script');script.id=id;script.src=src;
+  let settled=false;
+  const end=(err)=>{if(settled)return;settled=true;clearTimeout(timer);if(err){script.remove();reject(err)}else resolve()};
+  const timer=setTimeout(()=>end(Error('Tempo esgotado carregando '+id)),10000);
+  script.onload=()=>end(current(w,d)&&ready()?null:Error('API não ficou pronta: '+id));
+  script.onerror=()=>end(Error('Falha de carregamento: '+id));
+  (d.head||d.documentElement).appendChild(script);
  });
- return true;
+}
+function preAuthReady(w,d){
+ return !!w&&!!d&&current(w,d)&&!!d.getElementById('loginScreen')&&!!d.getElementById('appShell')
+  &&typeof w.hlgbAuditorSingleUiReclaim9434A?.heal==='function'
+  &&typeof w.hlgbAuditorSingleAction9429?.run==='function';
 }
 function legacyAuditorReady(w,d){
- return !!(d?.getElementById('loginScreen')||d?.getElementById('appShell'))
-  && !!w?.hlgbInternalAuditor
-  && !!w?.hlgbAuditorBlackbox9299
-  && !!w?.hlgbOperationalAuditor9314;
+ return preAuthReady(w,d)&&!!w.hlgbInternalAuditor&&!!w.hlgbAuditorBlackbox9299&&!!w.hlgbOperationalAuditor9314;
 }
-function waitForApp(){
- tries++;
+async function waitForApp(){
+ if(running||finished)return;running=true;tries++;
+ let error='';
  try{
-  const w=frame.contentWindow,d=frame.contentDocument||w?.document;
-  simulateAuthenticatedTestSession(w,d);
-  if(legacyAuditorReady(w,d)){setState('Sistema carregado. Ativando Auditor v93.60…');setTimeout(inject,250);return}
- }catch(e){}
- if(tries<240)setTimeout(waitForApp,250);else setState('Sistema carregou, mas os módulos-base do Auditor não ficaram prontos.')
+  const w=frame.contentWindow,d=frame.contentDocument;
+  // Operational Auditor initializes after the test authentication event.
+  // Never wait for that post-auth dependency before emitting the event.
+  if(preAuthReady(w,d)&&(authWindow!==w||authDocument!==d)){
+   setState('Ambiente de teste pronto. Inicializando módulos pós-login…');
+   authWindow=w;authDocument=d;w.__HLGB_AUTH_READY=true;w.dispatchEvent(new w.Event('hlgb:authenticated'));
+  }
+  if(legacyAuditorReady(w,d)){
+   setState('Sistema carregado. Ativando Auditor v93.60…');
+   await addScript(w,d,'hlgbAuditorSmart9360Script','./release-auditor-smart-v9360.js?fresh='+Date.now(),()=>w.HLGB_AUDITOR_SMART_9360===true&&typeof w.hlgbAuditorSmart?.run==='function');
+   await addScript(w,d,'hlgbAuditorUiCompat9361Script','./release-auditor-ui-compat-v9361.js?fresh='+Date.now(),()=>!!w.HLGB_AUDITOR_UI_COMPAT_9361&&typeof w.hlgbAuditorUiCompat9361?.install==='function');
+   if(!current(w,d))throw Error('Documento de teste substituído após carregamento');
+   finished=true;setState('Auditor v93.60/93.61 carregado — TESTE');return;
+  }
+ }catch(e){error=String(e?.message||e);setState('Ativação pendente: '+error)}
+ finally{running=false}
+ if(tries<160)setTimeout(waitForApp,250);else{finished=true;setState('Módulos-base do Auditor não ficaram prontos'+(error?' · '+error:''))}
 }
-frame.addEventListener('load',()=>{setState('Sistema carregado. Aguardando módulos-base…');setTimeout(waitForApp,300)});
+frame.addEventListener('load',()=>{if(!finished)setTimeout(waitForApp,300)});
 setTimeout(waitForApp,900);
 })();
 </script>

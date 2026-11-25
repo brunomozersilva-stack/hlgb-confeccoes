@@ -13,6 +13,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/auditor-v9360-smoke.yml'
+      - 'teste-auditor-v9360.html'
+      - 'tests/auditor-v9362-webkit.js'
   workflow_dispatch:
 jobs:
   smoke:
