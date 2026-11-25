@@ -2,10 +2,14 @@
 (function(){
 'use strict';
 const V='92.66';
-let generation=0,resumeUntil=0,guardTimer=null,observer=null;
+if(window.HLGB_SAFARI_WHITE_SCREEN_GUARD_9266)return;
+let generation=0,resumeUntil=0,guardTimer=null,observer=null,finalTimer=null,lastResumeAt=0;
+const staleTickets=new WeakMap();
+function cancelFinal(){if(finalTimer!==null){clearTimeout(finalTimer);finalTimer=null}}
+function activePage(){return document.querySelector('#appShell .page.active')}
 function overlayOff(){const o=document.getElementById('hlgbPageSettleOverlay');if(o)o.hidden=true}
 function clearSettling(reason){
- generation++;
+ generation++;cancelFinal();
  document.querySelectorAll('.hlgb-page-settling').forEach(el=>el.classList.remove('hlgb-page-settling'));
  overlayOff();
  try{document.documentElement.classList.remove('hlgb-tab-suspended-9266','hlgb-tab-resuming-9266')}catch(e){}
@@ -18,32 +22,41 @@ function ensureStyle(){
  document.head.appendChild(s);
 }
 function hidden(){
- ensureStyle();generation++;resumeUntil=0;
+ ensureStyle();generation++;cancelFinal();lastResumeAt=0;resumeUntil=0;
  try{document.documentElement.classList.add('hlgb-tab-suspended-9266');document.documentElement.classList.remove('hlgb-tab-resuming-9266')}catch(e){}
  document.querySelectorAll('.hlgb-page-settling').forEach(el=>el.classList.remove('hlgb-page-settling'));overlayOff();
  window.HLGB_SAFARI_RESUME_LAST={at:new Date().toISOString(),reason:'hidden',generation};
 }
 function resumed(reason){
- ensureStyle();const g=++generation;resumeUntil=Date.now()+2200;
- try{document.documentElement.classList.remove('hlgb-tab-suspended-9266');document.documentElement.classList.add('hlgb-tab-resuming-9266')}catch(e){}
+ if(document.visibilityState!=='visible')return false;
+ const now=Date.now();
+ if(lastResumeAt&&now-lastResumeAt<250)return false;
+ lastResumeAt=now;ensureStyle();
  clearSettling('resume-'+reason+'-initial');
+ const g=generation,page=activePage();resumeUntil=now+2200;
  requestAnimationFrame(()=>requestAnimationFrame(()=>{
-   if(g+1<generation)return;
-   clearSettling('resume-'+reason+'-raf');
+   if(g!==generation||document.visibilityState!=='visible'||activePage()!==page)return;
+   // Initial cleanup already happened. Do not remove a new navigation's
+   // settle classes in an asynchronous continuation of the old resume.
+   if(page?.classList?.contains('hlgb-page-settling')||document.querySelector('#modal.show'))return;
    try{window.hlgbTabResume9262?.recover?.('v9266-'+reason)}catch(e){}
-   setTimeout(()=>{
-     clearSettling('resume-'+reason+'-final');
-     try{document.documentElement.classList.remove('hlgb-tab-resuming-9266')}catch(e){}
+   finalTimer=setTimeout(()=>{
+     finalTimer=null;
+     if(g!==generation||document.visibilityState!=='visible'||activePage()!==page)return;
+     window.HLGB_SAFARI_RESUME_LAST={at:new Date().toISOString(),reason:'resume-'+reason+'-final',generation};
    },850);
  }));
+ return true;
 }
 function armStaleGuard(el){
- if(!el?.classList?.contains('hlgb-page-settling'))return;
- const born=Date.now(),g=generation;
+ if(!el?.classList?.contains('hlgb-page-settling')||staleTickets.has(el))return;
+ const born=Date.now(),g=generation,ticket={};staleTickets.set(el,ticket);
  setTimeout(()=>{
-   if(!el.isConnected||!el.classList.contains('hlgb-page-settling'))return;
+   if(staleTickets.get(el)!==ticket)return;
+   staleTickets.delete(el);
+   if(g!==generation||!el.isConnected||!el.classList.contains('hlgb-page-settling'))return;
    if(document.visibilityState==='hidden'||Date.now()-born>=850||Date.now()<resumeUntil){
-     el.classList.remove('hlgb-page-settling');overlayOff();
+     el.classList.remove('hlgb-page-settling');if(activePage()===el)overlayOff();
      window.HLGB_SAFARI_RESUME_LAST={at:new Date().toISOString(),reason:'stale-settle-cleared',generation:g};
    }
  },900);
@@ -51,20 +64,26 @@ function armStaleGuard(el){
 function watch(){
  if(observer)return;observer=new MutationObserver(records=>{
    for(const r of records){
-     const el=r.target;if(el?.classList?.contains?.('hlgb-page-settling')){
-       if(document.visibilityState==='hidden'||Date.now()<resumeUntil){el.classList.remove('hlgb-page-settling');overlayOff()}
+     const el=r.target;
+     if(r.type==='attributes'&&r.attributeName==='class'&&el?.classList){
+       const had=String(r.oldValue||'').split(/\s+/).includes('hlgb-page-settling');
+       if(!el.classList.contains('hlgb-page-settling')||!had)staleTickets.delete(el);
+     }
+     if(el?.classList?.contains?.('hlgb-page-settling')){
+       if(document.visibilityState==='hidden'){el.classList.remove('hlgb-page-settling');staleTickets.delete(el);if(activePage()===el)overlayOff()}
        else armStaleGuard(el);
      }
      for(const n of r.addedNodes||[])if(n?.nodeType===1){if(n.classList?.contains('hlgb-page-settling'))armStaleGuard(n);n.querySelectorAll?.('.hlgb-page-settling')?.forEach(armStaleGuard)}
    }
  });
- try{observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']})}catch(e){}
+ try{observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class'],attributeOldValue:true})}catch(e){}
 }
 function watchdog(){
  if(document.visibilityState!=='visible')return;
  const stuck=[...document.querySelectorAll('.hlgb-page-settling')];
- if(stuck.length&&Date.now()<resumeUntil){stuck.forEach(x=>x.classList.remove('hlgb-page-settling'));overlayOff()}
- const shell=document.getElementById('appShell'),active=document.querySelector('#appShell .page.active');
+ stuck.forEach(armStaleGuard);
+ const shell=document.getElementById('appShell'),active=activePage();
+ if(window.__HLGB_AUTH_READY!==true||active?.classList?.contains('hlgb-page-settling')||document.querySelector('#modal.show'))return;
  if(shell&&active){
    try{const cs=getComputedStyle(active),r=active.getBoundingClientRect();if(cs.visibility==='hidden'||r.width<20||r.height<20){clearSettling('blank-watchdog');window.hlgbTabResume9262?.recover?.('v9266-watchdog')}}catch(e){}
  }
