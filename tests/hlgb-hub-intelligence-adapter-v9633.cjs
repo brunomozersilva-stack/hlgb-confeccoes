@@ -37,4 +37,11 @@ const assert=require('node:assert/strict');const api=require('../hlgb-modules/fi
  ok(p({}, {...o,receiptDelayDays:99}).state==='unavailable','invalid delay');
  ok(!JSON.stringify(h.recordedHistory).includes('sourceId'),'aggregate no raw origin');
  ok(h.comparison.categories.every(x=>x.medianCents===null),'old official gate preserved');
+ ok(mh.observedComparison.medianRecordedCents===null&&mh.observedComparison.signal==='insufficient-observations','two weeks do not establish reference');
+ const extended=[...histRows,{id:21,flow:'Saída',status:'Realizado',date:'2026-11-02',realizedAt:'2026-11-02',category:'Matéria-prima',value:8000},{id:22,flow:'Saída',status:'Realizado',date:'2026-10-26',realizedAt:'2026-10-26',category:'Matéria-prima',value:12000}];
+ const e=p({db:{...ctx.db,hubFinanceEntries:extended}}),c=e.recordedHistory.categories.find(x=>x.category==='Matéria-prima').observedComparison;
+ ok(c.medianRecordedCents===900000&&c.minRecordedCents===500000&&c.maxRecordedCents===1200000&&c.recordedWeeks===4&&c.totalWeeks===8,'partial median, missing weeks not zero');
+ ok(c.observedTotalCents===3000000&&c.differenceCents===2100000&&c.signal==='above-recorded-range'&&!c.official,'descriptive comparison, not official baseline');
+ ok(e.recordedHistory.officialBaseline===null&&e.comparison.categories.every(x=>x.medianCents===null),'verified gate unchanged');
+
 })(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});
