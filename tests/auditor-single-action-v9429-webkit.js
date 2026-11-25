@@ -68,7 +68,7 @@ const {webkit}=require('playwright');
  if(out.last.learning?.saved!==true)throw new Error('A rodada não foi salva como aprendizado: '+JSON.stringify(out));
  if(out.historyCount!==before.history+1)throw new Error('Histórico de aprendizado não cresceu em uma rodada: '+JSON.stringify({before,out}));
  if(!out.baseline?.at||out.baseline.at==='2000-01-01T00:00:00.000Z')throw new Error('Baseline não foi atualizada: '+JSON.stringify(out));
- if(out.daily?.kind!=='hlgb_auditor_daily_report'||out.daily?.version!=='94.29'||out.daily?.appVersion!=='94.29')throw new Error('Relatório diário/versionamento incorreto: '+JSON.stringify(out));
+ if(out.daily?.kind!=='hlgb_auditor_daily_report'||out.daily?.auditorVersion!=='94.29'||out.daily?.version!=='94.39'||out.daily?.reportFinalizerVersion!=='94.39'||out.daily?.appVersion!==out.appRelease||out.daily?.generatedWithAppVersion!==out.appRelease)throw new Error('Relatório diário/versionamento incorreto: '+JSON.stringify(out));
  if(out.daily?.operations?.summary?.pass!==11||out.daily?.operations?.summary?.warn!==3||out.daily?.operations?.summary?.fail!==2)throw new Error('Resumo operacional não entrou no relatório diário: '+JSON.stringify(out.daily?.operations));
  if(out.daily?.health?.pendingUnique!==2||out.daily?.health?.pendingRecords!==2||out.daily?.health?.pendingWal!==2)throw new Error('Pendências reais não entraram no relatório diário: '+JSON.stringify(out.daily?.health));
  if(out.daily?.health?.deliveryStatus!=='fail'||out.daily?.health?.savingUiStatus!=='fail')throw new Error('Falhas de entrega/salvamento não foram propagadas ao diário: '+JSON.stringify(out.daily?.health));
