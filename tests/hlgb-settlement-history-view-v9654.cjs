@@ -25,6 +25,15 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  ok(api.eventCsv(er).includes("'=unsafe")&&api.eventCsv(er).includes('20,00'),'event CSV safe');
  let badEvent=false;try{api.eventCsv({...er,eventTotal:2})}catch(_){badEvent=true}ok(badEvent,'incomplete events export');
 
+ const fixtureRow={...row,kind:'faccao',id:'group:1',ownerId:'F1',name:'<script>alert(1)</script>',dateBasis:'payment',details:[{id:'1',description:'Calcinha Mayte',quantity:480,unitPriceCents:80,serviceCents:38400,paidCents:38400,travetaCents:0,note:'<img src=x onerror=alert(1)>'}],netOfAdjustments:true};
+ const fixtureRow2={...fixtureRow,id:'group:2',totalCents:20000,paidCents:10000,creditCents:2000,balanceCents:8000};
+ const report2={state:'local-observation',rows:[fixtureRow,fixtureRow2],total:2,issues:['review']};
+ const detail=api.printable(report2,'faccao','detail',{from:'2026-11-23',to:'2026-11-23'});
+ ok(detail.includes('Calcinha Mayte')&&detail.includes('480')&&detail.includes('38,40')===false&&detail.includes('384,00'),'detail values');
+ ok(!detail.includes('<script>alert(1)</script>')&&!detail.includes('<img src=x')&&detail.includes('&lt;script&gt;'),'escape untrusted fields');
+ const summary=api.printable(report2,'faccao','summary',{});ok(summary.includes('300,00')&&summary.includes('150,00')&&summary.includes('130,00')&&!summary.includes('Calcinha Mayte'),'summary groups without repeated details');
+ ok(api.printable(er,'cliente','summary',{eventMode:true}).includes('Abatimentos não são entrada de caixa'),'event distinction');
+ for(const [data,kind,mode,filter] of [[{...report2,total:3},'faccao','detail',{}],[report2,'cliente','summary',{}],[{...er,eventTotal:2},'cliente','summary',{eventMode:true}],[report2,'faccao','unknown',{}]]){let blocked=false;try{api.printable(data,kind,mode,filter)}catch(_){blocked=true}ok(blocked,'reject invalid or partial print')}
  const original={...row,id:'note:projection:1',details:[],status:'Em aberto'},origDeps={...d,inspect:()=>({state:'local-observation',rows:[original]})};let actionCalls=[];
  const acts={noteView:id=>actionCalls.push(id),factionPdf:id=>actionCalls.push(id)};
  ok(api.originalAction(origDeps,'cliente',original,'noteView',acts,()=>true).opened&&actionCalls.join(',')==='1','original note navigation');
