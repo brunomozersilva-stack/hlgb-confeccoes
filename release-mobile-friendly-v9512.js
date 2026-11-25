@@ -3,7 +3,7 @@
  */
 (function(){
 'use strict';
-const V='95.13',STYLE_ID='hlgbMobileFriendly9512Style';
+const V='95.14',STYLE_ID='hlgbMobileFriendly9512Style';
 if(window.HLGB_MOBILE_FRIENDLY_9512===V)return;
 window.HLGB_MOBILE_FRIENDLY_9512=V;
 const css=String.raw`
@@ -74,6 +74,9 @@ const css=String.raw`
   #hlgbMobileSheetLinks9513 .hlgb-mobile-section9513{font-size:12px;line-height:1.4;text-transform:uppercase;letter-spacing:.05em;color:#815e70;font-weight:700;margin:15px 0 6px}
   #hlgbMobileSheetLinks9513 .hlgb-mobile-link9513{display:block;width:100%;min-height:48px;text-align:left;background:#fff;color:#34232c;border:1px solid #eee0e7;border-radius:12px;margin:5px 0;padding:10px 12px;font-size:15px;font-weight:600;white-space:normal;overflow-wrap:anywhere;touch-action:manipulation}
   #hlgbMobileSheetLinks9513 .hlgb-mobile-link9513:active{background:#f2e3eb}
+  #hlgbMobileSheetLinks9513 .hlgb-mobile-link9513[aria-current="page"]{border-color:#a87991;background:#f7eff4;font-weight:800}
+  @media (max-width:360px){#hlgbMobileSheetHeader9513{gap:6px;padding:10px 12px}#hlgbMobileSheetHeader9513 strong{font-size:17px}#hlgbMobileNav9250 button{font-size:10px!important}}
+  @media (max-height:440px){#hlgbMobileSheetPanel9513{max-height:calc(100dvh - 18px);min-height:0}#hlgbMobileSheetHeader9513{padding:6px 12px}#hlgbMobileSheetSearch9513{margin-top:4px;min-height:40px}}
   #hlgbMobileSheetLinks9513 .hlgb-mobile-link9513[hidden],#hlgbMobileSheetLinks9513 .hlgb-mobile-section9513[hidden]{display:none!important}
   #hlgbMobileSheetLinks9513 .hlgb-mobile-message9513{padding:20px 8px;font-size:14px;color:#66535d}
 
@@ -112,6 +115,15 @@ function isLink9513(node){
  const nav=document.getElementById('nav');for(let p=node;p&&p!==nav;p=p.parentElement){if(p.hidden||p.getAttribute('aria-hidden')==='true'||p.style?.display==='none'||window.getComputedStyle?.(p)?.display==='none')return false}
  return node.matches('button,a')&&!!sourceLabel9513(node);
 }
+function groupToggle9514(source){
+ const group=source.closest('.nav-group');if(!group)return false;
+ // Only recognize a real group control with a controlled submenu, not a
+ // page action. Hidden descendants remain governed by the source nav.
+ const controlId=source.getAttribute('aria-controls');
+ if(controlId){const target=document.getElementById(controlId);if(target&&group.contains(target)&&target.querySelector('button,a'))return true}
+ const sibling=source.nextElementSibling;
+ return source.parentElement===group&&!!sibling?.querySelector('button,a');
+}
 function renderLinks9513(){
  const root=document.getElementById('hlgbMobileSheetLinks9513');
  if(!root)return;
@@ -133,10 +145,19 @@ function renderLinks9513(){
   for(const item of section.items){
    const b=document.createElement('button');b.type='button';b.className='hlgb-mobile-link9513';
    b.textContent=item.label;b.setAttribute('data-hlgb-mobile-text9513',(section.name+' '+item.label).toLowerCase());
+   if(item.source.getAttribute('aria-current')==='page'||item.source.classList.contains('active'))b.setAttribute('aria-current','page');
+   const groupControl=groupToggle9514(item.source);if(groupControl)b.setAttribute('aria-expanded',item.source.getAttribute('aria-expanded')==='true'||!!item.source.nextElementSibling&&[...item.source.nextElementSibling.querySelectorAll('button,a')].some(isLink9513)?'true':'false');
    b.addEventListener('click',()=>{
     if(!item.source.isConnected||!document.getElementById('nav')?.contains(item.source)||!isLink9513(item.source)||window.__HLGB_AUTH_READY===false){renderLinks9513();filterLinks9513(document.getElementById('hlgbMobileSheetSearch9513')?.value||'');return}
+    if(groupControl){
+     const query=document.getElementById('hlgbMobileSheetSearch9513')?.value||'';
+     try{item.source.click()}catch(e){console.warn('[HLGB mobile v95.14] group action',e);return}
+     if(window.__HLGB_AUTH_READY===false){close();return}
+     renderLinks9513();filterLinks9513(query);
+     const again=[...root.querySelectorAll('.hlgb-mobile-link9513')].find(x=>!x.hidden&&x.textContent===item.label&&x.hasAttribute('aria-expanded'));again?.focus({preventScroll:true});return;
+    }
     close();
-    try{item.source.click()}catch(e){console.warn('[HLGB mobile v95.13] menu action',e)}
+    try{item.source.click()}catch(e){console.warn('[HLGB mobile v95.14] menu action',e)}
    });
    root.appendChild(b);
   }
