@@ -17,8 +17,10 @@ for(const scenario of ['delayed','missing']){
   for(const t of q.timers.splice(0))t.f();
   assert.equal(w.hlgbAuditorReady9370.state,'ready');assert.equal(w.hlgbAuditorReady9372.state,'ready');
   assert.equal(w.hlgbAuditorSmart.runtimeFix9370.listenerCount,4);
-  const problem=w.hlgbAuditorSmartProblem;for(const i of [2,3])vm.runInContext(fs.readFileSync(names[i],'utf8'),c);
-  assert.equal(w.hlgbAuditorSmartProblem,problem);assert.equal(q.listeners.click.length,1);
+  const problem=w.hlgbAuditorSmartProblem,clicks=q.listeners.click.length;
+  assert.equal(clicks,2,'Smart base and runtime patch each own a click listener');
+  for(const i of [2,3])vm.runInContext(fs.readFileSync(names[i],'utf8'),c);
+  assert.equal(w.hlgbAuditorSmartProblem,problem);assert.equal(q.listeners.click.length,clicks,'reloading patch must not add listeners');
  }else{
   for(let i=0;i<45&&q.timers.length;i++){for(const t of q.timers.splice(0))t.f()}
   assert.equal(w.hlgbAuditorReady9370.state,'unavailable');assert.equal(w.hlgbAuditorReady9372.state,'unavailable');
