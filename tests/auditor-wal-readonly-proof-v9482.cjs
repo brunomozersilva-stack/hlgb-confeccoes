@@ -23,7 +23,7 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
    return req;
   }
  };
- const audit={main:{checks:[],summary:{total:0,pass:0,warn:0,fail:0}},
+ const audit={main:{checks:[{code:'fixture:ready',status:'pass'}],summary:{total:1,pass:1,warn:0,fail:0,result:'OK'}},
  operations:{pending:{unique:0,records:0,wal:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
  const win={__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9446:'94.46',HLGB_RELEASE_VERSION:'94.82',
   hlgbAuditorAutoCorrect9446:{prepare:async()=>({ok:true,ready:true}),run:async()=>{throw new Error('No unrelated repair recipes')}},
