@@ -15,6 +15,14 @@ begin
  begin perform public.hlgb_lab_save_remnant_v9686('c',1,bad);raise exception 'assert-material'; exception when raise_exception then if sqlerrm<>'material' then raise;end if;end;
  bad:=jsonb_set(p,'{eligible,0,minWidthMm}','-1');
  begin perform public.hlgb_lab_save_remnant_v9686('c',1,bad);raise exception 'assert-dimension'; exception when raise_exception then if sqlerrm<>'dimension' then raise;end if;end;
+ -- Legacy full-record editor changes price without sending the policy.
+ select * into a from public.hlgb_save_record('products','a','{"id":"a","name":"Modelo A","price":32,"materials":[{"materialId":"m","qty":2}]}',2,false);
+ if a.applied is not true or a.revision<>3 or a.data->'price'<>'32'::jsonb or a.data->'fabricRemnantPolicyV9630' is distinct from p then raise exception 'assert-legacy-preservation'; end if;
+ begin
+   perform public.hlgb_save_record('products','a',jsonb_set(a.data,'{fabricRemnantPolicyV9630}','null'),3,false);
+   raise exception 'assert-null-policy';
+ exception when raise_exception then if sqlerrm<>'legacy-policy-invalid' then raise;end if;end;
+ if (select revision from public.hlgb_records where module='products' and entity_id='a')<>3 then raise exception 'assert-no-legacy-overwrite'; end if;
  perform set_config('lab.write','no',false);
  begin perform public.hlgb_lab_save_remnant_v9686('c',1,p);raise exception 'assert-permission'; exception when insufficient_privilege then null;end;
  if (select revision from public.hlgb_records where module='products' and entity_id='b')<>1 then raise exception 'assert-no-write'; end if;
