@@ -12,7 +12,7 @@ const CASES_KEY='hlgb_auditor_diagnostic_cases_v9556';
 const DISABLED_KEY='hlgb_auditor_diagnostic_assistant_disabled_v9556';
 const REPORT_KEY='hlgb_auditor_autocorrect_latest_report_v9448';
 const PANEL_ID='hlgbAuditorLearningPanel9556';
-const LIMIT=120;
+const LIMIT=120, RUN_LIMIT=500;
 const str=x=>String(x??'');
 const iso=()=>new Date().toISOString();
 const json=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k)||'null');return v??f}catch(_){return f}};
@@ -74,7 +74,10 @@ function findings(report){
 }
 function readCases(){
  const v=json(CASES_KEY,{lastRunId:'',cases:[]});
- return v&&typeof v==='object'&&!Array.isArray(v)?{lastRunId:str(v.lastRunId),cases:Array.isArray(v.cases)?v.cases.slice(-LIMIT):[]}:{lastRunId:'',cases:[]};
+ if(!v||typeof v!=='object'||Array.isArray(v))return {lastRunId:'',cases:[],seenRuns:[]};
+ const cases=Array.isArray(v.cases)?v.cases.filter(x=>x&&typeof x.fingerprint==='string'&&Object.hasOwn(SPECS,x.kind)).slice(-LIMIT):[];
+ const seenRuns=[...new Set([...(Array.isArray(v.seenRuns)?v.seenRuns:[]),...cases.map(x=>x.lastRunId),v.lastRunId].filter(x=>typeof x==='string'&&x.length>0&&x.length<=180))].slice(-RUN_LIMIT);
+ return {lastRunId:str(v.lastRunId),cases,seenRuns};
 }
 function currentReport(){
  try{const api=window.hlgbAuditorAutoCorrect9448;const r=api?.exportReport?.();if(r?.run?.runId)return r}catch(_){}
@@ -84,34 +87,39 @@ const state={lastError:'',lastProcessedAt:'',lastRunId:'',current:[],observedCas
 function collect(report){
  if(!auth()||disabled())return {ok:false,reason:!auth()?'not-authenticated':'disabled'};
  const r=report||currentReport();if(!r?.run?.runId)return {ok:false,reason:'no-audit-report'};
- const id=str(r.run.runId),s=readCases();
+ const id=typeof r.run.runId==='string'?r.run.runId.trim():'',s=readCases();
+ if(!id||id.length>180)return {ok:false,reason:'invalid-run-id'};
  state.current=findings(r);state.lastRunId=id;
- if(s.lastRunId===id)return {ok:true,repeatedRun:true,observations:s.cases.length,findings:state.current.length};
+ if(s.seenRuns.includes(id))return {ok:true,repeatedRun:true,observations:s.cases.length,findings:state.current.length};
+ // Incomplete/failed execution can contain useful hypotheses, but does not
+ // establish a completed observation or increment recurrence counters.
+ if(r.auditCompleted===false||r.run.executionFailed===true)return {ok:false,reason:'incomplete-audit',findings:state.current.length};
  const now=iso(),byKey=new Map(s.cases.filter(x=>x?.fingerprint).map(x=>[x.fingerprint,x]));
  for(const f of state.current){
   const previous=byKey.get(f.fingerprint)||{fingerprint:f.fingerprint,kind:f.kind,title:f.title,firstSeenAt:now,observedRuns:0,recurrences:0};
   byKey.set(f.fingerprint,{...previous,lastSeenAt:now,lastRunId:id,observedRuns:(+previous.observedRuns||0)+1,recurrences:(+previous.recurrences||0)+(previous.observedRuns?1:0),lastAffected:f.affected});
  }
  const cases=[...byKey.values()].sort((a,b)=>str(b.lastSeenAt).localeCompare(str(a.lastSeenAt))).slice(0,LIMIT);
- const ok=save(CASES_KEY,{version:VERSION,lastRunId:id,cases});
+ const ok=save(CASES_KEY,{version:VERSION,lastRunId:id,cases,seenRuns:[...s.seenRuns,id].slice(-RUN_LIMIT)});
  state.lastWriteOk=ok;state.lastProcessedAt=now;state.observedCases=cases.length;
  return {ok,runId:id,findings:state.current.length,observations:cases.length};
 }
 function sidSafeShared(x){return str(x).slice(0,180)}
 function pack(){
+ if(!auth())return {kind:'hlgb_auditor_diagnostic_learning_pack',version:VERSION,readOnly:true,unavailable:true,reason:'not-authenticated'};
  const r=currentReport(),c=readCases(),shared=window.hlgbLearningCloud9573?.snapshot?.()||null;
  const f=r?.run?.runId===state.lastRunId?state.current:findings(r||{});
  const cases=c.cases.filter(x=>f.some(y=>y.fingerprint===x.fingerprint));
  const coverage=r?.operationalCoverage||{};
  return {kind:'hlgb_auditor_diagnostic_learning_pack',version:VERSION,createdAt:iso(),readOnly:true,disabled:disabled(),
-  sourceRunId:str(r?.run?.runId||''),appVersion:str(r?.appVersion||''),browserFamily:/safari/i.test(navigator.userAgent||'')?'Safari':/chrome/i.test(navigator.userAgent||'')?'Chrome':'Outro',
-  runSummary:{result:str(r?.run?.stopReason||''),correctedReported:+r?.run?.fixed||0,auditCompleted:r?.auditCompleted!==false&&r?.run?.executionFailed!==true},
+  sourceRunId:str(r?.run?.runId||''),appVersion:str(r?.appVersion||''),browserFamily:/edg(?:e|a|ios)?\//i.test(navigator.userAgent||'')?'Edge':/opr\/|opera/i.test(navigator.userAgent||'')?'Opera':/crios\/|chrome\//i.test(navigator.userAgent||'')?'Chrome':/fxios\/|firefox\//i.test(navigator.userAgent||'')?'Firefox':/safari\//i.test(navigator.userAgent||'')?'Safari':'Outro',
+  runSummary:{result:str(r?.run?.stopReason||''),correctedReported:+r?.run?.fixed||0,auditCompleted:r?.auditCompleted===true&&r?.run?.executionFailed!==true},
   coverage:{checks:coverage.checks||{},liveCrossDeviceProof:coverage.liveCrossDeviceProof===true,visualJumpProof:coverage.visualJumpProof===true},
   diagnoses:f.map(x=>({kind:x.kind,title:x.title,affectedInReport:x.affected,priority:SPECS[x.kind].priority,
    observedRuns:cases.find(y=>y.fingerprint===x.fingerprint)?.observedRuns||0,
    recurrences:cases.find(y=>y.fingerprint===x.fingerprint)?.recurrences||0,
    investigate:SPECS[x.kind].investigate,tests:SPECS[x.kind].tests,safetyRule:SPECS[x.kind].rule})),
-  historicalCases:c.cases.length,serverCases:shared?.cases?.length||0,serverEvents:shared?.events||0,
+  localDeduplication:{windowLimit:RUN_LIMIT,rememberedRuns:c.seenRuns.length,scope:'browser-local',olderRunsMayRepeat:true},historicalCases:c.cases.length,serverCases:shared?.cases?.length||0,serverEvents:shared?.events||0,
   serverLearningConfirmed:shared?.verifiedServer===true,serverLearningError:sidSafeShared(shared?.error),
   rules:['Sem reparos automáticos neste módulo','Eventos técnicos compartilhados somente após confirmação no servidor; não gravar dados de negócio nem WAL','Histórico local continua como contingência quando estiver offline','Diagnóstico não constitui prova de correção sem reteste']};
 }
@@ -142,8 +150,9 @@ function render(){
 }
 function poll(){try{if(auth()&&!disabled()&&!document.hidden)collect();render()}catch(e){state.lastError=str(e?.message||e)}}
 function activate(){if(!auth())return false;poll();return true}
-window.hlgbAuditorLearningAssistant9556={version:VERSION,collect,pack,findings,render,download,disable:()=>setDisabled(true),enable:()=>setDisabled(false),history:()=>readCases().cases,status:()=>({...state,disabled:disabled(),authReady:auth(),historyCount:readCases().cases.length})};
+window.hlgbAuditorLearningAssistant9556={version:VERSION,collect,pack,findings,render,download,disable:()=>setDisabled(true),enable:()=>setDisabled(false),history:()=>auth()?readCases().cases:[],status:()=>auth()?({...state,disabled:disabled(),authReady:true,historyCount:readCases().cases.length}):({authReady:false,historyCount:0})};
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(activate,1000));
 window.addEventListener?.('hlgb:auditor:open',()=>setTimeout(poll,250));
+window.addEventListener?.('hlgb:logout',()=>{state.current=[];state.lastRunId='';state.lastProcessedAt='';state.observedCases=0;state.lastError='';state.lastWriteOk=null;document.getElementById(PANEL_ID)?.remove()});
 if(!window.__HLGB_TEST__){setInterval(poll,60000);if(auth())setTimeout(activate,7000)}
 })();
