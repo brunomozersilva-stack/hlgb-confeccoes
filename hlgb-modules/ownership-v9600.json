@@ -415,7 +415,7 @@
   },
   "notes": "HLGB Comercial: 187 scripts únicos, 158 baseline + 29 novos; ordem preservada.",
   "criticalFileBlobs": {
-    "app9240.html": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
+    "app9240.html": "08da3bd98d7972a9e8008f2b9e518aa523be0b37",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
     "release-operations-pack.js": "29bf8a04bf2875a47dacc0445652865510b2d731",
     "release-save-transport-v9320.js": "6cbbc56e77aa3c42555c64e22fc194968fda4bf6",
@@ -426,6 +426,7 @@
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
     "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf"
   },
+  "approvedMonolithHotfixV9691": {"previousBlob":"d0a6e49bc7bcd363c853092c350e3cf9a2b030c5","currentBlob":"08da3bd98d7972a9e8008f2b9e518aa523be0b37","scope":"saveCut9191 and hlgbAdjustCutGrade9191; prefix and suffix compared unchanged","incident":"PR 345, Chrome Yza #56; no business data change"},
   "sourceRefReason": "Checkpoint after Safari login #275 and WAL review #282; inventory only",
   "historicalGroupCount": 16,
   "preExtractionScripts": [

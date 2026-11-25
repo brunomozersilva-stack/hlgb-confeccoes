@@ -1,0 +1,50 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium,webkit}=require('playwright');
+const html=fs.readFileSync('app9240.html','utf8'),begin=html.indexOf('function gradeSignature9691('),end=html.indexOf('\nfunction enhanceGradeButtons9191',begin);
+assert(begin>=0&&end>begin);
+(async()=>{
+ const browser=await(process.env.HLGB_BROWSER==='webkit'?webkit:chromium).launch({headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:1280,height:900},serviceWorkers:'block'});
+  await page.route('**/*',r=>r.abort());
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.setContent('<!doctype html><meta charset="utf-8"><div id="modal"><div id="modalContent"></div></div><style>#modal:not(.show){display:none}</style>');
+  await page.evaluate(()=>{
+   const clone=window.clone9191=v=>JSON.parse(JSON.stringify(v));
+   const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
+   window.hlgbRecordDataEqual=(a,b)=>JSON.stringify(stable(a))===JSON.stringify(stable(b));
+   const colors=['Preto','Branco','Rubi','Frozen','Fantastico','Teos'],sizes=['P','M','G','GG'];
+   const planned=[[20,60,40,20],[10,30,20,10],[30,90,60,30],[10,30,20,10],[10,30,20,10],[10,30,20,10]];
+   const grade=colors.flatMap((color,i)=>sizes.map((size,j)=>({productId:'p',color,size,qty:planned[i][j]})));
+   const original={id:'c',orderId:'o',status:'Planejado',pieces:630,productId:'p',autoOrderCutV9203:true,untouched:'keep'};
+   window.db={cuts:[clone(original)],orders:[{id:'o',grade}],products:[{id:'p',name:'Short Doll Yza'}],sizes};
+   window.__remote={module:'cuts',entity_id:'c',revision:1,deleted_at:null,data:clone(original)};
+   window.__writes=0;window.__reads=0;window.__alerts=[];window.__preAckPieces=null;
+   window.alert=m=>__alerts.push(String(m));
+   window.orderFor9191=()=>db.orders[0];window.cutOriginalGrade=(c,o)=>c.plannedGradeBeforeAdjustmentV9243?.length?c.plannedGradeBeforeAdjustmentV9243:c.originalGrade?.length?c.originalGrade:o.grade;
+   window.esc9191=String;window.hlgbSortedSizes=a=>a;window.cloudEnsureFreshSession=async()=>{};window.hlgbRecordReady=true;window.cloudAccessToken='fixture';window.hlgbRecordCanWrite=()=>true;window.hlgbRecordSnapshots={cuts:new Map([['c',{revision:1,deleted_at:null,data:clone(original)}]])};
+   window.hlgbWalIdbGuard9536={probe:async()=>{},ids:()=>[],status:()=>({readFailed:false})};
+   window.cloudRequest=async path=>{if(path.includes('module=eq.orders'))return [{module:'orders',entity_id:'o',deleted_at:null,revision:1,data:clone(db.orders[0])}];__reads++;if(__reads===2)throw Error('offline on readback');return [clone(__remote)]};
+   window.hlgbRecordSaveWithRetry=async(module,id,next)=>{__writes++;__preAckPieces=db.cuts[0].pieces;__remote={...__remote,revision:2,data:clone(next)};return {applied:true,data:clone(next),revision:2}};
+   window.openModal=(title,body,cb)=>{document.getElementById('modalContent').innerHTML='<h2>'+title+'</h2>'+body;document.getElementById('modal').classList.add('show');document.querySelector('.modalSave').addEventListener('click',cb)};
+   window.closeModal=()=>document.getElementById('modal').classList.remove('show');window.localSaveOnly=()=>{};window.isFinal9191=()=>false;window.renderCuts=window.renderDailyCuts=window.renderCutters=window.renderProduction=()=>{};
+  });
+  await page.addScriptTag({content:html.slice(begin,end)});
+  await page.evaluate(()=>window.hlgbAdjustCutGrade9191('c'));
+  const real=[20,60,40,20,10,30,20,10,3,9,6,3,2,6,4,2,6,18,12,6,10,30,20,10];
+  for(let i=0;i<real.length;i++)await page.locator('#adj9191_'+i).fill(String(real[i]));
+  await page.locator('#adjNote9191').fill('Faltou material');
+  await page.locator('.modalSave').click();
+  await page.waitForFunction(()=>__alerts.length===1&&!document.querySelector('.modalSave').disabled);
+  assert.equal(await page.locator('#modal').isVisible(),true);
+  assert.equal(await page.locator('#adj9191_8').inputValue(),'3');
+  assert.equal(await page.locator('#adjNote9191').inputValue(),'Faltou material');
+  assert.match(await page.locator('.modalSave').textContent(),/Conferir ajuste/);
+  assert.deepEqual(await page.evaluate(()=>[__writes,__preAckPieces,db.cuts[0].pieces]),[1,630,630]);
+  await page.locator('.modalSave').click();
+  await page.waitForFunction(()=>!document.getElementById('modal').classList.contains('show'));
+  assert.deepEqual(await page.evaluate(()=>[__writes,db.cuts[0].pieces,db.cuts[0].actualCutGrade.reduce((s,x)=>s+x.qty,0),db.orders[0].grade.reduce((s,x)=>s+x.qty,0),db.cuts[0].untouched]),[1,357,357,630,'keep']);
+  assert.deepEqual(errors,[]);
+  console.log('PASS browser grade draft, lost readback, read-only reconciliation, original order preserved');
+ }finally{await browser.close()}
+})().catch(e=>{console.error(e);process.exit(1)});
