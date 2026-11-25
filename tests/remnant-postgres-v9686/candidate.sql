@@ -4,7 +4,7 @@
 -- not validate policies submitted through legacy paths. Do not deploy.
 create or replace function public.hlgb_lab_save_remnant_v9686(p_product_id text,p_expected_revision bigint,p_policy jsonb)
 returns table(applied boolean,module text,entity_id text,data jsonb,deleted_at timestamptz,revision bigint,updated_at timestamptz,updated_by uuid)
-language plpgsql security invoker set search_path = '' as $$
+language plpgsql security invoker set search_path = '' as $lab$
 declare
   src public.hlgb_records%rowtype;
   target public.hlgb_records%rowtype;
@@ -62,6 +62,6 @@ begin
   select * into ack from public.hlgb_save_record('products',p_product_id,next_data,p_expected_revision,false);
   if not found or ack.applied is not true or ack.module is distinct from 'products' or ack.entity_id is distinct from p_product_id or ack.deleted_at is not null or ack.revision is distinct from p_expected_revision+1 or ack.data is distinct from next_data then raise exception 'unconfirmed-save'; end if;
   return query select ack.applied,ack.module,ack.entity_id,ack.data,ack.deleted_at,ack.revision,ack.updated_at,ack.updated_by;
-end; $;
+end; $lab$;
 revoke all on function public.hlgb_lab_save_remnant_v9686(text,bigint,jsonb) from public,anon;
 grant execute on function public.hlgb_lab_save_remnant_v9686(text,bigint,jsonb) to authenticated;
