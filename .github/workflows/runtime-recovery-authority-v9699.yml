@@ -1,0 +1,19 @@
+name: HLGB Recuperação - autoridade única v96.99
+on:
+  pull_request:
+    paths:
+      - 'release-runtime-recovery-v9326.js'
+      - 'tests/audit-runtime-recovery-v9326.cjs'
+      - '.github/workflows/runtime-recovery-authority-v9699.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/audit-runtime-recovery-v9326.cjs
+      - run: node tests/wal-replay-edicao-concorrente-v9695.cjs
