@@ -4,7 +4,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 (async()=>{
  const browser=await engine.launch({headless:true});
  try{
-  for(const width of [360,390,700]){
+  for(const width of [320,360,375,390,430,700]){
    const page=await browser.newPage({viewport:{width,height:780},isMobile:false,deviceScaleFactor:2});
    const errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.goto('http://127.0.0.1:4173/tests/mobile-friendly-v9512-fixture.html',{waitUntil:'domcontentloaded'});
@@ -34,6 +34,14 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    assert.equal(await page.locator('#hlgbMobileMenu9512').getAttribute('aria-expanded'),'true');
    assert(await page.locator('#hlgbMobileSheetLinks9513 .hlgb-mobile-link9513').count()>=3,
      'source navigation should be accessible even if original sidebar is hidden');
+   const group=panel.getByRole('button',{name:'Produção ›',exact:true});
+   await group.click();
+   assert(await panel.isVisible(),'group expansion must not close menu');
+   assert.equal(await group.getAttribute('aria-expanded'),'true');
+   assert.equal(await panel.getByRole('button',{name:'Financeiro restrito',exact:true}).count(),0,'hidden permission item must stay hidden');
+   await panel.getByRole('button',{name:'Produção',exact:true}).click();
+   assert.equal(await page.evaluate(()=>window.__lastPage),'producao');
+   await page.locator('#hlgbMobileMenu9512').click();
    await page.locator('#hlgbMobileSheetSearch9513').fill('Pedidos');
    const matches=await page.locator('#hlgbMobileSheetLinks9513 .hlgb-mobile-link9513:visible').allTextContents();
    assert(matches.some(s=>s.includes('Pedidos')),'search finds the desired page');
@@ -50,6 +58,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    await page.locator('#hlgbMobileMenu9512').click();
    await page.locator('#hlgbMobileSheet9513').click({position:{x:2,y:2}});
    assert(!(await page.locator('body').evaluate(b=>b.classList.contains('hlgb-mobile-sheet-open9513'))));
+   await page.setViewportSize({width: Math.min(width,700),height:360});await page.locator('#hlgbMobileMenu9512').click();const short=await panel.boundingBox();assert(short&&short.y>=-2&&short.y+short.height<=362,'short viewport keeps menu on screen');await page.keyboard.press('Escape');
    assert.equal(errors.length,0,errors.join('\n'));
    console.log('PASS v95.13 '+engine.name()+' '+width+'px: responsive main, scrollable tables, accessible drawer and navigation');
    await page.close();
