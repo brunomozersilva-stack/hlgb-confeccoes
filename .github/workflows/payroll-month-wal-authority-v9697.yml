@@ -1,0 +1,21 @@
+name: HLGB Folha - autoridade de conciliação e carregamento v96.97
+on:
+  pull_request:
+    paths:
+      - 'release-payroll-month-wal-v9334.js'
+      - 'release-payroll-wal-race-v9346.js'
+      - 'tests/payroll-month-wal-authority-v9697.cjs'
+      - '.github/workflows/payroll-month-wal-authority-v9697.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/payroll-month-wal-authority-v9697.cjs
+      - run: node tests/hub-finance-wal-edicao-concorrente-v9696.cjs
+      - run: node --test tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs
