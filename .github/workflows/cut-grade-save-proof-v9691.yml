@@ -1,0 +1,20 @@
+name: HLGB Corte - Confirmacao de grade v96.91
+on:
+  pull_request:
+    paths:
+      - 'app9240.html'
+      - 'tests/cut-grade-save-proof-v9691.cjs'
+      - '.github/workflows/cut-grade-save-proof-v9691.yml'
+permissions:
+  contents: read
+jobs:
+  grade-save:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node tests/audit-cut-grade-matrix-v9421.cjs
+      - run: node tests/cut-grade-save-proof-v9691.cjs
