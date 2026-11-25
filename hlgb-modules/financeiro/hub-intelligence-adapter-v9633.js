@@ -70,7 +70,16 @@
   const maxCategories=500,categoryRows=categories.size>maxCategories?[]:[...categories].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(category=>{
    const targetRow=targetGroups.get(category)||blank();
    const historical=weeks.map(week=>{const r=byCategory.get(JSON.stringify([week,category]))||blank();return {week,paidCents:r.paidOutCents,plannedCents:r.plannedOutCents,paidCount:r.paidOutCount,plannedCount:r.plannedOutCount}});
-   return {category,targetPaidCents:targetRow.paidOutCents,targetPlannedCents:targetRow.plannedOutCents,recordedWeeks:historical.filter(x=>x.paidCount>0).length,history:historical};
+   const samples=historical.filter(x=>x.paidCount>0&&Number.isSafeInteger(x.paidCents)).map(x=>x.paidCents).sort((a,b)=>a-b);
+   const targetKnown=targetRow.paidOutCount+targetRow.plannedOutCount>0;
+   const observedTotal=targetKnown?(targetRow.paidOutCents??0)+(targetRow.plannedOutCents??0):null;
+   // A descriptive reference only, based on nonempty weeks. Never a complete
+   // historical baseline, never fill absent weeks with zero or claim overspend.
+   const i=Math.floor(samples.length/2),enough=samples.length>=4;
+   const reference=enough?(samples.length%2?samples[i]:Math.round(samples[i-1]/2+samples[i]/2)):null;
+   const difference=reference!==null&&observedTotal!==null?observedTotal-reference:null;
+   const signal=!enough||!targetKnown?'insufficient-observations':observedTotal>samples[samples.length-1]?'above-recorded-range':observedTotal<samples[0]?'below-recorded-range':'within-recorded-range';
+   return {category,targetPaidCents:targetRow.paidOutCents,targetPlannedCents:targetRow.plannedOutCents,recordedWeeks:samples.length,history:historical,observedComparison:{state:'partial-reference',observedTotalCents:observedTotal,medianRecordedCents:reference,minRecordedCents:enough?samples[0]:null,maxRecordedCents:enough?samples[samples.length-1]:null,differenceCents:difference,signal,recordedWeeks:samples.length,totalWeeks:weeks.length,official:false}};
   });
   if(categories.size>maxCategories)actions.push({code:'review-category-count',count:categories.size});
   return {state:'observed-incomplete',weeks:allWeeks,categories:categoryRows,categoryCount:categories.size,observedWeeks,overdue,actions,officialBaseline:null,canPublish:false};
