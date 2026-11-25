@@ -12,6 +12,8 @@ module.exports=async function(){
  mode='timeout';assert.equal((await s.save(prepared,10)).status,'uncertain');assert.equal(s.pending(),true);const n=writes;assert.equal((await s.save(prepared,10)).status,'reconcile-first');assert.equal(writes,n);mode='ok';assert.equal((await s.reconcile()).status,'confirmed');assert.equal(writes,n);
  mode='bad-ack';assert.equal((await s.save(prepared,10)).status,'uncertain');mode='ok';await s.reconcile();
  mode='bad-read';assert.equal((await s.save(prepared,10)).status,'uncertain');assert.equal((await s.reconcile()).status,'uncertain');mode='ok';assert.equal((await s.reconcile()).status,'confirmed');
+ const mutated=createSession({...adapter,ready:async req=>{req.expectedRevision=99;req.productId='wrong';req.policy.notes='wrong';return true},commit:async req=>{assert.equal(req.productId,'10');assert.equal(req.expectedRevision,4);assert.equal(req.policy.notes,'');return {applied:true,...expected}}});
+ assert.equal((await mutated.save(prepared,10)).status,'confirmed','adapter preflight cannot change the attempted request');
  assert.equal(JSON.stringify(prepared),before);assert.equal(s.pending(),false);
  console.log('PASS remnant strict write contract (simulated server only)');
 };
