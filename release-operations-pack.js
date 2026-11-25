@@ -259,7 +259,7 @@ function routeStopHtml(stop,i){
  // nem outro primeiro registro, antes de a pessoa escolher a facção.
  const opts='<option value="" disabled '+(!selected?'selected':'')+'>Selecione a facção ou confecção</option>'+
   locs.map((x,j)=>'<option value="'+j+'" '+(selected&&sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type)?'selected':'')+'>'+escSafe(x.type+' — '+x.name)+'</option>').join('');
- return '<div class="ops-route-stop" data-i="'+i+'"><div class="grid"><div class="field"><label>Local</label><select class="ops-route-loc" onchange="routeLocationChanged9249(this)">'+opts+'</select></div><div class="field"><label>Observações</label><input class="ops-route-note" value="'+escSafe(stop?.notes||'')+'"></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"><button type="button" class="secondary" onclick="routeMoveStop9683(this,-1)">↑ Subir parada</button><button type="button" class="secondary" onclick="routeMoveStop9683(this,1)">↓ Descer parada</button><button type="button" class="secondary" onclick="routeRefreshAssigned9683(this)">Atualizar modelos da nuvem</button></div><div class="ops-route-refresh-status" role="status" aria-live="polite"></div><div class="ops-route-assigned" style="margin:8px 0"></div><div class="grid"><div class="field"><label>LEVAR — um item por linha</label><textarea class="ops-route-carry" rows="5">'+escSafe((stop?.carry||[]).join('\n'))+'</textarea></div><div class="field"><label>BUSCAR — um item por linha</label><textarea class="ops-route-pickup" rows="5">'+escSafe((stop?.pickup||[]).join('\n'))+'</textarea></div></div><button type="button" class="danger" onclick="this.closest(\'.ops-route-stop\').remove()">Remover parada</button></div>';
+ return '<div class="ops-route-stop" data-i="'+i+'"><div class="grid"><div class="field"><label>Local</label><select class="ops-route-loc" onchange="routeLocationChanged9249(this)">'+opts+'</select></div><div class="field"><label>Observações</label><input class="ops-route-note" value="'+escSafe(stop?.notes||'')+'"></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"><button type="button" class="secondary" onclick="routeMoveStop9683(this,-1)">↑ Subir parada</button><button type="button" class="secondary" onclick="routeMoveStop9683(this,1)">↓ Descer parada</button><button type="button" class="secondary" data-route-refresh9684="1" onclick="routeRefreshAssigned9683(this)">Atualizar modelos da nuvem</button></div><div class="ops-route-refresh-status" role="status" aria-live="polite"></div><div class="ops-route-assigned" style="margin:8px 0"></div><div class="grid"><div class="field"><label>LEVAR — um item por linha</label><textarea class="ops-route-carry" rows="5">'+escSafe((stop?.carry||[]).join('\n'))+'</textarea></div><div class="field"><label>BUSCAR — um item por linha</label><textarea class="ops-route-pickup" rows="5">'+escSafe((stop?.pickup||[]).join('\n'))+'</textarea></div></div><button type="button" class="danger" onclick="this.closest(\'.ops-route-stop\').remove()">Remover parada</button></div>';
 }
 
 function routeOrderNo9249(o){try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):(o?.orderNumber||o?.id)}catch(e){return o?.orderNumber||o?.id}}
@@ -308,7 +308,7 @@ window.routeRefreshAssigned9683=async function(btn){
  const token=typeof cloudAccessToken!=='undefined'?cloudAccessToken:null;
  if(!token||typeof cloudRequest!=='function'){notice.textContent='Consulta à nuvem indisponível. Não foi feita nenhuma alteração.';return}
  const generation=(stop.__routeRefresh9683||0)+1;stop.__routeRefresh9683=generation;
- const valid=()=>stop.isConnected&&stop.__routeRefresh9683===generation&&stop.dataset.routeLocationKey9534===sid(loc.type)+'|'+sid(loc.id)&&typeof cloudAccessToken!=='undefined'&&cloudAccessToken===token;
+ const valid=()=>stop.isConnected&&stop.__routeRefresh9683===generation&&stop.dataset.routeLocationKey9534===sid(loc.type)+'|'+sid(loc.id)&&sid(routeLocations()[Number(select.value)]?.id)===sid(loc.id)&&routeLocations()[Number(select.value)]?.type===loc.type&&typeof cloudAccessToken!=='undefined'&&cloudAccessToken===token;
  btn.disabled=true;notice.textContent='Consultando produção atual desta facção…';
  try{
   const rows=await cloudRequest('hlgb_records?select=entity_id,data,deleted_at&module=eq.production&deleted_at=is.null&'+encodeURIComponent('data->>factionId')+'=eq.'+encodeURIComponent(sid(loc.id))+'&limit=501',{method:'GET'});
@@ -338,14 +338,24 @@ window.routeRefreshAssigned9683=async function(btn){
   }
   notice.textContent=added+' modelo(s) novo(s) incluído(s) no rascunho. '+(changed?changed+' modelo(s) com quantidade ou descrição diferente; confira antes de salvar. ':'')+'Confira LEVAR/BUSCAR e salve a rota. Nenhuma produção foi alterada.';
  }catch(e){if(valid())notice.textContent='Não foi possível atualizar os modelos da nuvem. Rascunho preservado.'}
- finally{if(btn.isConnected)btn.disabled=false}
+ finally{if(btn.isConnected&&stop.__routeRefresh9683===generation)btn.disabled=false}
+};
+window.routeRefreshAll9684=async function(btn){
+ const host=document.getElementById('opsRouteStops'),notice=document.getElementById('opsRouteRefreshAllStatus9684');
+ if(!host||!notice||btn.disabled)return;
+ const stops=[...host.querySelectorAll('.ops-route-stop')].filter(stop=>stop.dataset.routeLocationKey9534?.startsWith('Facção|'));
+ if(!stops.length){notice.textContent='Nenhuma facção selecionada para conferir.';return}
+ btn.disabled=true;let checked=0;
+ try{for(const stop of stops){if(!host.isConnected||!btn.isConnected)return;const one=stop.querySelector('button[data-route-refresh9684]');if(!one||one.disabled||!stop.isConnected)continue;notice.textContent='Consultando '+(checked+1)+' de '+stops.length+' paradas…';await window.routeRefreshAssigned9683(one);checked++}
+ if(host.isConnected)notice.textContent=checked+' parada(s) consultada(s). Confira o resultado individual de cada local antes de salvar; nenhuma rota foi gravada.';
+ }finally{if(btn.isConnected)btn.disabled=false}
 };
 window.routeLocationChanged9249=function(select){
  const stop=select?.closest?.('.ops-route-stop'),selectedIndex=sid(select?.value);
  const loc=selectedIndex===''?null:routeLocations()[Number(selectedIndex)];
  const box=stop?.querySelector('.ops-route-assigned'),carry=stop?.querySelector('.ops-route-carry'),pickup=stop?.querySelector('.ops-route-pickup');
  if(!stop||!box)return;
- if(!loc){box.innerHTML='<div class="sub">Escolha a facção ou confecção para ver seus produtos.</div>';return}
+ if(!loc){stop.__routeRefresh9683=(stop.__routeRefresh9683||0)+1;delete stop.dataset.routeLocationKey9534;box.innerHTML='<div class="sub">Escolha a facção ou confecção para ver seus produtos.</div>';const btn=stop.querySelector('button[data-route-refresh9684]');if(btn)btn.disabled=false;return}
  const locationKey=sid(loc.type)+'|'+sid(loc.id),previous=stop.dataset.routeLocationKey9534||'';stop.__routeRefresh9683=(stop.__routeRefresh9683||0)+1;
  // Ao mudar de Roseli para Luana, retirar somente as linhas AUTOGERADAS
  // pela parada anterior. Os itens manuais permanecem.
@@ -364,6 +374,7 @@ window.routeLocationChanged9249=function(select){
  box.innerHTML=items.length?'<div class="panel" style="padding:10px;background:#fff"><b>📦 O que fazer neste local</b><div class="sub">O sistema sugere <b>LEVAR</b> quando o produto foi atribuído mas ainda não foi enviado e <b>BUSCAR</b> quando já existe envio registrado. Você pode trocar pelo botão.</div>'+items.map(routeItemHtml9249).join('')+'</div>':'<div class="sub">Nenhum produto atribuído a este local agora. Use os campos abaixo para itens manuais.</div>';
  if(!sameSaved||previous&&previous!==locationKey)routeSyncDirections9249(stop);
  else for(const item of box.querySelectorAll('[data-route-item9249]'))if(!carryExisting.has(sid(item.dataset.line))&&!pickupExisting.has(sid(item.dataset.line))){item.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary');if(!savedItems.some(x=>sid(x.key)===sid(item.dataset.key)||sid(x.line)===sid(item.dataset.line)))item.dataset.routeNewCandidate9683='1'}
+ const refresh=stop.querySelector('button[data-route-refresh9684]');if(refresh){refresh.disabled=false;if(loc.type==='Facção'&&!sameSaved)void window.routeRefreshAssigned9683(refresh);else{const notice=stop.querySelector('.ops-route-refresh-status');if(notice)notice.textContent=''}}
 };
 
 function openRouteEditor(r){
@@ -374,7 +385,7 @@ function openRouteEditor(r){
  const draftId=sid(r?.id||('route-'+Date.now()+'-'+Math.floor(Math.random()*10000)));
  const createdAt=r?.createdAt||new Date().toISOString();
  let saveBusy=false,lastAttempt=null;
- const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(r?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(r?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(r?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(r?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button>'+
+ const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(r?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(r?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(r?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(r?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button><button type="button" class="secondary" onclick="routeRefreshAll9684(this)">Atualizar todas as facções</button><div id="opsRouteRefreshAllStatus9684" class="sub" role="status" aria-live="polite"></div>'+
  '<div class="toolbar" style="margin-top:12px"><button type="button" class="secondary" id="opsRouteVerify9534">🔍 Verificar gravação na nuvem</button><button class="primary modalSave">Salvar rota</button></div>'+
  '<div id="opsRouteCloudStatus9534" role="status" aria-live="polite" class="sub" style="margin-top:10px">A rota só será considerada salva depois da confirmação da nuvem.</div>';
  async function finalizeIfConfirmed(attempt,reason){
