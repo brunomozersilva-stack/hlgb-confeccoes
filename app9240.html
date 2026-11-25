@@ -17918,19 +17918,61 @@ function enhanceCapacity9191(){
   document.querySelectorAll('#capacidadeProducao .cap940-unassigned-row').forEach(row=>{if(row.querySelector('.hlgb9191-cut-badge'))return;let bs=row.querySelectorAll('b');if(bs.length<2)return;let o=findOrderByDisplay9191(bs[0].textContent),model=bs[1].textContent?.trim()||'';if(!o)return;let item=(typeof projectionItemsForOrder==='function'?projectionItemsForOrder(o):[]).find(i=>norm9191(i.name)===norm9191(model));if(!item)return;bs[1].insertAdjacentHTML('afterend',badge9191(o,item))});
 }
 
-async function saveCut9191(next,backup){
-  try{
-    if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
-    if(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin();
-    if(typeof hlgbRecordSaveWithRetry!=='function'||!cloudAccessToken)throw new Error('A nuvem ainda não está pronta.');
-    let out=await hlgbRecordSaveWithRetry('cuts',String(next.id),clone9191(next),false);if(!out?.applied)throw new Error('A nuvem não confirmou o ajuste.');
-    let i=(db.cuts||[]).findIndex(x=>String(x.id)===String(next.id));if(i>=0)db.cuts[i]=clone9191(out.data||next);try{localSaveOnly()}catch(e){}return out.data||next;
-  }catch(e){if(backup){let i=(db.cuts||[]).findIndex(x=>String(x.id)===String(backup.id));if(i>=0)db.cuts[i]=backup}throw e}
+function gradeSignature9691(c){
+ const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
+ return JSON.stringify(stable([String(c?.id??''),String(c?.orderId??''),c?.status??'',c?.pieces??null,c?.originalGrade??null,c?.plannedGradeBeforeAdjustmentV9243??null,c?.actualCutGrade??null,c?.cutAdjustmentNote??'']));
 }
+function gradeMatches9691(c,next){
+ return c&&String(c.id)===String(next.id)&&Number(c.pieces)===Number(next.pieces)&&gradeSignature9691({...c,status:next.status,orderId:next.orderId})===gradeSignature9691(next);
+}
+async function readCut9691(id){
+ const rows=await cloudRequest('hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at,updated_by&module=eq.cuts&entity_id=eq.'+encodeURIComponent(id)+'&limit=2',{method:'GET'});
+ const r=Array.isArray(rows)&&rows.length===1?rows[0]:null;
+ if(!r||r.module!=='cuts'||String(r.entity_id)!==id||r.deleted_at||String(r.data?.id)!==id||!Number.isSafeInteger(Number(r.revision))||Number(r.revision)<1)throw Error('Corte ativo não confirmado na nuvem.');
+ return r;
+}
+async function saveCut9191(next,backup,attempt,active){
+ const id=String(next.id),current=()=> (db.cuts||[]).find(x=>String(x.id)===id);
+ if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
+ if(typeof hlgbRecordReady!=='undefined'&&!hlgbRecordReady&&typeof hlgbEnsureRecordsOnlineAfterLogin==='function')await hlgbEnsureRecordsOnlineAfterLogin();
+ if(typeof hlgbRecordSaveWithRetry!=='function'||typeof cloudRequest!=='function'||!cloudAccessToken)throw Error('A nuvem ainda não está pronta.');
+ if(typeof hlgbRecordCanWrite==='function'&&!hlgbRecordCanWrite('cuts'))throw Error('Sem permissão para gravar cortes.');
+ const before=await readCut9691(id);
+ if(!active())throw Error('Editor fechado ou substituído.');
+ // An uncertain send is reconciled by reading the same record, not another POST.
+ if(attempt.sent){
+  if(gradeMatches9691(before.data,attempt.sent)&&before.data.gradeAdjustedAt===attempt.sent.gradeAdjustedAt&&gradeMatches9691(next,attempt.sent))return before.data;
+  throw Error('Envio anterior sem confirmação. Confira a versão na nuvem antes de reenviar; o rascunho continua no formulário.');
+ }
+ if(gradeSignature9691(current())!==gradeSignature9691(backup))throw Error('O corte local mudou desde a abertura. Confira a grade antes de salvar.');
+ // The snapshot revision must match the fresh read; never send a stale full record.
+ const snap=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots.cuts?.get(id):null;
+ if(!snap||snap.deleted_at||Number(snap.revision)!==Number(before.revision)||!hlgbRecordDataEqual(snap.data,before.data))throw Error('A versão da nuvem mudou ou não está carregada. Confira o registro antes de salvar.');
+ if(gradeSignature9691(before.data)!==gradeSignature9691(backup))throw Error('A grade do corte mudou desde a abertura. Confira antes de salvar.');
+ if(window.hlgbLogicalAutoCutTwin?.(id,before.data))throw Error('Existe outro corte vinculado a este pedido neste navegador. Confira a duplicidade antes de salvar.');
+ const draft={...clone9191(before.data),actualCutGrade:clone9191(next.actualCutGrade),pieces:next.pieces,cutAdjustmentNote:next.cutAdjustmentNote,gradeAdjustedAt:next.gradeAdjustedAt};
+ if(Array.isArray(next.originalGrade)&&!Array.isArray(draft.originalGrade))draft.originalGrade=clone9191(next.originalGrade);
+ // Do not publish a local mutation before the remote write and proof.
+ attempt.sent=clone9191(draft);
+ let failure=null;
+ try{
+  const out=await hlgbRecordSaveWithRetry('cuts',id,clone9191(draft),false);
+  if(!out?.applied||out.deleted_at||out.hlgbLogicalDuplicate||out.hlgbStalePendingQuarantined)throw Error(out?.reason||'A nuvem não confirmou a gravação.');
+ }catch(e){failure=e}
+ let after;
+ try{after=await readCut9691(id)}catch(e){throw Error('Envio sem releitura da nuvem. Não reenviar sem conferir; rascunho preservado.')}
+ if(!gradeMatches9691(after.data,draft)||after.data.gradeAdjustedAt!==draft.gradeAdjustedAt){
+  // A read of the old revision proves that this read did not confirm the write;
+  // it does not prove an in-flight request cannot arrive later.
+  throw Error(failure?.message||'O ajuste não apareceu na releitura da nuvem. Confira antes de reenviar.');
+ }
+ return after.data;
+}
+
 window.hlgbAdjustCutGrade9191=function(id){
   let c=(db.cuts||[]).find(x=>String(x.id)===String(id));if(!c)return;let o=orderFor9191(c),backup=clone9191(c);
   let orig=clone9191(cutOriginalGrade(c,o)),actual=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?clone9191(c.actualCutGrade):clone9191(orig);
-  if(orig.length&&!c.originalGrade)c.originalGrade=clone9191(orig);
+  const attempt={sent:null};let saving=false;
   let body='';
   if(orig.length){
     let sizes=(typeof hlgbSortedSizes==='function'?hlgbSortedSizes(db.sizes||[]):[]).map(x=>String(x||'')).filter(Boolean);
@@ -17956,10 +17998,29 @@ window.hlgbAdjustCutGrade9191=function(id){
   }else body=`<div class="field"><label>Quantidade real do corte</label><input id="adjPieces9191" type="number" min="0" step="1" value="${+c.pieces||0}"></div>`;
   body+=`<div class="field" style="margin-top:12px"><label>Motivo / observação</label><textarea id="adjNote9191" placeholder="Ex.: faltou material preto tamanho M">${esc9191(c.cutAdjustmentNote||'')}</textarea></div><button class="primary modalSave">☁️ Salvar ajuste da grade</button>`;
   openModal('Ajustar grade do corte',body,async()=>{
-    if(orig.length){let next=orig.map((it,i)=>({...it,qty:Math.max(0,+document.getElementById('adj9191_'+i)?.value||0)}));c.actualCutGrade=next;c.pieces=next.reduce((s,x)=>s+(+x.qty||0),0)}else c.pieces=Math.max(0,+document.getElementById('adjPieces9191')?.value||0);
-    c.cutAdjustmentNote=document.getElementById('adjNote9191')?.value||'';c.gradeAdjustedAt=new Date().toISOString();
-    let btn=document.querySelector('#modal .modalSave');if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
-    try{await saveCut9191(c,backup);if(isFinal9191(c)&&typeof syncFinalizedCutsToProduction==='function')syncFinalizedCutsToProduction();closeModal();try{renderCuts()}catch(e){}try{renderDailyCuts()}catch(e){}try{renderCutters()}catch(e){}try{renderProduction()}catch(e){};return true}catch(e){console.error(e);if(btn){btn.disabled=false;btn.textContent='☁️ Salvar ajuste da grade'}alert('Não foi possível confirmar o ajuste na nuvem. A grade anterior foi mantida.');return false}
+    if(saving)return false;
+    const btn=document.querySelector('#modal .modalSave'),active=()=>!!btn&&btn.isConnected&&document.querySelector('#modal.show .modalSave')===btn;
+    const number=id=>{const e=document.getElementById(id),v=Number(e?.value);if(!e||String(e.value).trim()===''||!Number.isSafeInteger(v)||v<0)throw Error('Informe quantidades inteiras e não negativas.');return v};
+    const next=clone9191(backup);
+    try{
+      if(orig.length){next.actualCutGrade=orig.map((it,i)=>({...it,qty:number('adj9191_'+i)}));next.pieces=next.actualCutGrade.reduce((sum,x)=>sum+x.qty,0);if(!Array.isArray(next.originalGrade)||!next.originalGrade.length)next.originalGrade=clone9191(orig)}
+      else next.pieces=number('adjPieces9191');
+      if(!Number.isSafeInteger(next.pieces))throw Error('Total de peças inválido.');
+    }catch(e){alert(e.message);return false}
+    next.cutAdjustmentNote=document.getElementById('adjNote9191')?.value||'';next.gradeAdjustedAt=new Date().toISOString();
+    saving=true;if(btn){btn.disabled=true;btn.textContent='☁️ Salvando…'}
+    try{
+      const confirmed=await saveCut9191(next,backup,attempt,active);
+      const i=(db.cuts||[]).findIndex(x=>String(x.id)===String(confirmed.id));
+      // A newer local edit must not be overwritten by the old callback.
+      if(i>=0&&(gradeSignature9691(db.cuts[i])===gradeSignature9691(backup)||gradeMatches9691(db.cuts[i],confirmed))){
+        db.cuts[i]=clone9191(confirmed);try{localSaveOnly()}catch(e){}
+      }else throw Error('A nuvem confirmou, mas o corte local mudou. Confira a sincronização.');
+      if(!active())return true;
+      if(isFinal9191(confirmed)&&typeof syncFinalizedCutsToProduction==='function')syncFinalizedCutsToProduction();
+      closeModal();try{renderCuts()}catch(e){}try{renderDailyCuts()}catch(e){}try{renderCutters()}catch(e){}try{renderProduction()}catch(e){};return true;
+    }catch(e){console.error('[HLGB ajuste grade 9691]',e);if(active())alert('Não foi possível confirmar o ajuste na nuvem. Rascunho mantido no formulário. '+String(e?.message||e).slice(0,220));return false}
+    finally{saving=false;if(active()){btn.disabled=false;btn.textContent=attempt.sent?'☁️ Conferir ajuste na nuvem':'☁️ Salvar ajuste da grade'}}
   });
 };
 
