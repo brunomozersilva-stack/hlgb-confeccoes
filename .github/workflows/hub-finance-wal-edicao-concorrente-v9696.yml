@@ -1,0 +1,21 @@
+name: HLGB Hub Financeiro - proteção de conciliação concorrente v96.96
+on:
+  pull_request:
+    paths:
+      - 'release-payroll-wal-race-v9346.js'
+      - 'tests/hub-finance-wal-edicao-concorrente-v9696.cjs'
+      - '.github/workflows/hub-finance-wal-edicao-concorrente-v9696.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/hub-finance-wal-edicao-concorrente-v9696.cjs
+      - run: node tests/hub-finance-wal-v9451-runtime.js
+      - run: node tests/payroll-remote-noop-v9487.cjs
+      - run: node tests/payroll-save-chain-single-guard-v9493.cjs
