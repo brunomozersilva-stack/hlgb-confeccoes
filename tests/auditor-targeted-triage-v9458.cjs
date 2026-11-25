@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const script=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
 const old=new Date(Date.now()-3600000).toISOString();
 const issues=Array.from({length:125},(_,i)=>({id:'issue-'+i,status:'Aberto',title:'Falha ao salvar production',description:'Problema histórico',lastSeenAt:old}));
-const report={main:{checks:[{code:'issues:open',status:'warn',title:'Erros abertos na Central',detail:'125 aberto(s)'}]},operations:{pending:{unique:0,records:0,wal:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
+const report={main:{checks:[{code:'issues:open',status:'warn',title:'Erros abertos na Central',detail:'125 aberto(s)'}],summary:{total:1,pass:0,warn:1,fail:0,result:'Atenção'}},operations:{pending:{unique:0,records:0,wal:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
 let legacy=0,candidates=0;
 const win={__HLGB_AUTH_READY:true,HLGB_RELEASE_VERSION:'94.47',HLGB_AUDITOR_AUTOCORRECT_9446:'94.46',
  hlgbAuditorAutoCorrect9446:{prepare:async()=>({ok:true,ready:true}),run:async()=>{legacy++;return {passes:1}}},
