@@ -1,0 +1,21 @@
+name: HLGB WAL - replay concurrent edits v96.95
+on:
+  pull_request:
+    paths:
+      - 'release-wal-confirmed-replay-v9333.js'
+      - 'tests/wal-replay-edicao-concorrente-v9695.cjs'
+      - '.github/workflows/wal-replay-edicao-concorrente-v9695.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node tests/wal-replay-edicao-concorrente-v9695.cjs
+      - run: node tests/wal-atomic-payload-v9486.cjs
+      - run: node tests/wal-replay-idb-confirmation-v9469.cjs
+      - run: node tests/wal-cut-split-replay-guard-v9485.cjs
