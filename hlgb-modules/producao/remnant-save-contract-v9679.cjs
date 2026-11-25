@@ -25,7 +25,7 @@ function createSession(adapter){
   if(!req||adapter?.atomicGraphValidation!==true||typeof adapter?.commit!=='function'||typeof adapter?.read!=='function'||typeof adapter?.ready!=='function')return state('blocked');
   const expected=clone(prepared.next);busy=true;
   try{
-   if(await adapter.ready(req)!==true)return state('blocked');
+   if(await adapter.ready(clone(req))!==true)return state('blocked');
    // Lock in the attempted operation before calling the transport. Never retry
    // a timed-out or ambiguous write; a readback can resolve it separately.
    unresolved={req,expected};
