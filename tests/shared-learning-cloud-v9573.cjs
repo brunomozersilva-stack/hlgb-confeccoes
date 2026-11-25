@@ -30,8 +30,8 @@ const create=(which,run='run-1')=>{
  const storage=new Map();
  const localStorage={getItem:k=>storage.has(k)?storage.get(k):null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)};
  const w={__HLGB_AUTH_READY:true,__HLGB_TEST__:true,addEventListener(){},cloudRequest,
-  hlgbAuditorLearningAssistant9556:{pack:()=>({sourceRunId:run,disabled:false,diagnoses:[{kind:'wal',affectedInReport:2},{kind:'script',affectedInReport:1}]})},
-  hlgbAuditorAutoCorrect9448:{exportReport:()=>({run:{runId:run,corrected:[{id:'production123',module:'production',action:'production-reconcile',verification:'remote-proof-and-queue-readback'}],unverified:[]}})},
+  hlgbAuditorLearningAssistant9556:{pack:()=>({sourceRunId:run,disabled:false,runSummary:{auditCompleted:true},diagnoses:[{kind:'wal',affectedInReport:2},{kind:'script',affectedInReport:1}]})},
+  hlgbAuditorAutoCorrect9448:{exportReport:()=>({auditCompleted:true,run:{runId:run,corrected:[{id:'production123',module:'production',action:'production-reconcile',verification:'remote-proof-and-queue-readback'}],unverified:[]}})},
   hlgbHubLearning9568:{history:()=>({timeline:[{category:'ui-confirmed',at:'2026-11-13T01:00:00Z',source:'modal-save',traceOutcome:'confirmed',clickObserved:true,hasAck:true,hasReadback:true}]})}};
  const ctx={window:w,console,Date,Math,JSON,Map,Promise,localStorage,navigator:{onLine:true},document:{getElementById:()=>null,hidden:false},setTimeout:()=>{},setInterval:()=>{},encodeURIComponent};
  vm.createContext(ctx);vm.runInContext(src,ctx);
@@ -60,5 +60,12 @@ const create=(which,run='run-1')=>{
  assert.equal(denied.api.collect(),0,'no learning write without authenticated HLGB session');
  const rpc=calls.filter(x=>x.path==='rpc/hlgb_save_record');
  assert.equal(rpc.length,before,'duplicate observations never re-sent');
+ const incomplete=create('incomplete','incomplete-run');incomplete.w.hlgbAuditorLearningAssistant9556.pack=()=>({sourceRunId:'incomplete-run',runSummary:{auditCompleted:false},diagnoses:[{kind:'wal',affectedInReport:2}]});incomplete.w.hlgbAuditorAutoCorrect9448.exportReport=()=>({auditCompleted:false,run:{runId:'incomplete-run',corrected:[{id:'p',module:'production',action:'repair',verification:'remote-proof-and-queue-readback'}]}});
+ incomplete.api.collect();assert(!JSON.stringify([...incomplete.storage.values()]).includes('incomplete-run'));
+ assert(![...incomplete.storage.values()].some(x=>x.includes('"source":"auditor"')),'incomplete audit is not shared as completed observation or fix');
+ const clash=create('clash');const stored=[...server.values()][0].data;const conflicting={...stored,evidence:{different:true}};assert(clash.api.enqueue(conflicting));const deniedProof=await clash.api.publish();assert.equal(deniedProof.ok,false);assert.equal(clash.api.status().outboxCount,1,'different content must not remove pending evidence');
+ const capacity=create('capacity');for(let i=0;i<150;i++)assert(capacity.api.enqueue({id:'learnv9573-fixture-'+i,kind:'technical_learning_event',version:'95.73',source:'bot',category:'test',eventKind:'observed',fingerprint:'test',reference:'',evidence:{i}}));
+ assert.equal(capacity.api.enqueue({id:'learnv9573-overflow',kind:'technical_learning_event'}),false);assert.equal(capacity.api.status().outboxCount,150);assert([...capacity.storage.values()].join('').includes('learnv9573-fixture-0'),'oldest evidence preserved');
+ denied.w.__HLGB_AUTH_READY=false;assert.equal(denied.api.snapshot().events,0);assert.equal(denied.api.status().outboxCount,0);assert.equal(denied.api.enqueue(stored),false);
  console.log('PASS v95.73: shared server-side technical learning, cross-device read, verified fix distinction, dedupe, auth, privacy and no WAL writes');
 })().catch(e=>{console.error(e);process.exitCode=1});
