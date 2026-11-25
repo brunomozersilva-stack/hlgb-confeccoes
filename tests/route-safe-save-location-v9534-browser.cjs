@@ -163,13 +163,17 @@ const kind=process.env.HLGB_BROWSER||'chromium';
    assert.equal(st.count,0,'No false local confirmation');
    assert.equal(st.sends,1);
    assert.match(st.notice,/ainda não está confirmada/);
+   // Closing and reopening must recover the unresolved draft rather than mint another ID.
+   await pending.evaluate(()=>{window.closeModal();window.newRoute9249()});
+   assert.match(await pending.locator('#opsRouteCloudStatus9534').textContent(),/mesmo identificador/);
+   assert.equal(await pending.locator('.ops-route-loc').first().inputValue(),'1');
    await pending.evaluate(()=>{window.__remoteRoute=window.__sentRouteRows[0]});
-   await pending.locator('#opsRouteVerify9534').click();
+   await pending.evaluate(()=>window.modalSave());
    st=await pending.evaluate(()=>({open:document.querySelector('#modal').classList.contains('show'),
     count:window.db.routePlans.length,sends:window.__sentRouteRows.length}));
    assert.equal(st.open,false);
    assert.equal(st.count,1);
-   assert.equal(st.sends,1,'Explicit GET verification never performs a second POST');
+   assert.equal(st.sends,1,'Reopened draft retry with remote proof never performs a second POST');
    console.log('PASS '+kind+' — missing proof keeps editor; later GET confirms without write');
   }finally{await pending.close()}
  }finally{await browser.close()}
