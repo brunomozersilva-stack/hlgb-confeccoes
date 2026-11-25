@@ -1,0 +1,58 @@
+-- Synthetic database only, no real credentials or data.
+create role anon nologin;
+create role authenticated nologin;
+create schema auth;
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('lab.uid',true),'')::uuid $$;
+grant usage on schema auth to authenticated;
+grant execute on function auth.uid() to authenticated;
+create table public.hlgb_records(module text not null,entity_id text not null,data jsonb not null,deleted_at timestamptz,revision bigint not null,updated_at timestamptz default now(),updated_by uuid,primary key(module,entity_id));
+alter table public.hlgb_records enable row level security;
+grant select,update on public.hlgb_records to authenticated;
+create function public.hlgb_pode_ler_modulo(p_module text) returns boolean language sql stable as $$ select auth.uid() is not null and p_module in ('products','materials') $$;
+create function public.hlgb_pode_escrever_modulo(p_module text) returns boolean language sql stable as $$ select auth.uid() is not null and current_setting('lab.write',true)='yes' and p_module='products' $$;
+create policy read_records on public.hlgb_records for select to authenticated using(public.hlgb_pode_ler_modulo(module));
+create policy update_records on public.hlgb_records for update to authenticated using(public.hlgb_pode_escrever_modulo(module)) with check(public.hlgb_pode_escrever_modulo(module));
+-- Stub with the verified signature; this is NOT the production function.
+create function public.hlgb_save_record(p_module text,p_entity_id text,p_data jsonb,p_expected_revision bigint,p_deleted boolean default false)
+returns table(applied boolean,module text,entity_id text,data jsonb,deleted_at timestamptz,revision bigint,updated_at timestamptz,updated_by uuid)
+language sql security invoker as $$
+ update public.hlgb_records r set data=p_data,revision=r.revision+1,updated_at=clock_timestamp(),updated_by=auth.uid()
+ where r.module=p_module and r.entity_id=p_entity_id and r.revision=p_expected_revision and r.deleted_at is null and not p_deleted
+ returning true,r.module,r.entity_id,r.data,r.deleted_at,r.revision,r.updated_at,r.updated_by
+$$;
+insert into public.hlgb_records(module,entity_id,data,revision) values
+('products','a','{"id":"a","name":"Modelo A","price":25,"materials":[{"materialId":"m","qty":2}]}',1),
+('products','b','{"id":"b","name":"Modelo B","materials":[{"materialId":"m","qty":1}]}',1),
+('products','c','{"id":"c","name":"Modelo C","materials":[{"materialId":"m","qty":1}]}',1),
+('materials','m','{"id":"m","name":"Malha","cat":"Malha"}',1);
+
+-- Coordinate ONLY catalog writes, including legacy catalog writers, in the lab.
+-- Non-catalog modules do not acquire this gate. Fail fast after a row lock,
+-- never wait on the gate, to avoid gate/row-lock inversion.
+create function public.hlgb_lab_catalog_gate_v9686() returns trigger
+language plpgsql security invoker set search_path='' as $$
+declare relevant boolean;
+begin
+ if tg_op='INSERT' then relevant:=new.module in ('products','materials');
+ elsif tg_op='DELETE' then relevant:=old.module in ('products','materials');
+ else relevant:=old.module in ('products','materials') or new.module in ('products','materials');
+ end if;
+ if relevant and not pg_catalog.pg_try_advisory_xact_lock(9686,1) then
+  raise exception 'catalog-busy' using errcode='55P03';
+ end if;
+ if tg_op='DELETE' then return old; end if;
+ -- Legacy editor may rebuild a product without the new policy key.
+ -- Preserve an omitted field; explicit null is not a valid reset.
+ -- This does NOT yet protect arbitrary explicit policy writes in legacy paths.
+ if tg_op='UPDATE' and old.module='products' and new.module='products' and old.data ? 'fabricRemnantPolicyV9630' then
+   if not (new.data ? 'fabricRemnantPolicyV9630') then
+     new.data:=jsonb_set(new.data,'{fabricRemnantPolicyV9630}',old.data->'fabricRemnantPolicyV9630',true);
+   elsif jsonb_typeof(new.data->'fabricRemnantPolicyV9630') is distinct from 'object' then
+     raise exception 'legacy-policy-invalid';
+   end if;
+ end if;
+ return new;
+end; $$;
+create trigger hlgb_lab_catalog_gate_v9686 before insert or update or delete on public.hlgb_records
+for each row execute function public.hlgb_lab_catalog_gate_v9686();
+insert into public.hlgb_records(module,entity_id,data,revision) values ('finance','f','{"id":"f","value":10}',1);

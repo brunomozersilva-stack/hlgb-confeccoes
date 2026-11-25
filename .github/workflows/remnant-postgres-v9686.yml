@@ -1,0 +1,39 @@
+name: HLGB Sobras - Laboratorio transacional PostgreSQL v96.86
+on:
+  pull_request:
+    paths:
+      - 'tests/remnant-postgres-v9686/**'
+      - '.github/workflows/remnant-postgres-v9686.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture_only
+          POSTGRES_DB: hlgb_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_fixture"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: fixture_only
+      PGDATABASE: hlgb_fixture
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+      - name: Install only in synthetic database
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/remnant-postgres-v9686/fixture.sql
+          psql -v ON_ERROR_STOP=1 -f tests/remnant-postgres-v9686/candidate.sql
+          psql -v ON_ERROR_STOP=1 -f tests/remnant-postgres-v9686/contract.sql
+      - name: Check two concurrent sessions
+        run: bash tests/remnant-postgres-v9686/concurrency.sh
