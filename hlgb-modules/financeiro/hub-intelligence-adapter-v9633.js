@@ -43,9 +43,32 @@
   // Historical observation does not establish complete weeks; a missing record is null, not zero.
   const historical=recordedHistory(accepted,comparison.history,target,asOf,issues.length);
   const weeklyCash=rows=>rows.map(x=>({start:x.start,end:x.end,incomingCents:x.incomingCents,outgoingCents:x.outgoingCents,closingCents:null,shortfall:null}));
-  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
+  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
  }
 
+ function commitmentReview(projection){
+  const horizons=[7,14,30,91];
+  function scenario(days){
+   if(!Array.isArray(days)||days.length!==91)throw Error('invalid-projection');
+   return horizons.map(horizon=>{
+    let incoming=0,outgoing=0,net=0,peak=0,first=null,activeDays=0;
+    const slice=days.slice(0,horizon);
+    for(const d of slice){
+     if(!Number.isSafeInteger(d.incomingCents)||d.incomingCents<0||!Number.isSafeInteger(d.outgoingCents)||d.outgoingCents<0)throw Error('invalid-projection-value');
+     if(d.incomingCents||d.outgoingCents)activeDays++;
+     incoming+=d.incomingCents;outgoing+=d.outgoingCents;
+     // Payments first: timing stress from a hypothetical zero opening amount.
+     net-=d.outgoingCents;
+     if(net<0&&!first)first=d.date;
+     peak=Math.max(peak,-net);
+     net+=d.incomingCents;
+     if(![incoming,outgoing,net,peak].every(Number.isSafeInteger))throw Error('projection-overflow');
+    }
+    return {horizon,start:slice[0].date,end:slice[slice.length-1].date,activeDays,incomingCents:incoming,outgoingCents:outgoing,netObservedCents:net,hypotheticalPeakGapCents:activeDays?peak:null,firstHypotheticalGapDate:first,actualFundingNeedCents:null};
+   });
+  }
+  return {state:'partial-simulation',base:scenario(projection.base.days),delayed:scenario(projection.conservative.days),overdueReceiptsExcluded:projection.overdue.filter(x=>x.direction==='in').length,overduePaymentsIncluded:projection.overdue.filter(x=>x.direction==='out').length,openingBalanceVerified:false,coverageVerified:false,canPublish:false};
+ }
  function recordedHistory(rows,weeks,target,asOf,omitted){
   const scope=new Set(weeks),byWeek=new Map(),byCategory=new Map(),targetGroups=new Map(),overdue={in:{amountCents:0,count:0},out:{amountCents:0,count:0}},categories=new Set();
   const tally=(map,key,field,x)=>{const g=map.get(key)||{paidInCents:null,paidOutCents:null,plannedInCents:null,plannedOutCents:null,paidInCount:0,paidOutCount:0,plannedInCount:0,plannedOutCount:0};const count=field.replace('Cents','Count');g[field]=(g[field]??0)+x.cents;g[count]++;map.set(key,g)};
@@ -70,7 +93,16 @@
   const maxCategories=500,categoryRows=categories.size>maxCategories?[]:[...categories].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(category=>{
    const targetRow=targetGroups.get(category)||blank();
    const historical=weeks.map(week=>{const r=byCategory.get(JSON.stringify([week,category]))||blank();return {week,paidCents:r.paidOutCents,plannedCents:r.plannedOutCents,paidCount:r.paidOutCount,plannedCount:r.plannedOutCount}});
-   return {category,targetPaidCents:targetRow.paidOutCents,targetPlannedCents:targetRow.plannedOutCents,recordedWeeks:historical.filter(x=>x.paidCount>0).length,history:historical};
+   const samples=historical.filter(x=>x.paidCount>0&&Number.isSafeInteger(x.paidCents)).map(x=>x.paidCents).sort((a,b)=>a-b);
+   const targetKnown=targetRow.paidOutCount+targetRow.plannedOutCount>0;
+   const observedTotal=targetKnown?(targetRow.paidOutCents??0)+(targetRow.plannedOutCents??0):null;
+   // A descriptive reference only, based on nonempty weeks. Never a complete
+   // historical baseline, never fill absent weeks with zero or claim overspend.
+   const i=Math.floor(samples.length/2),enough=samples.length>=4;
+   const reference=enough?(samples.length%2?samples[i]:Math.round(samples[i-1]/2+samples[i]/2)):null;
+   const difference=reference!==null&&observedTotal!==null?observedTotal-reference:null;
+   const signal=!enough||!targetKnown?'insufficient-observations':observedTotal>samples[samples.length-1]?'above-recorded-range':observedTotal<samples[0]?'below-recorded-range':'within-recorded-range';
+   return {category,targetPaidCents:targetRow.paidOutCents,targetPlannedCents:targetRow.plannedOutCents,recordedWeeks:samples.length,history:historical,observedComparison:{state:'partial-reference',observedTotalCents:observedTotal,medianRecordedCents:reference,minRecordedCents:enough?samples[0]:null,maxRecordedCents:enough?samples[samples.length-1]:null,differenceCents:difference,signal,recordedWeeks:samples.length,totalWeeks:weeks.length,official:false}};
   });
   if(categories.size>maxCategories)actions.push({code:'review-category-count',count:categories.size});
   return {state:'observed-incomplete',weeks:allWeeks,categories:categoryRows,categoryCount:categories.size,observedWeeks,overdue,actions,officialBaseline:null,canPublish:false};

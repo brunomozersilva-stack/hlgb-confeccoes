@@ -37,4 +37,19 @@ const assert=require('node:assert/strict');const api=require('../hlgb-modules/fi
  ok(p({}, {...o,receiptDelayDays:99}).state==='unavailable','invalid delay');
  ok(!JSON.stringify(h.recordedHistory).includes('sourceId'),'aggregate no raw origin');
  ok(h.comparison.categories.every(x=>x.medianCents===null),'old official gate preserved');
+ ok(mh.observedComparison.medianRecordedCents===null&&mh.observedComparison.signal==='insufficient-observations','two weeks do not establish reference');
+ const extended=[...histRows,{id:21,flow:'Saída',status:'Realizado',date:'2026-11-02',realizedAt:'2026-11-02',category:'Matéria-prima',value:8000},{id:22,flow:'Saída',status:'Realizado',date:'2026-10-26',realizedAt:'2026-10-26',category:'Matéria-prima',value:12000}];
+ const e=p({db:{...ctx.db,hubFinanceEntries:extended}}),c=e.recordedHistory.categories.find(x=>x.category==='Matéria-prima').observedComparison;
+ ok(c.medianRecordedCents===900000&&c.minRecordedCents===500000&&c.maxRecordedCents===1200000&&c.recordedWeeks===4&&c.totalWeeks===8,'partial median, missing weeks not zero');
+ ok(c.observedTotalCents===3000000&&c.differenceCents===2100000&&c.signal==='above-recorded-range'&&!c.official,'descriptive comparison, not official baseline');
+ ok(e.recordedHistory.officialBaseline===null&&e.comparison.categories.every(x=>x.medianCents===null),'verified gate unchanged');
+ const plan=h.cash.commitmentReview,base14=plan.base[1],delay14=plan.delayed[1];
+ ok(plan.base.map(x=>x.horizon).join(',')==='7,14,30,91'&&plan.delayed.length===4,'planning horizons');
+ ok(plan.overdueReceiptsExcluded===1&&plan.overduePaymentsIncluded===1,'overdue classification');
+ ok(base14.incomingCents===1200000&&base14.outgoingCents===3200000&&base14.netObservedCents===-2000000,'observed flow only');
+ ok(base14.hypotheticalPeakGapCents===3200000&&delay14.incomingCents===0&&delay14.hypotheticalPeakGapCents===3200000,'payments first, delay stress');
+ ok(plan.base.every(x=>x.actualFundingNeedCents===null)&&!plan.canPublish&&!plan.openingBalanceVerified,'no real funding need inferred');
+ const empty=p({db:{hubFinanceEntries:[],payroll:[]}}).cash.commitmentReview;
+ ok(empty.base.every(x=>x.hypotheticalPeakGapCents===null&&x.activeDays===0),'missing obligations not proof of no gap');
+
 })(api,(v,m)=>{assert.ok(v,m);console.log('PASS',m)});
