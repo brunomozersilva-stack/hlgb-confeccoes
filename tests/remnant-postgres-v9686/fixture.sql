@@ -25,3 +25,24 @@ insert into public.hlgb_records(module,entity_id,data,revision) values
 ('products','b','{"id":"b","name":"Modelo B","materials":[{"materialId":"m","qty":1}]}',1),
 ('products','c','{"id":"c","name":"Modelo C","materials":[{"materialId":"m","qty":1}]}',1),
 ('materials','m','{"id":"m","name":"Malha","cat":"Malha"}',1);
+
+-- Coordinate ONLY catalog writes, including legacy catalog writers, in the lab.
+-- Non-catalog modules do not acquire this gate. Fail fast after a row lock,
+-- never wait on the gate, to avoid gate/row-lock inversion.
+create function public.hlgb_lab_catalog_gate_v9686() returns trigger
+language plpgsql security invoker set search_path='' as $$
+declare relevant boolean;
+begin
+ if tg_op='INSERT' then relevant:=new.module in ('products','materials');
+ elsif tg_op='DELETE' then relevant:=old.module in ('products','materials');
+ else relevant:=old.module in ('products','materials') or new.module in ('products','materials');
+ end if;
+ if relevant and not pg_catalog.pg_try_advisory_xact_lock(9686,1) then
+  raise exception 'catalog-busy' using errcode='55P03';
+ end if;
+ if tg_op='DELETE' then return old; end if;
+ return new;
+end; $$;
+create trigger hlgb_lab_catalog_gate_v9686 before insert or update or delete on public.hlgb_records
+for each row execute function public.hlgb_lab_catalog_gate_v9686();
+insert into public.hlgb_records(module,entity_id,data,revision) values ('finance','f','{"id":"f","value":10}',1);
