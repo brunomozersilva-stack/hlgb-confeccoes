@@ -4,7 +4,7 @@ function ok(cond,msg){if(!cond)throw new Error(msg)}
 function source(file){return fs.readFileSync(path.join(ROOT,file),'utf8')}
 function run(file,c){vm.runInNewContext(source(file),c,{filename:file})}
 function base(){
- const timers=[],intervals=[],scripts=[];
+ const timers=[],intervals=[],scripts=[],documentEvents={};
  const c={console,Date,Math,JSON,Promise,Map,Set,Array,Object,String,Number,Boolean,RegExp,URL,encodeURIComponent,decodeURIComponent,structuredClone:global.structuredClone};
  c.window=c;c.globalThis=c;c.navigator={onLine:true};c.location={href:'https://example.test/app-stable3.html'};
  c.performance={now:()=>1,getEntriesByType:()=>[]};
@@ -22,8 +22,9 @@ function base(){
   if(selector.includes('data-hlgb-payroll-reliable-guard')&&el.dataset?.hlgbPayrollReliableGuard)return true;
   return false;
  }
- c.document={visibilityState:'visible',activeElement:null,head,body:makeEl('body'),documentElement:head,createElement:makeEl,getElementById:()=>null,querySelector:sel=>scripts.find(x=>matchesScript(x,sel))||null,querySelectorAll:sel=>scripts.filter(x=>matchesScript(x,sel)),addEventListener(){}};
+ c.document={readyState:'loading',visibilityState:'visible',activeElement:null,head,body:makeEl('body'),documentElement:head,createElement:makeEl,getElementById:()=>null,querySelector:sel=>scripts.find(x=>matchesScript(x,sel))||null,querySelectorAll:sel=>scripts.filter(x=>matchesScript(x,sel)),addEventListener(name,fn){(documentEvents[name]??=[]).push(fn)}};
  c.__scripts=scripts;c.__timers=timers;c.__intervals=intervals;
+ c.__finishParser=()=>{c.document.readyState='interactive';for(const fn of documentEvents.DOMContentLoaded||[])fn()};
  return c;
 }
 (async()=>{
@@ -78,6 +79,8 @@ function base(){
   ok(c.__scripts.filter(x=>x.dataset?.hlgbPayrollReliableGuard==='9344').length===0,'reliable guard injetou antes do parser');
   c.HLGB_PAYROLL_RELIABLE_SAVE_GUARD_9344='93.45';
   c.__timers.filter(x=>x.ms===0).forEach(x=>x.fn());
+  c.__finishParser();apiCheck();
+  function apiCheck(){c.hlgbPayrollMonthWal9334.loadReliableGuard()}
   ok(c.__scripts.filter(x=>x.dataset?.hlgbPayrollReliableGuard==='9344').length===0,'reliable guard duplicou após marcador oficial');
  }
  {
