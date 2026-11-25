@@ -1,0 +1,20 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const src=fs.readFileSync('release-ui-stability.js','utf8');
+const elements=new Map(),timers=new Map(),observers=[];let seq=0,active='dashboard',scrolls=0;
+function element(id){const classes=new Set();return {id,hidden:false,scrollTop:123,classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x)},querySelectorAll:()=>[],style:{}}}
+for(const id of ['dashboard','pedidos','corte','notas'])elements.set(id,element(id));
+const document={getElementById:id=>elements.get(id)||null,querySelector:s=>s==='.page.active'?elements.get(active):null,querySelectorAll:()=>[],createElement:()=>element(''),head:{appendChild:e=>elements.set(e.id,e)},body:{appendChild:e=>elements.set(e.id,e)},addEventListener(){}};
+const window={page(id){if(id==='error')throw Error('navigation failed');active=id},addEventListener(){},scrollTo(){scrolls++}};
+const c={window,document,console,Date,Map,Set,Array,Math,setTimeout:(f,ms)=>{timers.set(++seq,{f,ms});return seq},clearTimeout:id=>timers.delete(id),setInterval:()=>1,clearInterval(){},MutationObserver:class{constructor(f){this.f=f;observers.push(this)}observe(){}disconnect(){this.disconnected=true}}};
+vm.createContext(c);vm.runInContext(src,c);
+const hidden=id=>elements.get(id).classList.contains('hlgb-page-settling');
+const overlay=()=>elements.get('hlgbPageSettleOverlay');
+const flush=()=>{let n=0;while(timers.size&&n++<20){const [id,t]=timers.entries().next().value;timers.delete(id);t.f()}assert(n<20)};
+window.page('pedidos');assert(hidden('pedidos'));const stale=[...timers.values()][0].f;
+window.page('dashboard');assert(!hidden('pedidos'));assert(overlay().hidden);stale();assert(!hidden('pedidos'));assert.equal(scrolls,0);
+window.page('corte');window.page('notas');assert(!hidden('corte'));assert(hidden('notas'));flush();assert(!hidden('notas'));assert(overlay().hidden);assert.equal(scrolls,1);
+window.page('pedidos');const [id,t]=timers.entries().next().value;timers.delete(id);t.f();const previous=observers.at(-1);assert(hidden('pedidos'));window.page('dashboard');assert(previous.disconnected);assert(!hidden('pedidos'));previous.f([{type:'childList'}]);flush();assert(overlay().hidden);
+window.page('corte');window.hlgbUiStabilityCancelPageSettle();assert(!hidden('corte'));assert(overlay().hidden);flush();
+window.page('notas');assert.throws(()=>window.page('error'));assert(!hidden('notas'));assert(overlay().hidden);flush();
+console.log('PASS navigation: heavy-light, heavy-heavy, stale callback, observer cancellation, external cancel, exception');
