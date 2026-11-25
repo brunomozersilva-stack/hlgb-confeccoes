@@ -6,7 +6,8 @@
 const V='94.36',PENDING_KEY='hlgb_records_pending_v91',STATUS_KEY='hlgb_ack_reconcile_v9436_state';
 if(window.HLGB_ACK_RECONCILE_9436===V){if(window.__HLGB_AUTH_READY===true)window.hlgbAckReconcile9436?.activate?.('reload');return}
 window.HLGB_ACK_RECONCILE_9436=V;
-const state={version:V,authRequired:true,activated:false,activationReason:'',installs:0,calls:0,applied:0,snapshotUpdated:0,localNormalized:0,pendingCleared:0,skippedNewer:0,errors:0,lastModule:'',lastId:'',lastAt:'',lastError:''};
+const state={version:V,authRequired:true,activated:false,activationReason:'',installs:0,calls:0,applied:0,snapshotUpdated:0,localNormalized:0,pendingCleared:0,skippedNewer:0,errors:0,lastModule:'',lastId:'',lastAt:'',lastError:'',skippedProof:0,skippedSession:0};
+let sessionEpoch=0;
 const sid=v=>String(v??'');
 const clone=v=>{try{return structuredClone(v)}catch(e){try{return JSON.parse(JSON.stringify(v))}catch(_){return v}}};
 function canonical(v){
@@ -25,7 +26,15 @@ function snapshotRef(){try{if(typeof hlgbRecordSnapshots!=='undefined'&&hlgbReco
 function recordId(module,row,index){try{if(typeof hlgbRecordId==='function')return sid(hlgbRecordId(module,row,index))}catch(e){}return sid(row?.id??index)}
 function localSlot(module,id){const d=dbRef(),arr=Array.isArray(d?.[module])?d[module]:null;if(!arr)return {arr:null,index:-1,row:null};const target=sid(id),index=arr.findIndex((x,i)=>recordId(module,x,i)===target);return {arr,index,row:index>=0?arr[index]:null}}
 function snapshotRow(module,id){try{const s=snapshotRef()?.[module];return s instanceof Map?s.get(sid(id))||null:null}catch(e){return null}}
-function finalData(module,id,sent,out){const snap=snapshotRow(module,id);return clone(snap?.data??out?.data??sent)}
+function finalData(module,id,sent,out){
+ const snap=snapshotRow(module,id),rev=Number(out?.revision),known=Number(snap?.revision)||0;
+ if(!Number.isSafeInteger(rev)||rev<=0||known>rev)return null;
+ if(out.hlgbTombstonePruned||out.hlgbStalePendingQuarantined||out.hlgbLogicalDuplicate)return null;
+ if(out.module!=null&&sid(out.module)!==module||out.entity_id!=null&&sid(out.entity_id)!==id)return null;
+ if(!out.data||typeof out.data!=='object')return null;
+ if(snap&&known===rev&&(!sameBusiness(snap.data,out.data)||!!snap.deleted_at!==!!out.deleted_at))return null;
+ return clone(out.data);
+}
 function persistState(){try{localStorage.setItem(STATUS_KEY,JSON.stringify({...state,authReady:window.__HLGB_AUTH_READY===true,interactionLock:window.hlgbInteractionLock9434?.status?.()||null,at:new Date().toISOString()}))}catch(e){}}
 function updateSnapshot(module,id,final,out){
  try{
@@ -50,7 +59,7 @@ function clearMatchingPending(module,id,sent,final,deleted,localSafe){
  try{
   const p=JSON.parse(localStorage.getItem(PENDING_KEY)||'null');if(!p?.modules||!Array.isArray(p.modules[module]))return false;
   const before=p.modules[module].length,target=sid(id);
-  p.modules[module]=p.modules[module].filter(op=>{if(sid(op?.id)!==target)return true;if((op?.deleted===true)!==(deleted===true))return true;if(deleted===true)return false;return !(sameBusiness(op?.data,sent)||sameBusiness(op?.data,final))});
+  p.modules[module]=p.modules[module].filter(op=>{if(sid(op?.id)!==target)return true;if((op?.deleted===true)!==(deleted===true))return true;if(deleted===true)return !sameBusiness(op?.data,sent);return !(sameBusiness(op?.data,sent)||sameBusiness(op?.data,final))});
   const removed=before-p.modules[module].length;if(!removed)return false;
   if(!p.modules[module].length)delete p.modules[module];
   if(Object.values(p.modules).some(x=>Array.isArray(x)&&x.length))localStorage.setItem(PENDING_KEY,JSON.stringify(p));else localStorage.removeItem(PENDING_KEY);
@@ -61,7 +70,9 @@ function saveLocal(){try{if(typeof localSaveOnly==='function')localSaveOnly();el
 function recomputePending(){try{if(typeof hlgbRecordPendingStore==='function')hlgbRecordPendingStore();else if(typeof window.hlgbRecordPendingStore==='function')window.hlgbRecordPendingStore()}catch(e){}}
 function reconcile(module,id,sent,deleted,out){
  state.applied++;state.lastModule=sid(module);state.lastId=sid(id);state.lastAt=new Date().toISOString();
- const final=finalData(module,id,sent,out);updateSnapshot(module,id,final,out);
+ const final=finalData(module,id,sent,out);
+ if(!final||deleted!==!!out.deleted_at){state.skippedProof++;persistState();return}
+ updateSnapshot(module,id,final,out);
  const localSafe=normalizeLocal(module,id,sent,final,deleted===true);clearMatchingPending(module,id,sent,final,deleted===true,localSafe);
  if(localSafe){saveLocal();recomputePending()}persistState();
 }
@@ -73,7 +84,8 @@ function install(){
  if(typeof fn!=='function')return false;
  if(chainHas(fn)){persistState();return true}
  const wrapped=async function(module,id,data,deleted=false){
-  state.calls++;const sent=clone(data);let out;try{out=await fn.apply(this,arguments)}catch(e){throw e}
+  state.calls++;const sent=clone(data),epoch=sessionEpoch,startedAuth=window.__HLGB_AUTH_READY===true;let out;try{out=await fn.apply(this,arguments)}catch(e){throw e}
+  if(out?.applied===true&&(!startedAuth||window.__HLGB_AUTH_READY!==true||epoch!==sessionEpoch)){state.skippedSession++;return out}
   if(out?.applied===true){try{reconcile(sid(module),sid(id),sent,deleted===true,out)}catch(e){state.errors++;state.lastError=sid(e?.message||e);persistState()}}
   return out;
  };
@@ -87,7 +99,8 @@ function activate(reason='authenticated'){
  [0,100,300,750,1500,3000].forEach(ms=>setTimeout(install,ms));return true;
 }
 window.hlgbAckReconcile9436={version:V,state,install,activate,status:()=>({...state,authReady:window.__HLGB_AUTH_READY===true,interactionLock:window.hlgbInteractionLock9434?.status?.()||null,pending:(()=>{try{return JSON.parse(localStorage.getItem(PENDING_KEY)||'null')}catch(e){return null}})()})};
-window.addEventListener('hlgb:authenticated',()=>activate('authenticated-event'));
+window.addEventListener('hlgb:authenticated',()=>{sessionEpoch++;activate('authenticated-event')});
+window.addEventListener('hlgb:logout',()=>{sessionEpoch++;state.activated=false});
 if(window.__HLGB_AUTH_READY===true)activate('loaded-after-auth');else persistState();
 console.info('[HLGB] v'+V+' reconciliação de ACK pronta; instalação bloqueada até autenticação real');
 })();

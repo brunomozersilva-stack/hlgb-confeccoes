@@ -17,8 +17,8 @@ const localStorage={
  setItem:(k,v)=>storage.set(k,String(v)),
  removeItem:k=>storage.delete(k)
 };
-let originalCalls=0,localSaves=0,pendingRecomputes=0;
-const original=async(module,id,data,deleted)=>{originalCalls++;return {applied:true,data:{...data,updatedAt:'server-tech'},revision:7,updated_at:'2026-10-30T14:00:00Z'}};
+let originalCalls=0,localSaves=0,pendingRecomputes=0,mode='normal';
+const original=async(module,id,data,deleted)=>{originalCalls++;if(mode==='logout'){window.__HLGB_AUTH_READY=false;window.dispatch('hlgb:logout');window.__HLGB_AUTH_READY=true;window.dispatch('hlgb:authenticated')}return {applied:true,data:{...data,updatedAt:'server-tech'},revision:mode==='stale'?7:mode==='normal'?7:8,updated_at:'2026-10-30T14:00:00Z',...(mode==='synthetic'?{hlgbTombstonePruned:true}:{}),...(mode==='missing-data'?{data:null}:{}),...(mode==='wrong-id'?{entity_id:'different'}:{})}};
 const window={
  __HLGB_AUTH_READY:false,
  hlgbRecordSaveWithRetry:original,
@@ -56,5 +56,18 @@ storage.set('hlgb_records_pending_v91',JSON.stringify({modules:{production:[{id:
  assert.strictEqual(pending.modules.production.length,1,'edição de negócio mais nova não pode ser apagada');
  assert.strictEqual(window.db.production[0].qty,4,'edição mais nova não pode ser sobrescrita');
  assert.ok(window.hlgbAckReconcile9436.status().skippedNewer>=1,'proteção deve registrar skip de edição mais nova');
+ for(const m of ['stale','logout','synthetic','missing-data','wrong-id']){
+  mode=m;window.db.production[0]={id:'1',qty:3};window.hlgbRecordSnapshots.production.set('1',{data:{id:'1',qty:9},revision:m==='stale'?9:7});
+  const pending=JSON.stringify({modules:{production:[{id:'1',deleted:false,data:{id:'1',qty:3}}]}});
+  storage.set('hlgb_records_pending_v91',pending);const beforeSaves=localSaves;
+  await window.hlgbRecordSaveWithRetry('production','1',{id:'1',qty:3},false);
+  assert.equal(storage.get('hlgb_records_pending_v91'),pending,m+' must preserve pending');
+  assert.equal(window.hlgbRecordSnapshots.production.get('1').revision,m==='stale'?9:7);
+  assert.equal(window.hlgbRecordSnapshots.production.get('1').data.qty,9);
+  assert.equal(window.db.production[0].qty,3);assert.equal(localSaves,beforeSaves);
+ }
+ assert.equal(window.hlgbAckReconcile9436.status().skippedSession,1);
+ assert.equal(window.hlgbAckReconcile9436.status().skippedProof,4);
+ console.log('PASS ACK delayed revision, session transition and unproven response preserved');
  console.log('ack reconcile post-auth v94.36: OK');
 })().catch(err=>{console.error(err);process.exitCode=1});
