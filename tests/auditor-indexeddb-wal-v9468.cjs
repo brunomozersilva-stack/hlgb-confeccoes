@@ -12,7 +12,7 @@ const indexedDB={open(){
   };req.onsuccess?.();
  });return req;
 }};
-const audit={main:{checks:[]},operations:{pending:{unique:0,records:0,wal:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
+const audit={main:{checks:[{code:'fixture:ready',status:'pass'}],summary:{total:1,pass:1,warn:0,fail:0,result:'OK'}},operations:{pending:{unique:0,records:0,wal:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
 const win={__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9446:'94.46',HLGB_RELEASE_VERSION:'94.67',
  hlgbAuditorAutoCorrect9446:{prepare:async()=>({ok:true,ready:true}),run:async()=>{legacyRuns++;return {passes:1}}},
  hlgbAuditorAutoCorrect9441:{silentAudit:async()=>audit,repairEvents:()=>[]},
