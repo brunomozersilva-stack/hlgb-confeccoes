@@ -272,7 +272,7 @@ window.addEventListener('scroll',()=>{if(!restoring)noteInteraction()},{passive:
 
 /* Navegação estável: telas pesadas só aparecem depois que os adornos atrasados terminam. */
 const HEAVY_PAGES=new Set(['pedidos','corte','producao','projecao','capacidadeProducao','clientes','produtos','estoque','faccoes','pagamentosFaccoes','financeiro','hubFinanceiro','notas']);
-let settleToken=0,settleObserver=null,settleTimer=null,settleMaxTimer=null;
+let settleToken=0,settleObserver=null,settleTimer=null,settleMaxTimer=null,settleTarget=null,settleStartTimer=null;
 function ensureSettleStyle(){
   if(document.getElementById('hlgbPageSettleStyle'))return;
   const s=document.createElement('style');s.id='hlgbPageSettleStyle';
@@ -286,15 +286,22 @@ function settleOverlay(show){
 }
 function finishPageSettle(token,target){
   if(token!==settleToken)return;
+  if(settleStartTimer!==null){clearTimeout(settleStartTimer);settleStartTimer=null}
   if(settleObserver){try{settleObserver.disconnect()}catch(e){}settleObserver=null}
   if(settleTimer){clearTimeout(settleTimer);settleTimer=null}
   if(settleMaxTimer){clearTimeout(settleMaxTimer);settleMaxTimer=null}
-  target?.classList?.remove('hlgb-page-settling');settleOverlay(false);
+  target?.classList?.remove('hlgb-page-settling');settleTarget=null;settleOverlay(false);
 }
-function beginPageSettle(id){
+function cancelPageSettle(){
+  const old=settleTarget;finishPageSettle(settleToken,old);settleToken++;
+}
+function beginPageSettle(id,expectedToken){
+  if(expectedToken!==undefined&&expectedToken!==settleToken)return;
+  if(expectedToken===undefined)cancelPageSettle();
   ensureSettleStyle();
-  const target=document.getElementById(id);if(!target||!HEAVY_PAGES.has(id)){settleOverlay(false);return}
-  const token=++settleToken,started=Date.now(),MIN_MS=260,QUIET_MS=140,MAX_MS=700;
+  const target=document.getElementById(id);if(!target||!HEAVY_PAGES.has(id)||activePage()!==id){finishPageSettle(settleToken,settleTarget);return}
+  settleTarget=target;
+  const token=settleToken,started=Date.now(),MIN_MS=260,QUIET_MS=140,MAX_MS=700;
   if(settleObserver){try{settleObserver.disconnect()}catch(e){}}
   if(settleTimer)clearTimeout(settleTimer);if(settleMaxTimer)clearTimeout(settleMaxTimer);
   target.classList.add('hlgb-page-settling');settleOverlay(true);
@@ -305,26 +312,33 @@ function beginPageSettle(id){
     const elapsed=Date.now()-started,delay=Math.max(QUIET_MS,MIN_MS-elapsed);
     settleTimer=setTimeout(()=>finishPageSettle(token,target),delay);
   };
-  settleObserver=new MutationObserver(records=>{
-    if(token!==settleToken)return;
-    if(records?.some(m=>m.type==='childList'||m.type==='attributes'))schedule();
-  });
-  try{settleObserver.observe(target,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']})}catch(e){}
+  if(typeof MutationObserver==='function'){
+    settleObserver=new MutationObserver(records=>{
+      if(token!==settleToken)return;
+      if(activePage()!==id){finishPageSettle(token,target);return}
+      if(records?.some(m=>m.type==='childList'||m.type==='attributes'))schedule();
+    });
+    try{settleObserver.observe(target,{childList:true,subtree:true,attributes:true,attributeFilter:['class','style','hidden']})}catch(e){}
+  }
   schedule();
   settleMaxTimer=setTimeout(()=>finishPageSettle(token,target),MAX_MS);
 }
 function installStablePageRouter(){
   const fn=window.page;if(typeof fn!=='function'||fn.__hlgbStablePageV3)return false;
   const wrapped=function(id,btn){
+    cancelPageSettle();const token=settleToken;
     const target=document.getElementById(id),heavy=HEAVY_PAGES.has(id);
-    if(heavy&&target){ensureSettleStyle();target.classList.add('hlgb-page-settling');settleOverlay(true)}
-    let out;
+    if(heavy&&target){ensureSettleStyle();settleTarget=target;target.classList.add('hlgb-page-settling');settleOverlay(true)}
+    let out,completed=false;
     try{
-      out=fn.apply(this,arguments);
+      out=fn.apply(this,arguments);completed=true;
       const now=Date.now();
       for(const [name,pages] of Object.entries(rendererPages))if(pages.includes(id))renderStamp.set(name,now);
     }finally{
-      if(heavy)setTimeout(()=>beginPageSettle(id),0);
+      if(token===settleToken){
+        if(completed&&heavy&&target&&activePage()===id)settleStartTimer=setTimeout(()=>{settleStartTimer=null;beginPageSettle(id,token)},0);
+        else finishPageSettle(token,target);
+      }
     }
     return out;
   };
@@ -336,6 +350,7 @@ window.hlgbUiStabilityMarkRemote=markRemote;
 window.hlgbUiStabilityNoteInteraction=noteInteraction;
 window.hlgbUiStabilityPending=()=>[...queues.keys()];
 window.hlgbUiStabilityBeginPageSettle=beginPageSettle;
+window.hlgbUiStabilityCancelPageSettle=cancelPageSettle;
 window.hlgbUiStabilityRenderAllowed=allowGovernedRender;
 window.hlgbUiStabilityRenderCooldown=RENDER_COOLDOWN_MS;
 window.hlgbUiStabilityRemoteState=()=>({remote:isRemote(),remoteInteractionVersion,interactionVersion,localCommit:localCommitActive(),localCommitUntil});
