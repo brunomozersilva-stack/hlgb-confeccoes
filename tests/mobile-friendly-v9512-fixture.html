@@ -2,7 +2,7 @@
 <div id="appShell" style="display:flex;min-height:100vh;position:relative;z-index:0;transform:translateZ(0);overflow:hidden;">
 <nav id="nav" style="width:70px;flex-shrink:0;background:#f9f6f8;padding:12px;box-sizing:border-box;overflow:hidden">
 <button type="button" onclick="page('dashboard')">Início</button>
-<div class="nav-group"><button type="button" onclick="document.getElementById('sub').hidden=!document.getElementById('sub').hidden">Produção ›</button><div id="sub" hidden><button onclick="page('producao')">Produção</button></div></div>
+<div class="nav-group"><button type="button" aria-controls="sub" onclick="document.getElementById('sub').hidden=!document.getElementById('sub').hidden;this.setAttribute('aria-expanded',String(!document.getElementById('sub').hidden))">Produção ›</button><div id="sub" hidden><button onclick="page('producao')">Produção</button><div hidden><button onclick="page('restrito')">Financeiro restrito</button></div></div></div>
 <button type="button" onclick="page('pedidos')">Pedidos</button>
 </nav>
 <main style="flex:1;min-width:0;padding:24px"><section id="dashboard" class="page active"><h1>Dashboard</h1><div class="toolbar"><button type="button">Salvar</button><button type="button">Editar</button></div><div id="hlgbDgCards" class="hlgb-dg-summary"><div class="card">Erro 1</div><div class="card">Erro 2</div></div>
