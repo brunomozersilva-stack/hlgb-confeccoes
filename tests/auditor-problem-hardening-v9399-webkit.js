@@ -19,12 +19,16 @@ const {webkit}=require('playwright');
   const btn=document.getElementById('hlgbAuditorNavBtn');if(btn){document.body.appendChild(btn);Object.assign(btn.style,{display:'block',visibility:'visible',opacity:'1',position:'fixed',left:'20px',top:'20px',zIndex:'2147483647'})}
  });
  await page.click('#hlgbAuditorNavBtn',{timeout:10000});
- await page.waitForSelector('#hlgbSmartProblem',{state:'visible',timeout:10000});
+ await page.waitForSelector('#hlgbAuditorUnifiedRun9434A',{state:'visible',timeout:15000});
+ await page.waitForSelector('#hlgbSmartProblem',{state:'hidden',timeout:10000});
+ await page.waitForFunction(()=>typeof window.hlgbAuditorHardening9399?.captureProblem==='function',null,{timeout:10000});
  await page.evaluate(()=>{const s=document.getElementById('hlgbSmartStatus'),root=s?.closest?.('[role="dialog"],.modal,.modal-content,.modalCard,.modal-card,.dialog')||s?.parentElement?.parentElement||s?.parentElement||document.body;const box=document.createElement('span');box.id='hlgbVisualControls9331';const run=document.createElement('button');run.id='hlgbVisualRun9331';run.textContent='👁️ Executar teste visual — somente leitura';box.appendChild(run);root.appendChild(box)});
  await page.waitForFunction(()=>!document.getElementById('hlgbVisualControls9331')&&!document.getElementById('hlgbVisualRun9331'),null,{timeout:5000});
  const before=await page.evaluate(()=>window.hlgbAuditorHardening9399.captureHealth());
  if(!before.shellAuthority||!before.openAuthorityLocked||before.legacyVisualPresent)throw new Error('hardening não consolidou autoridade antes da captura '+JSON.stringify(before));
- await page.click('#hlgbSmartProblem');
+ // The legacy button is intentionally hidden by the unified UI. Exercise
+ // the actual capture API without exposing retired controls or bypassing capture checks.
+ await page.evaluate(()=>window.hlgbAuditorHardening9399.captureProblem());
  await page.waitForSelector('#hlgbSafariDownload9368,#hlgbProblemDownload9399',{state:'visible',timeout:30000});
  const health=await page.evaluate(()=>window.hlgbAuditorHardening9399.captureHealth());
  if(health.lastResult!=='ready'||!health.problemAvailable||!health.problemReadyAt||!health.manualDownloadVisible||!health.shellAuthority||!health.openAuthorityLocked||health.legacyVisualPresent)throw new Error('captura/recuperação não ficou pronta '+JSON.stringify(health));
@@ -34,7 +38,8 @@ const {webkit}=require('playwright');
  const normalLateLoad=before.problemAvailable===false&&health.problemReadySource==='existing'&&health.problemReadyAttempts>=1;
  const waitedOrRecovered=health.problemLoaderAttempts>=1||health.problemReadyAttempts>=2||health.problemReadySource==='recovery-loader';
  if(before.problemAvailable===false&&!normalLateLoad&&!waitedOrRecovered)throw new Error('módulo começou indisponível e não houve carga tardia normal, espera nem recuperação registrada '+JSON.stringify({before,health}));
- const selector=await page.evaluate(()=>document.getElementById('hlgbSafariDownload9368')?'#hlgbSafariDownload9368':'#hlgbProblemDownload9399');
+ const selector=await page.evaluate(()=>{for(const id of ['hlgbSafariDownload9368','hlgbProblemDownload9399']){const el=document.getElementById(id);if(el&&el.getBoundingClientRect().width>0&&getComputedStyle(el).visibility!=='hidden')return '#'+id}return null});
+ if(!selector)throw Error('Nenhum link de diagnóstico visível');
  const downloadPromise=page.waitForEvent('download',{timeout:10000});await page.click(selector);const download=await downloadPromise;
  if(!/^HLGB-PROBLEMA-.*\.json$/i.test(download.suggestedFilename()))throw new Error('nome inesperado do diagnóstico: '+download.suggestedFilename());
  await page.waitForFunction(()=>!!window.hlgbAuditorIntelligence9396?.__hlgb9399,null,{timeout:10000});
