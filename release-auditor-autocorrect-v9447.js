@@ -156,11 +156,14 @@ async function walRemoteReadOnlyProof9482(max=8,notify){
   const row={module,id,opId,status:'unverified'};
   if(!module||!id||!opId){row.status='invalid-local-operation';return row}
   try{
+   if(!authReady()||navigator?.onLine===false)throw new Error('Sessão ou conexão indisponível durante conferência');
    const query='hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.'+encodeURIComponent(module)+'&entity_id=eq.'+encodeURIComponent(id)+'&limit=1';
    let timer;const controller=typeof AbortController==='function'?new AbortController():null;
    let response;try{response=await Promise.race([Promise.resolve(window.cloudRequest(query,{method:'GET',...(controller?{signal:controller.signal}:{})})),new Promise((_,reject)=>{timer=setTimeout(()=>{controller?.abort();reject(new Error('Timeout da prova remota'))},12000)})])}finally{clearTimeout(timer)}
-   if(!Array.isArray(response))throw new Error('Resposta remota inválida');
-   const found=response.find(x=>sid(x?.module)===module&&sid(x?.entity_id)===id)||null;
+   if(!authReady())throw new Error('Sessão encerrada durante a conferência');
+   if(!Array.isArray(response)||response.length>1)throw new Error('Resposta remota inválida');
+   const found=response[0]||null;
+   if(response.length&&(!found||sid(found.module)!==module||sid(found.entity_id)!==id||!Number.isSafeInteger(Number(found.revision))||Number(found.revision)<1||!Object.prototype.hasOwnProperty.call(found,'deleted_at')||(!found.deleted_at&&(!found.data||typeof found.data!=='object'||Array.isArray(found.data)))))throw new Error('Resposta remota sem identidade ou revisão comprovada');
    if(found){row.revision=found.revision;row.remoteDeleted=!!found.deleted_at}
    if(!found){row.status=op?.deleted===true?'delete-absent':'missing';}
    else if(op?.deleted===true){row.status=found.deleted_at?'delete-confirmed':'different';}

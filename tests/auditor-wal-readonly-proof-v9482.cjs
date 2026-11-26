@@ -35,7 +35,8 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  };
  if(available)win.cloudRequest=async(query,opts)=>{
   requests.push({query,method:opts?.method});active++;peak=Math.max(peak,active);await new Promise(resolve=>queueMicrotask(resolve));active--;
-  return remote===null?[]:[{module:'routePlans',entity_id:'route-1',data:structuredClone(remote),deleted_at:null,revision:1}];
+  if(typeof remote==='function')return remote(query);
+  return remote===null||!query.includes('entity_id=eq.route-1&')?[]:[{module:'routePlans',entity_id:'route-1',data:structuredClone(remote),deleted_at:null,revision:1}];
  };
  const store={};const context={window:win,indexedDB,document:{querySelector:()=>null,getElementById:()=>null},
   localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{writes.push(k);store[k]=v}},
@@ -77,6 +78,13 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  const missing=await scenario(null);
  assert.equal(missing.out.walProof.missing,1);
  assert.equal(missing.out.walProof.status,'not-confirmed');
+ for(const bad of [()=>[{module:'routePlans',entity_id:'wrong-id',data:sample.data,deleted_at:null,revision:1}],()=>[{module:'routePlans',entity_id:'route-1',data:null,deleted_at:null,revision:1}],()=>[{module:'routePlans',entity_id:'route-1',data:sample.data,deleted_at:null,revision:0}],()=>{throw Error('403 permission denied')}]){
+  const invalid=await scenario(bad);
+  assert.equal(invalid.out.walProof.unverified,1,'invalid or denied remote response cannot prove absence');
+  assert.equal(invalid.out.walProof.missing,0);
+  assert.equal(invalid.out.walProof.removed,0);
+  assert.equal(invalid.out.walProof.status,'partially-unverified');
+ }
  const extraRows=Array.from({length:10},(_,i)=>({
   ...sample,key:'routePlans|route-'+i,id:'route-'+i,opId:'op-'+i,
   data:{...sample.data,id:'route-'+i}
