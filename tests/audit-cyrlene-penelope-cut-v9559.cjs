@@ -14,16 +14,18 @@ function setupGrade(){
  const cut={id:'1793034494813143',orderId:order.id,productId:'1788193732999',product:'Camisola Cyrlene',pieces:1020,modelSplitChildV1:true,status:'Planejado',originalGrade:grade.map(x=>({...x})),cutType:'Interno'};
  const db={orders:[order],cuts:[cut],products:[{id:'1788193732999',name:'Camisola Cyrlene'}]};
  let modal=null,save=null,calls=0;
- const ctx={db,window:null,document:{getElementById(id){
+ const clone=x=>JSON.parse(JSON.stringify(x)),btn={isConnected:true,disabled:false};
+ let remote={module:'cuts',entity_id:cut.id,revision:1,deleted_at:null,data:clone(cut)};
+ const ctx={db,window:null,__HLGB_AUTH_READY:true,hlgbRecordSnapshots:{cuts:new Map([[cut.id,{revision:1,deleted_at:null,data:clone(cut)}]])},hlgbWalIdbGuard9536:{probe:async()=>{},status:()=>({probes:1,entryCount:0,readFailed:false,unsupported:false,localReadFailed:false}),ids:()=>new Set()},hlgbRecordPendingIdentitySet9535:()=>new Set(),localStorage:{getItem:()=>null},cloudRequest:async(path,opts)=>{assert.equal(opts.method,'GET');assert(path.includes('entity_id=eq.'+cut.id));return [clone(remote)]},document:{getElementById(id){
   if(id==='hlgbAdjNote')return {value:'Ajuste conferido'};
   const m=String(id).match(/^hlgbAdjCell_(\d+)$/);
   if(m)return {value:String(grade[Number(m[1])].qty)};
   return null;
- },querySelector(){return null}},
+ },querySelector(selector){return selector.includes('.modalSave')?btn:null}},
  console:{info(){},warn(){}},setTimeout(){return 0},alert(){throw Error('Unexpected alert')},
  openModal(title,html,cb){modal={title,html};save=cb},
- closeModal(){},renderCuts(){},localSaveOnly(){},
- async hlgbRecordSaveWithRetry(module,id,row){calls++;assert.equal(module,'cuts');assert.equal(id,cut.id);return {applied:true,data:row};}
+ closeModal(){btn.isConnected=false},renderCuts(){},localSaveOnly(){},
+ async hlgbRecordSaveWithRetry(module,id,row){calls++;assert.equal(module,'cuts');assert.equal(id,cut.id);assert.equal(db.cuts[0].actualCutGrade,undefined);remote={...remote,revision:2,data:clone(row)};return {applied:true,data:clone(row)};}
  };
  ctx.window=ctx;vm.createContext(ctx);vm.runInContext(gradeScript,ctx);
  return {ctx,db,order,cut,open:()=>ctx.hlgbOpenSplitGradeAdjust(cut.id),modal:()=>modal,save:()=>save(),calls:()=>calls};

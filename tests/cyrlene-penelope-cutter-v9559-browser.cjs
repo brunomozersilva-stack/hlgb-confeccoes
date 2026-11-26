@@ -6,7 +6,7 @@ const {chromium,webkit}=require('playwright');
  const browser=await ({chromium,webkit})[name].launch({headless:true});
  try{
   const page=await browser.newPage();
-  await page.setContent('<!doctype html><html><body><div id="cutTable"><table><tbody></tbody></table></div></body></html>');
+  await page.route('http://hlgb-grade.test/',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><html><body><div id="cutTable"><table><tbody></tbody></table></div></body></html>'}));await page.goto('http://hlgb-grade.test/');
   await page.evaluate(()=>{
    const cyId='1788193732999',penId='1788444804759';
    const cyGrade=['Preto','Branco','Rubi','Pantera','Romance'].flatMap(color=>
@@ -35,16 +35,22 @@ const {chromium,webkit}=require('playwright');
    window.renderCuts=()=>{};
    window.hlgbAfterLogin=()=>{};
    window.__HLGB_AUTH_READY=false;
+   const clone=x=>JSON.parse(JSON.stringify(x)),cut=db.cuts[0];
+   window.__remoteCut={module:'cuts',entity_id:cut.id,revision:1,deleted_at:null,data:clone(cut)};
+   window.hlgbRecordSnapshots={cuts:new Map([[cut.id,{revision:1,deleted_at:null,data:clone(cut)}]])};
+   window.hlgbWalIdbGuard9536={probe:async()=>{},status:()=>({probes:1,entryCount:0,readFailed:false,unsupported:false,localReadFailed:false}),ids:()=>new Set()};
+   window.hlgbRecordPendingIdentitySet9535=()=>new Set();
+   window.cloudRequest=async(path,opts)=>{if(opts.method!=='GET'||!path.includes('entity_id=eq.'+cut.id))throw Error('Unexpected read');return [clone(window.__remoteCut)]};
    window.localSaveOnly=()=>{};
-   window.closeModal=()=>document.getElementById('hlgbTestModal')?.remove();
+   window.closeModal=()=>document.getElementById('modal')?.remove();
    window.openModal=(title,html,callback)=>{
-    document.getElementById('hlgbTestModal')?.remove();
-    const el=document.createElement('div');el.id='hlgbTestModal';el.innerHTML=html;document.body.appendChild(el);
+    document.getElementById('modal')?.remove();
+    const el=document.createElement('div');el.id='modal';el.className='show';el.innerHTML=html;document.body.appendChild(el);
     el.querySelector('.modalSave').onclick=callback;
    };
    window.hlgbRecordSaveWithRetry=async (module,id,row)=>{
     if(module!=='cuts'||id!=='1793034494813143')throw Error('Unexpected business write');
-    return {applied:true,data:row};
+    window.__remoteCut={...window.__remoteCut,revision:2,data:clone(row)};return {applied:true,data:clone(row)};
    };
    window.HLGB_STAGE_FLOW_INTEGRITY_GUARD=true;
    window.HLGB_AUDITOR_SINGLE_ACTION_9429=true;
@@ -56,16 +62,16 @@ const {chromium,webkit}=require('playwright');
   await page.addScriptTag({path:'release-cut-model-split.js'});
   await page.addScriptTag({path:'release-cut-model-grade-adjust.js'});
   await page.addScriptTag({path:'release-cutter-sheet-materials-v9523.js'});
-  await page.evaluate(()=>window.hlgbCutModelSplit.renderSplitPanel());
+  await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;window.hlgbCutModelSplit.renderSplitPanel()});
   const btn=page.locator('#hlgbCutSplitPanel .hlgbAdjustSplitGradeBtn');
   assert.equal(await btn.count(),1,'Camisola Cyrlene should offer a direct grade edit');
   assert.match(await btn.first().locator('xpath=..').innerText(),/Ajustar grade/);
   const orderBefore=await page.evaluate(()=>JSON.stringify(window.db.orders[0]));
   await btn.click();
-  assert.equal(await page.locator('#hlgbTestModal input[id^="hlgbAdjCell_"]').count(),20);
+  assert.equal(await page.locator('#modal input[id^="hlgbAdjCell_"]').count(),20);
   await page.locator('#hlgbAdjCell_0').fill('60');
   await page.locator('#hlgbAdjCell_1').fill('42');
-  await page.locator('#hlgbTestModal .modalSave').click();
+  await page.locator('#modal .modalSave').click();
   await page.waitForFunction(()=>window.db.cuts[0].cutGradeAdjustedAt);
   const saved=await page.evaluate(()=>({
    pieces:window.db.cuts[0].pieces,total:window.db.cuts[0].originalGrade.reduce((a,g)=>a+g.qty,0),

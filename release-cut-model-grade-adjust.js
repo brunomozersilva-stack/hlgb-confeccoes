@@ -20,16 +20,77 @@ function buildHorizontalEditor(grade,c){
  }
  return {html,cells};
 }
+const stable9723=v=>Array.isArray(v)?v.map(stable9723):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable9723(v[k])])):v;
+const equal9723=(a,b)=>JSON.stringify(stable9723(a))===JSON.stringify(stable9723(b));
+function editable9723(c){return !!c?.modelSplitChildV1&&!/finalizado|cancel|desmembrado/i.test(sid(c.status))&&!c.modelSplitParentV1&&!c.hiddenByModelSplitV1&&!(typeof window.hlgbCutModelSplit?.competingModelCuts==='function'&&window.hlgbCutModelSplit.competingModelCuts(c).length>1)}
+async function readGradeCut9723(id){
+ if(window.__HLGB_AUTH_READY!==true||typeof window.cloudRequest!=='function')throw Error('Sessão ou consulta remota indisponível.');
+ const rows=await window.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.cuts&entity_id=eq.'+encodeURIComponent(id)+'&limit=1',{method:'GET'});
+ const row=Array.isArray(rows)&&rows.length===1?rows[0]:null;
+ if(window.__HLGB_AUTH_READY!==true||row?.module!=='cuts'||sid(row?.entity_id)!==id||sid(row?.data?.id)!==id||row.deleted_at!==null||!Number.isSafeInteger(Number(row.revision))||Number(row.revision)<1)throw Error('Identidade ou revisão do corte não confirmada.');
+ return row;
+}
+async function confirmGradeQueue9724(id){
+ const guard=window.hlgbWalIdbGuard9536;
+ if(typeof guard?.probe!=='function'||typeof guard?.ids!=='function'||typeof window.hlgbRecordPendingIdentitySet9535!=='function')throw Error('Proteção de sincronização indisponível.');
+ await guard.probe({timeoutMs:32000});
+ const status=guard.status?.(),durable=guard.ids(),normal=window.hlgbRecordPendingIdentitySet9535();
+ if(!status||status.readFailed!==false||status.unsupported===true||status.localReadFailed===true||!(status.probes>0)||!durable||typeof durable.has!=='function'||status.entryCount!==durable.size||!normal||typeof normal.has!=='function')throw Error('Fila de sincronização não comprovada.');
+ const pending=new Set([...durable,...normal].map(sid));
+ // Read the persisted queues as well: a legacy reader can swallow malformed JSON.
+ for(const [key,field] of [['hlgb_durable_wal_v1','entries'],['hlgb_records_pending_v91','modules']]){
+  const raw=localStorage.getItem(key);if(raw===null)continue;
+  const rows=JSON.parse(raw)?.[field];
+  if(!rows||typeof rows!=='object'||Array.isArray(rows))throw Error('Fila local ilegível.');
+  if(field==='entries'){for(const [k,x] of Object.entries(rows)){if(!x||typeof x!=='object')throw Error('Operação local inválida.');pending.add(k);if(x.module&&x.id!=null)pending.add(sid(x.module)+'::'+sid(x.id));}}
+  else{for(const [m,list] of Object.entries(rows)){if(!Array.isArray(list))throw Error('Fila local inválida.');for(const x of list){if(x?.id==null)throw Error('Pendência sem identidade.');pending.add(m+'::'+sid(x.id));}}}
+ }
+ if(pending.has('cuts::'+id)||pending.has('cuts|'+id))throw Error('Existe alteração pendente neste corte. Confira a sincronização antes de salvar.');
+}
 async function openAdjust(id){
- const c=cuts().find(x=>sid(x?.id)===sid(id));if(!c||!c.modelSplitChildV1)return;
+ const found=cuts().filter(x=>sid(x?.id)===sid(id)),c=found.length===1?JSON.parse(JSON.stringify(found[0])):null;
+ if(!c||!c.modelSplitChildV1)return;
  if(String(c.status||'').toLowerCase()==='finalizado')return alert('Este modelo já foi finalizado. A grade continua disponível em “📐 Grade”, mas não pode mais ser alterada.');
+ if(!editable9723(c))return alert('Corte duplicado ou indisponível para ajuste.');
+ let saving=false,attempt=null;
  const grade=(Array.isArray(c.originalGrade)?c.originalGrade:[]).map(x=>({...x}));if(!grade.length)return alert('Este modelo não possui grade.');
  const editor=buildHorizontalEditor(grade,c);
  openModal('Ajustar grade do corte','<div class="sub">Grade em formato horizontal: cores nas linhas e tamanhos nas colunas. Altera apenas este modelo; o pedido original continua igual.</div>'+editor.html+'<div class="field"><label>Observação</label><textarea id="hlgbAdjNote">'+escSafe(c.cutGradeAdjustmentNote||'')+'</textarea></div><button type="button" class="primary modalSave">Salvar grade</button>',async()=>{
-  const g2=editor.cells.map(cell=>({...cell.base,qty:q(document.getElementById(cell.id)?.value)})).filter(x=>q(x.qty)>0);if(!g2.length){alert('A grade não pode ficar zerada.');return false}
-  const next={...c,originalGrade:g2,actualCutGrade:g2.map(x=>({...x})),pieces:g2.reduce((a,x)=>a+q(x.qty),0),cutGradeAdjustmentNote:document.getElementById('hlgbAdjNote')?.value||'',cutGradeAdjustedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
-  if(!Array.isArray(next.plannedGradeBeforeAdjustmentV9243)||!next.plannedGradeBeforeAdjustmentV9243.length)next.plannedGradeBeforeAdjustmentV9243=grade.map(x=>({...x}));
-  try{const out=await hlgbRecordSaveWithRetry('cuts',sid(next.id),next,false);if(!out?.applied)throw new Error('Nuvem não confirmou.');const i=cuts().findIndex(x=>sid(x.id)===sid(next.id));if(i>=0)db.cuts[i]=out.data||next;try{localSaveOnly?.()}catch(e){}closeModal();renderCuts?.();return true}catch(e){console.warn('[HLGB '+V+'] salvar grade',e);alert('Não foi possível salvar a grade.');return false}
+  if(saving)return false;
+  const btn=document.querySelector('#modal .modalSave'),active=()=>!!btn&&btn.isConnected&&document.querySelector('#modal.show .modalSave')===btn;
+  const draft=()=>{
+   const g2=editor.cells.map(cell=>{const field=document.getElementById(cell.id),v=Number(field?.value);if(!field||String(field.value).trim()===''||!Number.isSafeInteger(v)||v<0)throw Error('Informe quantidades inteiras e não negativas.');return {...cell.base,qty:v}}).filter(x=>x.qty>0);
+   if(!g2.length)throw Error('A grade não pode ficar zerada.');
+   const pieces=g2.reduce((a,x)=>a+x.qty,0);if(!Number.isSafeInteger(pieces))throw Error('Total inválido.');
+   return {g2,pieces,note:document.getElementById('hlgbAdjNote')?.value||''};
+  };
+  saving=true;if(btn)btn.disabled=true;
+  try{
+   const input=draft(),id=sid(c.id),current=cuts().filter(x=>sid(x?.id)===id);
+   if(current.length!==1||!editable9723(current[0])||(!equal9723(current[0],c)&&!(attempt&&equal9723(current[0],attempt.next))))throw Error('O corte mudou. Confira antes de ajustar.');
+   if(attempt){
+    if(!equal9723(input,attempt.input))throw Error('Existe uma tentativa anterior; restaure os campos enviados antes de conferir.');
+   }else{
+    if(typeof hlgbRecordCanWrite==='function'&&!hlgbRecordCanWrite('cuts'))throw Error('Sem permissão para gravar cortes.');
+    await confirmGradeQueue9724(id);
+    const before=await readGradeCut9723(id);
+    const snap=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots.cuts?.get(id):null;
+    if(!snap||snap.deleted_at||Number(snap.revision)!==Number(before.revision)||!equal9723(snap.data,before.data))throw Error('A versão carregada não corresponde à nuvem. Atualize antes de salvar.');
+    if(!equal9723(before.data,c)||!active()||!equal9723(input,draft())||!equal9723(cuts().find(x=>sid(x.id)===id),c)||!editable9723(cuts().find(x=>sid(x.id)===id)))throw Error('O corte ou formulário mudou durante a conferência.');
+    const next={...c,originalGrade:input.g2,actualCutGrade:input.g2.map(x=>({...x})),pieces:input.pieces,cutGradeAdjustmentNote:input.note,cutGradeAdjustedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+    if(!Array.isArray(next.plannedGradeBeforeAdjustmentV9243)||!next.plannedGradeBeforeAdjustmentV9243.length)next.plannedGradeBeforeAdjustmentV9243=grade.map(x=>({...x}));
+    attempt={input,next,revision:Number(before.revision)};
+    try{await hlgbRecordSaveWithRetry('cuts',id,next,false)}catch(e){console.warn('[HLGB grade] tentativa sem resposta',e)}
+   }
+   const proof=await readGradeCut9723(id);
+   if(Number(proof.revision)<=attempt.revision||!equal9723(proof.data,attempt.next))throw Error('A nuvem ainda não confirmou o ajuste. Confira novamente sem reenviar.');
+   const i=cuts().findIndex(x=>sid(x.id)===id);
+   if(i<0||(!equal9723(cuts()[i],c)&&!equal9723(cuts()[i],proof.data)))throw Error('Outra atualização local foi recebida. Confira o corte.');
+   if(!active()||!equal9723(draft(),attempt.input))throw Error('A edição mudou; confira o ajuste confirmado antes de fechar.');
+   db.cuts[i]=proof.data;try{localSaveOnly?.()}catch(e){}closeModal();renderCuts?.();return true;
+  }catch(e){console.warn('[HLGB '+V+'] salvar grade',e);alert('Não foi possível confirmar a grade. '+sid(e?.message||e));return false}
+  finally{saving=false;if(btn?.isConnected){btn.disabled=false;btn.textContent=attempt?'Conferir ajuste na nuvem':'Salvar grade'}}
+
  });
 }
 function decorate(){
