@@ -238,3 +238,19 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(JSON.stringify(db),before);
  console.log('PASS observed historical throughput without counting external returns twice');
 })();
+
+
+(function factionLeadTimeEvidence(){
+ const D=86400000,iso=n=>new Date(Date.parse('2026-11-01T00:00:00Z')+n*D).toISOString().slice(0,10);
+ const mk=(id,days,qty=200,team='f',pid='m')=>({id,productId:pid,productionLocationId:team,status:'Finalizado',sentAt:iso(0),finishedAt:iso(days),sent:qty,returned:qty,deliveryHistory:[{id:'event-'+id,date:iso(days),qty}]});
+ const db={products:[{id:'m',name:'Camisola'},{id:'n',name:'Body'}],productionLocations:[{id:'f',name:'Facção A'},{id:'g',name:'Facção B'}],factions:[mk('a',4),mk('b',6),mk('c',8),mk('d',10),mk('e',20,400),mk('f',7,200,'g'),{...mk('bad',5),finishedAt:iso(6)},{...mk('transfer',5),transferHistory:[{}]},{id:'open',productId:'m',productionLocationId:'f',status:'Em produção',sentAt:iso(9),sent:200,returned:50,dueDate:iso(18),deliveryHistory:[{id:'part',date:iso(12),qty:50}]}]};
+ const before=JSON.stringify(db),v=plan.factionLeadTimes(db,iso(24),true),group=v.rows.find(r=>r.teamId==='f'&&r.band==='101–300');
+ assert.equal(v.state,'local-leadtime-observation');assert.equal(group.count,4);assert.equal(group.averageDays,7);assert.equal(group.medianDays,7);assert.equal(group.conservativeDays,8);assert.equal(group.maxDays,10);assert.equal(v.issues.length,2);
+ assert.equal(v.open.length,1);assert.equal(v.open[0].remaining,150);assert.equal(v.open[0].referenceDate,iso(17));assert.equal(v.open[0].pastReference,true);assert.equal(v.open[0].lateAgainstDue,true);assert.equal(v.open[0].remainingForecast,null);
+ const p=plan.factionLeadTimePreview(v,{productId:'m',teamId:'f',pieces:250,sentAt:iso(24)},true);assert.equal(p.state,'historical-reference');assert.equal(p.referenceDays,8);assert.equal(p.referenceDate,iso(32));assert.equal(p.canPromise,false);
+ assert.equal(plan.factionLeadTimePreview(v,{productId:'m',teamId:'f',pieces:400,sentAt:iso(24)},true).state,'insufficient-history');
+ assert.equal(plan.factionLeadTimePreview(v,{productId:'m',teamId:'g',pieces:200,sentAt:iso(24)},true).sampleCount,1);
+ assert.equal(plan.factionLeadTimePreview(v,{productId:'m',teamId:'f',pieces:200,sentAt:'2026-02-30'},true).state,'invalid-input');
+ assert.equal(plan.factionLeadTimes(db,iso(24),false).state,'forbidden');assert.equal(JSON.stringify(db),before);
+ console.log('PASS faction lead times, lot bands, return reconciliation and open-lot alerts');
+})();
