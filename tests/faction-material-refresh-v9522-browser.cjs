@@ -80,6 +80,20 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    kg:db.materialChecklists[1].materials.find(m=>m.name==='Romantic').qty,
    payments:(db.factionPayments||[]).length}));
   assert.equal(data.posts,2);assert.equal(data.count,6);await direct.waitFor({state:'detached'});assert.equal(data.kg,21.5);assert.equal(data.payments,0);
+  // Actual checklist selection UI, isolated from all commercial writes.
+  await page.evaluate(()=>{
+   const panel=document.createElement('section');panel.id='factionChecklistPanel9176';panel.innerHTML='<div class="toolbar"></div>';document.body.appendChild(panel);
+   window.canOpenPage=()=>true;window.currentUser=()=>({id:'fixture'});
+   const previous=window.openModal;window.openModal=(...args)=>{previous(...args);document.getElementById('modal').classList.add('show')};
+   db.products.forEach(p=>p.materials.forEach(m=>{m.cat=m.name==='Romantic'?'Tecido':/^renda/i.test(m.name)?'Renda':'Aviamento'}));
+   for(const c of db.materialChecklists)c.materials=window.hlgbFactionMaterialRefresh9522.buildMaterials(db.products.find(p=>p.id===c.productId),c.qty,'F',c);
+   window.__groupBefore=JSON.stringify(db);window.hlgbFactionMaterialRefresh9522.ensurePanel();
+  });
+  await page.setViewportSize({width:390,height:844});await page.locator('#hlgbGroupButton9734').click();
+  await page.locator('#hlgbGroupSearch9734').fill('Crystal');await page.locator('#hlgbGroupAll9734').click();await page.locator('#hlgbGroupSearch9734').fill('Melanie');await page.locator('#hlgbGroupAll9734').click();
+  assert.match(await page.locator('#hlgbGroupOutput9734').innerText(),/2 envios · 364 peças/);assert.match(await page.locator('#hlgbGroupOutput9734').innerText(),/Alca Papiro/);assert.doesNotMatch(await page.locator('#hlgbGroupOutput9734 table').first().innerText(),/Romantic|Renda/i);
+  assert.equal(await page.evaluate(()=>JSON.stringify(db)===window.__groupBefore),true);assert.equal(await page.evaluate(()=>window.__posts),2);
+  await page.locator('#hlgbGroupClear9734').click();assert.equal(await page.locator('#hlgbGroupPrint9734').isDisabled(),true);await page.evaluate(()=>closeModal());
   await page.evaluate(()=>{db.materialChecklists[0].materials[0].checked=true;db.materialChecklists[0].materials[0].qty=99;renderDestinationChecklists()});
   await page.waitForSelector('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313232479"]');
   await page.locator('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313232479"]').click();
