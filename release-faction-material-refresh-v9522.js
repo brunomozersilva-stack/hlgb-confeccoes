@@ -291,6 +291,7 @@ function openGroup9734(){
 }
 // Separate demand preview for orders/cuts; no physical-stock or outstanding-balance claim.
 function orderCutCandidates9760(){
+ if(!['orders','cuts','products','materials','production',M].every(k=>Array.isArray(dbRef()[k])))return [];
  const live=x=>x&&!x.deletedAt&&!x.deleted_at&&!x.deleted&&!x._deleted&&!/cancelad|excluid/.test(norm(x.status));
  const orders=rows('orders').filter(live),cuts=rows('cuts').filter(live),products=rows('products').filter(live),production=rows('production').filter(live);
  let proof;try{proof=window.hlgbWriteoffIntegrity9391?.pairIndex?.()}catch(_){}
@@ -330,7 +331,7 @@ function orderCutPlan9760(keys){
  for(const key of keys){
   const found=candidates.filter(c=>c.key===key),c=found[0];
   if(found.length!==1||c.review){issues.push({id:key,reason:c?.review||'Modelo não identificado.'});continue}
-  const p=rows('products').find(p=>sid(p.id)===c.productId);
+  const p=rows('products').find(p=>sid(p.id)===c.productId&&!p.deleted_at&&!p.deletedAt&&!p.deleted&&!p._deleted&&p.active!==false);
   let items;try{
    if(!Array.isArray(p?.materials)||p.materials.some(m=>!sid(m.materialId)||rows('materials').filter(x=>sid(x.id)===sid(m.materialId)&&!x.deleted_at&&!x.deletedAt&&!x.deleted&&!x._deleted).length!==1))throw Error('Ficha ou material sem identidade única.');
    items=buildMaterials(p,c.pieces,'F',null,c.grade.filter(g=>g.qty>0)).filter(m=>sewingMaterial9734(m)&&m.qty>0);
@@ -348,7 +349,7 @@ function orderCutAccess9760(){try{return window.__HLGB_AUTH_READY===true&&typeof
 function openOrderCut9760(){
  const actor=groupActor9734();if(!actor||!orderCutAccess9760()||typeof openModal!=='function')return;
  openModal('Calculadora de aviamentos — Pedidos e Corte','<p>Selecione os modelos. Cada pedido/modelo entra uma vez. Usa a grade do corte quando identificada, senão a do pedido. Estimativa de consumo da ficha atual, não saldo físico.</p><input type="search" id="oc9760-search" placeholder="Buscar modelo, pedido ou cliente"><div id="oc9760-list" style="max-height:260px;overflow:auto"></div><button type="button" class="secondary" id="oc9760-all">Selecionar visíveis</button><button type="button" class="secondary" id="oc9760-clear">Limpar</button><div id="oc9760-output"></div><button type="button" class="secondary" id="oc9760-print" disabled>Imprimir resumo</button> <button type="button" class="secondary modalSave">Fechar</button>',()=>window.closeModal?.());
- const root=document.getElementById('modalContent'),search=root?.querySelector('#oc9760-search');if(!search)return;
+ const root=document.getElementById('modalContent')||document.getElementById('modal'),search=root?.querySelector('#oc9760-search');if(!search)return;
  const list=root.querySelector('#oc9760-list'),output=root.querySelector('#oc9760-output'),print=root.querySelector('#oc9760-print'),selected=new Set();
  const valid=()=>root.isConnected&&orderCutAccess9760()&&groupActor9734()===actor;
  const visible=()=>orderCutCandidates9760().filter(c=>norm([c.product,c.orderNumber,c.client,c.source].join(' ')).includes(norm(search.value)));
