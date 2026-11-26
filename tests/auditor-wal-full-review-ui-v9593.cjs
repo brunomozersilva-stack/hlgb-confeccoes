@@ -37,6 +37,14 @@ const summary={passes:1,stopReason:'verificar',needsCode:[{id:'sync:indexeddb-wa
   status:'partially-unverified',items:[]}};
 (async()=>{
  const api=win.hlgbAuditorAutoCorrect9448;
+ assert.equal(api.walGuardEvidence9719().state,'unavailable');
+ let scans=0;win.hlgbWalIdbGuard9536={status:()=>({probes:0,entryCount:0,indexedDbOnly:0}),ids:()=>new Set(['routePlans::PRIVATE_ID','orders::PRIVATE_ORDER']),probe:()=>{scans++;throw Error('must not scan')}};
+ assert.equal(api.walGuardEvidence9719().entryCount,null);
+ win.hlgbWalIdbGuard9536.status=()=>({probes:1,readFailed:true,entryCount:0});assert.equal(api.walGuardEvidence9719().state,'read-failed');assert.equal(api.walGuardEvidence9719().entryCount,null);
+ win.hlgbWalIdbGuard9536.status=()=>({probes:2,localReadFailed:true,entryCount:2});assert.equal(api.walGuardEvidence9719().state,'local-read-failed');
+ win.hlgbWalIdbGuard9536.status=()=>({probes:2,readFailed:false,entryCount:2,indexedDbOnly:2,loadBlocked:1,private:'DO_NOT_EXPORT'});
+ const guard=api.walGuardEvidence9719();assert.equal(guard.pendingRouteIdentities,1);assert.equal(guard.indexedDbOnly,2);assert.equal(guard.remoteConfirmed,false);assert(!JSON.stringify(guard).includes('PRIVATE'));assert(!JSON.stringify(guard).includes('DO_NOT_EXPORT'));assert.equal(scans,0);
+ win.__HLGB_AUTH_READY=false;assert.equal(api.walGuardEvidence9719().state,'not-authenticated');win.__HLGB_AUTH_READY=true;
  assert.equal(api.cutMaterialsEvidence9711().observed,false);
  win.hlgbCutOrganization={materialsStatus9711:()=>({observed:true,inline:2,fallback:1,ambiguous:1,private:'NO_EXPORT'})};
  assert.equal(api.separationDockEvidence9715().observed,false);win.hlgbCutOrganization.separationDockStatus9715=()=>({observed:true,moved:true,modelOpened:false,private:'NO_EXPORT'});const dock=api.separationDockEvidence9715();assert.equal(dock.moved,true);assert.equal(dock.modelOpened,false);assert.equal(dock.remoteConfirmed,false);assert(!JSON.stringify(dock).includes('NO_EXPORT'));
