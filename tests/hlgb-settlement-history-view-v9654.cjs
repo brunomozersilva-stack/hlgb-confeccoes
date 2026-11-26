@@ -25,6 +25,8 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  ok(api.eventCsv(er).includes("'=unsafe")&&api.eventCsv(er).includes('20,00'),'event CSV safe');
  let badEvent=false;try{api.eventCsv({...er,eventTotal:2})}catch(_){badEvent=true}ok(badEvent,'incomplete events export');
 
+ const factionDeps={...d,inspectFactionEvents:(ctx,f)=>({state:'local-events',ctx,f})};calls.length=0;const fr=api.read(factionDeps,'faccao',{eventMode:true});ok(fr.state==='local-events'&&calls.join(',')==='factionPayments','faction events only authorized payment source');
+ const fer={state:'local-events',eventTotal:1,events:[{kind:'faccao',name:'Roseli',ownerId:'F1',noteNumber:'Camisola',date:'2026-11-24',type:'faction-paid',amountCents:4000,id:'f-event'}],totals:{factionPaidCents:4000},issues:[]};ok(api.eventCsv(fer,'faccao').includes('40,00'),'faction CSV');ok(api.printable(fer,'faccao','detail',{eventMode:true}).includes('Abatimentos não são saída de caixa'),'faction PDF');let wrong=false;try{api.eventCsv(fer,'cliente')}catch(_){wrong=true}ok(wrong,'separate scopes');
  const fixtureRow={...row,kind:'faccao',id:'group:1',ownerId:'F1',name:'<script>alert(1)</script>',dateBasis:'payment',details:[{id:'1',description:'Calcinha Mayte',quantity:480,unitPriceCents:80,serviceCents:38400,paidCents:38400,travetaCents:0,note:'<img src=x onerror=alert(1)>'}],netOfAdjustments:true};
  const fixtureRow2={...fixtureRow,id:'group:2',totalCents:20000,paidCents:10000,creditCents:2000,balanceCents:8000};
  const report2={state:'local-observation',rows:[fixtureRow,fixtureRow2],total:2,issues:['review']};
