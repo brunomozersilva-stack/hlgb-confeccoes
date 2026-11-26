@@ -41,6 +41,12 @@ window.localSaveOnly=()=>{};
 window.hlgbRecordReady=true;
 window.hlgbRecordSnapshots={payroll:new Map(window.db.payroll.map(x=>[x.id,{data:structuredClone(x),revision:1}]))};
 window.cloudMergeThreeWay=(_base,desired)=>desired;
+window.cloudRequest=async(path,opts)=>{
+ if(opts.method!=='GET'||!path.includes('module=eq.payroll'))throw Error('Unexpected fixture request');
+ const id=new URLSearchParams(path.split('?')[1]).get('entity_id').replace(/^eq\./,'');
+ const snap=window.hlgbRecordSnapshots.payroll.get(id);if(!snap)return [];
+ return [{module:'payroll',entity_id:id,revision:snap.revision,data:structuredClone(snap.data),deleted_at:null}];
+};
 window.hlgbRecordSaveWithRetry=async(module,id,data,deleted)=>{
  window.__fixture.rpcCalls.push({module,id,data:structuredClone(data),deleted});
  if(window.__fixture.failOnce){window.__fixture.failOnce=false;throw Error('Simulated ACK failure')}

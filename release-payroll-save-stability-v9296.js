@@ -90,21 +90,61 @@ async function ensureOnline(){
  if(!saveFn())throw new Error('O salvamento compartilhado da folha não está disponível.');
  return true;
 }
+async function readFarePayroll9731(id,employeeId,month){
+ const request=typeof window.cloudRequest==='function'?window.cloudRequest:null;
+ if(!request)throw Error('Consulta independente da folha indisponível.');
+ const rows=await request('hlgb_records?select=module,entity_id,revision,data,deleted_at&module=eq.payroll&entity_id=eq.'+encodeURIComponent(id)+'&limit=2',{method:'GET'});
+ const row=Array.isArray(rows)&&rows.length===1?rows[0]:null;
+ if(row?.module!=='payroll'||sid(row.entity_id)!==id||sid(row.data?.id)!==id||sid(row.data?.employeeId)!==sid(employeeId)||sid(row.data?.month)!==sid(month)||row.deleted_at!==null||!Number.isSafeInteger(Number(row.revision))||Number(row.revision)<1)throw Error('Identidade ou revisão da folha não confirmada na nuvem.');
+ return row;
+}
+const stableFare9731=v=>Array.isArray(v)?v.map(stableFare9731):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stableFare9731(v[k])])):v;
+const sameFare9731=(a,b)=>JSON.stringify(stableFare9731(a))===JSON.stringify(stableFare9731(b));
+const fareAttempts9731=new Map();
 async function saveConfirmed(base,desired,verify){
  await ensureOnline();
  const id=sid(desired?.id||base?.id);if(!id)throw new Error('Registro da folha sem identificação.');
- const latest=cloudLatest(id)||base;
+ let before=null;
+ if(typeof verify==='function'){
+  before=await readFarePayroll9731(id,desired.employeeId,desired.month);
+  if(before.data.paid||before.data.paidAt)throw Error('O pagamento está PAGO na nuvem. Confira a folha antes de alterar.');
+  const old=fareAttempts9731.get(id);
+  if(old){
+   if(!verify(old.desired)||!verify(before.data)||!sameFare9731(before.data,old.desired)||Number(before.revision)<=old.revision)throw Error('Envio anterior sem confirmação. Confira a folha na nuvem antes de repetir.');
+   fareAttempts9731.delete(id);replaceLocal(id,before.data);saveLocal();redraw();status('✅ Folha salva e compartilhada','ok');return clone(before.data);
+  }
+  const snap=snaps()?.payroll?.get?.(id);
+  const local=arr('payroll').filter(r=>sid(r?.employeeId)===sid(desired.employeeId)&&sid(r?.month)===sid(desired.month));
+  if(local.length!==1||!sameFare9731(local[0],base)||!snap||Number(snap.revision)!==Number(before.revision)||!sameFare9731(snap.data,before.data)||!sameFare9731(base,before.data))throw Error('A folha mudou ou há registros locais não confirmados. Atualize antes de alterar a passagem.');
+ }
+ const latest=before?.data||cloudLatest(id)||base;
  const merged=cloudMerge(clone(base),clone(desired),clone(latest));
  status('☁️ Salvando folha compartilhada…','warn');
- const out=await saveFn()('payroll',id,clone(merged),false);
- if(!out||out.applied!==true)throw new Error('A nuvem não confirmou a alteração da folha.');
+ if(before)fareAttempts9731.set(id,{desired:clone(merged),revision:Number(before.revision)});
+ let out;
+ try{out=await saveFn()('payroll',id,clone(merged),false)}catch(err){
+  // A transport error can happen after commit. Only a read proving the exact
+  // previous record/revision permits a new attempt, never replay blindly.
+  if(before)try{const checked=await readFarePayroll9731(id,desired.employeeId,desired.month);if(Number(checked.revision)===Number(before.revision)&&sameFare9731(checked.data,before.data))fareAttempts9731.delete(id)}catch(_){}
+  throw err;
+ }
+ async function rejectAck9731(message){
+  if(before)try{const checked=await readFarePayroll9731(id,desired.employeeId,desired.month);if(Number(checked.revision)===Number(before.revision)&&sameFare9731(checked.data,before.data))fareAttempts9731.delete(id)}catch(_){}
+  throw Error(message);
+ }
+ if(!out||out.applied!==true)return rejectAck9731('A nuvem não confirmou a alteração da folha.');
  // An ACK without the actual record cannot prove the requested fields.
  const response=out.data;
- if(!response||typeof response!=='object'||Array.isArray(response)||sid(response.id)!==id||sid(response.employeeId)!==sid(desired.employeeId)||sid(response.month)!==sid(desired.month))throw new Error('A nuvem respondeu sem confirmar a identidade e o conteúdo da folha. Confira o registro antes de repetir.');
+ if(!response||typeof response!=='object'||Array.isArray(response)||sid(response.id)!==id||sid(response.employeeId)!==sid(desired.employeeId)||sid(response.month)!==sid(desired.month))return rejectAck9731('A nuvem respondeu sem confirmar a identidade e o conteúdo da folha. Confira o registro antes de repetir.');
  const finalData=clone(response);
  const changed=Object.keys(desired).filter(k=>k!=='updatedAt'&&!employeeEqual(base?.[k],desired[k]));
- if(changed.some(k=>!employeeEqual(finalData[k],desired[k])))throw new Error('A nuvem respondeu, mas não confirmou todos os campos alterados da folha. Confira o registro antes de repetir.');
- if(typeof verify==='function'&&!verify(finalData))throw new Error('A nuvem respondeu, mas não confirmou o valor de passagem solicitado. Reabra o lançamento antes de tentar novamente.');
+ if(changed.some(k=>!employeeEqual(finalData[k],desired[k])))return rejectAck9731('A nuvem respondeu, mas não confirmou todos os campos alterados da folha. Confira o registro antes de repetir.');
+ if(typeof verify==='function'&&!verify(finalData))return rejectAck9731('A nuvem respondeu, mas não confirmou o valor de passagem solicitado. Reabra o lançamento antes de tentar novamente.');
+ if(before){
+  const proof=await readFarePayroll9731(id,desired.employeeId,desired.month);
+  if(proof.data.paid||proof.data.paidAt||!verify(proof.data)||!sameFare9731(proof.data,finalData)||(!sameFare9731(before.data,proof.data)&&Number(proof.revision)<=Number(before.revision)))throw Error('A releitura da nuvem não confirmou o valor de passagem. Confira antes de repetir.');
+  fareAttempts9731.delete(id);
+ }
  replaceLocal(id,finalData);saveLocal();redraw();status('✅ Folha salva e compartilhada','ok');return finalData;
 }
 function editPayrollRowShared(id){
@@ -198,7 +238,9 @@ async function saveEmployeeFare(employeeId,month,value){
  if(!/^\d{4}-\d{2}$/.test(m))throw new Error('Selecione o mês da Folha.');
  const employee=findEmployee(id);
  if(!employee)throw new Error('Funcionário não encontrado. Atualize os cadastros.');
- const row=employeePayrollRow(id,m);
+ const matches=arr('payroll').filter(r=>sid(r?.employeeId)===id&&sid(r?.month)===m);
+ if(matches.length>1)throw Error('Mais de uma folha para este funcionário e mês. Confira os registros antes de alterar a passagem.');
+ const row=matches[0];
  if(!row)throw new Error('A Folha deste funcionário não está gerada para '+m+'. Gere a Folha do mês antes de ajustar a passagem.');
  if(row.paid)throw new Error('O pagamento já está marcado como PAGO. Reabra o pagamento na Folha antes de alterar a passagem, para não mudar valores pagos sem conferência.');
  const raw=sid(value).trim(),reset=raw==='';

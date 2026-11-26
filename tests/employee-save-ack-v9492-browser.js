@@ -24,7 +24,9 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
     window.__fixture.serverEmployees.set(String(id),{data:structuredClone(data),revision});
     return {applied:true,data:structuredClone(data),revision};
    };
-   window.cloudRequest=async function(q){
+   const baseRequest=window.cloudRequest;
+   window.cloudRequest=async function(q,opts){
+    if(q.includes('module=eq.payroll'))return baseRequest(q,opts);
     window.__fixture.cloudReads++;
     const id=decodeURIComponent((q.match(/entity_id=eq\.([^&]+)/)||[])[1]||'');
     if(!id)return [];

@@ -16,6 +16,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    window.hlgbPayrollView9295.render();
    const before=window.payrollCalc(row,ana);
    row.transportOverride=121; // Explicit monthly credit as on the reported payroll
+   window.hlgbRecordSnapshots.payroll.set(row.id,{revision:2,data:structuredClone(row)});
    window.hlgbPayrollView9295.render();
    const after=window.payrollCalc(row,ana);
    const z=window.db.payroll.find(x=>x.id==='p-z');

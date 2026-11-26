@@ -86,6 +86,13 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(await page.locator('#hlgbFareAmount9490').inputValue(),'19.80');
   const afterFailure=await page.evaluate(()=>window.db.payroll.find(x=>x.id==='p-z').transportOverride);
   assert.equal(afterFailure,null,'a failed ACK must not modify employee payroll');
+  // A remote paid record blocks before the write even if the local row is unpaid.
+  const remotePaid=await page.evaluate(async()=>{
+   const snap=window.hlgbRecordSnapshots.payroll.get('p-z'),n=window.__fixture.rpcCalls.length;
+   window.hlgbRecordSnapshots.payroll.set('p-z',{revision:snap.revision+1,data:{...snap.data,paid:true}});
+   try{await window.hlgbPayrollSaveStability9296.saveEmployeeFare('2','2026-11','18');return false}catch(e){return /PAGO/.test(e.message)&&window.__fixture.rpcCalls.length===n}finally{window.hlgbRecordSnapshots.payroll.set('p-z',snap)}
+  });assert.equal(remotePaid,true);
+  const duplicate=await page.evaluate(async()=>{const r=window.db.payroll.find(x=>x.id==='p-z');window.db.payroll.push({...r,id:'p-dup'});try{await window.hlgbPayrollSaveStability9296.saveEmployeeFare('2','2026-11','18');return false}catch(e){return /Mais de uma folha/.test(e.message)}finally{window.db.payroll.pop()}});assert.equal(duplicate,true);
   // A success flag alone, mismatched identity or stale data cannot prove a saved fare.
   for(const mode of ['missing-data','wrong-id','stale-value']){
    const result=await page.evaluate(async mode=>{
@@ -96,6 +103,11 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    },mode);
    assert.equal(result.rejected,true,mode);assert.equal(result.unchanged,true,mode);assert.match(result.message,/não confirmou|sem confirmar/);
   }
+  const falseReadback=await page.evaluate(async()=>{
+   const original=window.hlgbRecordSaveWithRetry,r=window.db.payroll.find(x=>x.id==='p-z'),before=JSON.stringify(r);
+   window.hlgbRecordSaveWithRetry=async(_m,_id,data)=>({applied:true,data,revision:999});
+   try{await window.hlgbPayrollSaveStability9296.saveEmployeeFare('2','2026-11','18');return false}catch(e){return /releitura/.test(e.message)&&JSON.stringify(window.db.payroll.find(x=>x.id==='p-z'))===before}finally{window.hlgbRecordSaveWithRetry=original}
+  });assert.equal(falseReadback,true);
   // Completed payments cannot silently have their amount rewritten.
   await page.evaluate(()=>{window.db.payroll.find(x=>x.id==='p-z').paid=true});
   await assert.rejects(()=>page.evaluate(()=>window.hlgbPayrollSaveStability9296.saveEmployeeFare('2','2026-11','18.00')),/PAGO/);
