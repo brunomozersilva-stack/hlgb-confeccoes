@@ -71,10 +71,16 @@
   // verified is only the normalized local row's shape, not cloud evidence. Never expose a balance.
   const projection=cash.project({startDate:asOf,openingBalanceCents:null,openingVerified:false,coverageVerified:false,entries:obligations,receiptDelayDays});
 
+  // Reuse the same normalized obligations for the production planner. This is not
+  // a bank reconciliation. Keep overdue receipts separate and overdue payments due now.
+  const plannerObligations={state:'partial-local',asOf,remoteConfirmed:false,coverageVerified:false,canWrite:false,pendingState,
+   entries:obligations.filter(e=>e.dueDate>=asOf||e.direction==='out').map(e=>({reference:'hub:'+e.id,origin:e.origin,date:e.dueDate<asOf?asOf:e.dueDate,originalDate:e.dueDate,direction:e.direction,amountCents:e.amountCents})),
+   overdueReceipts:obligations.filter(e=>e.dueDate<asOf&&e.direction==='in').map(e=>({reference:'hub:'+e.id,date:e.dueDate,amountCents:e.amountCents})),
+   omitted:issues.length};
   // Historical observation does not establish complete weeks; a missing record is null, not zero.
   const historical=recordedHistory(accepted,comparison.history,target,asOf,issues.length);
   const weeklyCash=rows=>rows.map(x=>({start:x.start,end:x.end,incomingCents:x.incomingCents,outgoingCents:x.outgoingCents,closingCents:null,shortfall:null}));
-  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',pendingEvidence:{state:pendingState,excludedCount:pendingOmitted,blockedPayrollMonths:blockedMonths.size,allPayrollBlocked,remoteConfirmed:false},observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,weeklyActions:weeklyActions(historical,projection,asOf,target,issues.length),cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
+  return {state:'local-observation-only',plannerObligations,reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',pendingEvidence:{state:pendingState,excludedCount:pendingOmitted,blockedPayrollMonths:blockedMonths.size,allPayrollBlocked,remoteConfirmed:false},observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,weeklyActions:weeklyActions(historical,projection,asOf,target,issues.length),cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
  }
 
  // Descriptive priorities, not an automated diagnosis or payment instruction.
