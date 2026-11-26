@@ -1,0 +1,24 @@
+name: HLGB Cut Single Product Link v97.05
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'hlgb-modules/producao/cut-single-product-link-v9705.js'
+      - 'tests/cut-single-product-link-v9705.cjs'
+      - 'app-stable3.html'
+      - '.github/workflows/cut-single-product-link-v9705.yml'
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check hlgb-modules/producao/cut-single-product-link-v9705.js
+      - run: node tests/cut-single-product-link-v9705.cjs

@@ -29,6 +29,7 @@
     "release-cutter-sheet-materials-v9523.js",
     "release-record-integrity.js",
     "release-cut-duplicate-repair-v95105.js",
+    "hlgb-modules/producao/cut-single-product-link-v9705.js",
     "release-notes.js",
     "release-note-integrity.js",
     "release-trade-settlement-v9422.js",
@@ -252,6 +253,7 @@
       "release-cut-model-grade-adjust.js",
       "release-cutter-sheet-materials-v9523.js",
       "release-cut-duplicate-repair-v95105.js",
+      "hlgb-modules/producao/cut-single-product-link-v9705.js",
       "hlgb-modules/producao/cortadores-grade-core-v9622.js",
       "release-cutter-planner.js",
       "release-cutter-history-v9250.js",
@@ -413,7 +415,7 @@
       "release-ui-actions-v9402.js"
     ]
   },
-  "notes": "HLGB Comercial: 187 scripts únicos, 158 baseline + 29 novos; ordem preservada.",
+  "notes": "HLGB Comercial: 190 scripts únicos, baseline preservado; módulo de recuperação dirigida v97.05 aprovado para integração mediante testes.",
   "criticalFileBlobs": {
     "app9240.html": "08da3bd98d7972a9e8008f2b9e518aa523be0b37",
     "release-cutter-planner.js": "a56f2c79df19ebb1cd86544a13976a97538d6a4e",
@@ -426,7 +428,12 @@
     "release-pricing.js": "91c44c12915a4d4988f5465d50fc64d35b4c9e06",
     "release-hub-save-proof-v9567.js": "740628ed76fb377b9d23f70bde3b065cfff997bf"
   },
-  "approvedMonolithHotfixV9691": {"previousBlob":"d0a6e49bc7bcd363c853092c350e3cf9a2b030c5","currentBlob":"08da3bd98d7972a9e8008f2b9e518aa523be0b37","scope":"saveCut9191 and hlgbAdjustCutGrade9191; prefix and suffix compared unchanged","incident":"PR 345, Chrome Yza #56; no business data change"},
+  "approvedMonolithHotfixV9691": {
+    "previousBlob": "d0a6e49bc7bcd363c853092c350e3cf9a2b030c5",
+    "currentBlob": "08da3bd98d7972a9e8008f2b9e518aa523be0b37",
+    "scope": "saveCut9191 and hlgbAdjustCutGrade9191; prefix and suffix compared unchanged",
+    "incident": "PR 345, Chrome Yza #56; no business data change"
+  },
   "sourceRefReason": "Checkpoint after Safari login #275 and WAL review #282; inventory only",
   "historicalGroupCount": 16,
   "preExtractionScripts": [
@@ -620,7 +627,8 @@
     "hlgb-modules/producao/production-planning-v9661.js",
     "hlgb-modules/producao/production-planning-view-v9661.js",
     "hlgb-modules/financeiro/rh-planning-v9636.js",
-    "hlgb-modules/financeiro/rh-live-view-v9667.js"
+    "hlgb-modules/financeiro/rh-live-view-v9667.js",
+    "hlgb-modules/producao/cut-single-product-link-v9705.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
