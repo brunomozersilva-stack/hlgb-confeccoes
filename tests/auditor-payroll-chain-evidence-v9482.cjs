@@ -5,7 +5,7 @@ const nodes=Array.from({length:5},(_,i)=>({name:i===0?'wrapped':'legacy-wrapped'
 let repairs=0;
 const window={__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9446:'94.46',
  hlgbAuditorAutoCorrect9446:{prepare:async()=>({ok:true,ready:true}),run:async()=>{repairs++;return {passes:1}}},
- hlgbAuditorAutoCorrect9441:{silentAudit:async()=>({main:{checks:[]},operations:{pending:{unique:0,records:0,wal:0}}}),repairEvents:()=>[]},
+ hlgbAuditorAutoCorrect9441:{silentAudit:async()=>({main:{checks:[{code:'fixture:ready',status:'pass'}],summary:{total:1,pass:1,warn:0,fail:0,result:'OK'}},operations:{pending:{unique:0,records:0,wal:0}}}),repairEvents:()=>[]},
  hlgbProductionReconcile9439:{candidates:async()=>[]},
  hlgbAuditorIntelligence9396:{currentMetrics:()=>({metrics:{saveDuplicateResponsibilities:1,scriptDuplicates:0,pendingUnique:0},
  saveChain:{depth:18,cycle:false,duplicateResponsibilities:[{id:'payroll-save',count:5,final:5,legacy:0}],
