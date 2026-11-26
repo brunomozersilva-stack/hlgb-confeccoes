@@ -28,7 +28,7 @@ function pendingTrackingRow(r){
 function trackingSources(index=queueIndex9713()){
  const rows=[];
  for(const c of arr('cuts')){
-  if(!activeRow9709(c)||norm(c.status)!=='finalizado')continue;
+  if(!activeRow9709(c)||norm(c.status)!=='finalizado'||c.hiddenByModelSplitV1===true||c.modelSplitParentV1===true)continue;
   const o=index.orders.get(sid(c.orderId))||null;
   const ps=(index.prodByCut.get(sid(c.id))||[]).filter(p=>activeRow9709(p)&&Number(p.planned)>0);
   if(ps.length)ps.forEach(p=>rows.push({c,o,p}));
@@ -83,7 +83,11 @@ if(typeof oldFilter==='function'&&!oldFilter.__hlgbStepQueue9528){
  const wrapped=function(){
   // A fresh local projection on each interaction avoids restoring an obsolete queue.
   window.__cutTrackRows9173=showAlreadyAssigned?trackingSources():waitingTrackingRows();
-  return oldFilter.apply(this,arguments);
+  const out=oldFilter.apply(this,arguments);
+  // Legacy renderTracking9173 can invoke its own renderer without going through
+  // the exported render wrapper. Always restore the active mode here as well.
+  updateTrackingTitle();
+  return out;
  };
  wrapped.__hlgbStepQueue9528=true;wrapped.__original=oldFilter;window.filterCutTracking9173=wrapped;
 }
@@ -91,9 +95,11 @@ function updateTrackingTitle(){
  const panel=document.getElementById('cutTracking9173');if(!panel)return;
  const title=panel.querySelector('h2');if(title)title.textContent=showAlreadyAssigned?'🔎 Cortes finalizados — histórico':'📍 Produção aguardando destino';
  const caption=panel.querySelector('.toolbar .sub');
- if(caption)caption.textContent=showAlreadyAssigned?
+ if(caption){const count=Array.isArray(window.__cutTrackRows9173)?window.__cutTrackRows9173.length:0;
+  caption.textContent=(showAlreadyAssigned?
   'Histórico de cortes finalizados, incluindo os que já têm local ou facção.':
-  'Itens com produção ainda sem local ou facção, mesmo quando há corte pendente. A confirmação do destino retira o item desta lista.';
+  'Produção sem destino confirmado, inclusive cortes pendentes.')+' '+count+' registro(s) neste modo, antes da busca. Use a opção ao lado para alternar.';
+ }
  let button=panel.querySelector('#hlgbStepQueueShowAssigned9528');
  if(!button){
   button=document.createElement('button');button.type='button';
@@ -102,12 +108,14 @@ function updateTrackingTitle(){
   if(toolbar)toolbar.appendChild(button);
   button.onclick=()=>{
    showAlreadyAssigned=!showAlreadyAssigned;
-   button.textContent=showAlreadyAssigned?'Ocultar já atribuídos':'Mostrar já atribuídos';
+   button.textContent=showAlreadyAssigned?'Ver somente pendências':'Mostrar já atribuídos — histórico completo';
+   // Filter the existing panel: no rebuild, no lost input focus.
+   try{window.filterCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] filtro',e)}
    updateTrackingTitle();
-   try{window.renderCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] filtro',e)}
   };
  }
- button.textContent=showAlreadyAssigned?'Ocultar já atribuídos':'Mostrar já atribuídos';
+ button.textContent=showAlreadyAssigned?'Ver somente pendências':'Mostrar já atribuídos — histórico completo';
+ button.setAttribute('aria-pressed',String(showAlreadyAssigned));
 }
 const oldRender=window.renderCutTracking9173;
 if(typeof oldRender==='function'&&!oldRender.__hlgbStepQueue9528){
@@ -116,8 +124,10 @@ if(typeof oldRender==='function'&&!oldRender.__hlgbStepQueue9528){
   // A rotina antiga limitava a 60 ANTES de filtrar atribuídos, fazendo
   // pendências antigas sumirem. Filtrar primeiro e limitar depois.
   // The filter wrapper builds the current projection once.
-  if(!window.filterCutTracking9173?.__hlgbStepQueue9528)window.__cutTrackRows9173=showAlreadyAssigned?trackingSources():waitingTrackingRows();
-  try{window.filterCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] atualizar cortes',e)}
+  if(!window.filterCutTracking9173?.__hlgbStepQueue9528){
+   window.__cutTrackRows9173=showAlreadyAssigned?trackingSources():waitingTrackingRows();
+   try{window.filterCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] atualizar cortes',e)}
+  }
   updateTrackingTitle();
   return out;
  };
@@ -130,8 +140,8 @@ if(typeof oldQueue==='function'&&!oldQueue.__hlgbStepQueue9528){
   const out=oldQueue.apply(this,arguments);
   // Atualiza a segunda lista após atribuição salva, sem alterar o estado de produção.
   try{if(document.getElementById('cutTracking9173')&&
-    typeof window.renderCutTracking9173==='function')
-    window.renderCutTracking9173()}catch(e){console.warn('[HLGB '+V+'] atualizar lista',e)}
+    typeof window.filterCutTracking9173==='function')
+    window.filterCutTracking9173()}catch(e){console.warn('[HLGB '+V+'] atualizar lista',e)}
   return out;
  };
  wrapped.__hlgbStepQueue9528=true;wrapped.__original=oldQueue;
