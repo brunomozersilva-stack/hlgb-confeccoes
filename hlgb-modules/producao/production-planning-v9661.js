@@ -391,5 +391,30 @@
   const pages=mode==='combined'?combined:mode==='individual'?individuals:combined+individuals;
   return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB — rascunho de corte conjunto</title><style>@page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{font:11px/1.3 Arial,sans-serif;color:#111;margin:0}h1{font-size:17px;margin:0 0 8px}h2{font-size:13px;margin:10px 0 4px}p{margin:5px 0}.warning{font-weight:bold;border:1px solid #555;padding:5px}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #777;padding:4px;overflow-wrap:anywhere}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}.sign{margin-top:20px;break-inside:avoid}.sheet+.sheet{break-before:page;page-break-before:always}@media screen{body{max-width:190mm;margin:12px auto}.sheet+.sheet{border-top:2px dashed #888;margin-top:20px;padding-top:15px}}</style></head><body>'+pages+'</body></html>';
  }
- return {jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ function unpairedModels(d,allowed){
+  if(allowed!==true||d?.state!=='discovery-only')return [];
+  const paired=new Set(d.groups.flatMap(g=>g.models.map(m=>m.key))),out=new Map();
+  for(const g of d.singleMaterialGroups||[])for(const l of g.lines||[]){
+   const key=pair(l.orderId,l.productId);if(paired.has(key))continue;
+   const m=out.get(key)||{key,orderId:l.orderId,productId:l.productId,productName:l.productName,materials:[],reason:'no-observed-partner'};
+   if(!m.materials.some(x=>x.id===g.materialId))m.materials.push({id:g.materialId,name:g.materialName});out.set(key,m);
+  }
+  for(const l of d.reviewLines||[]){
+   if(!l.orderId)continue;const key=pair(l.orderId,l.productId);if(paired.has(key))continue;
+   const m=out.get(key)||{key,orderId:l.orderId,productId:l.productId,productName:'',materials:[],reason:'review'};
+   m.reason='review';m.reviewReason=l.reason;out.set(key,m);
+  }
+  return [...out.values()].sort((a,b)=>a.productName.localeCompare(b.productName,'pt-BR')||a.orderId.localeCompare(b.orderId,'pt-BR',{numeric:true}));
+ }
+ function compareGradeOptions(group,cap,allowed){
+  if(allowed!==true)return [];
+  return gradeSuggestions(group,cap).map(p=>{
+   const summarize=(name,spreads,remaining)=>({name,spreads:spreads.length,combinedPieces:spreads.filter(s=>new Set(s.rows.filter(r=>r.planned>0).map(r=>r.key)).size>=2).reduce((n,s)=>n+s.rows.reduce((v,r)=>v+r.planned,0),0),remaining,peak:Math.max(0,...spreads.map(s=>s.rows.reduce((n,r)=>n+r.perLayer,0))),geometryVerified:false});
+   const options=[summarize('Grade exata',[{rows:p.base}],0)];
+   if(p.alternative){const rows=p.alternative.rows;options.push(summarize('Limite de folhas',[{rows}],rows.reduce((n,r)=>n+r.remainder,0)))}
+   for(const [i,v] of p.multiSpreads.entries())options.push(summarize('Múltiplos enfestos '+(i+1),v.spreads,v.remaining));
+   return {color:p.color,total:p.total,options};
+  });
+ }
+ return {unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });

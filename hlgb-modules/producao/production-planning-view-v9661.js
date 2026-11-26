@@ -92,6 +92,14 @@
   function drawGradeSuggestions(g,card,open=false){
    const details=el('details','',card);details.open=open;el('summary','Sugestão automática de grade para encaixe',details);
    const limit=maxLayers.value===''?null:Number(maxLayers.value);if(limit!==null&&(!Number.isSafeInteger(limit)||limit<1||limit>10000)){el('p','Informe um limite inteiro de 1 a 10.000 folhas.',details);return}
+   for(const group of api.compareGradeOptions(g,limit,active())){
+    el('h4','Comparação matemática · '+group.color,details);
+    const wrap=el('div','',details);wrap.style.cssText='overflow:auto;max-width:100%';
+    const t=el('table','',wrap),h=el('tr','',el('thead','',t));
+    for(const x of ['Opção','Enfestos','Peças em conjunto','Restantes','Máx. pç/folha'])el('th',x,h);
+    const body=el('tbody','',t);
+    for(const opt of group.options){const tr=el('tr','',body);for(const x of [opt.name,opt.spreads,opt.combinedPieces,opt.remaining,opt.peak])el('td',String(x),tr)}
+   }
    for(const v of api.gradeSuggestions(g,limit)){
     const area=el('section','',details);el('h4',v.color+' · '+fmt(v.total)+' peças · '+fmt(v.layers)+' folhas (divisão matemática)',area);
     el('p',v.modelCount>=2?'Combinação de pedidos/modelos da mesma cor informada.':'Apenas um pedido/modelo nesta cor; não misturar cores sem conferir o tecido físico.',area);
@@ -172,6 +180,15 @@
    el('p',(x.plannedRows||0)+' registros planejados reconhecidos · '+(x.blockedActivityPairs||0)+' vínculos com atividade/estado a conferir.',out);
    if(x.adjustedRows||x.duplicatePlannedPairs)el('p',fmt(x.adjustedRows||0)+' cortes com ajuste de grade e '+fmt(x.duplicatePlannedPairs||0)+' vínculos planejados duplicados retirados da sugestão para conferência.',out);
    if(x.unlinkedActivity)el('p','Há atividade sem pedido vinculado; disponibilidade exige revisão.',out);
+   const singles=api.unpairedModels(x,active());
+   const unpaired=el('details','',out);el('summary','Sem combinação observada / precisam de revisão ('+singles.length+')',unpaired);
+   el('p','Não são saldos confirmados. Ausência de par na consulta local não comprova incompatibilidade física.',unpaired);
+   const reviewText={'no-canonical-material':'Material cortável não identificado','written-off-or-blocked':'Baixa ou bloqueio registrado','ambiguous-grade-or-product':'Grade ou produto ambíguo','invalid-grade':'Grade inválida','missing-grade':'Grade ausente','ambiguous-order':'Pedido ambíguo'};
+   const singleList=el('div','',unpaired);let singleOffset=0;
+   const filteredSingles=singles.filter(m=>tokens.every(t=>norm([m.orderId,m.productId,m.productName,...m.materials.map(z=>z.name)].join(' ')).includes(t)));
+   const moreSingles=button('Mais registros sem combinação',unpaired,()=>appendSingles());
+   function appendSingles(){for(const m of filteredSingles.slice(singleOffset,singleOffset+30))el('p','Pedido ID '+m.orderId+' · '+(m.productName||'Modelo ID '+(m.productId||'não identificado'))+' · '+(m.reason==='review'?(reviewText[m.reviewReason]||'Conferir cadastro'):'Nenhum outro pedido/modelo candidato com o mesmo material nesta consulta: '+m.materials.map(z=>z.name).join(', ')),singleList);singleOffset+=30;moreSingles.hidden=singleOffset>=filteredSingles.length}
+   appendSingles();
    let history=null,materialHistory=null;
    for(const g of groups.slice(offset,offset+15)){
     const card=el('article','',out);card.className='panel';card.dataset.jointMaterial9714=g.materialId;card.style.cssText='min-width:0;max-width:100%;border:1px solid #ddd;border-radius:12px;padding:14px;box-sizing:border-box';el('h3',g.materialName+' · ID '+g.materialId,card);el('p',fmt(g.orderedPieces)+' peças pedidas em '+g.models.length+' modelos/pedidos candidatos.',card);const coverage=byMaterial.get(g.materialId);el('p',coverage?.sharedColors.length?'Cores de grade em comum: '+coverage.sharedColors.join(', '):'Não há cor de grade compartilhada por dois candidatos. Não comprova cor física do tecido.',card);

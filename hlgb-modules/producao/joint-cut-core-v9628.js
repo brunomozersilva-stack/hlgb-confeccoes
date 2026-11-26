@@ -61,7 +61,7 @@
    const out={...g,pieces:a.reduce((v,x)=>v+x.available,0),combinedGrade:[...sizes].map(([size,qty])=>({size,qty})),baselineNeed:a.every(x=>x.baselineNeed!==null)?a.reduce((v,x)=>v+x.baselineNeed,0):null,optimizedNeed:null,savings:null,mode:'simulation-only'};
    (combined(a)?suggestions:singletons).push(out);
   }
-  return {suggestions,singletons,discovery:[...discovery.values()].filter(g=>combined(g.lines)).map(g=>({...g,mode:'unverified-material-match'})),excluded,mode:'read-only',geometryVerified:false};
+  return {suggestions,singletons,materialCandidates:[...discovery.values()],discovery:[...discovery.values()].filter(g=>combined(g.lines)).map(g=>({...g,mode:'unverified-material-match'})),excluded,mode:'read-only',geometryVerified:false};
  }
  return {plan};
 })());

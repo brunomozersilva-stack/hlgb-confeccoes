@@ -43,17 +43,18 @@
   // A live aggregate and an individual placeholder for the same order are ambiguous.
   for(const key of plannedPairs.keys()){const [oid,pid]=JSON.parse(key);if(pid!=='*'&&plannedPairs.has(JSON.stringify([oid,'*']))){activity.add(JSON.stringify([oid,'*']));}}
   for(const x of db.production){if(!x||deleted(x))continue;if(!id(x.orderId)){uncertain=true;continue}activity.add(JSON.stringify([id(x.orderId),id(x.productId)||'*']));}
-  const groups=[];
-  for(const g of plan.discovery){
+  const groups=[],singleMaterialGroups=[];
+  for(const g of plan.materialCandidates||plan.discovery){
    const seen=new Set(),lines=[];
    for(const x of g.lines){const k=JSON.stringify([x.orderId,x.productId,x.color,x.size]);if(seen.has(k))continue;seen.add(k);
     if(activity.has(JSON.stringify([x.orderId,x.productId]))||activity.has(JSON.stringify([x.orderId,'*'])))continue;
     lines.push({orderId:x.orderId,productId:x.productId,productName:x.productName,color:x.color,size:x.size,ordered:x.ordered});
    }
-   if(new Set(lines.map(x=>x.productId)).size<2&&new Set(lines.map(x=>x.orderId)).size<2)continue;
-   groups.push({materialId:g.materialId,materialName:g.materialName,lines,orderedPieces:lines.reduce((a,x)=>a+x.ordered,0)});
+   if(!lines.length)continue;
+   const row={materialId:g.materialId,materialName:g.materialName,lines,orderedPieces:lines.reduce((a,x)=>a+x.ordered,0)};
+   if(new Set(lines.map(x=>x.productId)).size<2&&new Set(lines.map(x=>x.orderId)).size<2)singleMaterialGroups.push(row);else groups.push(row);
   }
-  return {state:'discovery-only',groups,excludedCount:plan.excluded.length,plannedRows,adjustedRows,duplicatePlannedPairs,blockedActivityPairs:activity.size,unlinkedActivity:uncertain,verifiedAvailable:null,reason:'Quantidades pedidas, não saldo disponível. Conferir nuvem, WAL, lotes e grade antes de cortar.'};
+  return {state:'discovery-only',groups,singleMaterialGroups,reviewLines:plan.excluded.filter(x=>x.reason!=='unverified-balance'),excludedCount:plan.excluded.length,plannedRows,adjustedRows,duplicatePlannedPairs,blockedActivityPairs:activity.size,unlinkedActivity:uncertain,verifiedAvailable:null,reason:'Quantidades pedidas, não saldo disponível. Conferir nuvem, WAL, lotes e grade antes de cortar.'};
  }
  return {discover};
 });
