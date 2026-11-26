@@ -117,3 +117,22 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(JSON.stringify(db),before);
  console.log('PASS complete material compatibility across order states and colors');
 })();
+
+
+(function partialProductionWithPlannedModels(){
+ const products=[{id:10,name:'Camisola Juliana',materials:[{materialId:1,qty:0}]},{id:11,name:'Camisola Leticia',materials:[{materialId:1,qty:0}]},{id:12,name:'Outro modelo',materials:[{materialId:1,qty:0}]}];
+ const a={productId:10,color:'Cronos',size:'P',qty:30},b={productId:11,color:'Rubi',size:'M',qty:40},c={productId:12,color:'Preto',size:'G',qty:20};
+ const orders=[{id:2,orderNumber:2,status:'Pedido em produção',grade:[a,c]},{id:50,orderNumber:50,status:'Pedido em produção',grade:[b,c]},{id:51,orderNumber:51,status:'Pedido em produção',grade:[b]},{id:52,status:'Corte finalizado',grade:[b]}];
+ const child=(oid,pid,g,parent)=>({id:oid*100+pid,orderId:oid,productId:pid,status:'Planejado',pieces:g.qty,modelSplitChildV1:true,modelSplitFromParentCutId:parent,modelSplitFromOrderId:oid,originalGrade:[g],actualCutGrade:[g]});
+ const parent=oid=>({id:oid*100,orderId:oid,status:'Desmembrado por modelo',modelSplitParentV1:true,hiddenByModelSplitV1:true});
+ const cuts=[parent(2),child(2,10,a,200),{...child(2,12,c,200),status:'Finalizado'},parent(50),child(50,11,b,5000),{...child(50,12,c,5000),status:'Finalizado'},{id:5100,orderId:51,productId:11,status:'Finalizado'}];
+ const db={orders,products,materials:[{id:1,name:'Romantic',cat:'Tecido'}],cuts,production:[{id:999,orderId:2,productId:12}],operationalWriteoffs:[]},auth={pairIndex:()=>new Set()},before=JSON.stringify(db);
+ const d=plan.discover(db,auth,true);assert.equal(d.groups.length,1);assert.equal(d.groups[0].orderedPieces,70);
+ assert.deepEqual(d.groups[0].models.map(m=>m.orderNumber).sort(),['2','50']);
+ assert.equal(plan.gradeSuggestions(d.groups[0]).length,2);
+ const full=plan.orderMaterialCompatibility(db,d,true);assert.ok(full.models.some(m=>m.orderNumber==='52'&&!m.planningEligible));assert.ok(full.models.some(m=>m.orderNumber==='51'&&!m.planningEligible));
+ assert.equal(plan.discover(db,{pairIndex:()=>new Set(['50|11'])},true).groups.length,0);
+ assert.equal(plan.discover({...db,cuts:[...cuts,child(50,11,b,5000)]},auth,true).groups.length,0);
+ assert.equal(JSON.stringify(db),before);
+ console.log('PASS planned model eligibility inside production order');
+})();
