@@ -5,6 +5,7 @@ on:
     paths:
       - 'release-faction-material-refresh-v9522.js'
       - 'app-stable3.html'
+      - 'app9240.html'
       - 'tests/faction-material-refresh-v9522*'
       - '.github/workflows/faction-material-refresh-v9522.yml'
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - 'release-faction-material-refresh-v9522.js'
       - 'app-stable3.html'
+      - 'app9240.html'
       - 'tests/faction-material-refresh-v9522*'
       - '.github/workflows/faction-material-refresh-v9522.yml'
 permissions:
