@@ -91,6 +91,17 @@ const kind=process.env.HLGB_BROWSER||'chromium';
    assert.match(await first.locator('.ops-route-carry').nth(1).inputValue(),/Calcinha Penelope/,'Other stop unchanged');
    console.log('PASS '+kind+' — no implicit Roseli, independent stop and manual text safe');
   }finally{await first.close()}
+  const off=await fixture();
+  try{
+   await off.evaluate(()=>{db.capacityAssignments.push({id:'cap-ro',orderId:'ord1',productId:'pr',factionId:'ro',pieces:100});db.production.push({id:'other-order',orderId:'ord2',productId:'pr',factionId:'ro',planned:40,done:0});window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set(['ord1|pr'])};window.addRouteStop9249()});
+   await off.locator('.ops-route-loc').first().selectOption('0');
+   const lines=await off.locator('.ops-route-carry').first().inputValue();assert.doesNotMatch(lines,/100 pç/);assert.match(lines,/40 pç/);assert.equal(await off.locator('[data-route-item9249]').count(),1);
+   // A previously selected exact item can become written off while a route draft is open.
+   await off.evaluate(()=>{window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set(['ord1|pr','ord2|pr'])}});
+   await off.locator('.ops-route-carry').first().fill(lines+'\nConferir etiquetas');
+   await off.evaluate(()=>window.modalSave());assert.match(await off.locator('#opsRouteCloudStatus9534').textContent(),/já baixado operacionalmente/);assert.equal(await off.evaluate(()=>window.__sentRouteRows.length),0);assert.match(await off.locator('.ops-route-carry').first().inputValue(),/Conferir etiquetas/);
+   await off.locator('.ops-route-carry').first().fill('Conferir etiquetas');await off.evaluate(()=>window.modalSave());assert.equal(await off.evaluate(()=>window.__sentRouteRows.length),1);
+  }finally{await off.close()}
   // Reproduce the reported case with anonymized fixture IDs: assignments exist
   // remotely, but the browser still holds only an older production snapshot.
   const edit=await fixture();
