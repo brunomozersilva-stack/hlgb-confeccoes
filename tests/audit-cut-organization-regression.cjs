@@ -50,3 +50,8 @@ assert.equal(identify("hlgbEditCut9189('cut-48')","finishCut('cut-48')"),'cut-48
 assert.equal(identify("editCut('cut-48')","finishCut('cut-49')"),'','conflicting row IDs must not open an editor');
 assert.equal(identify("viewCutGradeComparison(48)"),'48');
 console.log('PASS combined client/date/value filters and unknown-value protection');
+
+const grade=[{productId:10,color:'Preto',size:'P',qty:30},{productId:11,color:'Preto',size:'M',qty:40}];
+const order={id:99,status:'Pedido finalizado',grade,total:1000};const inv={id:'N1',items:[{orderId:99,productId:10,qty:30}]};const beforeProof=JSON.stringify([order,inv]);const check=(invs,pairs=[])=>api.merchandiseEvidence9755([order],invs,vm.runInContext('new Set('+JSON.stringify(pairs)+')',context)).get('99');
+assert.equal(check([]).hide,false);assert.equal(check([inv]).reason,'partial');assert.equal(check([inv],['99|11']).hide,true);assert.equal(check([],['99|10','99|11']).hide,true);assert.equal(check([],['99|*']).hide,false);assert.equal(check([inv,{...inv}]).hide,false);assert.equal(check([{...inv,status:'Cancelada'}],['99|11']).hide,false);assert.equal(check([{...inv,manualNote:true}],['99|11']).hide,false);assert.equal(check([{...inv,items:[{orderId:99,productId:10,qty:31}]}],['99|11']).reason,'review');assert.equal(check([{...inv,items:[{orderId:98,productId:10,qty:30}]}],['99|11']).hide,false);assert.equal(JSON.stringify([order,inv]),beforeProof);
+console.log('PASS open merchandise evidence');
