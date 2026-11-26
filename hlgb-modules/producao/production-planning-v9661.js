@@ -651,5 +651,55 @@
   }
   return {...empty('local-cash-scenario',issues),openingCents:opening,reserveCents:reserve,baseline:simulate('baseline'),planned:simulate('planned'),early:simulate('early'),stress:simulate('stress'),opportunities,additionalCount:candidates.length,partial:issues.length>0};
  }
- return {deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Capacity per sequential stage, with explicitly reviewed history and initial WIP.
+ function productionStageGoals(input,allowed){
+  const empty=(state,issues=[])=>({state,issues,stages:[],days:[],canWrite:false,canPromise:false});
+  if(allowed!==true)return empty('forbidden');
+  const day=86400000,dt=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?Date.parse(s+'T00:00:00Z'):null,iso=n=>new Date(n).toISOString().slice(0,10),qty=n=>Number.isSafeInteger(n)&&n>=0&&n<=10000000;
+  const start=dt(input?.start),goal=input?.goal,buffer=input?.bufferPercent,stages=input?.stages;
+  if(start===null||!qty(goal)||!Number.isSafeInteger(buffer)||buffer<0||buffer>90||!Array.isArray(stages)||stages.length<2||stages.length>10||!Array.isArray(input.closedDates)||input.closedDates.length>31)return empty('invalid-input');
+  const closed=new Set();for(const v of input.closedDates){const n=dt(v);if(n===null)return empty('invalid-calendar');closed.add(n)}
+  const keys=new Set(),issues=[],result=[];
+  for(const [i,s] of stages.entries()){
+   const key=id(s?.key),name=id(s?.name);
+   if(!key||!name||keys.has(key)||s.manualCapacity!==null&&!qty(s.manualCapacity)||!qty(s.initialWip)||!Array.isArray(s.history)||s.history.length>12||!Array.isArray(s.teams)||s.teams.length>100)return empty('invalid-stage');
+   if(i===0&&s.initialWip!==0)return empty('invalid-initial-wip');keys.add(key);
+   const dates=new Set(),samples=[];
+   for(const h of s.history){const t=dt(h?.week);if(t===null||new Date(t).getUTCDay()!==1||t+6*day>=start||dates.has(t)||!qty(h.pieces))return empty('invalid-history');dates.add(t);if(h.confirmed===true)samples.push(h.pieces)}
+   samples.sort((a,b)=>a-b);const average=samples.length?Math.round(samples.reduce((a,b)=>a+b,0)/samples.length):null,conservative=samples.length>=4?samples[Math.floor((samples.length-1)*.25)]:null;
+   const basis=s.manualCapacity===null?conservative:conservative===null?s.manualCapacity:Math.min(s.manualCapacity,conservative);
+   const teamKeys=new Set(),teams=[];
+   for(const t of s.teams){const k=id(t?.key),n=id(t?.name);if(!k||!n||teamKeys.has(k)||!qty(t.capacity))return empty('invalid-team');teamKeys.add(k);teams.push({key:k,name:n,capacity:t.capacity})}
+   const teamTotal=teams.reduce((a,t)=>a+t.capacity,0),bounded=teams.length&&basis!==null?Math.min(basis,teamTotal):basis;
+   const capacity=bounded===null?null:Math.floor(bounded*(100-buffer)/100);
+   if(capacity===null)issues.push('capacidade-desconhecida:'+key);
+   if(samples.length<4)issues.push('historico-insuficiente:'+key);
+   if(s.initialWip>0&&s.wipConfirmed!==true)issues.push('estoque-em-processo-nao-conferido:'+key);
+   result.push({key,name,average,conservative,sampleCount:samples.length,capacity,initialWip:s.wipConfirmed===true?s.initialWip:0,teams,done:0,teamAssigned:0,teamAllocations:[]});
+  }
+  const workDates=Array.from({length:7},(_,i)=>start+i*day).filter(n=>{const d=new Date(n).getUTCDay();return d!==0&&d!==6&&!closed.has(n)});
+  const days=[],unknown=result.some(s=>s.capacity===null);
+  // Same-day hand-off is not assumed: upstream work becomes available next working day.
+  const wip=result.map(s=>s.initialWip),limits=result.map(s=>s.capacity===null?null:Math.floor(s.capacity*workDates.length/5));
+  if(!unknown)for(const [j,date] of workDates.entries()){
+   const completed=result.map((s,i)=>{const limit=Math.floor(limits[i]/workDates.length)+(j<limits[i]%workDates.length?1:0),remaining=Math.max(0,goal-s.done);
+    return Math.min(limit,remaining,i===0?remaining:wip[i])});
+   for(let i=0;i<result.length;i++){const s=result[i];s.done+=completed[i];if(i>0)wip[i]-=completed[i];if(i+1<result.length)wip[i+1]+=completed[i]}
+   days.push({date:iso(date),stages:result.map((s,i)=>({key:s.key,pieces:completed[i],wipAfter:wip[i]}))});
+  }
+  // Largest-remainder proportional division, never over individual stated capacity.
+  for(const [i,s] of result.entries()){
+   if(unknown||!s.teams.length)continue;
+   const limits=s.teams.map(t=>Math.floor(t.capacity*(100-buffer)*workDates.length/500)),sum=limits.reduce((a,b)=>a+b,0);
+   const take=Math.min(s.done,sum),shares=s.teams.map((t,i)=>({key:t.key,name:t.name,capacity:limits[i],pieces:sum?Math.floor(take*limits[i]/sum):0,fraction:sum?take*limits[i]%sum:0}));
+   let left=take-shares.reduce((a,t)=>a+t.pieces,0);for(const t of shares.slice().sort((a,b)=>b.fraction-a.fraction||a.key.localeCompare(b.key))){if(left&&t.pieces<t.capacity){t.pieces++;left--}}
+   s.teamAllocations=shares.map(({fraction,...t})=>t);s.teamAssigned=take-left;
+   if(s.teamAssigned<s.done)issues.push('divisao-equipe-incompleta:'+s.key);
+  }
+  const capacities=result.map((s,i)=>({key:s.key,name:s.name,capacity:limits[i]})),known=capacities.filter(s=>s.capacity!==null);
+  const bottleneck=known.length?Math.min(...known.map(s=>s.capacity)):null,final=unknown?null:result.at(-1).done;
+  return {...empty('local-stage-goals',issues),goal,workdays:workDates.length,stages:result.map((s,i)=>({...s,periodCapacity:limits[i],simulatedPieces:unknown?null:s.done,remainingGoal:unknown?null:Math.max(0,goal-s.done),endingWip:unknown?null:wip[i]})),days,bottlenecks:unknown?[]:known.filter(s=>s.capacity===bottleneck),simulatedDeliveries:final,goalGap:final===null?null:Math.max(0,goal-final),partial:issues.length>0||unknown};
+ }
+ return {productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
