@@ -1,9 +1,11 @@
 'use strict';
-const assert=require('node:assert/strict'),{chromium,webkit}=require('playwright');
+const assert=require('node:assert/strict'),{chromium,webkit}=require('playwright'),fs=require('node:fs');
+const vm=require('node:vm'),router=fs.readFileSync('app-stable3.html','utf8');const beginPatch=router.indexOf('function addFactionGroupEntry9738(html){'),endPatch=router.indexOf('h=addFactionGroupEntry9738(h);',beginPatch);assert(beginPatch>=0&&endPatch>beginPatch);const transform=vm.runInNewContext(router.slice(beginPatch,endPatch)+';addFactionGroupEntry9738',{console});const base=fs.readFileSync('app9240.html','utf8'),actual=transform(base);assert.notEqual(actual,base);assert.equal(transform(actual),actual);assert.equal(actual.split('id="hlgbGroupButton9734"').length,2);const from=actual.indexOf('<section id="faccoes" class="page">'),to=actual.indexOf('</section>',from);assert(from>=0&&to>from);const realFactionPage=actual.slice(from,to+10);
 const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 (async()=>{
  const browser=await engine.launch({headless:true});
  try{
+  const entry=await browser.newPage({viewport:{width:390,height:844}});await entry.setContent(realFactionPage);const native=entry.locator('#hlgbGroupButton9734');assert.equal(await native.count(),1);assert.equal(await native.isVisible(),true);assert.match(await native.innerText(),/Calculadora de matéria-prima/);assert.equal(await native.evaluate(el=>el.closest('.toolbar').previousElementSibling.className),'sub');await entry.close();
   const page=await browser.newPage({viewport:{width:1180,height:900},serviceWorkers:'block'});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:4173/tests/faction-material-refresh-v9522-fixture.html',{waitUntil:'domcontentloaded',timeout:30000});
@@ -81,14 +83,18 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    payments:(db.factionPayments||[]).length}));
   assert.equal(data.posts,2);assert.equal(data.count,6);await direct.waitFor({state:'detached'});assert.equal(data.kg,21.5);assert.equal(data.payments,0);
   // Actual checklist selection UI, isolated from all commercial writes.
-  await page.evaluate(()=>{
-   const panel=document.createElement('section');panel.id='factionChecklistPanel9176';panel.innerHTML='<div class="toolbar"></div>';document.body.appendChild(panel);
-   window.canOpenPage=()=>true;window.currentUser=()=>({id:'fixture'});
+  await page.evaluate(real=>{
+   document.getElementById('factionChecklistTable9176').remove();document.body.insertAdjacentHTML('beforeend',real);
+   window.__HLGB_AUTH_READY=false;window.cloudUser=null;window.canOpenPage=()=>true;window.currentUser=()=>({id:'fixture'});window.hlgbFactionMaterialRefresh9522.ensurePanel();
+   if(!document.getElementById('hlgbGroupButton9734'))throw Error('Native button removed before login');
+   window.__HLGB_AUTH_READY=true;
    const previous=window.openModal;window.openModal=(...args)=>{previous(...args);document.getElementById('modal').classList.add('show')};
    db.products.forEach(p=>p.materials.forEach(m=>{m.cat=m.name==='Romantic'?'Tecido':/^renda/i.test(m.name)?'Renda':'Aviamento'}));
    for(const c of db.materialChecklists)c.materials=window.hlgbFactionMaterialRefresh9522.buildMaterials(db.products.find(p=>p.id===c.productId),c.qty,'F',c);
    window.__groupBefore=JSON.stringify(db);window.hlgbFactionMaterialRefresh9522.ensurePanel();
-  });
+  },realFactionPage);
+  assert.equal(await page.locator('#hlgbGroupButton9734').count(),1);
+  await page.evaluate(()=>{window.canOpenPage=id=>id!=='materiais';window.hlgbFactionMaterialRefresh9522.ensurePanel()});await page.locator('#hlgbGroupButton9734').click();assert.match(await page.evaluate(()=>window.__alerts.at(-1)),/acesso/);await page.evaluate(()=>{window.canOpenPage=()=>true});
   await page.setViewportSize({width:390,height:844});await page.locator('#hlgbGroupButton9734').click();
   await page.locator('#hlgbGroupSearch9734').fill('Crystal');await page.locator('#hlgbGroupAll9734').click();await page.locator('#hlgbGroupSearch9734').fill('Melanie');await page.locator('#hlgbGroupAll9734').click();
   assert.match(await page.locator('#hlgbGroupOutput9734').innerText(),/2 envios · 364 peças/);assert.match(await page.locator('#hlgbGroupOutput9734').innerText(),/Alca Papiro/);assert.doesNotMatch(await page.locator('#hlgbGroupOutput9734 table').first().innerText(),/Romantic|Renda/i);

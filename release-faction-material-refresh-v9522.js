@@ -272,9 +272,9 @@ function groupReport9734(result){
  '<h3>Distribuição por envio</h3>'+result.models.map(m=>'<details><summary>'+esc(m.product)+' · '+esc(m.destination)+' · '+fmt(m.pieces)+' peças · envio '+esc(m.id)+'</summary>'+groupTable9734(m.items)+'</details>').join('');
 }
 function groupAccess9734(){try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('faccoes')&&canOpenPage('produtos')&&canOpenPage('materiais')}catch(_){return false}}
-function groupActor9734(){try{return sid(typeof cloudUser!=='undefined'?cloudUser?.id:typeof currentUser==='function'?currentUser()?.id:'')}catch(_){return ''}}
+function groupActor9734(){try{const local=typeof currentUser==='function'?currentUser():null,cloud=typeof cloudUser!=='undefined'?cloudUser:window.cloudUser;const a=sid(local?.id),b=sid(cloud?.id||cloud?.email);return a||b?JSON.stringify([a,b]):''}catch(_){return ''}}
 function openGroup9734(){
- const actor=groupActor9734();if(!groupAccess9734()||!actor||typeof openModal!=='function')return;
+ const actor=groupActor9734();if(!groupAccess9734()||!actor){alert('A calculadora precisa de uma sessão confirmada e acesso a Envios para Facção, Produtos e Materiais. Confira seu acesso.');return}if(typeof openModal!=='function'){alert('A janela da calculadora não carregou. Atualize a página.');return}
  const selected=new Set();
  openModal('Separação em grupo — Facções','<div id="hlgbGroupMaterials9734" style="min-width:0;max-width:100%"><p class="sub">Marque os envios ainda não conferidos. Soma somente materiais do checklist de facção, sem tecido/renda de corte. Não registra baixa nem altera estoque.</p><label>Buscar modelo, facção ou pedido <input id="hlgbGroupSearch9734" type="search" style="width:100%;box-sizing:border-box"></label><div class="toolbar" style="flex-wrap:wrap"><button type="button" class="secondary" id="hlgbGroupAll9734">Selecionar visíveis</button><button type="button" class="secondary" id="hlgbGroupClear9734">Limpar seleção</button></div><div id="hlgbGroupChoices9734" style="max-height:260px;overflow:auto"></div><div id="hlgbGroupOutput9734" role="status"></div><button type="button" class="secondary" id="hlgbGroupPrint9734" disabled>Imprimir resumo</button> <button type="button" class="secondary" onclick="closeModal()">Fechar</button></div>',()=>{});
  const root=document.getElementById('hlgbGroupMaterials9734');if(!root)return;
@@ -291,9 +291,10 @@ function openGroup9734(){
 }
 function ensureGroupButton9734(){
  const panel=document.getElementById('factionChecklistPanel9176'),toolbar=panel?.querySelector?.('.toolbar'),old=document.getElementById('hlgbGroupButton9734');
- if(!groupAccess9734()||!groupActor9734()||!toolbar){old?.remove?.();return}
- if(old)return;
- const button=document.createElement('button');button.id='hlgbGroupButton9734';button.type='button';button.className='secondary';button.textContent='Separação em grupo';button.onclick=openGroup9734;toolbar.appendChild(button);
+ // The commercial HTML owns the permanent entry. Never delete it at boot or logout.
+ if(old){old.onclick=openGroup9734;return}
+ if(!groupAccess9734()||!groupActor9734()||!toolbar)return;
+ const button=document.createElement('button');button.id='hlgbGroupButton9734';button.type='button';button.className='primary';button.textContent='Calculadora de matéria-prima — Separação em grupo';button.dataset.hlgbGroupFallback9738='1';button.onclick=openGroup9734;toolbar.appendChild(button);
 }
 
 function ensurePanel(){
@@ -582,12 +583,12 @@ function install(){
  // Atualiza o aviso ao voltar à aba dos envios após editar fichas ou sincronizar outra sessão.
  try{window.addEventListener('focus',()=>setTimeout(ensurePanel,120))}catch(e){}
  try{document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(ensurePanel,120)})}catch(e){}
- try{window.addEventListener('hlgb:logout',()=>{document.getElementById('hlgbGroupButton9734')?.remove();document.getElementById('hlgbGroupMaterials9734')?.replaceChildren()});window.addEventListener('hlgb:authenticated',()=>setTimeout(ensureGroupButton9734,0))}catch(_){}
+ try{window.addEventListener('hlgb:logout',()=>{const b=document.getElementById('hlgbGroupButton9734');if(b?.dataset.hlgbGroupFallback9738==='1')b.remove();document.getElementById('hlgbGroupMaterials9734')?.replaceChildren()});window.addEventListener('hlgb:authenticated',()=>setTimeout(ensureGroupButton9734,0))}catch(_){}
  state.installed=true;setTimeout(ensurePanel,100);
 }
 window.hlgbFactionMaterialRefresh9522={version:V,state,install,analyze,buildMaterials,compare,openReview,reloadAndSave,ensurePanel,
  groupPlan:groupPlan9734,groupCandidates:groupCandidates9734,openGroup:openGroup9734,test:{materialKey,isRelevantPending,comparisonRows,comparisonTable,gradeRowsForChecklist,rollDetails,assignmentMaterials9730,sewingMaterial9734}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-try{window.hlgbAfterLogin?.(()=>setTimeout(install,200),0)}catch(e){}
+try{window.hlgbAfterLogin?.(()=>setTimeout(()=>{install();ensureGroupButton9734()},200),0)}catch(e){}
 setTimeout(install,1500);
 })();
