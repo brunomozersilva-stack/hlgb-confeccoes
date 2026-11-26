@@ -74,7 +74,7 @@ async function remote(module,id){
 }
 function compare(current,cloud){
  const fields=['id','status','paidAmount','discountAmount','value','quantity','factionName',
-  'factionMasterId','factionServiceId','manualGroupId','description','paymentDate','paymentMethod'];
+  'factionMasterId','factionServiceId','manualGroupId','description','paymentDate','paymentMethod','source','deliveryId','serviceModeV9577','noteQueueId'];
  return fields.every(f=>sid(current?.[f])===sid(cloud?.[f]));
 }
 async function verifyPayment(id){
@@ -84,6 +84,28 @@ async function verifyPayment(id){
  const row=await remote('factionPayments',id);
  if(!compare(local,row.data))throw Error('O pagamento mudou na nuvem. Recarregue a página antes de alterar.');
  return row;
+}
+// Same delivery limit as the normal Acertos guard, with the current server rows.
+async function verifyDeliveryBalance9739(p){
+ const fid=sid(p.factionServiceId),local=arr('factions').find(f=>sid(f.id)===fid);
+ const explicit=!p.manual&&(!p.serviceModeV9577||p.serviceModeV9577==='faccao')&&(/^faction_delivery(?:_|$)/.test(norm(p.source))||!!sid(p.deliveryId));
+ if(!explicit&&local?.paymentByDeliveryV9135!==true)return;
+ if(!fid||typeof root.hlgbFactionPaymentOverAccounted!=='function')throw Error('Proteção de entrega indisponível; não registre a baixa.');
+ if(!local||root.hlgbFactionPaymentOverAccounted(local))throw Error('Saldo de entregas local inconsistente; confira os pagamentos antes da baixa.');
+ const fr=await remote('factions',fid),f=fr.data;
+ if(!f||sid(f.id)!==fid||sid(f.done)!==sid(local.done)||sid(f.sent)!==sid(local.sent))
+  throw Error('Saldo da entrega mudou na nuvem. Atualize antes da baixa.');
+ const records=await root.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.factionPayments&data->>factionServiceId=eq.'+encodeURIComponent(fid)+'&deleted_at=is.null&limit=500',{method:'GET'});
+ if(!Array.isArray(records)||records.length>=500)throw Error('Não foi possível conferir todos os pagamentos desta entrega.');
+ const rows=[],ids=new Set();
+ for(const r of records){
+  const x=r?.data,id=sid(r?.entity_id);
+  if(!id||ids.has(id)||r.module!=='factionPayments'||r.deleted_at||sid(x?.id)!==id||sid(x?.factionServiceId)!==fid||!Number.isInteger(Number(r.revision))||Number(r.revision)<1)throw Error('Vínculos de pagamento inconsistentes na nuvem.');
+  ids.add(id);rows.push(x);
+ }
+ const own=rows.find(x=>sid(x.id)===sid(p.id));
+ if(!own||!compare(own,p)||root.hlgbFactionPaymentOverAccounted(f,rows))
+  throw Error('Saldo de entregas ou pagamento duplicado na nuvem. Confira antes da baixa.');
 }
 async function hubCheck(paymentId){
  const rows=await root.cloudRequest('hlgb_records?select=entity_id,data,deleted_at'+
@@ -175,6 +197,7 @@ async function markPreviouslyPaid(id,date,method,note,reference=''){
    throw Error('Já existe histórico de pagamento. Concilie antes de registrar novamente.');
   if((await hubCheck(id)).length)
    throw Error('Já existe uma saída vinculada a este pagamento no Hub. Concilie a saída anterior antes.');
+  await verifyDeliveryBalance9739(p);
   const netCents=cents(p.value)-cents(p.discountAmount);
   if(netCents<=0||netCents>cents(p.value))
    throw Error('Valor líquido incoerente; confira abatimentos antes de marcar como pago.');
