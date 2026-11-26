@@ -63,13 +63,17 @@ function ensureGradeAction9722(row,cut,model){
  const selector='.hlgb9191-grade-btn,.hlgbAdjustSplitGradeBtn,[data-hlgb-grade-action9722]';
  const buttons=Array.from(row.querySelectorAll(selector));
  // Existing canonical button keeps its original handler and placement.
- const canonical=buttons.find(b=>!b.hasAttribute('data-hlgb-grade-action9722')&&!b.closest('details'));
+ const canonical=buttons.find(b=>!b.hasAttribute('data-hlgb-grade-action9722')&&!b.closest('details'))||buttons.find(b=>!b.hasAttribute('data-hlgb-grade-action9722'));
  const duplicate=split&&typeof window.hlgbCutModelSplit?.competingModelCuts==='function'&&window.hlgbCutModelSplit.competingModelCuts(cut).length>1;
- if(canonical){buttons.filter(b=>b!==canonical&&b.hasAttribute('data-hlgb-grade-action9722')).forEach(b=>b.remove());return}
+ const host=model?(row.querySelector('[data-hlgb-grade-group9711] > .toolbar')||Array.from(row.querySelectorAll('.toolbar')).find(n=>!n.closest('details'))||row):row.lastElementChild;
+ if(canonical){
+  // Move an existing editor out of a collapsed details element, preserving its handler.
+  if(canonical.closest('details')&&host&&!host.closest('details'))host.appendChild(canonical);
+  buttons.filter(b=>b!==canonical&&b.hasAttribute('data-hlgb-grade-action9722')).forEach(b=>b.remove());return
+ }
  let button=buttons.find(b=>b.hasAttribute('data-hlgb-grade-action9722'));
  if(!button){
   // Do not clone legacy controls. Use one visible button in the main actions area.
-  const host=model?(row.querySelector('[data-hlgb-grade-group9711] > .toolbar')||row.querySelector('.toolbar')||row):row.lastElementChild;
   if(!host)return;
   button=document.createElement('button');button.type='button';button.className='secondary '+(split?'hlgbAdjustSplitGradeBtn':'hlgb9191-grade-btn');button.dataset.hlgbGradeAction9722=id;button.textContent='Ajustar grade';host.appendChild(button);
  }
