@@ -74,7 +74,7 @@
   // Reuse the same normalized obligations for the production planner. This is not
   // a bank reconciliation. Keep overdue receipts separate and overdue payments due now.
   const plannerObligations={state:'partial-local',asOf,remoteConfirmed:false,coverageVerified:false,canWrite:false,pendingState,
-   entries:obligations.filter(e=>e.dueDate>=asOf||e.direction==='out').map(e=>({reference:'hub:'+e.id,origin:e.origin,date:e.dueDate<asOf?asOf:e.dueDate,originalDate:e.dueDate,direction:e.direction,amountCents:e.amountCents})),
+   entries:obligations.filter(e=>e.dueDate>=asOf||e.direction==='out').map(e=>({reference:'hub:'+e.id,date:e.dueDate<asOf?asOf:e.dueDate,originalDate:e.dueDate,direction:e.direction,amountCents:e.amountCents})),
    overdueReceipts:obligations.filter(e=>e.dueDate<asOf&&e.direction==='in').map(e=>({reference:'hub:'+e.id,date:e.dueDate,amountCents:e.amountCents})),
    omitted:issues.length};
   // Historical observation does not establish complete weeks; a missing record is null, not zero.
