@@ -25,10 +25,12 @@ function matchingLegacyOrder(w){
 function hiddenIndex(){
  const s=new Set();
  for(const w of arr('operationalWriteoffs')){
+   const pairs=Array.isArray(w?.orderProductRefs)?w.orderProductRefs.filter(r=>sid(r?.orderId)&&sid(r?.productId)&&sid(r.productId)!=='*'):[];
+   for(const r of pairs)s.add(sourceKey('order',sid(r.orderId),sid(r.productId)));
    const explicit=Array.isArray(w?.sourceRefs)&&w.sourceRefs.length;
    const refs=explicit?w.sourceRefs:(w?.sourceType&&w?.sourceId?[{type:w.sourceType,id:w.sourceId}]:[]);
    for(const r of refs){if(!r?.type||!r?.id)continue;const pid=sid(r.productId||w.productId||'*')||'*';s.add(sourceKey(r.type,r.id,pid))}
-   if(!explicit&&sid(w?.sourceType)==='model'&&sid(w?.productId)){
+   if(!explicit&&!pairs.length&&sid(w?.sourceType)==='model'&&sid(w?.productId)){
      const o=matchingLegacyOrder(w),pid=sid(w.productId);
      if(o){
        s.add(sourceKey('order',o.id,pid));
