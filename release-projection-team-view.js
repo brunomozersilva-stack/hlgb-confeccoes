@@ -214,6 +214,37 @@ function mountPlanner(){
     const body=el('tbody','',table);v.planned.weeks.forEach((w,i)=>{const tr=el('tr','',body);for(const x of [w.start,f(w.incomingCents),f(w.outgoingCents),f(w.closingCents),f(v.early.weeks[i].closingCents),f(v.stress.weeks[i].closingCents)])el('td',x,tr)});
     el('p','Não usar como confirmação de caixa disponível. Nenhum pedido, título ou data foi modificado.',cashOut);
    });
+
+   const stages=el('details','',output);el('summary','Metas por setor, equipes e facções',stages);
+   el('p','Simule uma semana de produção em sequência, com capacidade de cada setor e peças já disponíveis para a próxima etapa. Sem transferência no mesmo dia; só use capacidade e estoque conferidos. Não é distribuição oficial nem reserva de produção.',stages);
+   const target=field('Meta de entrega para os próximos 7 dias (peças)','number',String(p.weeklyTarget??''),stages),stageRows=[];
+   for(const [key,name] of [['cut','Corte'],['separation','Separação'],['sewing','Costura / facções'],['finishing','Acabamento'],['delivery','Entregas']]){
+    const panel=el('details','',stages);el('summary',name,panel);
+    const capacity=field('Capacidade semanal de 5 dias (peças)','number','',panel),wip=key==='cut'?null:field('Peças prontas da etapa anterior, disponíveis no início','number','0',panel);
+    const label=el('label','Estoque em processo conferido',panel),confirmed=el('input','',label);confirmed.type='checkbox';if(!wip)label.hidden=true;
+    const histLabel=el('label','Histórico conferido: uma semana completa por linha (segunda-feira;peças)',panel);
+    const hist=el('textarea','',histLabel);hist.rows=3;hist.style.cssText='display:block;width:100%;box-sizing:border-box';hist.placeholder='2026-11-16;2500';
+    const teamLabel=el('label','Dividir por equipe/facção: nome;capacidade semanal, uma por linha',panel),teams=el('textarea','',teamLabel);teams.rows=3;teams.style.cssText='display:block;width:100%;box-sizing:border-box';teams.placeholder='Equipe A;1000';
+    stageRows.push({key,name,capacity,wip,confirmed,hist,teams});
+   }
+   const stageOut=el('div','',stages),lines=s=>s.split(/\r?\n/).filter(x=>x.trim()).map(x=>x.split(';').map(v=>v.trim())),num=v=>/^\d+$/.test(String(v).trim())?Number(v):NaN;
+   for(const r of stageRows){for(const f of [r.capacity,r.wip,r.hist,r.teams].filter(Boolean))f.oninput=()=>{if(f===r.wip)r.confirmed.checked=false;stageOut.replaceChildren()};r.confirmed.onchange=()=>stageOut.replaceChildren()}
+   target.oninput=()=>stageOut.replaceChildren();
+   btn('Calcular metas e gargalos por setor',stages,()=>{
+    stageOut.replaceChildren();if(!active())return;
+    const input={start:start.value,goal:num(target.value),bufferPercent:Number(buffer.value),closedDates:closed.value.split(',').map(x=>x.trim()).filter(Boolean),stages:stageRows.map(r=>({key:r.key,name:r.name,manualCapacity:r.capacity.value.trim()===''?null:num(r.capacity.value),initialWip:r.wip?num(r.wip.value):0,wipConfirmed:r.wip?r.confirmed.checked:true,history:lines(r.hist.value).map(a=>({week:a[0],pieces:a.length===2?num(a[1]):NaN,confirmed:true})),teams:lines(r.teams.value).map(a=>({key:a[0],name:a[0],capacity:a.length===2?num(a[1]):NaN}))}))};
+    const v=api.productionStageGoals(input,active());
+    if(v.state!=='local-stage-goals'){el('p','Confira datas, capacidades inteiras, semanas completas, estoque em processo e nomes de equipes únicos.',stageOut);return}
+    el('p','Meta '+fmt(v.goal)+' pç · '+v.workdays+' dias úteis · entregas simuladas '+fmt(v.simulatedDeliveries)+' · diferença '+fmt(v.goalGap),stageOut);
+    if(v.partial)el('p','Dados a conferir: '+v.issues.join(', '),stageOut);
+    if(v.bottlenecks.length)el('p','Menor capacidade nominal: '+v.bottlenecks.map(x=>x.name+' ('+fmt(x.capacity)+' pç)').join(' · '),stageOut);
+    for(const s of v.stages){const panel=el('details','',stageOut);el('summary',s.name+' · capacidade '+fmt(s.periodCapacity)+' · meta viável '+fmt(s.simulatedPieces),panel);
+     el('p','Média histórica '+fmt(s.average)+' · '+s.sampleCount+' semanas · estoque inicial '+s.initialWip+' · pendente da meta '+fmt(s.remainingGoal)+' · estoque final '+fmt(s.endingWip),panel);
+     for(const t of s.teamAllocations)el('p',t.name+' · meta '+t.pieces+' de '+t.capacity+' pç disponíveis',panel);
+    }
+    const daily=el('details','',stageOut);el('summary','Metas diárias por setor',daily);for(const d of v.days){el('strong',d.date,daily);for(const s of d.stages)el('p',v.stages.find(x=>x.key===s.key).name+' · '+s.pieces+' pç',daily)}
+    el('p','Capacidades e históricos informados manualmente; não valida complexidade de modelos, rotas, estoque ou caixa. Nenhuma alteração gravada.',stageOut);
+   });
    const days=el('details','',output);el('summary','Distribuição diária de produção (simulada)',days);for(const d of p.daily.filter(d=>d.assignments.length)){el('strong',d.date+' · '+d.allocated+' pç',days);for(const a of d.assignments)el('p',a.client+' · '+a.model+' · '+a.pieces+' pç',days)}
   }catch(_){el('p','Fonte da projeção indisponível. Nenhum prazo ou valor foi confirmado.',output)}
  });
