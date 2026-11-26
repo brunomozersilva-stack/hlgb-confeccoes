@@ -28,8 +28,8 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
     '</tbody></table>';
    window.hlgbCutModelSplit.renderSplitPanel();
   });
-  assert.equal(await page.locator('#legacy49').evaluate(el=>el.style.display),'none',
-   'must hide the old aggregate by first-column order ID');
+  assert.notEqual(await page.locator('#legacy49').evaluate(el=>el.style.display),'none',
+   'ambiguous legacy aggregate with duplicate children and no explicit identity remains visible for review');
   assert.notEqual(await page.locator('#unrelated').evaluate(el=>el.style.display),'none',
    'unrelated legacy orders stay visible');
   const panel=await page.locator('#hlgbCutSplitPanel').innerText();
@@ -46,7 +46,17 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(after.db,before,'duplicate protection must never alter company records');
   assert.equal(after.writes,0);
   assert(after.alerts.some(s=>/duplicados/i.test(s)),'duplicate finalize must be blocked');
+  await page.evaluate(()=>{
+   db.cuts=db.cuts.filter(c=>!String(c.id).startsWith('duplicate-'));
+   const parent=db.cuts.find(c=>c.id==='parent');parent.hiddenByModelSplitV1=true;
+   db.cuts.filter(c=>c.modelSplitChildV1).forEach(c=>c.modelSplitFromParentCutId=parent.id);
+   document.getElementById('legacy49').innerHTML='<td>1º</td><td>49</td><td><button onclick="editCut(\'parent\')">Editar</button></td>';
+   window.__proofBefore=JSON.stringify(db);window.hlgbCutModelSplit.renderSplitPanel();
+  });
+  assert.equal(await page.locator('#legacy49').evaluate(el=>el.style.display),'none','verified parent is hidden using action identity, even with queue position in first column');
+  assert.notEqual(await page.locator('#unrelated').evaluate(el=>el.style.display),'none');
+  assert.equal(await page.evaluate(()=>JSON.stringify(db)===window.__proofBefore),true);
   assert.deepEqual(errors,[]);
-  console.log('PASS '+engine.name()+': Click Sophia #49 legacy aggregate hidden, 8 unique models, 2 duplicate warnings, no writes');
+  console.log('PASS '+engine.name()+': Click Sophia #49 ambiguous aggregate retained, verified aggregate hidden, duplicate warnings and no writes');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

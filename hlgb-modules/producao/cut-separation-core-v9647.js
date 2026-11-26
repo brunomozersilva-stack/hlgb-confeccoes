@@ -20,8 +20,13 @@ const cutSeparationWorkspace9643=(function core(){
    for(const g of grade){const pid=id(g?.productId),q=int(g?.qty);if(!pid||!products.get(pid)||q===null||!norm(g.color)||!norm(g.size)){bad=true;continue}if(q===0)continue;const row=groups.get(pid)||{pid,qty:0,grade:[]};row.qty+=q;row.grade.push({color:String(g.color),size:String(g.size),qty:q});groups.set(pid,row)}
    if(bad||!groups.size){issues.push('grade-review');continue}
    const seps=db.separations.filter(s=>live(s)&&id(s.orderId)===oid),s=seps.length===1?seps[0]:null;
+   const orderCuts=db.cuts.filter(c=>live(c)&&id(c.orderId)===oid),verifiedParents=new Set();
+   for(const c of orderCuts){if(groups.size<2||!id(c.id)||orderCuts.filter(x=>id(x.id)===id(c.id)).length!==1||c.modelSplitParentV1!==true||c.hiddenByModelSplitV1!==true||norm(c.status)!=='desmembrado por modelo')continue;
+    const children=orderCuts.filter(x=>x.modelSplitChildV1===true&&id(x.modelSplitFromParentCutId)===id(c.id)&&!norm(x.status).includes('cancel'));
+    if(children.length===groups.size&&[...groups.keys()].every(pid=>children.filter(x=>id(x.productId)===pid&&id(x.id)&&orderCuts.filter(y=>id(y.id)===id(x.id)).length===1).length===1))verifiedParents.add(c);
+   }
    for(const g of groups.values()){
-    const p=products.get(g.pid),issuesFor=[],matches=db.cuts.filter(c=>live(c)&&id(c.orderId)===oid&&(id(c.productId)===g.pid||!id(c.productId)));
+    const p=products.get(g.pid),issuesFor=[],matches=orderCuts.filter(c=>!verifiedParents.has(c)&&(id(c.productId)===g.pid||!id(c.productId)));
     const production=db.production.some(c=>live(c)&&id(c.orderId)===oid&&(!id(c.productId)||id(c.productId)===g.pid));
     const writeoffs=db.operationalWriteoffs.some(w=>live(w)&&((id(w.orderId)===oid&&(!id(w.productId)||id(w.productId)===g.pid))||[...(Array.isArray(w.orderProductRefs)?w.orderProductRefs:[]),...(Array.isArray(w.sourceRefs)?w.sourceRefs:[])].some(x=>typeof x==='object'&&x&&id(x.orderId)===oid&&(!id(x.productId)||id(x.productId)===g.pid))));
     if(production||writeoffs||canonicalPairs.has(oid+'|'+g.pid)||canonicalPairs.has(oid+'|*')||matches.some(c=>norm(c.status).includes('finalizado')))continue;
