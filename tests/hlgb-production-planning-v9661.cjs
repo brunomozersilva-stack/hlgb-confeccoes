@@ -136,3 +136,40 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(JSON.stringify(db),before);
  console.log('PASS planned model eligibility inside production order');
 })();
+
+
+(function compactJointPrintMatrix(){
+ const mk=(key,orderNumber,productName)=>({key,orderNumber,productName,pieces:200,grade:['Preto','Rubi'].flatMap(color=>['P','M','G','GG'].map((size,i)=>({color,size,qty:[20,30,30,20][i]})))});
+ const g={materialId:'1',materialName:'Romantic',models:[mk('a','2','Juliana'),mk('b','50','Leticia')]},before=JSON.stringify(g);
+ const html=plan.jointPrintDraft(g,null,'packet',true),combined=html.split('data-joint-sheet="combined"')[1].split('data-joint-sheet="individual"')[0],individuals=html.split('data-joint-sheet="individual"').slice(1);
+ assert.equal(individuals.length,2);
+ assert.ok(combined.includes('Grade por folha'));assert.ok(combined.includes('Grade prevista'));assert.ok(combined.includes('Realizado por tam.'));
+ assert.ok(combined.includes('P: 20 / M: 30 / G: 30 / GG: 20'));
+ assert.ok(combined.includes('P: 2 / M: 3 / G: 3 / GG: 2'));
+ assert.ok(combined.includes('P: ___ / M: ___ / G: ___ / GG: ___'));
+ assert.equal((combined.match(/<td>Juliana<\/td>/g)||[]).length,2);
+ assert.equal((combined.match(/<td>Leticia<\/td>/g)||[]).length,2);
+ for(const sheet of individuals){assert.ok(sheet.includes('P: 20 / M: 30 / G: 30 / GG: 20'));assert.ok(!sheet.includes('<th>Modelo</th>'));assert.ok(sheet.includes('Pesagem coletiva consta'))}
+ assert.ok(combined.includes('Refugo kg')&&combined.includes('Cortador 2')&&combined.includes('Infestador'));
+ assert.equal(JSON.stringify(g),before);
+ console.log('PASS compact print grade matrix and separation sheets');
+})();
+
+
+(function explicitGradeAdjustmentPreview(){
+ const mk=(key,orderNumber,productName,color,qty)=>({key,orderNumber,productName,pieces:qty.reduce((n,q)=>n+q,0),grade:qty.map((q,i)=>({color,size:['P','M','G','GG'][i],qty:q}))});
+ const g={materialId:'romantic',models:[mk('j','2','Juliana','Cronos',[10,20,20,20]),mk('l','50','Leticia','Rubi',[15,30,30,30]),mk('a','29','Outro','Cronos',[20,40,40,40])]},before=JSON.stringify(g);
+ const v=plan.gradeAdjustmentPreview(g,10,true);assert.equal(v.state,'local-preview');assert.equal(v.canWrite,false);assert.equal(v.geometryVerified,false);
+ assert.equal(v.sameRatios.length,1);assert.equal(v.sameRatios[0].crossColor,true);assert.equal(v.sameRatios[0].entries.length,3);
+ const cronos=v.colors.find(c=>c.color==='Cronos'),rubi=v.colors.find(c=>c.color==='Rubi');
+ assert.equal(cronos.exactLayers,10);assert.equal(cronos.requiresAdjustment,false);assert.equal(cronos.complementary,0);
+ assert.equal(rubi.requiresAdjustment,true);assert.equal(rubi.complementary,5);assert.equal(rubi.extra,5);
+ assert.deepEqual(rubi.models[0].changes.find(r=>r.size==='P'),{size:'P',ordered:15,lower:10,upper:20,missing:5,extra:5,needsAdjustment:true});
+ for(const c of v.colors)for(const m of c.models)for(const r of m.changes){assert.equal(r.lower+r.missing,r.ordered);assert.equal(r.ordered+r.extra,r.upper);assert.equal(r.lower%10,0);assert.equal(r.upper%10,0)}
+ assert.ok(plan.gradeAdjustmentPreview(g,null,true).colors.every(c=>c.models.every(m=>m.changes.length===0)));
+ assert.equal(plan.gradeAdjustmentPreview(g,0,true).state,'unavailable');assert.equal(plan.gradeAdjustmentPreview(g,1.5,true).state,'unavailable');
+ assert.equal(plan.gradeAdjustmentPreview(g,10,false).state,'forbidden');
+ assert.equal(plan.gradeAdjustmentPreview({...g,models:[{...g.models[0],pieces:1},g.models[1]]},10,true).state,'unavailable');
+ assert.equal(JSON.stringify(g),before);
+ console.log('PASS explicit grade adjustments, cross-color ratios and exact complements');
+})();
