@@ -193,6 +193,18 @@ async function walRemoteReadOnlyProof9482(max=8,notify,localEvidence){
   }
  }
  result.remoteDurationMs=Math.max(0,Date.now()-began);
+ // A full review can take minutes. Re-read the exact operations before treating the initial snapshot as current.
+ if(result.checkedLimit>8){
+  const again=await walRowsReadOnly9482();
+  const signature=rows=>JSON.stringify(rows.map(x=>JSON.stringify(x)).sort());
+  let stable=false;try{stable=authReady()&&again.status==='ok'&&signature(again.rows)===signature(idb.rows)}catch(_){}
+  result.snapshotStable=stable;result.currentTotal=again.status==='ok'?again.rows.length:null;
+  if(!stable){
+   result.matched=0;result.different=0;result.missing=0;result.unverified=result.total;
+   result.items=result.items.map(({module,id,opId})=>({module,id,opId,status:'snapshot-changed'}));
+   result.status='snapshot-changed';return result;
+  }
+ }
  if(result.unverified)result.status='partially-unverified';
  else if(result.different||result.missing)result.status='not-confirmed';
  else result.status='all-content-matched';
@@ -440,12 +452,13 @@ const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"
 let walReviewBusy9615=false,walReviewLast9615=null;
 function safeWalReview9615(result){
  const sidSafe=(v,max=100)=>sid(v).replace(/[^a-zA-Z0-9_.|\[\]-]/g,'').slice(0,max);
- const allowed=new Set(['content-match','delete-confirmed','delete-absent','missing','different','error','unverified','invalid-local-operation']);
+ const allowed=new Set(['content-match','delete-confirmed','delete-absent','missing','different','error','unverified','invalid-local-operation','snapshot-changed']);
  return {kind:'hlgb_wal_review_readonly',version:'96.15',generatedAt:new Date().toISOString(),
   readOnly:true,noCleanupPerformed:true,status:sidSafe(result?.status,48),total:Number(result?.total)||0,
   checked:Number(result?.checked)||0,matched:Number(result?.matched)||0,different:Number(result?.different)||0,
   missing:Number(result?.missing)||0,unverified:Number(result?.unverified)||0,
   remoteDurationMs:Number.isFinite(result?.remoteDurationMs)?result.remoteDurationMs:null,parallelism:result?.parallelism??null,
+  snapshotStable:result?.snapshotStable??null,currentTotal:Number.isSafeInteger(result?.currentTotal)?result.currentTotal:null,
   items:(Array.isArray(result?.items)?result.items:[]).slice(0,60).map(x=>({
    module:sidSafe(x?.module),id:sidSafe(x?.id),opId:sidSafe(x?.opId,80),
    status:allowed.has(x?.status)?x.status:'unverified',
@@ -484,6 +497,7 @@ function renderWalReview9615(card){
    walReviewLast9615=safeWalReview9615(result);
    const v=walReviewLast9615;
    status.textContent='Conclusão: '+v.checked+'/'+v.total+' conferidos · iguais '+v.matched+' · diferentes '+v.different+' · ausentes '+v.missing+' · não verificados '+v.unverified+'. Nenhuma operação foi removida.';
+   if(v.snapshotStable===false)status.textContent+=' A fila mudou ou não pôde ser relida durante a consulta. Os resultados anteriores não confirmam a fila atual. Refaça a conferência.';
    exportBtn.disabled=false;
   }catch(e){
    status.textContent='Não foi possível concluir a conferência. Nenhuma operação foi apagada ou reenviada.';
