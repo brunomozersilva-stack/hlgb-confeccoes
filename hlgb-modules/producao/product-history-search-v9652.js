@@ -80,7 +80,7 @@
    const materials=sharedMeasurement?[]:list(c.materialUsage).map(m=>({name:sid(m?.name||m?.materialId),weight:q(m?.weight),unit:sid(m?.unit)}));
    const o=modules.includes('orders')?lookup('orders',c.orderId):null;
    const cutGrade=[c.actualCutGrade,c.cutGrade,c.originalGrade].find(a=>Array.isArray(a)&&a.length)||[];
-   const people=unique([sid(c.cutterName),sid(c.cutter2Name),sid(c.infestadorName),sid(lookup('cutters',c.cutterId)?.name)]);
+   const people=unique([sid(c.cutterName),sid(lookup('cutters',c.cutterId)?.name),sid(c.cutter2Name),sid(lookup('cutters',c.cutter2Id||c.secondCutterId)?.name),sid(c.infesterName||c.infestadorName||c.infestador)]);
    const finished=norm(c.status)==='finalizado';
    groups.set(e.sourceId,{cutId:e.sourceId,orderId:e.orderId,date:e.date,status:e.status,client:sid(o?.client),orderNumber:sid(o?.orderNumber||o?.number||o?.id),planned:sharedMeasurement?null:q(c.plannedPieces??c.originalPieces),cutQuantity:sharedMeasurement?null:finished?q(c.pieces):q(c.done),people,grade:cutGrade.filter(g=>!sharedMeasurement||sid(g?.productId||g?.product_id)===sid(pid)).map(g=>({color:sid(g?.color||g?.colorName),size:sid(g?.size||g?.sizeName||g?.tam),qty:q(g?.qty??g?.quantity??g?.pieces)})),weights,materials,sharedMeasurement,events:[]});
   }
