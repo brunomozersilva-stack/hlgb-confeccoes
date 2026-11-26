@@ -49,6 +49,16 @@ const assert=require('node:assert/strict');const api=require('../hlgb-modules/fi
  ok(base14.incomingCents===1200000&&base14.outgoingCents===3200000&&base14.netObservedCents===-2000000,'observed flow only');
  ok(base14.hypotheticalPeakGapCents===3200000&&delay14.incomingCents===0&&delay14.hypotheticalPeakGapCents===3200000,'payments first, delay stress');
  ok(plan.base.every(x=>x.actualFundingNeedCents===null)&&!plan.canPublish&&!plan.openingBalanceVerified,'no real funding need inferred');
+ const pending=p({pendingEvidence:{state:'observed',ids:['hubFinanceEntries::1']}});
+ ok(!pending.observations.some(x=>x.category==='Matéria-prima')&&pending.pendingEvidence.excludedCount===1&&pending.pendingEvidence.remoteConfirmed===false,'known WAL expense excluded, not remote proof');
+ const mixed=p({db:{...ctx.db,hubFinanceEntries:[...rows,{...rows[0],value:'invalid'}]}});
+ ok(!mixed.observations.some(x=>x.category==='Matéria-prima')&&mixed.omitted===2,'both duplicate IDs excluded even if one invalid');
+ const payRows=[{id:'p1',month:'2026-10',paid:true,paidAt:'2026-11-23',paidValue:100},{id:'p2',month:'2026-10',paid:true,paidAt:'2026-11-23',paidValue:200}];
+ const legacy={id:'l1',sourceType:'payroll_month',sourceId:'2026-10',flow:'Saída',status:'Realizado',date:'2026-11-23',realizedAt:'2026-11-23',value:300,category:'Funcionários'};
+ const pd={rows:(h,p)=>{ok(p.length===0&&!h.some(x=>x.id==='l1'),'no partial month passed to transformer');return h}};
+ const blocked=p({db:{hubFinanceEntries:[legacy,rows[0]],payroll:payRows},paidDateApi:pd,pendingEvidence:{state:'observed',ids:['payroll::p1']}});
+ ok(blocked.pendingEvidence.blockedPayrollMonths===1&&!blocked.observations.some(x=>x.category==='Funcionários'),'pending payroll excludes entire competence');
+ ok(p().pendingEvidence.state==='incomplete','missing pending snapshot not clean');
  const empty=p({db:{hubFinanceEntries:[],payroll:[]}}).cash.commitmentReview;
  ok(empty.base.every(x=>x.hypotheticalPeakGapCents===null&&x.activeDays===0),'missing obligations not proof of no gap');
 
