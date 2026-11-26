@@ -92,7 +92,7 @@ function invoiceRows(){const d=data(),fn=window.hlgbCanonicalProjectionInvoices;
  catch(_){return Array.isArray(d?.projectionInvoices)?d.projectionInvoices:[]}}
 function repaint(){
  const invoices=invoiceRows(),receivables=window.hlgbNotesReceivables9564,pending=receivables?.pendingProtection9710?.()||null;
- const isArchived=n=>{try{return receivables?.archiveAllowed9710?.(receivables.projectionView(n),pending)===true}catch(_){return false}};
+ const isArchived=n=>{try{return window.__HLGB_AUTH_READY===true&&receivables?.archiveAllowed9710?.(receivables.projectionView(n),pending)===true}catch(_){return false}};
  const open=[],paid=[];for(const n of invoices)(isArchived(n)?paid:open).push(n);
  const fmtDate=s=>{const x=sid(s).slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(8,10)+'/'+x.slice(5,7)+'/'+x.slice(0,4):esc(x||'-')};
  const money=n=>(Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
