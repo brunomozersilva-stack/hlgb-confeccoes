@@ -210,15 +210,27 @@ function renderSplitPanel(){
 }
 function hideAggregateRows(){
  const root=document.getElementById('cutTable');if(!root)return;
- // The legacy first column is "PED-<order ID>"; the second is the client.
- const splitIds=new Set(arr('orders').filter(hasCompleteSplit).map(o=>sid(o.id)));
+ // Current table begins with the queue position, not PED-id. Resolve exact cut identity.
+ const cuts=arr('cuts'),orders=arr('orders'),index=new Map();
+ for(const c of cuts){const id=sid(c?.id);if(id)index.set(id,index.has(id)?null:c)}
+ const live=c=>c&&!c.deletedAt&&!c.deleted_at&&!c.deleted&&!c._deleted&&!norm(c.status).includes('cancel');
+ const proven=new Set();
+ for(const c of cuts){
+  if(!live(c)||index.get(sid(c.id))!==c||c.modelSplitParentV1!==true||c.hiddenByModelSplitV1!==true||norm(c.status)!=='desmembrado por modelo')continue;
+  const same=orders.filter(o=>sid(o?.id)===sid(c.orderId));if(same.length!==1)continue;
+  const ids=modelIds(same[0]);if(ids.length<2)continue;
+  const children=cuts.filter(x=>live(x)&&x.modelSplitChildV1===true&&sid(x.orderId)===sid(c.orderId)&&sid(x.modelSplitFromParentCutId)===sid(c.id));
+  if(children.length===ids.length&&ids.every(pid=>children.filter(x=>sid(x.productId)===pid&&index.get(sid(x.id))===x).length===1))proven.add(sid(c.id));
+ }
  root.querySelectorAll('tr').forEach(tr=>{
-  const first=sid(tr.children?.[0]?.textContent).trim();
-  const match=/^PED-(\d+)$/i.exec(first);
-  const hide=!!match&&splitIds.has(match[1]);
-  if(hide){tr.style.display='none';tr.dataset.hlgbSplitAggregateHidden='1'}
+  const ids=new Set();
+  for(const b of tr.querySelectorAll('button[onclick]')){
+   const m=sid(b.getAttribute('onclick')).match(/^\s*(?:return\s+)?(?:editCut|hlgbEditCut9189|finishCut|viewCutGradeComparison|saveCutSchedule)\(\s*(['"]?)([^'")\s]+)\1\s*\)\s*;?\s*$/);if(m)ids.add(m[2]);
+  }
+  const hide=ids.size===1&&proven.has([...ids][0]);
+  if(hide){if(tr.dataset.hlgbSplitAggregateHidden!=='1')tr.dataset.hlgbSplitAggregatePrevious=tr.style.display||'';tr.style.display='none';tr.dataset.hlgbSplitAggregateHidden='1'}
   else if(tr.dataset.hlgbSplitAggregateHidden==='1'){
-   tr.style.display='';delete tr.dataset.hlgbSplitAggregateHidden;
+   tr.style.display=tr.dataset.hlgbSplitAggregatePrevious||'';delete tr.dataset.hlgbSplitAggregateHidden;delete tr.dataset.hlgbSplitAggregatePrevious;
   }
  });
 }
