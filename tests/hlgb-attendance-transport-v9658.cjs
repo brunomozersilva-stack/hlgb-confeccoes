@@ -43,3 +43,23 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  assert.throws(()=>api.digitalTable('id;id\n001;002',';',true));assert.equal(JSON.stringify(b),before);
  console.log('PASS mapped digital attendance and reviewed salary preview');
 })();
+
+
+(function digitalSalaryCollective(){
+ const people=[{id:'01',name:'Ana',salary:2200,companyName:'A'},{id:'02',name:'Bia',salary:3300,companyName:'A'},{id:'03',name:'Caio',salary:2000,companyName:'B'},{id:'04',active:false,salary:2000}];
+ const text=['id;date;planned;worked;status','01;03/11/2026;480;450;trabalhado','02;03/11/2026;480;540;trabalhado'].join('\n');
+ const batch=api.inspectDigital(api.digitalTable(text,';',true),{employee:'id',date:'date',scheduled:'planned',worked:'worked',status:'status'},people,'2026-11',true);
+ const roster=api.digitalSalaryRoster(batch,people,true);assert.equal(roster.rows.length,3);assert.equal(roster.rows[2].imported,false);
+ const settings=roster.rows.map(r=>({employeeId:r.employeeId,signature:r.signature,monthlyHours:220,approvedDeductionMinutes:r.employeeId==='01'?30:0,approvedExtraMinutes:r.employeeId==='02'?60:0,extraPercent:150,reviewed:true}));
+ const before=JSON.stringify([batch,people,settings]),v=api.digitalSalaryBatch(batch,people,settings,true);
+ assert.equal(v.reviewedCount,2);assert.equal(v.selectedCount,3);assert.equal(v.partial,true);assert.equal(v.canWrite,false);assert.equal(v.officialNetCents,null);
+ assert.deepEqual(v.totals,{baseCents:550000,deductionCents:500,extraCents:2250,indicativeGrossCents:551750});
+ assert.equal(v.rows[2].reason,'missing-attendance');assert.equal(api.digitalSalaryBatch(batch,people,[settings[2]],true).totals,null);
+ assert.equal(api.digitalSalaryBatch(batch,people,[settings[0],settings[0]],true).state,'invalid-input');
+ assert.equal(api.digitalSalaryBatch(batch,people,settings,false).state,'forbidden');
+ assert.equal(api.digitalSalaryBatch(batch,[{...people[0],salary:2300},...people.slice(1)],settings,true).rows[0].reason,'roster-or-report-changed');
+ assert.equal(api.digitalSalaryBatch({...batch,rows:batch.rows.map(r=>r.employeeId==='01'?{...r,workedMinutes:440}:r)},people,settings,true).rows[0].reason,'roster-or-report-changed');
+ assert.equal(api.digitalSalaryBatch(batch,people,[{...settings[0],reviewed:false}],true).totals,null);
+ assert.equal(JSON.stringify([batch,people,settings]),before);
+ console.log('PASS collective payroll preview, incomplete coverage, stale evidence and no writes');
+})();
