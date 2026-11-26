@@ -13,7 +13,7 @@
  const cutAllowed=()=>['corte','pedidos','produtos','materiais','producao'].every(can);
  const remAllowed=()=>can('produtos')&&can('materiais');
  function clear(){root.hlgbJointWorkspaceEvidence9714={observed:false};for(const x of document.querySelectorAll('[data-planning9661]'))x.remove()}
- function hostFor(page,id,allowed){const area=document.getElementById(page),old=document.getElementById(id),actor=user();if(!allowed()||!actor||!area?.classList.contains('active')){old?.remove();return null}if(old&&old.dataset.planningActor!==actor)old.remove();else if(old)return null;if(!root.HLGBProductionPlanning9661)return null;const host=el('section','',area);host.id=id;host.className='panel';host.dataset.planning9661='1';host.dataset.planningActor=actor;return {host,active:()=>host.isConnected&&allowed()&&area.classList.contains('active')&&user()===actor}}
+ function hostFor(page,id,allowed){const area=document.getElementById(page),old=document.getElementById(id),actor=user();if(!allowed()||!actor||!area?.classList.contains('active')){old?.remove();return null}if(old&&old.dataset.planningActor!==actor)old.remove();else if(old)return null;if(!root.HLGBProductionPlanning9661)return null;const host=el('section','',area);host.id=id;host.className='panel';host.dataset.planning9661='1';host.dataset.planningActor=actor;return {host,active:()=>!document.hidden&&host.isConnected&&allowed()&&area.classList.contains('active')&&user()===actor}}
 
  function mountCut(){
   const context=hostFor('corte','hlgbJointCut9661',cutAllowed);if(!context)return;const {host,active}=context,api=root.HLGBProductionPlanning9661;
@@ -277,6 +277,14 @@
   const note=allowed?(ready?'Selecione pedidos e modelos que compartilham matéria-prima.':'Planejamento ainda indisponível. Confira o carregamento dos módulos.'):'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
   bar.children[0].disabled=!ready;if(bar.children[1].textContent!==note)bar.children[1].textContent=note;
  }
- function refresh(){mountCut();mountRemnants();mountCutShortcut();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
- document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)refresh()});root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});setTimeout(refresh,1000);
+ function refresh(){if(document.hidden)return;mountCut();mountRemnants();mountCutShortcut();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
+ document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',()=>{
+ root.hlgbJointWorkspaceEvidence9714={observed:false};
+ const actor=user();
+ for(const x of document.querySelectorAll('[data-planning9661]')){
+  if(x.id==='hlgbRemnant9661'&&actor&&x.dataset.planningActor===actor&&remAllowed()&&document.getElementById('produtos')?.classList.contains('active'))continue;
+  x.remove();
+ }
+ if(!document.hidden)refresh();
+});root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});setTimeout(refresh,1000);
 })(typeof window!=='undefined'?window:null);
