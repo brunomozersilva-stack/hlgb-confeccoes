@@ -10,12 +10,43 @@
   if(!db||!Array.isArray(db.hubFinanceEntries)||!Array.isArray(db.payroll)||typeof paidDateApi?.rows!=='function')return unavailable('source-unavailable');
   const {asOf,targetDate,historyWeeks=8,receiptDelayDays=14}=options||{};
   if(!date(asOf)||!date(targetDate)||![8,12,26].includes(historyWeeks)||![0,7,14,21,28].includes(receiptDelayDays)||weekly.monday(targetDate)<weekly.monday(asOf))return unavailable('invalid-period');
-  // Copy before calling the existing adapter. No callback receives the live database.
+  // Pending identities are evidence of uncertainty, not evidence of cloud confirmation.
+  const evidence=context.pendingEvidence,rawIds=Array.isArray(evidence?.ids)?evidence.ids:[],pending=new Set(rawIds.filter(x=>typeof x==='string'&&x.includes('::')));
+  const pendingState=evidence?.state==='observed'&&rawIds.length===pending.size?'observed':'incomplete';
+  const records=[],issues=[],ids=new Map(),originCounts=new Map(),rawCounts=new Map(),payrollCounts=new Map(),blockedMonths=new Set();
+  const addCount=(m,k)=>{if(k)m.set(k,(m.get(k)||0)+1)};
+  const isPayroll=e=>['payroll','payroll_month','payroll_paid_date_view'].includes(id(e?.sourceType));
+  const monthOf=e=>{const m=id(e?.sourceId);return /^\d{4}-(0[1-9]|1[0-2])$/.test(m)?m:id(e?.description).split('— ').pop()};
+  const clean=e=>e&&!deleted(e)&&!String(e.kind||'').startsWith('hub_settings');
+  for(const e of db.hubFinanceEntries.filter(clean))addCount(rawCounts,id(e.id));
+  for(const p of db.payroll.filter(clean))addCount(payrollCounts,id(p.id));
+  let allPayrollBlocked=false,pendingOmitted=0;
+  const blockMonth=m=>{if(/^\d{4}-(0[1-9]|1[0-2])$/.test(m))blockedMonths.add(m);else allPayrollBlocked=true};
+  for(const key of pending)if(key.startsWith('payroll::')&&!db.payroll.some(p=>id(p?.id)===key.slice(9)))allPayrollBlocked=true;
+  for(const p of db.payroll.filter(clean)){
+   if(pending.has('payroll::'+id(p.id))||p.pendingSync===true||p.walPending===true||p.unverified===true){blockMonth(id(p.month));pendingOmitted++}
+   else if(payrollCounts.get(id(p.id))>1||p.paid===true&&(!id(p.id)||!date(typeof p.paidAt==='string'?p.paidAt.slice(0,10):null)||cents(p.paidValue)===null)){blockMonth(id(p.month));issues.push({reason:'payroll-source-review'})}
+  }
+  const rawHub=db.hubFinanceEntries.filter(clean).filter(e=>{
+   const pendingRow=pending.has('hubFinanceEntries::'+id(e.id))||e.pendingSync===true||e.walPending===true||e.unverified===true;
+   if(pendingRow||rawCounts.get(id(e.id))>1){
+    if(isPayroll(e))blockMonth(monthOf(e));
+    issues.push({reason:pendingRow?'pending-sync':'duplicate-id-or-origin'});
+    if(pendingRow)pendingOmitted++;return false;
+   }return true;
+  });
+  // Never synthesize a partial paid payroll month from the remaining employees.
+  const allowedHub=rawHub.filter(e=>!isPayroll(e)||!(allPayrollBlocked||blockedMonths.has(monthOf(e))));
+  const allowedPayroll=db.payroll.filter(clean).filter(p=>!allPayrollBlocked&&!blockedMonths.has(id(p.month)));
+  if(blockedMonths.size||allPayrollBlocked)issues.push({reason:'payroll-month-excluded'});
   let effective;
-  try{effective=paidDateApi.rows(JSON.parse(JSON.stringify(db.hubFinanceEntries)),JSON.parse(JSON.stringify(db.payroll)));if(!Array.isArray(effective))throw Error('invalid')}catch(_){return unavailable('payroll-view-failed')}
-  const records=[],issues=[],ids=new Map(),originCounts=new Map();
+  try{effective=paidDateApi.rows(JSON.parse(JSON.stringify(allowedHub)),JSON.parse(JSON.stringify(allowedPayroll)));if(!Array.isArray(effective))throw Error('invalid')}catch(_){return unavailable('payroll-view-failed')}
+  const effectiveIds=new Map(),effectiveOrigins=new Map();
+  const originOf=e=>{const type=id(e?.sourceType),src=id(e?.sourceId);return type&&src?JSON.stringify([type,src,type==='payroll_paid_date_view'?(typeof e.realizedAt==='string'?e.realizedAt.slice(0,10):''):'']):null};
+  for(const e of effective.filter(clean)){addCount(effectiveIds,id(e.id));addCount(effectiveOrigins,originOf(e))}
   for(const e of effective){
    if(!e||deleted(e)||String(e.kind||'').startsWith('hub_settings'))continue;
+   const originKey=originOf(e);if(effectiveIds.get(id(e.id))>1||originKey&&effectiveOrigins.get(originKey)>1){issues.push({reason:'duplicate-id-or-origin'});continue}
    const k=id(e.id),cat=typeof e.category==='string'?e.category.trim():'',value=cents(e.value),realized=e.status==='Realizado',planned=e.status==='Previsto',day=realized?date(typeof e.realizedAt==='string'?e.realizedAt.slice(0,10):null):date(e.date),type=id(e.sourceType),src=id(e.sourceId);
    if(!k||!cat||value===null||!day||(!realized&&!planned)||!['Entrada','Saída'].includes(e.flow)||Boolean(type)!==Boolean(src)||e.pendingSync===true||e.walPending===true||e.unverified===true||(realized&&day>asOf)){
     issues.push({id:k||null,reason:'invalid-or-unverified'});continue
@@ -43,7 +74,7 @@
   // Historical observation does not establish complete weeks; a missing record is null, not zero.
   const historical=recordedHistory(accepted,comparison.history,target,asOf,issues.length);
   const weeklyCash=rows=>rows.map(x=>({start:x.start,end:x.end,incomingCents:x.incomingCents,outgoingCents:x.outgoingCents,closingCents:null,shortfall:null}));
-  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
+  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',pendingEvidence:{state:pendingState,excludedCount:pendingOmitted,blockedPayrollMonths:blockedMonths.size,allPayrollBlocked,remoteConfirmed:false},observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
  }
 
  function commitmentReview(projection){
