@@ -91,16 +91,21 @@ function invoiceRows(){const d=data(),fn=window.hlgbCanonicalProjectionInvoices;
  try{const x=typeof fn==='function'?fn():d?.projectionInvoices;return Array.isArray(x)?x:[]}
  catch(_){return Array.isArray(d?.projectionInvoices)?d.projectionInvoices:[]}}
 function repaint(){
- const invoices=invoiceRows();const fmtDate=s=>{const x=sid(s).slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(8,10)+'/'+x.slice(5,7)+'/'+x.slice(0,4):esc(x||'-')};
+ const invoices=invoiceRows(),receivables=window.hlgbNotesReceivables9564,pending=receivables?.pendingProtection9710?.()||null;
+ const isArchived=n=>{try{return receivables?.archiveAllowed9710?.(receivables.projectionView(n),pending)===true}catch(_){return false}};
+ const open=[],paid=[];for(const n of invoices)(isArchived(n)?paid:open).push(n);
+ const fmtDate=s=>{const x=sid(s).slice(0,10);return /^\d{4}-\d{2}-\d{2}$/.test(x)?x.slice(8,10)+'/'+x.slice(5,7)+'/'+x.slice(0,4):esc(x||'-')};
  const money=n=>(Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
- const rows=invoices.slice().sort((a,b)=>sid(b.createdAt||b.issueDate||b.date).localeCompare(sid(a.createdAt||a.issueDate||a.date)))
+ const rowsFor=entries=>entries.slice().sort((a,b)=>sid(b.createdAt||b.issueDate||b.date).localeCompare(sid(a.createdAt||a.issueDate||a.date)))
   .map(n=>'<tr><td>'+fmtDate(n.issueDate||n.date)+'</td><td>'+esc(n.client||n.clientName||'-')+
   '</td><td>'+esc((n.items||[]).map(x=>x.productName||x.description||'-').join(', '))+'</td><td>'+
   (n.items||[]).reduce((a,x)=>a+(Number(x.qty)||0),0).toLocaleString('pt-BR')+'</td><td>'+money(n.value)+
   '</td><td>'+fmtDate(n.dueDate||n.date)+'</td><td>'+esc(n.terms||'-')+'</td></tr>').join('');
- const html=invoices.length?'<div class="panel" style="margin-top:14px"><h3>Notas feitas pela Projeção</h3>'+
+ const tableFor=(entries,title)=>entries.length?'<div class="panel" style="margin-top:14px"><h3>'+title+'</h3>'+
   '<div style="overflow-x:auto"><table><thead><tr><th>Emissão</th><th>Cliente</th><th>Produtos</th><th>Peças</th><th>Valor</th><th>Vencimento</th><th>Condição</th></tr></thead><tbody>'+
-  rows+'</tbody></table></div></div>':'';
+  rowsFor(entries)+'</tbody></table></div></div>':'';
+ const html=tableFor(open,'Notas feitas pela Projeção — acompanhamento')+
+ (paid.length?'<details class="hlgbPaidProjection9710"><summary>Notas pagas — histórico ('+paid.length+')</summary>'+tableFor(paid,'Histórico de notas pagas')+'</details>':'');
  let changed=0;
  for(const id of ['orderNotesTable','allOrderNotesTable']){
   const host=document.getElementById(id);if(!host)continue;
@@ -108,7 +113,8 @@ function repaint(){
   if(!panel&&invoices.length){panel=document.createElement('div');panel.className='v930ProjectionNotes';host.appendChild(panel)}
   if(panel&&panel.innerHTML!==html){panel.innerHTML=html;changed++}
  }
- return {invoices:invoices.length,updatedPanels:changed};
+ receivables?.organizeLegacyNotes9710?.();
+ return {invoices:invoices.length,activeProjection:open.length,paidProjection:paid.length,updatedPanels:changed};
 }
 function patchRenderer(){
  const f=window.renderOrderNotes;if(typeof f!=='function'||f.__hlgbNotesLive9563)return false;
