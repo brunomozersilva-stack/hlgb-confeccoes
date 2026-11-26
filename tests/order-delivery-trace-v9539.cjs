@@ -14,13 +14,13 @@ function run(opts={}){
   querySelectorAll:()=>opts.visible===false?[]:[{querySelector:x=>x==='td'?{textContent:'43'}:null}],
   addEventListener:()=>{},activeElement:null
  };
- const win={addEventListener:()=>{},cloudRequest:async(path,init)=>{
+ const win={__HLGB_AUTH_READY:true,addEventListener:()=>{},cloudRequest:async(path,init)=>{
   assert.match(path,/module=eq.orders/);assert.equal(init.method,'GET');reads++;return [row]
  },hlgbWalIdbGuard9536:{probe:async()=>({}),status:()=>({readFailed:false})},
  hlgbRecordPendingIdentitySet9535:()=>new Set(opts.pending?['orders::'+order.id]:[]),
  hlgbSyncRecovery9301:{version:'95.36',pending:()=>({records:0,wal:0})}};
  const ctx={window:win,document:doc,navigator:{onLine:true,userAgent:'Mozilla/5.0 Chrome/120.0'},
- db,Date,JSON,Math,Set,Array,String,Error,setTimeout:()=>0,setInterval:()=>0,
+ db,canOpenPage:()=>true,hasAccess:()=>true,Date,JSON,Math,Set,Array,String,Error,setTimeout:()=>0,setInterval:()=>0,
  getComputedStyle:()=>({display:'none'}),console,Blob:function(){}};
  vm.runInNewContext(src,ctx);
  return {win,reads:()=>reads};
