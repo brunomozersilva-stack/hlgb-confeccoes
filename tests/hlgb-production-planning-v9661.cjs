@@ -96,3 +96,24 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
 (function selectedOptionPrint(){const g={materialId:'1',materialName:'Tule',models:[{key:'a',orderNumber:'1',productName:'A',pieces:30,grade:[{color:'Rubi',size:'P',qty:30}]},{key:'b',orderNumber:'2',productName:'B',pieces:40,grade:[{color:'Rubi',size:'M',qty:40}]}]},before=JSON.stringify(g),choices={Rubi:'limit'};const s=plan.scenarioSummary(g,6,choices,true);assert.equal(s.remaining,4);assert.equal(s.combinedPieces,66);assert.equal(s.total,70);const html=plan.jointPrintDraft(g,6,'packet',true,choices);assert.ok(html.includes('Complementar'));assert.ok(html.includes('Limite de folhas'));assert.ok(html.includes('70 peças previstas'));assert.throws(()=>plan.scenarioSummary(g,6,{Rubi:'missing'},true));assert.throws(()=>plan.scenarioSummary(g,6,{Preto:'exact'},true));assert.equal(JSON.stringify(g),before);})();
 
 (function mixedCutHistory(){const cut={id:'C1',orderId:1,productId:10,status:'Finalizado',finishedAt:'2026-11-26',pieces:70,actualCutGrade:[{productId:10,color:'Rubi',size:'P',qty:30},{productId:11,color:'Rubi',size:'M',qty:40}],cutWeightV9579:{totalKg:10,usedKg:9,wasteKg:1},materialUsage:[{materialId:1,name:'Malha',weight:10,unit:'kg'}]};const db={cuts:[cut],products:[{id:10,name:'A'},{id:11,name:'B'}],orders:[{id:1,client:'Cliente'}],cutters:[],materials:[{id:1,name:'Malha',cat:'Malha'}]},before=JSON.stringify(db),h=plan.jointHistory9757(db,true);assert.equal(h.rows.length,1);assert.equal(h.rows[0].pieces,70);assert.equal(h.rows[0].weights.usedPct,90);assert.equal(h.rows[0].models.length,2);assert.equal(plan.cutEvidence(db,true).byProduct.size,0);assert.equal(plan.materialHistory(db,true).byPair.size,0);assert.equal(plan.weights(db.cuts,10).length,0);assert.equal(plan.jointHistory9757({...db,cuts:[cut,{...cut}]},true).rows.length,0);assert.equal(plan.jointHistory9757({...db,cuts:[{...cut,status:'Planejado'}]},true).rows.length,0);assert.equal(plan.jointHistory9757({...db,cuts:[{...cut,pieces:71}]},true).review,1);assert.equal(plan.jointHistory9757({...db,cuts:[{...cut,modelSplitParentV1:true}]},true).rows.length,0);assert.equal(plan.jointHistory9757(db,false).rows.length,0);assert.equal(JSON.stringify(db),before);})();
+
+
+(function completeMaterialCompatibility(){
+ const product=(id,name,materialId=1)=>({id,name,materials:[{materialId}]});
+ const order=(id,productId,color,status='Aberto')=>({id,orderNumber:id,status,grade:[{productId,color,size:'M',qty:40}]});
+ const db={orders:[order(1,10,'Preto'),order(2,11,'Rubi','Aguardando execução'),order(3,12,'Preto'),order(4,13,'Branco'),order(5,10,'Branco','Finalizado'),order(6,14,'Rubi')],products:[product(10,'Camisola Juliana'),product(11,'Camisola Letícia'),product(12,'Camisola Liliane'),product(13,'Outro tecido',2),{id:14,name:'Sem matéria-prima',materials:[]}],materials:[{id:1,name:'Romantic',cat:'Malha'},{id:2,name:'Tule',cat:'Tule'}],cuts:[{id:'c',orderId:2,productId:11,status:'Aguardando execução'}],production:[],operationalWriteoffs:[]};
+ const before=JSON.stringify(db),d=plan.discover(db,{pairIndex:()=>new Set(['1|10'])},true),x=plan.orderMaterialCompatibility(db,d,true);
+ assert.equal(x.state,'local-compatibility');assert.equal(x.canWrite,false);
+ const romantic=x.groups.find(g=>g.materialName==='Romantic');
+ assert.deepEqual(romantic.models.map(m=>m.productId).sort(),['10','11','12']);
+ assert.equal(romantic.models.find(m=>m.productId==='10').planningEligible,false);
+ assert.equal(romantic.models.find(m=>m.productId==='11').planningEligible,false);
+ assert.equal(x.models.length,5);assert.ok(x.models.some(m=>m.productId==='14'&&!m.materialIds.length));
+ assert.equal(x.groups.find(g=>g.materialName==='Tule').models.length,1);
+ const pair=romantic.models.filter(m=>m.productId!=='12'),plans=plan.gradeSuggestions({...romantic,models:pair});
+ assert.equal(plans.length,2);assert.ok(plans.every(p=>p.modelCount===1&&!p.geometryVerified&&!p.canWrite));
+ assert.equal(plan.orderMaterialCompatibility(db,d,false).state,'forbidden');
+ assert.equal(plan.orderMaterialCompatibility(db,{state:'unavailable'},true).models.length,5);
+ assert.equal(JSON.stringify(db),before);
+ console.log('PASS complete material compatibility across order states and colors');
+})();
