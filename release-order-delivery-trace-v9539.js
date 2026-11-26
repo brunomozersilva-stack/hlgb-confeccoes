@@ -8,10 +8,13 @@ if(window.hlgbOrderDeliveryTrace9539)return;
 const VERSION='95.39',AUTO_INTERVAL=120000,AUTO_LIMIT=6,PER_PAGE=200,MAX_PAGES=4;
 const FILTERS=['orderNumberFilter','orderSearch','orderStatusFilter','orderPriorityFilter','orderStartFilter','orderEndFilter'];
 const HISTORY_MAX=24;
-let inflight=null,lastAutomatic=0,last=null,history=[],pane=null;
+let inflight=null,lastAutomatic=0,last=null,history=[],pane=null,sessionEpoch=0;
 const sid=x=>String(x==null?'':x);
 const browser=(()=>{const ua=sid(navigator.userAgent);return /Edg\//.test(ua)?'edge':/Chrome\//.test(ua)?'chrome':/Safari\//.test(ua)?'safari':'other'})();
 function isOrders(){return document.querySelector('#appShell .page.active')?.id==='pedidos'}
+function isCenter(){return document.getElementById('hlgbDiagnosticsCenter')?.classList.contains('active')===true}
+function orderAllowed(){try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('pedidos')===true}catch(_){return false}}
+function centerAllowed(){try{return orderAllowed()&&typeof hasAccess==='function'&&hasAccess('cadastros')===true}catch(_){return false}}
 function loggedIn(){
  const login=document.getElementById('loginScreen');
  if(!document.getElementById('appShell')||!navigator.onLine)return false;
@@ -31,7 +34,7 @@ function stable(x){
 function same(a,b){try{return JSON.stringify(stable(a))===JSON.stringify(stable(b))}catch(e){return false}}
 function filtersActive(){return FILTERS.some(k=>sid(document.getElementById(k)?.value).trim()!=='')}
 function isRendered(number){
- if(!isOrders())return false;
+ if(!isOrders())return null;
  const trs=document.querySelectorAll('#ordersTable tr');
  for(const tr of trs){
   const val=sid(tr.querySelector?.('td')?.textContent).trim().replace(/^#\s*/,'');
@@ -49,9 +52,12 @@ function pendingStatus(id){
  }catch(e){return 'não verificado'}
 }
 function ensurePanel(){
- if(pane&&pane.isConnected)return pane;
- const target=document.getElementById('hlgbOrdersCloudCheck9537')||document.getElementById('orderFilterSummary');
+ if(!centerAllowed()||!isCenter()){if(pane?.isConnected)pane.remove();pane=null;return null}
+ const target=document.getElementById('hlgbDiagnosticsCenter');
  if(!target)return null;
+ if(pane&&pane.isConnected&&pane.parentElement===target)return pane;
+ if(pane?.isConnected)pane.remove();
+ const old=document.getElementById('hlgbOrderDeliveryTrace9539');if(old)old.remove();
  pane=document.createElement('section');
  pane.id='hlgbOrderDeliveryTrace9539';
  pane.setAttribute('aria-label','Diagnóstico de entrega dos pedidos');
@@ -76,8 +82,8 @@ function ensurePanel(){
  status.id='hlgbOrderTraceStatus9539';status.style.cssText='margin-top:8px;white-space:pre-line;';
  const note=document.createElement('div');
  note.style.cssText='margin-top:7px;color:#677386;';
- note.textContent='Execute nos dois navegadores. Cada diagnóstico comprova apenas o que esta sessão recebeu e exibiu.';
- actions.append(input,check,dl);pane.append(header,actions,status,note);target.after(pane);
+ note.textContent='A conferência automática observa a lista enquanto Pedidos está aberta. Aqui, a verificação manual consulta nuvem e dados locais; a visibilidade da lista não é testada fora de Pedidos. Execute nos dois navegadores.';
+ actions.append(input,check,dl);pane.append(header,actions,status,note);target.appendChild(pane);
  if(last)paint();
  return pane;
 }
@@ -93,7 +99,7 @@ function paint(){
  const rows=last.results||[];
  if(!rows.length){target.textContent='Nenhum pedido correspondente foi retornado pela nuvem. Verifique a sessão e o número digitado.';return}
  const lines=rows.map(x=>{
-  const visual=x.visible?'SIM':x.filterActive?'OCULTO POR FILTRO':'NÃO';
+  const visual=x.visible===null?'NÃO TESTADA (fora de Pedidos)':x.visible?'SIM':x.filterActive?'NÃO EXIBIDO (há filtros)':'NÃO EXIBIDO NA PÁGINA ATUAL';
   const local=x.localMatch?'CONFIRMADO':x.localPresent?'DIVERGENTE':'AUSENTE';
   return '#'+x.orderNumber+' · nuvem SIM · local '+local+' · tela '+visual+
     (x.pending==='sim'?' · ALTERAÇÃO LOCAL PENDENTE':'');
@@ -121,7 +127,8 @@ async function loadRows(number){
 }
 async function verify(number='',manual=false){
  if(inflight)return inflight;
- if(!loggedIn()||!isOrders())return false;
+ if(!loggedIn()||!orderAllowed()||(!isOrders()&&!(manual&&isCenter()&&centerAllowed())))return false;
+ const epoch=sessionEpoch;
  const desired=sid(number).replace(/[^0-9]/g,'').slice(0,12);
  if(!manual&&Date.now()-lastAutomatic<AUTO_INTERVAL)return true;
  inflight=(async()=>{
@@ -130,7 +137,9 @@ async function verify(number='',manual=false){
    let guardError='';
    try{if(typeof guard?.probe==='function')await guard.probe();else guardError='proteção IndexedDB indisponível'}
    catch(e){guardError=sid(e?.message||e).slice(0,120)}
+   if(epoch!==sessionEpoch||!loggedIn()||!orderAllowed())return false;
    const rows=await loadRows(desired);
+   if(epoch!==sessionEpoch||!loggedIn()||!orderAllowed())return false;
    const local=database()?.orders;
    if(!Array.isArray(local))throw Error('A lista local de pedidos não foi carregada');
    const result=rows.filter(r=>r?.module==='orders'&&!r?.deleted_at&&r?.data&&r?.entity_id!=null)
@@ -152,6 +161,7 @@ async function verify(number='',manual=false){
    if(!manual)lastAutomatic=Date.now();
    paint();return last;
   }catch(e){
+   if(epoch!==sessionEpoch||!loggedIn()||!orderAllowed())return false;
    last={version:VERSION,browser,checkedAt:new Date().toISOString(),selected:desired||null,
     error:sid(e?.message||e).slice(0,200),results:[]};
    history.unshift(last);history=history.slice(0,HISTORY_MAX);
@@ -160,11 +170,12 @@ async function verify(number='',manual=false){
  })();
  paint();return inflight;
 }
-function exportData(){return {kind:'hlgb-order-delivery-trace',version:VERSION,
+function exportData(){if(!centerAllowed()&&!orderAllowed())return null;return {kind:'hlgb-order-delivery-trace',version:VERSION,
  browser,generatedAt:new Date().toISOString(),
  note:'Comprova somente leitura e visibilidade nesta sessão. Não comprova outra máquina nem ACK de escrita do servidor.',
  history:history.slice()}}
 function download(){
+ if(!centerAllowed()||!isCenter())return false;
  const b=new Blob([JSON.stringify(exportData(),null,2)],{type:'application/json;charset=utf-8'});
  const url=URL.createObjectURL(b),link=document.createElement('a');
  link.href=url;link.download='HLGB-PEDIDOS-DIAGNOSTICO-'+browser+'-'+new Date().toISOString().slice(0,10)+'.json';
@@ -172,13 +183,17 @@ function download(){
  setTimeout(()=>{URL.revokeObjectURL(url);link.remove()},200);
 }
 function schedule(){
- if(isOrders()&&loggedIn()){ensurePanel();verify('',false).catch(()=>{})}
+ ensurePanel();
+ if(isOrders()&&loggedIn()&&orderAllowed())verify('',false).catch(()=>{});
 }
+function clearSession(){sessionEpoch++;last=null;history=[];lastAutomatic=0;if(pane?.isConnected)pane.remove();pane=null;}
+window.addEventListener('hlgb:logout',clearSession);
+window.addEventListener('hlgb:authenticated',()=>{clearSession();setTimeout(schedule,300)});
 document.addEventListener('click',e=>{
  const t=e.target?.closest?.('[data-page],button,a');
  const page=sid(t?.dataset?.page||t?.getAttribute?.('data-target')).toLowerCase();
  const label=sid(t?.textContent).replace(/\s+/g,' ').trim().toLowerCase();
- if(page==='pedidos'||label==='pedidos')setTimeout(schedule,300);
+ setTimeout(schedule,300);
 },true);
 window.addEventListener('pageshow',()=>setTimeout(schedule,600));
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(schedule,450)});
