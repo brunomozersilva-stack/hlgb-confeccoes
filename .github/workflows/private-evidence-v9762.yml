@@ -1,0 +1,21 @@
+name: HLGB - Arquivos privados Rotas e RH v97.62
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/seguranca/private-evidence-contract-v9762.cjs'
+      - 'tests/private-evidence-contract-v9762.cjs'
+      - '.github/workflows/private-evidence-v9762.yml'
+  workflow_dispatch:
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/private-evidence-contract-v9762.cjs
+      - run: |
+          if grep -q 'private-evidence-contract-v9762' app-stable3.html app9240.html; then exit 1; fi
