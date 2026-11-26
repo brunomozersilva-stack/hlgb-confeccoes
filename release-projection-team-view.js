@@ -310,6 +310,42 @@ function mountPlanner(){
     const issues=el('details','',qout);el('summary','Ocorrências a conferir',issues);for(const i of v.issues)el('p',i.recordId+' · '+i.reason,issues);
     el('p','Nenhuma reserva, transferência ou alteração foi gravada. Não inclui complexidade, transporte ou confirmação de disponibilidade real.',qout);
    });refreshQueueLocations();
+
+   const distribute=el('details','',stages);el('summary','Distribuir um novo pedido entre várias facções',distribute);
+   el('p','Compara filas, capacidades revisadas e lotes históricos do mesmo modelo. Só considera faixas observadas e locais com compatibilidade confirmada. Não reserva capacidade nem altera pedidos.',distribute);
+   const dmodel=el('select','',distribute);dmodel.setAttribute('aria-label','Modelo para distribuir');dmodel.style.maxWidth='100%';
+   const dqty=field('Quantidade total do pedido','number','',distribute),ddue=field('Data limite de entrega ao cliente','date','',distribute),dfinish=field('Dias corridos de reserva para acabamento e transporte','number','2',distribute);
+   const dlist=el('div','',distribute),dout=el('div','',distribute),dteams=[];
+   function loadDistribution(){
+    if(!active())return;const source=typeof db!=='undefined'?db:window.db;dmodel.replaceChildren();dlist.replaceChildren();dout.replaceChildren();dteams.length=0;
+    const add=(s,value,label)=>{const o=el('option',label,s);o.value=value};add(dmodel,'','Selecionar modelo');
+    const seen=new Set();for(const p of source?.products||[]){const k=sid(p?.id);if(!k||seen.has(k)||p.deletedAt||p.deleted_at||p.deleted===true||p._deleted||p.active===false)continue;seen.add(k);add(dmodel,k,sid(p.name||k))}
+    seen.clear();for(const l of source?.productionLocations||[]){const k=sid(l?.id);if(!k||seen.has(k)||l.deletedAt||l.deleted_at||l.deleted===true||l._deleted)continue;seen.add(k);
+     const row=el('details','',dlist);el('summary',sid(l.name||k),row);
+     const pickLabel=el('label','Incluir nesta comparação',row),pick=el('input','',pickLabel);pick.type='checkbox';
+     const cap=field('Capacidade semanal (peças em cinco dias)','number','',row),extra=field('Compromissos adicionais conciliados (peças)','number','0',row);
+     const check=(text)=>{const label=el('label',text,row),c=el('input','',label);c.type='checkbox';return c};
+     const compatible=check('Confirmei que este local produz o modelo selecionado'),coverage=check('Conferi a fila completa, sem duplicar compromissos'),capacity=check('Conferi capacidade disponível e calendário');
+     for(const f of [pick,compatible,coverage,capacity])f.onchange=()=>dout.replaceChildren();
+     cap.oninput=()=>{capacity.checked=false;dout.replaceChildren()};extra.oninput=()=>{coverage.checked=false;dout.replaceChildren()};
+     dteams.push({key:k,pick,cap,extra,compatible,coverage,capacity});
+    }
+   }
+   dmodel.onchange=()=>{for(const t of dteams)t.compatible.checked=false;dout.replaceChildren()};for(const f of [dqty,ddue,dfinish])f.oninput=()=>dout.replaceChildren();
+   btn('Atualizar modelos e locais',distribute,loadDistribution);
+   btn('Comparar e distribuir pedido',distribute,()=>{
+    dout.replaceChildren();if(!active())return;
+    const n=v=>/^\d+$/.test(String(v).trim())?Number(v):NaN,source=typeof db!=='undefined'?db:window.db;
+    const v=api.distributeFactionOrder(source,{productId:dmodel.value,pieces:n(dqty.value),start:start.value,asOf:today(),dueDate:ddue.value,finishBufferDays:n(dfinish.value),bufferPercent:Number(buffer.value),weeks:Number(horizon.value),closedDates:closed.value.split(',').map(x=>x.trim()).filter(Boolean),teams:dteams.filter(t=>t.pick.checked).map(t=>({teamId:t.key,weeklyCapacity:n(t.cap.value),additionalCommitted:n(t.extra.value),compatibilityConfirmed:t.compatible.checked,coverageConfirmed:t.coverage.checked,capacityConfirmed:t.capacity.checked}))},active());
+    if(v.state!=='local-distribution-scenario'){el('p','Confira modelo, quantidade, datas (início a partir de hoje), locais e parâmetros.',dout);return}
+    el('h4','Distribuição hipotética: '+fmt(v.allocated)+' de '+fmt(v.pieces)+' pç',dout);
+    el('p','Sem alocação: '+fmt(v.unallocated)+' pç · referência de entrega '+(v.referenceDelivery||'não disponível')+' · reserva '+v.finishBufferDays+' dias corridos.',dout);
+    if(v.partial)el('p','Simulação parcial: existem locais não elegíveis ou peças sem alocação. Não prometa o prazo.',dout);
+    for(const a of v.allocations)el('p',a.teamName+' · '+fmt(a.pieces)+' pç · início livre '+a.firstFree+' · retorno de referência '+a.referenceReturn+' · '+a.sampleCount+' lotes históricos comparáveis',dout);
+    const reasons={'fila-indisponivel':'Fila indisponível','modelo-nao-confirmado':'Compatibilidade não conferida','fila-ou-capacidade-a-conferir':'Fila/capacidade a conferir','sem-capacidade-ate-prazo':'Sem capacidade até o prazo','sem-faixa-historica-e-capacidade-compativeis':'Sem quantidade histórica e capacidade compatíveis'};
+    const detail=el('details','',dout);el('summary','Por que cada local foi considerado ou excluído',detail);for(const t of v.teams){el('p',t.teamName+' · '+(t.reason?reasons[t.reason]||t.reason:t.ranges.map(r=>r.min+'–'+r.max+' pç ('+r.days+' dias)').join(' · ')),detail);if(t.queue?.issues?.length)el('p',t.queue.issues.length+' ocorrências na fila a conferir',detail)}
+    el('p','Histórico com '+v.historyIssues+' ocorrências a conferir. Referência, não garantia de retorno ou entrega. Nenhuma alteração gravada.',dout);
+   });loadDistribution();
    const stageOut=el('div','',stages),lines=s=>s.split(/\r?\n/).filter(x=>x.trim()).map(x=>x.split(';').map(v=>v.trim())),num=v=>/^\d+$/.test(String(v).trim())?Number(v):NaN;
    for(const r of stageRows){for(const f of [r.capacity,r.wip,r.hist,r.teams].filter(Boolean))f.oninput=()=>{if(f===r.wip)r.confirmed.checked=false;stageOut.replaceChildren()};r.confirmed.onchange=()=>stageOut.replaceChildren()}
    target.oninput=()=>stageOut.replaceChildren();
