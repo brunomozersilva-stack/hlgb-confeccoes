@@ -115,6 +115,73 @@ function renderTeam(){
 }
 window.hlgbProjectionRenderTeam=renderTeam;
 window.hlgbProjectionQuick=function(v){quick=v||'period';renderTeam()};
+
+function plannerActor(){try{return String(typeof cloudUser!=='undefined'?cloudUser?.id||'':typeof currentUser==='function'?currentUser()?.id||'':'')}catch(_){return ''}}
+function plannerAllowed(){try{return mode==='admin'&&window.__HLGB_AUTH_READY===true&&!!plannerActor()&&typeof canOpenPage==='function'&&['projecao','pedidos','producao','financeiro'].every(p=>canOpenPage(p)===true)&&document.getElementById('projecao')?.classList.contains('active')}catch(_){return false}}
+function clearPlanner(){document.getElementById('hlgbDeliveryCapacityPlanner')?.remove()}
+function mountPlanner(){
+ if(!plannerAllowed()){clearPlanner();return}
+ const api=window.HLGBProductionPlanning9661,area=document.getElementById('projecao');if(!api?.deliveryCapacityPlan||!area)return;
+ const prev=document.getElementById('hlgbDeliveryCapacityPlanner');if(prev?.dataset.actor===plannerActor())return;prev?.remove();
+ const el=(tag,t,host)=>{const x=document.createElement(tag);x.textContent=t;host.appendChild(x);return x};
+ const host=el('details','',area);host.id='hlgbDeliveryCapacityPlanner';host.className='panel';host.dataset.actor=plannerActor();host.open=true;
+ const active=()=>plannerAllowed()&&host.isConnected&&host.dataset.actor===plannerActor();
+ el('summary','Central de planejamento de produção e entregas',host);
+ el('p','Simulação de carteira e capacidade. Não altera datas, metas, pedidos ou caixa. Histórico de entregas é referência, não capacidade comprovada de costura/corte.',host);
+ const field=(label,type,value='',parent=host)=>{const l=el('label',label,parent);l.style.cssText='display:block;margin:7px 0';const f=el('input','',l);f.type=type;f.value=value;f.style.cssText='display:block;max-width:100%;box-sizing:border-box';return f};
+ const btn=(label,parent,fn)=>{const b=el('button',label,parent);b.type='button';b.className='secondary';b.onclick=fn;return b};
+ const start=field('Início do planejamento','date',today()),goal=field('Meta máxima semanal informada (opcional)','number'),buffer=field('Reserva de segurança (%)','number','15'),horizon=field('Semanas a planejar','number','8'),newPieces=field('Peças de um novo pedido hipotético','number','0'),closed=field('Feriados e dias fechados (AAAA-MM-DD, separados por vírgula)','text');
+ const history=el('details','',host);el('summary','Histórico semanal para aprender com as entregas',history);
+ el('p','Confira se a semana está completa e se a data da projeção corresponde à entrega realizada. Sem confirmação, a semana não entra na média. Uma semana de zero entregas pode ser confirmada explicitamente.',history);
+ const histHost=el('div','',history),termHost=el('details','',host);el('summary','Condições de recebimento para simulação',termHost);el('p','Confirme a condição por cliente apenas para este cenário. Se houver condições diferentes por pedido, deixe desconhecida até a conciliação. Valores não representam saldo a receber ou recebimento confirmado.',termHost);
+ const coverageLabel=el('label','Conferi a carteira inteira e as datas, inclusive pedidos sem projeção.',host),coverage=el('input','',coverageLabel);coverage.type='checkbox';
+ const output=el('div','',host);output.setAttribute('aria-live','polite');let hist=[],terms=new Map();
+ function buildHistory(){
+  histHost.replaceChildren();hist=[];coverage.checked=false;output.replaceChildren();if(!active()||!start.value)return;
+  const base=Date.parse(start.value+'T00:00:00Z');if(!Number.isFinite(base))return;
+  const day=86400000,m=base-((new Date(base).getUTCDay()+6)%7)*day,rows=[];
+  try{if(typeof window.projectionDeliveredRows==='function'&&window.projectionDeliveredRows.__hlgbProjectionDeliveryIntegrityV1)rows.push(...window.projectionDeliveredRows('0000-01-01','9999-12-31'))}catch(_){}
+  for(let i=1;i<=12;i++){const t=m-i*7*day,week=new Date(t).toISOString().slice(0,10),end=new Date(t+6*day).toISOString().slice(0,10);
+   const observed=rows.filter(r=>{const d=sid(r.projectionDate||r.date).slice(0,10);return r.hlgbProjectionCanonical===true&&d>=week&&d<=end&&Number.isSafeInteger(r.qty)&&r.qty>0}).reduce((n,r)=>n+r.qty,0);
+   const line=el('div','',histHost),pieces=field(week+' até '+end+' · peças observadas (conferir)','number',String(observed),line),l=el('label','Semana completa e entrega conferida',line),check=el('input','',l);check.type='checkbox';
+   pieces.oninput=()=>{check.checked=false;output.replaceChildren()};check.onchange=()=>output.replaceChildren();hist.push({week,pieces,check});
+  }
+ }
+ function getOrders(){if(typeof allProjectionRows!=='function'||typeof projectionDeliverableQty!=='function')throw Error('source');const raw=allProjectionRows();if(!Array.isArray(raw))throw Error('source');return raw.filter(r=>r.order&&r.item&&projectionDeliverableQty(r.order,r.item)>0).map(({order,item})=>{
+  const client=sid(item.clientName||order.client||'Sem cliente'),qty=projectionDeliverableQty(order,item),rawValue=typeof projectionDeliverableValue==='function'?projectionDeliverableValue(order,item):null,amount=typeof rawValue==='number'&&Number.isFinite(rawValue)&&rawValue>=0?Math.round(rawValue*100):null;
+  const key=order.id!=null&&item.key!=null?JSON.stringify([sid(order.id),sid(item.key)]):'';
+  return {key,client,model:sid(item.name||'Produto'),dueDate:sid(item.date).slice(0,10),pieces:qty,amountCents:amount};
+ })}
+ function buildTerms(){if(!active())return;terms.clear();while(termHost.children.length>2)termHost.lastChild.remove();let clients=[];try{clients=[...new Set(getOrders().map(r=>r.client))].sort()}catch(_){return}
+  for(const c of clients){const row=el('div','',termHost);el('strong',c,row);const select=el('select','',row);
+   for(const [v,t] of [['unknown','Não conferido'],['cash','À vista na entrega (hipótese)'],['term','A prazo (hipótese)']]){const o=el('option',t,select);o.value=v}
+   const days=field('Prazo em dias corridos','number','',row);days.min='1';days.max='365';select.onchange=days.oninput=()=>output.replaceChildren();terms.set(c,{select,days});
+  }
+ }
+ start.onchange=buildHistory;for(const f of [goal,buffer,horizon,newPieces,closed])f.oninput=()=>output.replaceChildren();coverage.onchange=()=>output.replaceChildren();
+ btn('Atualizar dados de pedidos e histórico',host,()=>{buildHistory();buildTerms()});
+ btn('Simular capacidade, entregas e recebimentos',host,()=>{
+  output.replaceChildren();if(!active())return;
+  try{
+   const orders=getOrders().map(o=>{const t=terms.get(o.client);return {...o,paymentMode:t?.select.value||'unknown',paymentDays:Number(t?.days.value||0)}});
+   const missing=orders.filter(o=>!o.dueDate||!o.key).length;
+   const p=api.deliveryCapacityPlan({start:start.value,weeks:Number(horizon.value),weeklyGoal:goal.value===''?null:Number(goal.value),bufferPercent:Number(buffer.value),newPieces:Number(newPieces.value),closedDates:closed.value.split(',').map(x=>x.trim()).filter(Boolean),coverageConfirmed:coverage.checked&&missing===0,history:hist.map(h=>({week:h.week,pieces:Number(h.pieces.value),confirmed:h.check.checked})),orders},true);
+   if(p.state!=='local-capacity-simulation'){el('p','Confira datas, metas, histórico e limites da simulação.',output);return}
+   const fmt=n=>n===null?'Não confirmado':n.toLocaleString('pt-BR');
+   el('h3','Capacidade semanal e carteira',output);el('p','Semanas conferidas: '+p.sampleCount+' · Média entregue: '+fmt(p.average)+' · Referência conservadora: '+fmt(p.conservative)+' · Meta após reserva: '+fmt(p.weeklyTarget)+' peças/semana.',output);
+   el('p','Peças atrasadas na carteira: '+fmt(p.overdue)+' · Fora do prazo na simulação: '+fmt(p.late)+' · Não alocadas no horizonte: '+fmt(p.unallocated),output);
+   if(p.issues.length||missing)el('p','Dados a conferir: '+p.issues.join(', ')+' · '+missing+' itens sem data ou identificação; não prometa prazo com carteira incompleta.',output);
+   if(p.newPieces)el('p','Novo pedido: '+fmt(p.newPieces)+' peças · primeira conclusão hipotética '+(p.firstAvailable||'não cabe no horizonte')+' · '+p.unplacedNewPieces+' ainda sem capacidade. Não é data de entrega confirmada.',output);
+   const wrap=el('div','',output);wrap.style.cssText='overflow:auto;max-width:100%';const table=el('table','',wrap),head=el('tr','',el('thead','',table));for(const h of ['Semana','Capacidade','Entregas previstas (pç)','Carga alocada','Vagas (pç)','À vista*','A prazo*','Pç sem condição'])el('th',h,head);
+   const body=el('tbody','',table);for(const w of p.weeks){const tr=el('tr','',body);for(const v of [w.start,fmt(w.capacity),fmt(w.committed),fmt(w.allocated),fmt(w.free),money(w.cashAtDeliveryCents/100),money(w.termReceiptsCents/100),fmt(w.unknownPaymentPieces)])el('td',String(v),tr)}
+   el('p','* Datas de recebimento simuladas a partir das entregas prometidas, não caixa líquido. Não inclui contas a pagar, saldo bancário, atrasos, parcelas ou valores já pagos.',output);
+   const details=el('details','',output);el('summary','Entregas por cliente, pedido e data',details);
+   for(const o of p.orders)el('p',o.dueDate+' · '+o.client+' · '+o.model+' · '+o.pieces+' pç · '+(o.paymentMode==='cash'?'À vista':o.paymentMode==='term'?'Prazo '+o.paymentDays+' dias':'Condição não conferida')+' · previsão de conclusão '+(o.lastWorkDate||'sem alocação')+(o.remaining?' · '+o.remaining+' pç pendentes':''),details);
+   const days=el('details','',output);el('summary','Distribuição diária de produção (simulada)',days);for(const d of p.daily.filter(d=>d.assignments.length)){el('strong',d.date+' · '+d.allocated+' pç',days);for(const a of d.assignments)el('p',a.client+' · '+a.model+' · '+a.pieces+' pç',days)}
+  }catch(_){el('p','Fonte da projeção indisponível. Nenhum prazo ou valor foi confirmado.',output)}
+ });
+ buildHistory();buildTerms();
+}
 function applyMode(){
   injectUI();
   const page=document.getElementById('projecao');if(!page)return;
@@ -128,6 +195,7 @@ function applyMode(){
   const tb=document.getElementById('hlgbProjTeamBtn'),ab=document.getElementById('hlgbProjAdminBtn');
   if(tb)tb.className=mode==='team'?'primary':'secondary';
   if(ab)ab.className=mode==='admin'?'primary':'secondary';
+  mountPlanner();
 }
 window.hlgbProjectionSetView=function(v){mode=v==='admin'?'admin':'team';try{localStorage.setItem(STORE,mode)}catch(e){};applyMode();if(mode==='team')renderTeam()};
 try{mode=localStorage.getItem(STORE)==='admin'?'admin':'team'}catch(e){mode='team'}
@@ -139,5 +207,6 @@ if(typeof old==='function'&&!old.__hlgbTeamProjectionV1){
 window.hlgbProjectionTeam={baseRows,teamRows,prodProgress,cutterAndMissing,setMode:v=>window.hlgbProjectionSetView(v)};
 function boot(){injectUI();applyMode();if(document.getElementById('projecao')?.classList.contains('active'))renderTeam()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearPlanner();else mountPlanner()});window.addEventListener?.('hlgb:logout',clearPlanner);window.addEventListener?.('hlgb:authenticated',()=>{clearPlanner();mountPlanner()});
 console.info('[HLGB] Projeção semanal: visão da equipe '+V+' carregada');
 })();
