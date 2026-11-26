@@ -32,3 +32,17 @@ api.apply();assert.equal(model.style.display,'');assert.equal(other.style.displa
 query.value='';api.apply();assert.equal(other.style.display,'');assert.equal(group2.style.display,'');assert.equal(aggregate.style.display,'none');assert.match(count.textContent,/2 de 2/);
 assert.equal(JSON.stringify(context.db),before);
 console.log('PASS model and legacy filter, normalized search and aggregate protection');
+
+// Exact catalogue estimate; no fabricated value for missing product or price.
+context.db.products[0].price=12.5;cut.pieces=100;
+const priced=api.cutMeta9709(cut,api.cutIndex9709());
+assert.equal(priced.valueCents,125000);assert.equal(priced.pieces,100);
+assert(api.matchesCut9709(priced,{client:'JOAO',from:'2026-11-01',to:'2026-11-30',min:120000,max:130000}));
+assert(!api.matchesCut9709(priced,{client:'Maria'}));
+assert(!api.matchesCut9709(priced,{from:'2026-11-26'}));
+assert(!api.matchesCut9709(priced,{min:125001}));
+const unknown=api.cutMeta9709(context.db.cuts[1],api.cutIndex9709());
+assert.equal(unknown.valueCents,null);assert(!api.matchesCut9709(unknown,{min:0}));
+assert(api.compareCut9712({meta:priced},{meta:unknown},'value')<0);
+assert(api.compareCut9712({meta:priced},{meta:unknown},'client')<0);
+console.log('PASS combined client/date/value filters and unknown-value protection');

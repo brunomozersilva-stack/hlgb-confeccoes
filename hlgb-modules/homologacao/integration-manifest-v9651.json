@@ -150,11 +150,6 @@
       "origin": 318
     },
     {
-      "path": "tests/cut-separation-workspace-v9643-browser.cjs",
-      "sha": "d21a589017625b42dcc1feeea7689ada03947258",
-      "origin": 318
-    },
-    {
       "path": "tests/cut-separation-workspace-v9643.cjs",
       "sha": "3f050cb2829ee4b007587559ff65bb055bb0cc05",
       "origin": 318
@@ -333,6 +328,12 @@
       "sha": "25232d716614bd0f052a07c32d172cac9705a1de",
       "origin": 317,
       "reason": "v96.70: evolução explícita de diagnóstico, menu e cobertura de testes; interfaces anteriores preservadas; revalidar browser e CI"
+    },
+    {
+      "path": "tests/cut-separation-workspace-v9643-browser.cjs",
+      "sha": "d21a589017625b42dcc1feeea7689ada03947258",
+      "origin": 318,
+      "reason": "v97.12: estende teste original de separação com integração na ficha, preservação de rascunho e anexos, identidade ambígua, filtros, ordem global e retorno reversível; mantém todos os cenários anteriores"
     }
   ],
   "followupProduction": {
@@ -624,5 +625,10 @@
     ],
     "status": "branch preparada",
     "dependsOn": "etapa 06"
+  },
+  "followupCut9712": {
+    "controller": "release-cut-organization.js",
+    "test": "tests/cut-separation-workspace-v9643-browser.cjs",
+    "previousTestBlob": "d21a589017625b42dcc1feeea7689ada03947258"
   }
 }
