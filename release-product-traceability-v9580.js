@@ -249,8 +249,10 @@ function detail(d){
  if(d.stage)add('Execução',d.stage);
  if(d.checked!=null)add('Situação',d.checked?'Marcado':'Desmarcado');
  if(d.note)add('Observação',d.note);
- if(d.weight?.totalKg!=null)add('Peso total',num(d.weight.totalKg)+' kg');
- if(d.after?.totalKg!=null)add('Peso medido',num(d.after.totalKg)+' kg');
+ for(const [w,prefix] of [[d.weight,'Peso'],[d.after,'Pesagem']])if(w){
+  for(const [k,l] of [['totalKg','total'],['usedKg','usado'],['wasteKg','refugo']])if(w[k]!=null)add(prefix+' '+l,w[k]+' kg');
+  if(w.note)add('Observação da pesagem',w.note);
+ }
  return lines.join(' · ');
 }
 
@@ -263,13 +265,44 @@ function historySearchPermissions9652(){
 function mountHistorySearch9652(host){
  const api=window.HLGBProductHistory9652;if(!api)return;
  const el=(tag,txt,parent)=>{const e=document.createElement(tag);e.textContent=txt;parent.appendChild(e);return e};
- const box=el('section','',host);box.className='panel';el('h3','Pesquisa ampliada e histórico por origem',box);el('p','Consulta dos registros locais autorizados. Não prova cobertura integral da nuvem.',box);
+ const box=el('section','',host);box.className='panel';el('h3','Pesquisar produto e consultar remessas',box);el('p','Consulta dos registros locais autorizados. Não prova cobertura integral da nuvem.',box);
  const label=el('label','Pesquisar nome, SKU, código, pedido, cor ou tamanho',box);label.style.display='block';const input=el('input','',label);input.type='search';input.style.cssText='width:100%;min-width:0;box-sizing:border-box';
- const choices=el('div','',box),results=el('div','',box);let offset=0,selected='',eventOffset=0;
- function drawEvents(){results.replaceChildren();if(!selected)return;const p=historySearchPermissions9652(),x=api.timeline(database(),selected,{...p,offset:eventOffset,limit:30});el('h4','Eventos por origem · '+x.total,results);if(x.state!=='local-observation'){el('p','Consulta indisponível.',results);return}
- for(const r of x.rows){const item=el('article','',results);item.className='panel';el('strong',r.source+' · '+r.sourceId,item);el('p',(r.date||'Data não registrada')+' · Pedido '+(r.orderId||'sem vínculo')+' · '+(r.quantity===null?'Quantidade não informada':r.quantity+' peças'),item);if(r.destination||r.actor||r.status)el('p',[r.destination,r.actor,r.status].filter(Boolean).join(' · '),item);if(r.grade.length)el('p',r.grade.map(g=>[g.color,g.size,g.qty===null?'?':g.qty].join(' ')).join(' · '),item);if(r.source==='factionPayments')el('p','Valor do lançamento: '+(r.estimatedAmount===null?'Não informado':money(r.estimatedAmount))+' · Pago registrado: '+(r.paidAmount===null?'Não informado':money(r.paidAmount))+(r.document?' · Comprovante registrado':''),item)}
- if(x.issues.length)el('p','Lacunas para revisar: '+x.issues.join(' · '),results);if(eventOffset>0){const b=el('button','Eventos anteriores',results);b.type='button';b.onclick=()=>{eventOffset=Math.max(0,eventOffset-30);drawEvents()}}if(eventOffset+30<x.total){const b=el('button','Mais eventos',results);b.type='button';b.onclick=()=>{eventOffset+=30;drawEvents()}}}
- function draw(){choices.replaceChildren();const p=historySearchPermissions9652(),x=api.search(database(),input.value,{...p,offset,limit:30});el('p',x.state==='local-observation'?x.total+' modelos encontrados nos dados locais.':'Consulta indisponível.',choices);for(const r of x.rows){const b=el('button',r.name+' · '+(r.code||r.id)+' · ID '+r.id+(r.active?'':' · Inativo'),choices);b.type='button';b.className='secondary';b.style.cssText='display:block;max-width:100%;white-space:normal;margin:4px 0';b.onclick=()=>{selected=r.id;eventOffset=0;drawEvents()}}if(offset>0){const b=el('button','Modelos anteriores',choices);b.type='button';b.onclick=()=>{offset=Math.max(0,offset-30);draw()}}if(offset+30<x.total){const b=el('button','Mais modelos',choices);b.type='button';b.onclick=()=>{offset+=30;draw()}}}
+ const choices=el('div','',box),results=el('div','',box);let offset=0,selected='',selectedName='',eventOffset=0,cutOffset=0;
+ function drawEvents(openEvents=false){results.replaceChildren();if(!selected)return;const p=historySearchPermissions9652(),x=api.timeline(database(),selected,{...p,offset:eventOffset,limit:30});
+ const sheet=el('section','',results);sheet.className='panel';el('h3',selectedName,sheet);
+ if(typeof api.remittances==='function'){
+  const z=api.remittances(database(),selected,{...p,offset:cutOffset,limit:20});
+  if(z.state==='local-observation'){
+   el('h4','Remessas de corte · '+z.total,sheet);
+   const fmt=(v,u='')=>v==null?'Não registrado':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:3})+(u?' '+u:'');
+   const line=(parent,label,value)=>{const row=el('p','',parent);row.style.margin='4px 0';el('strong',label+': ',row);el('span',value,row)};
+   for(const g of z.rows){
+    const d=el('details','',sheet);d.className='panel';d.style.cssText='margin:8px 0;overflow-wrap:anywhere;min-width:0';
+    el('summary',[g.date||'Sem data','Corte '+g.cutId,g.client,g.status,fmt(g.cutQuantity,'pç')].filter(Boolean).join(' · '),d).style.cursor='pointer';
+    line(d,'Pedido',g.orderNumber||g.orderId||'Sem vínculo');line(d,'Cliente',g.client||'Não registrado');line(d,'Responsáveis',g.people.join(' · ')||'Não registrado');
+    line(d,'Planejado',fmt(g.planned,'pç'));line(d,'Cortado',fmt(g.cutQuantity,'pç'));
+    if(g.grade.length)line(d,'Grade',g.grade.map(v=>[v.color,v.size,fmt(v.qty,'pç')].filter(Boolean).join(' ')).join(' · '));
+    el('h4','Pesagem e materiais',d);
+    if(g.sharedMeasurement)el('p','Corte com grade de múltiplos modelos: peso e quantidade total não atribuídos individualmente. Consulte o registro de origem.',d);
+    if(g.weights){line(d,'Peso total',fmt(g.weights.totalKg,'kg'));line(d,'Peso usado',fmt(g.weights.usedKg,'kg'));line(d,'Refugo',fmt(g.weights.wasteKg,'kg'));if(g.weights.note)line(d,'Observação',g.weights.note);
+     if(g.weights.totalKg>0&&g.weights.usedKg!=null&&g.weights.usedKg<=g.weights.totalKg)line(d,'Aproveitamento informado',fmt(100*g.weights.usedKg/g.weights.totalKg,'%'));}
+    else if(!g.sharedMeasurement)el('p','Pesagem total não registrada.',d);
+    for(const m of g.materials)line(d,m.name||'Material',fmt(m.weight,m.unit));
+    if(!g.materials.length&&!g.sharedMeasurement)el('p','Consumo por material não registrado.',d);
+    el('h4','Produção e facções vinculadas',d);
+    for(const e of g.events)line(d,e.date||'Sem data',[e.source==='production'?'Produção':'Facção',e.destination,e.status,e.source==='production'?'Planejado '+fmt(e.planned,'pç')+' / produzido '+fmt(e.quantity,'pç'):'Enviado '+fmt(e.quantity,'pç')+' / feito '+fmt(e.done,'pç')+' / devolvido '+fmt(e.returned,'pç')].filter(Boolean).join(' · '));
+    if(!g.events.length)el('p','Sem movimentações vinculadas por ID de corte.',d);
+   }
+   if(!z.total)el('p','Nenhuma remessa de corte encontrada nos registros autorizados.',sheet);
+   if(z.unlinked)el('p',z.unlinked+' movimentação(ões) sem vínculo comprovado com as remessas listadas. Consulte os eventos por origem.',sheet);
+   if(cutOffset>0){const b=el('button','Remessas anteriores',sheet);b.type='button';b.onclick=()=>{cutOffset=Math.max(0,cutOffset-20);drawEvents()}}
+   if(cutOffset+20<z.total){const b=el('button','Mais remessas',sheet);b.type='button';b.onclick=()=>{cutOffset+=20;drawEvents()}}
+  }
+ }
+ const eventPanel=el('details','',results);eventPanel.open=openEvents;eventPanel.className='panel';el('summary','Todos os eventos por origem · '+x.total,eventPanel);const eventHost=el('div','',eventPanel);if(x.state!=='local-observation'){el('p','Consulta indisponível.',eventHost);return}
+ for(const r of x.rows){const item=el('article','',eventHost);item.className='panel';el('strong',r.source+' · '+r.sourceId,item);el('p',(r.date||'Data não registrada')+' · Pedido '+(r.orderId||'sem vínculo')+' · '+(r.quantity===null?'Quantidade não informada':r.quantity+' peças'),item);if(r.destination||r.actor||r.status)el('p',[r.destination,r.actor,r.status].filter(Boolean).join(' · '),item);if(r.grade.length)el('p',r.grade.map(g=>[g.color,g.size,g.qty===null?'?':g.qty].join(' ')).join(' · '),item);if(r.source==='factionPayments')el('p','Valor do lançamento: '+(r.estimatedAmount===null?'Não informado':money(r.estimatedAmount))+' · Pago registrado: '+(r.paidAmount===null?'Não informado':money(r.paidAmount))+(r.document?' · Comprovante registrado':''),item)}
+ if(x.issues.length)el('p','Lacunas para revisar: '+x.issues.join(' · '),eventHost);if(eventOffset>0){const b=el('button','Eventos anteriores',eventHost);b.type='button';b.onclick=()=>{eventOffset=Math.max(0,eventOffset-30);drawEvents(true)}}if(eventOffset+30<x.total){const b=el('button','Mais eventos',eventHost);b.type='button';b.onclick=()=>{eventOffset+=30;drawEvents(true)}}}
+ function draw(){choices.replaceChildren();const p=historySearchPermissions9652(),x=api.search(database(),input.value,{...p,offset,limit:30});el('p',x.state==='local-observation'?x.total+' modelos encontrados nos dados locais.':'Consulta indisponível.',choices);for(const r of x.rows){const b=el('button',r.name+' · '+(r.code||r.id)+' · ID '+r.id+(r.active?'':' · Inativo'),choices);b.type='button';b.className='secondary';b.style.cssText='display:block;max-width:100%;white-space:normal;margin:4px 0';b.onclick=()=>{selected=r.id;selectedName=r.name;eventOffset=0;cutOffset=0;drawEvents()}}if(offset>0){const b=el('button','Modelos anteriores',choices);b.type='button';b.onclick=()=>{offset=Math.max(0,offset-30);draw()}}if(offset+30<x.total){const b=el('button','Mais modelos',choices);b.type='button';b.onclick=()=>{offset+=30;draw()}}}
  input.addEventListener('input',()=>{offset=0;selected='';results.replaceChildren();draw()});draw();
 }
 
@@ -284,13 +317,13 @@ function renderHistory(){
  const name=one('products',state.historyProduct)?.name||'';
  host.innerHTML='<div class="panel"><h2 style="margin-top:0">📚 Histórico completo de produtos</h2>'+
  '<p class="sub">Eventos reunidos por ID de produto das etapas de pedido, corte, produção, facção, pagamentos e checklists. Valor previsto é separado de valor efetivamente pago.</p>'+
- productPicker(state.historyProduct,'ptr80-product')+
+ '<details id="ptr80-legacy"><summary>Consulta anterior (tabela de conferência)</summary>'+productPicker(state.historyProduct,'ptr80-product')+
  '<div class="sub">'+events.length+' evento(s) associados ao produto selecionado. Dados não registrados originalmente não podem ser reconstruídos.</div>'+
  (events.length?'<div style="overflow-x:auto"><table><thead><tr><th>Data</th><th>Etapa</th><th>Pedido</th><th>Detalhes registrados</th></tr></thead><tbody>'+
  events.map(e=>'<tr><td>'+esc(e.date||'-')+'</td><td>'+esc(e.label)+'</td><td>'+esc(e.orderId||'-')+'</td>'+
  '<td>'+detail(e.details)+'</td></tr>').join('')+'</tbody></table></div>':
  '<div class="empty">Não há eventos vinculados a este produto nos registros carregados.</div>')+
- '<p class="sub">Atenção: esta linha do tempo é reconstruída das informações operacionais atuais e dos novos eventos de checklist. Não substitui o histórico de revisões anteriores do banco.</p></div>';
+ '<p class="sub">Atenção: esta linha do tempo é reconstruída das informações operacionais atuais e dos novos eventos de checklist. Não substitui o histórico de revisões anteriores do banco.</p></details></div>';
  host.querySelector('#ptr80-product')?.addEventListener('change',e=>{state.historyProduct=e.target.value;renderHistory()});
  mountHistorySearch9652(host);
  state.historyRenders++;return {count:events.length,productId:state.historyProduct,name};

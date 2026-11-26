@@ -25,7 +25,7 @@
   const offset=Number.isSafeInteger(opts.offset)&&opts.offset>=0?opts.offset:0,limit=Number.isSafeInteger(opts.limit)?Math.max(1,Math.min(200,opts.limit)):50;
   return {state:'local-observation',rows:rows.slice(offset,offset+limit),total:rows.length,offset,limit,duplicateIds:[...counts].filter(([k,n])=>k&&n>1).length,completeCloud:false};
  }
- function timeline(db,productId,opts={}){
+ function timelineInternal(db,productId,opts={},all=false){
   if(opts.allowed!==true)return {state:'forbidden',rows:[],total:0,issues:[]};
   const pid=sid(productId),products=list(db?.products).filter(x=>live(x)&&sid(x.id)===pid);
   if(!pid||products.length!==1)return {state:'product-review',rows:[],total:0,issues:['product-id-missing-or-duplicate']};
@@ -38,7 +38,7 @@
    if(!selected.has(source))continue;let unknown=0;
    for(const r of list(db[source]).filter(live)){
     const id=sid(r.id),key=source+':'+id,oid=source==='orders'?id:sid(r.orderId);
-    if(source==='cuts'&&r.hiddenByModelSplitV1)continue;
+    if(source==='cuts'&&(r.hiddenByModelSplitV1||r.modelSplitParentV1))continue;
     const grade=source==='orders'?(Array.isArray(r.grade)?r.grade:list(r.items)):list(r.actualCutGrade);
     const relevant=source==='orders'?grade.filter(g=>sid(g.productId)===pid):[];
     if(source==='orders'&&!relevant.length)continue;
@@ -55,7 +55,47 @@
   }
   const filtered=rows.filter(r=>(!opts.orderId||r.orderId===sid(opts.orderId))&&(!opts.from||r.date&&r.date>=opts.from)&&(!opts.to||r.date&&r.date<=opts.to)&&(!opts.source||r.source===opts.source)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||a.eventId.localeCompare(b.eventId));
   const offset=Number.isSafeInteger(opts.offset)&&opts.offset>=0?opts.offset:0,limit=Number.isSafeInteger(opts.limit)?Math.max(1,Math.min(200,opts.limit)):50;
-  return {state:'local-observation',rows:filtered.slice(offset,offset+limit),total:filtered.length,offset,limit,issues:unique(issues),completeCloud:false};
+  return {state:'local-observation',rows:all?filtered:filtered.slice(offset,offset+limit),total:filtered.length,offset,limit,issues:unique(issues),completeCloud:false};
+ }
+
+ // A remessa is a cut with explicit identity. Never match by name/date or order alone.
+ function remittances(db,pid,opts={}){
+  const modules=list(opts.modules).filter(k=>k!=='factionPayments'||opts.financialAllowed===true);
+  const t=timelineInternal(db,pid,{...opts,modules,source:undefined},true);
+  if(t.state!=='local-observation')return {...t,unlinked:0};
+  const q=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0?v:typeof v==='string'&&/^\d+(?:\.\d+)?$/.test(v)&&Number.isFinite(Number(v))?Number(v):null;
+  const maps=new Map();
+  for(const k of ['cuts','production','factions','cutters','orders']){
+   const m=new Map();for(const x of list(db?.[k]).filter(live)){const id=sid(x.id);if(id)m.set(id,m.has(id)?null:x)}maps.set(k,m);
+  }
+  const lookup=(k,id)=>maps.get(k)?.get(sid(id));
+  const groups=new Map(),productionLinks=new Map();
+  for(const e of t.rows.filter(e=>e.source==='cuts')){
+   const c=lookup('cuts',e.sourceId);if(!c)continue;
+   // A mixed-model grade proves that the cut's aggregate measures cannot
+   // be presented as the selected product's individual consumption.
+   const gradeProductIds=unique([sid(c.productId),...['actualCutGrade','cutGrade','originalGrade'].flatMap(k=>list(c[k]).map(g=>sid(g?.productId||g?.product_id)))]);
+   const sharedMeasurement=gradeProductIds.length>1;
+   const w=c.cutWeightV9579,weights=!sharedMeasurement&&w&&typeof w==='object'?{totalKg:q(w.totalKg),usedKg:q(w.usedKg),wasteKg:q(w.wasteKg),note:sid(w.note)}:null;
+   const materials=sharedMeasurement?[]:list(c.materialUsage).map(m=>({name:sid(m?.name||m?.materialId),weight:q(m?.weight),unit:sid(m?.unit)}));
+   const o=modules.includes('orders')?lookup('orders',c.orderId):null;
+   const cutGrade=[c.actualCutGrade,c.cutGrade,c.originalGrade].find(a=>Array.isArray(a)&&a.length)||[];
+   const people=unique([sid(c.cutterName),sid(lookup('cutters',c.cutterId)?.name),sid(c.cutter2Name),sid(lookup('cutters',c.cutter2Id||c.secondCutterId)?.name),sid(c.infesterName||c.infestadorName||c.infestador)]);
+   const finished=norm(c.status)==='finalizado';
+   groups.set(e.sourceId,{cutId:e.sourceId,orderId:e.orderId,date:e.date,status:e.status,client:sid(o?.client),orderNumber:sid(o?.orderNumber||o?.number||o?.id),planned:sharedMeasurement?null:q(c.plannedPieces??c.originalPieces),cutQuantity:sharedMeasurement?null:finished?q(c.pieces):q(c.done),people,grade:cutGrade.filter(g=>!sharedMeasurement||sid(g?.productId||g?.product_id)===sid(pid)).map(g=>({color:sid(g?.color||g?.colorName),size:sid(g?.size||g?.sizeName||g?.tam),qty:q(g?.qty??g?.quantity??g?.pieces)})),weights,materials,sharedMeasurement,events:[]});
+  }
+  const matching=(g,e)=>g&&(!g.orderId||!e.orderId||g.orderId===e.orderId);
+  let unlinked=0;
+  for(const e of t.rows.filter(e=>e.source==='production')){
+   const p=lookup('production',e.sourceId),g=groups.get(sid(p?.cutId));
+   if(matching(g,e)){g.events.push({...e,planned:q(p.planned),status:sid(p.stage||p.status),destination:e.destination||sid(p.factionName||p.productionLocationName)});productionLinks.set(e.sourceId,g)}else unlinked++;
+  }
+  for(const e of t.rows.filter(e=>e.source==='factions')){
+   const f=lookup('factions',e.sourceId),g=productionLinks.get(sid(f?.productionId));
+   if(matching(g,e))g.events.push({...e,done:q(f.done),returned:q(f.returned)});else unlinked++;
+  }
+  const rows=[...groups.values()],offset=Number.isSafeInteger(opts.offset)&&opts.offset>=0?opts.offset:0,limit=Number.isSafeInteger(opts.limit)?Math.max(1,Math.min(200,opts.limit)):20;
+  return {state:t.state,rows:rows.slice(offset,offset+limit),total:rows.length,offset,limit,issues:t.issues,unlinked,completeCloud:false};
  }
 
  function scopeLegacy(events,permissions){
@@ -68,5 +108,5 @@
   return {...e,details};
  });
 }
- return {search,timeline,scopeLegacy};
+ return {search,timeline:(db,pid,opts)=>timelineInternal(db,pid,opts),remittances,scopeLegacy};
 })());
