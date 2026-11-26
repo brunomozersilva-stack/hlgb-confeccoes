@@ -225,3 +225,16 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.productionStageGoals(input,false).state,'forbidden');assert.equal(v.canWrite,false);assert.equal(v.canPromise,false);assert.equal(JSON.stringify(input),before);
  console.log('PASS stage goals, WIP, workday calendar, bottlenecks and team allocation');
 })();
+
+
+(function observedThroughput(){
+ const db={products:[{id:'m',name:'Camisola'},{id:'n',name:'Body'}],productionLocations:[{id:'f',name:'Facção A'},{id:'i',name:'Interna'}],cuts:[{id:'c',productId:'m',status:'Finalizado',finishedAt:'2026-11-20',pieces:120,actualCutGrade:[{color:'Preto',size:'M',qty:120}]},{id:'parent',status:'Finalizado',hiddenByModelSplitV1:true,pieces:120,actualCutGrade:[{productId:'m',color:'Preto',size:'M',qty:120}]},{id:'bad',productId:'m',status:'Finalizado',finishedAt:'2026-11-20',pieces:200,actualCutGrade:[{color:'Preto',size:'M',qty:100}]}],factions:[{id:'f1',productId:'m',productionLocationId:'f',productionId:'p1',sent:200,returned:100,deliveryHistory:[{id:'e1',date:'2026-11-13',qty:40},{id:'e2',date:'2026-11-20',qty:60}]},{id:'f2',productId:'n',productionLocationId:'f',productionId:'p2',sent:100,returned:60,deliveryHistory:[{id:'e3',date:'2026-11-20',qty:60}],transferHistory:[{}]}],production:[{id:'p1',productId:'m',productionLocationId:'i',stage:'Pronto',done:100,planned:100,finishedAt:'2026-11-20'},{id:'p2',productId:'n',productionLocationId:'i',stage:'Pronto',done:60,planned:60,finishedAt:'2026-11-20'},{id:'p3',productId:'n',productionLocationId:'i',stage:'Finalizado',done:30,planned:30,finishedAt:'2026-11-20'}]};
+ const before=JSON.stringify(db),v=plan.observedThroughput(db,'2026-11-23',true);
+ assert.equal(v.state,'local-observation');assert.equal(v.eventCount,4);assert.equal(v.issues.length,2);assert.equal(v.rows.length,3);
+ assert.equal(v.rows.find(r=>r.source==='cut').total,120);assert.equal(v.rows.find(r=>r.source==='external').total,100);assert.equal(v.rows.find(r=>r.source==='external').averageActiveWeek,50);assert.equal(v.rows.find(r=>r.source==='internal').total,30);
+ assert.equal(v.weeks.length,4);assert.ok(v.weeks.every(w=>w.confirmed===false));assert.equal(v.capacityVerified,false);assert.equal(v.canWrite,false);
+ assert.equal(plan.observedThroughput(db,'2026-11-23',false).state,'forbidden');assert.equal(plan.observedThroughput(db,'2026-11-16',true).rows.find(r=>r.source==='external').total,40);
+ const conflict=plan.observedThroughput({...db,factions:db.factions.map((r,i)=>i===1?{...r,deliveryHistory:[{id:'e2',date:'2026-11-20',qty:60}]}:r)},'2026-11-23',true);assert.ok(!conflict.rows.some(r=>r.source==='external'));
+ assert.equal(JSON.stringify(db),before);
+ console.log('PASS observed historical throughput without counting external returns twice');
+})();
