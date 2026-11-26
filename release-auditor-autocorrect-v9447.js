@@ -348,6 +348,7 @@ function safeWalReview9615(result){
   readOnly:true,noCleanupPerformed:true,status:sidSafe(result?.status,48),total:Number(result?.total)||0,
   checked:Number(result?.checked)||0,matched:Number(result?.matched)||0,different:Number(result?.different)||0,
   missing:Number(result?.missing)||0,unverified:Number(result?.unverified)||0,
+  remoteDurationMs:Number.isFinite(result?.remoteDurationMs)?result.remoteDurationMs:null,parallelism:result?.parallelism??null,
   items:(Array.isArray(result?.items)?result.items:[]).slice(0,60).map(x=>({
    module:sidSafe(x?.module),id:sidSafe(x?.id),opId:sidSafe(x?.opId,80),
    status:allowed.has(x?.status)?x.status:'unverified',
