@@ -33,7 +33,7 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
   hlgbDiagnosticsCenter:{getIssues:()=>[]},
   hlgbNotesReceivables9564:{archiveStatus9710:()=>({observed:true,legacyPaid:2,projectionPaid:1,private:'NO_EXPORT'})},
   hlgbCutOrganization:{status:()=>({observed:true,at:'2026-11-25T22:00:00Z',legacyRows:2,modelRows:4,shown:3,unresolved:1,private:'NO_EXPORT'})},
-  hlgbCutStepQueues9528:{status:()=>({observed:false,waiting:0,missingProduction:0})},
+  hlgbCutStepQueues9528:{status:()=>({observed:false,waiting:0,missingProduction:0}),selectorStatus9713:()=>({observed:true,classification:'no-compatible',compatible:0,services:2,private:'NO_EXPORT'})},
   addEventListener:()=>{}
  };
  if(available)win.cloudRequest=async(query,opts)=>{
@@ -56,6 +56,7 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  const equal=await scenario({...sample.data,updatedAt:'2026-11-04T11:00:00Z'});
  const noteEvidence=equal.out.report.notesUiEvidence9710;
  assert.equal(noteEvidence.legacyVisualRows,2);assert.equal(noteEvidence.projectionNotes,1);assert.equal(noteEvidence.remoteConfirmed,false);assert(!JSON.stringify(noteEvidence).includes('NO_EXPORT'));
+ const selector=equal.out.report.destinationSelectorEvidence9713;assert.equal(selector.classification,'no-compatible');assert.equal(selector.compatible,0);assert.equal(selector.remoteConfirmed,false);assert(!JSON.stringify(selector).includes('NO_EXPORT'));
  const cutEvidence=equal.out.report.cutUiEvidence9709;
  assert.equal(cutEvidence.search.modelRows,4);assert.equal(cutEvidence.search.unresolved,1);assert.equal(cutEvidence.search.remoteConfirmed,false);
  assert.equal(cutEvidence.destination.observed,false);assert.equal(cutEvidence.destination.waiting,undefined);
