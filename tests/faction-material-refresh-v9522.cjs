@@ -127,6 +127,6 @@ test('Melanie real-shaped 172 pieces, six inputs, four colours, no changes durin
  assert.equal(review.status,'stale');assert.equal(review.locked,false);assert.equal(review.oldCount,0);assert.equal(review.newCount,15);
  const sum=name=>review.materials.filter(m=>m.name===name).reduce((n,m)=>n+m.qty,0);
  assert.equal(sum('Romantic'),21.5);assert.equal(sum('Renda 18 Jacatronica'),6.536);assert.equal(sum('Alca Papiro .40 cm'),172);assert.equal(sum('Laco M'),344);assert.ok(Math.abs(sum('fita 002')-85.9656)<1e-9);assert.equal(sum('Alpinia'),172);
- assert.deepEqual(review.materials.filter(m=>m.name==='Alpinia').map(m=>[m.color,m.qty]),[['Preto',60],['Branco',30],['Rubi',40],['Teos',42]]);
+ assert.deepEqual(JSON.parse(JSON.stringify(review.materials.filter(m=>m.name==='Alpinia').map(m=>[m.color,m.qty]))),[['Preto',60],['Branco',30],['Rubi',40],['Teos',42]]);
  assert.equal(JSON.stringify({c,db:h.db}),before);assert.equal(h.posts,0);
 });
