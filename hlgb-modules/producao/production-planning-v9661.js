@@ -62,6 +62,30 @@
    return {color,layers,commonFactor:factor,total,modelCount,base,alternative:alternative&&alternative.rows.some(x=>x.perLayer>0)?alternative:null,multiSpreads:factor===1||maxLayers!==null&&factor%maxLayers!==0?multiSpreadPlans(rows,maxLayers):[],geometryVerified:false,canWrite:false}
   }).filter(Boolean).sort((a,b)=>b.modelCount-a.modelCount||b.total-a.total||a.color.localeCompare(b.color,'pt-BR'));
  }
+ // Unique demand across materials; per-group counts are not additive.
+ function workspaceOverview9714(discovery,allowed){
+  const empty=state=>({state,groups:[],materials:0,pairs:null,products:null,orders:null,pieces:null,ambiguous:0,canWrite:false,geometryVerified:false});
+  if(allowed!==true)return empty('forbidden');
+  if(discovery?.state!=='discovery-only'||!Array.isArray(discovery.groups))return empty('unavailable');
+  const pairs=new Map(),ambiguous=new Set(),materialIds=new Set(),groups=[];
+  for(const g of discovery.groups){
+   if(!id(g.materialId)||materialIds.has(id(g.materialId))||!Array.isArray(g.models))return empty('unavailable');
+   materialIds.add(id(g.materialId));const colors=new Map(),orders=new Set(),products=new Set(),keys=new Set();let pieces=0;
+   for(const m of g.models){
+    const key=m?.key;
+    if(!key||keys.has(key)||!id(m.orderId)||!id(m.productId)||!Number.isSafeInteger(m.pieces)||m.pieces<=0||!Array.isArray(m.grade)||!m.grade.length||m.grade.some(r=>!id(r.color)||!id(r.size)||!Number.isSafeInteger(r.qty)||r.qty<=0)||m.grade.reduce((n,r)=>n+r.qty,0)!==m.pieces)return empty('unavailable');
+    keys.add(key);orders.add(m.orderId);products.add(m.productId);pieces+=m.pieces;
+    const signature=modelSignature(m),prior=pairs.get(key);
+    if(prior&&prior.signature!==signature)ambiguous.add(key);else if(!prior)pairs.set(key,{m,signature});
+    for(const color of new Set(m.grade.map(r=>r.color))){if(!colors.has(color))colors.set(color,new Set());colors.get(color).add(key)}
+   }
+   if(!Number.isSafeInteger(pieces))return empty('unavailable');
+   groups.push({materialId:id(g.materialId),pairs:keys.size,products:products.size,orders:orders.size,pieces,sharedColors:[...colors].filter(([,v])=>v.size>=2).map(([k])=>k).sort((a,b)=>a.localeCompare(b,'pt-BR'))});
+  }
+  const valid=[...pairs].filter(([k])=>!ambiguous.has(k)).map(([,v])=>v.m),pieces=valid.reduce((n,m)=>n+m.pieces,0);
+  if(!Number.isSafeInteger(pieces))return empty('unavailable');
+  return {...empty(ambiguous.size?'partial':'local-observation'),groups,materials:groups.length,pairs:valid.length,products:new Set(valid.map(m=>m.productId)).size,orders:new Set(valid.map(m=>m.orderId)).size,pieces,ambiguous:ambiguous.size};
+ }
  function catalogGroups(db,allowed){
   if(allowed!==true||!Array.isArray(db?.products)||!Array.isArray(db?.materials))return [];
   const index=rows=>{const m=new Map();for(const x of rows.filter(live)){const k=id(x.id);if(k)m.set(k,m.has(k)?null:x)}return m},materials=index(db.materials),products=index(db.products),valid=fabrics(db.materials),groups=new Map();
@@ -288,5 +312,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,workspaceOverview9714,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
