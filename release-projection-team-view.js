@@ -188,6 +188,35 @@ function mountPlanner(){
    const list=el('div','',additions),pick=new Map(),eligible=p.orders.filter(o=>o.remaining===0&&o.lastWorkDate&&o.paymentMode!=='unknown'&&o.amountCents>0);let offset=0;
    const cashOut=el('div','',cash);
    function invalidateCash(){cashOut.replaceChildren()}
+   let hubImported=null;
+   const hubMessage=el('p','Hub: nenhuma consulta carregada.',cash);
+   const hubAllowed=()=>active()&&typeof canOpenPage==='function'&&canOpenPage('hubFinanceiro')===true&&canOpenPage('folhaPagamento')===true;
+   function readHub(){
+    if(!hubAllowed()||start.value!==today())return null;
+    const adapter=window.HLGBHubIntelligenceAdapter9633,guard=window.hlgbWalIdbGuard9536,status=guard?.status?.(),ids=new Set();
+    if(typeof adapter?.inspect!=='function'||typeof guard?.ids!=='function'||typeof window.hlgbRecordPendingIdentitySet9535!=='function')return null;
+    for(const k of guard.ids())ids.add(String(k));for(const k of window.hlgbRecordPendingIdentitySet9535())ids.add(String(k));
+    const age=Date.now()-Date.parse(status?.lastProbeAt||''),observed=!!status&&status.probes>0&&status.readFailed===false&&status.localReadFailed===false&&status.unsupported===false&&Number.isFinite(age)&&age>=0&&age<=120000;
+    const source=typeof db!=='undefined'?db:window.db;
+    const result=adapter.inspect({db:source,authenticated:true,financeAllowed:true,payrollAggregateAllowed:true,paidDateApi:window.hlgbHubPayrollPaidDate9515,pendingEvidence:{state:observed?'observed':'incomplete',ids:[...ids]}},{asOf:today(),targetDate:today(),historyWeeks:8,receiptDelayDays:14});
+    return result?.state==='local-observation-only'?result.plannerObligations:null;
+   }
+   const hubLines=h=>h.entries.map(e=>[e.date,e.direction==='in'?'entrada':'saida',(e.amountCents/100).toFixed(2),e.reference].join(';')).join('\n');
+   btn('Consultar compromissos previstos do Hub',cash,()=>{
+    if(!active())return;
+    try{
+     const h=readHub();if(!h||h.pendingState!=='observed'){hubMessage.textContent='Consulta indisponível: requer data inicial de hoje, permissões de Hub/Folha e fila de sincronização observada. Atualize a fonte e confira.';return}
+     if(ledger.value.trim()&&!confirm('Substituir os compromissos manuais desta simulação pela consulta do Hub? Nenhum lançamento real será alterado.'))return;
+     if(h.entries.length>5000||h.entries.some(e=>/[;\r\n]/.test(e.reference)))throw Error('limit');
+     hubImported=JSON.stringify(h);ledger.value=hubLines(h);ledger.readOnly=true;checked.checked=false;checked.disabled=true;pick.clear();additions.hidden=true;invalidateCash();
+     hubMessage.textContent=h.entries.length+' compromissos previstos observados · '+h.overdueReceipts.length+' recebimentos vencidos excluídos até nova data confirmada · '+h.omitted+' ocorrências na fonte. Pagamentos vencidos foram trazidos para hoje apenas na simulação. Não adiciona valores de pedidos para evitar dupla contagem; saldo e cobertura não confirmados.';
+    }catch(_){hubMessage.textContent='Não foi possível consultar o Hub. O cenário anterior foi preservado.'}
+   });
+   btn('Voltar à simulação manual',cash,()=>{
+    if(!active())return;if(hubImported&&!confirm('Descartar a cópia do Hub deste cenário?'))return;
+    if(hubImported)ledger.value='';hubImported=null;ledger.readOnly=false;checked.disabled=false;checked.checked=false;additions.hidden=false;pick.clear();drawCashOrders();invalidateCash();hubMessage.textContent='Modo manual; nenhum valor importado do Hub.';
+   });
+
    function drawCashOrders(){
     list.replaceChildren();if(!active())return;
     for(const o of eligible.slice(offset,offset+20)){const row=el('div','',list),l=el('label',o.client+' · '+o.model+' · entrega '+o.dueDate,row),c=el('input','',l);c.type='checkbox';
@@ -202,9 +231,10 @@ function mountPlanner(){
    const cents=s=>{const v=String(s).trim().replace(',','.');return /^-?\d+(?:\.\d{1,2})?$/.test(v)?Math.round(Number(v)*100):NaN};
    btn('Comparar caixa e oportunidades',cash,()=>{
     cashOut.replaceChildren();if(!active())return;
+    if(hubImported){try{const fresh=readHub();if(!fresh||JSON.stringify(fresh)!==hubImported||ledger.value!==hubLines(fresh)){el('p','A fonte do Hub ou as permissões mudaram. Consulte novamente antes de simular.',cashOut);return}}catch(_){el('p','Não foi possível reconferir a fonte do Hub.',cashOut);return}}
     const entries=ledger.value.split(/\r?\n/).filter(x=>x.trim()).map(line=>{const a=line.split(';').map(x=>x.trim());return {date:a[0],direction:a.length===4?({entrada:'in',saida:'out'})[a[1]]:'invalid',amountCents:cents(a[2]),reference:a[3]}});
-    const additional=[...pick].filter(([,v])=>v.include).map(([key,v])=>({key,reference:v.reference.trim(),amountCents:cents(v.amount),notAlreadyIncluded:true,earlyAccepted:v.early}));
-    const v=api.deliveryCashScenario(p,{start:start.value,openingCents:cents(balance.value),reserveCents:cents(reserve.value),delayDays:Number(delay.value),entries,additional,coverageConfirmed:checked.checked},active());
+    const additional=(hubImported?[]:[...pick]).filter(([,v])=>v.include).map(([key,v])=>({key,reference:v.reference.trim(),amountCents:cents(v.amount),notAlreadyIncluded:true,earlyAccepted:v.early}));
+    const v=api.deliveryCashScenario(p,{start:start.value,openingCents:cents(balance.value),reserveCents:cents(reserve.value),delayDays:Number(delay.value),entries,additional,coverageConfirmed:!hubImported&&checked.checked},active());
     if(v.state!=='local-cash-scenario'){el('p','Confira saldo, datas, referências únicas, valores e pedidos escolhidos. Recebimento adicional não pode superar o valor do pedido.',cashOut);return}
     const f=n=>money(n/100);
     el('p',v.partial?'Cenário parcial: '+v.issues.join(', '):'Cenário informado e revisado, ainda sem conciliação automática.',cashOut);
