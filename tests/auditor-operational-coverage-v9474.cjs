@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const src=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
 async function auditCase(operations){
  let legacy=0;
- const audit={main:{checks:[],summary:{pass:30,warn:0,fail:0}},operations};
+ const audit={main:{checks:[{code:'fixture:ready',status:'pass'}],summary:{total:1,pass:1,warn:0,fail:0,result:'OK'}},operations};
  const win={__HLGB_AUTH_READY:true,HLGB_RELEASE_VERSION:'94.73',HLGB_AUDITOR_AUTOCORRECT_9446:'94.46',
   hlgbAuditorAutoCorrect9446:{prepare:async()=>({ok:true,ready:true}),run:async()=>{legacy++;return {passes:1}}},
   hlgbAuditorAutoCorrect9441:{silentAudit:async()=>audit,repairEvents:()=>[]},

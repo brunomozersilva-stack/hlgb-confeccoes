@@ -1,6 +1,6 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const src=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
-const audit={main:{checks:[]},operations:{pending:{unique:0,records:0,wal:0}}};
+const audit={main:{checks:[{code:'fixture:ready',status:'pass'}],summary:{total:1,pass:1,warn:0,fail:0,result:'OK'}},operations:{pending:{unique:0,records:0,wal:0}}};
 let legacyRuns=0;
 const metrics={metrics:{scriptDuplicates:1,saveDuplicateResponsibilities:1},duplicateScripts:[{file:'release-script.js',dom:1,resource:2}],saveChain:{depth:18,duplicateResponsibilities:[{id:'payroll-save',count:2,final:1,legacy:1}]}};
 const window={__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9446:'94.46',

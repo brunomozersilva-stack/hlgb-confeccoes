@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
-const audit={main:{summary:{total:2,pass:0,fail:2,warn:0},checks:[
+const audit={main:{summary:{total:2,pass:0,fail:2,warn:0,result:'Falhou'},checks:[
  {code:'data:finance-projection-orphan',status:'fail',detail:'Finance A references a missing projection',refs:[{module:'finance',id:'A'}]},
  {code:'data:finance-projection-orphan',status:'fail',detail:'Finance B references a deleted projection',refs:[{module:'finance',id:'B'}]}
 ]},operations:{pending:{unique:0,records:0,wal:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
