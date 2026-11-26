@@ -17,13 +17,15 @@
  const num=x=>Number.isFinite(Number(x))?Number(x):0;
  const cents=x=>Math.round(num(x)*100);
  const active=status=>norm(status)==='pendente';
- const canceled=p=>p?.manualCanceledV9590===true||['cancelado','cancelada'].includes(norm(p?.status));
+ const canceled=p=>p?.manualCanceledV9590===true||p?.deleted===true||!!(p?.deleted_at||p?.deletedAt)||['cancelado','cancelada','excluido','excluida'].includes(norm(p?.status));
  const validId=id=>sid(id).length>0;
  function consolidate(data){
   const payments=Array.isArray(data?.payments)?data.payments:[],
    masters=Array.isArray(data?.masters)?data.masters:[],
    manualGroups=Array.isArray(data?.manualGroups)?data.manualGroups:[],
    possible=new Map(),seenEntries=new Set(),errors=[];
+  const countIds=rows=>{const m=new Map();for(const x of rows){const k=sid(x?.id);if(k)m.set(k,(m.get(k)||0)+1)}return m};
+  const paymentCounts=countIds(payments.filter(x=>x&&!canceled(x))),groupCounts=countIds(manualGroups);
   const perName=new Map();
   for(const m of masters.filter(x=>x?.active!==false&&sid(x.name)&&validId(x.id))){
    const n=norm(m.name),set=perName.get(n)||new Set();set.add(sid(m.id));perName.set(n,set);
@@ -72,13 +74,15 @@
    const gid=sid(g?.id),items=Array.isArray(g?.rows)?g.rows:[],
     unique=items.filter(x=>validId(x?.id)&&x?.manual===true);
    for(const row of unique)manualRowIds.add(sid(row.id));
-   if(!gid||seenManual.has(gid)){errors.push('grupo-avulso-duplicado-ou-sem-id');continue}
+   if(!gid||groupCounts.get(gid)!==1||seenManual.has(gid)){errors.push('grupo-avulso-duplicado-ou-sem-id');continue}
    seenManual.add(gid);
    if(!active(g.status)){
     if(norm(g.status)==='revisar')errors.push('grupo-avulso-requer-revisao:'+gid);
     continue;
    }
-   if(!unique.some(x=>!canceled(x))||unique.some(x=>sid(x.manualGroupId)!==gid)){
+   const live=unique.filter(x=>!canceled(x)),liveIds=new Set(live.map(x=>sid(x.id))),source=payments.filter(p=>p?.manual===true&&!canceled(p)&&sid(p.manualGroupId)===gid);
+   const ownerKey=x=>JSON.stringify([sid(x.factionMasterId),norm(x.factionName)]);
+   if(!live.length||unique.length!==items.length||unique.some(x=>sid(x.manualGroupId)!==gid)||liveIds.size!==live.length||live.some(x=>paymentCounts.get(sid(x.id))!==1)||source.length!==live.length||source.some(x=>!liveIds.has(sid(x.id)))||new Set(live.map(ownerKey)).size!==1||source.some(x=>!live.some(y=>sid(y.id)===sid(x.id)&&ownerKey(y)===ownerKey(x)&&norm(y.status)===norm(x.status)&&cents(y.value)===cents(x.value)&&cents(y.paidAmount)===cents(x.paidAmount)))){
     errors.push('grupo-avulso-sem-evidencia:'+gid);continue;
    }
    if(unique.some(x=>!canceled(x)&&norm(x.status)!=='pendente')){
@@ -99,11 +103,12 @@
   for(const row of payments){
    if(!row||row.manual===true||canceled(row)||!active(row.status))continue;
    const id=sid(row.id);
-   if(!id||seenEntries.has(id)||manualRowIds.has(id)){
+   if(!id||paymentCounts.get(id)!==1||seenEntries.has(id)||manualRowIds.has(id)){
     errors.push('pagamento-duplicado-ou-sem-id:'+id);continue;
    }
    seenEntries.add(id);
    const balance=cents(row.value)-cents(row.paidAmount);
+   if(!Number.isFinite(Number(row.value))||row.value==null||sid(row.value)===''||!Number.isSafeInteger(cents(row.value))||Number(row.value)<0||(row.paidAmount!=null&&(!Number.isFinite(Number(row.paidAmount))||Number(row.paidAmount)<0))){errors.push('valor-normal-invalido:'+id);continue}
    if(cents(row.paidAmount)!==0){
     errors.push('pagamento-parcial-requer-conferencia:'+id);continue;
    }
