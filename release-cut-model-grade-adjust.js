@@ -30,6 +30,23 @@ async function readGradeCut9723(id){
  if(window.__HLGB_AUTH_READY!==true||row?.module!=='cuts'||sid(row?.entity_id)!==id||sid(row?.data?.id)!==id||row.deleted_at!==null||!Number.isSafeInteger(Number(row.revision))||Number(row.revision)<1)throw Error('Identidade ou revisão do corte não confirmada.');
  return row;
 }
+async function confirmGradeQueue9724(id){
+ const guard=window.hlgbWalIdbGuard9536;
+ if(typeof guard?.probe!=='function'||typeof guard?.ids!=='function'||typeof window.hlgbRecordPendingIdentitySet9535!=='function')throw Error('Proteção de sincronização indisponível.');
+ await guard.probe({timeoutMs:32000});
+ const status=guard.status?.(),durable=guard.ids(),normal=window.hlgbRecordPendingIdentitySet9535();
+ if(!status||status.readFailed!==false||status.unsupported===true||status.localReadFailed===true||!(status.probes>0)||!durable||typeof durable.has!=='function'||status.entryCount!==durable.size||!normal||typeof normal.has!=='function')throw Error('Fila de sincronização não comprovada.');
+ const pending=new Set([...durable,...normal].map(sid));
+ // Read the persisted queues as well: a legacy reader can swallow malformed JSON.
+ for(const [key,field] of [['hlgb_durable_wal_v1','entries'],['hlgb_records_pending_v91','modules']]){
+  const raw=localStorage.getItem(key);if(raw===null)continue;
+  const rows=JSON.parse(raw)?.[field];
+  if(!rows||typeof rows!=='object'||Array.isArray(rows))throw Error('Fila local ilegível.');
+  if(field==='entries'){for(const [k,x] of Object.entries(rows)){if(!x||typeof x!=='object')throw Error('Operação local inválida.');pending.add(k);if(x.module&&x.id!=null)pending.add(sid(x.module)+'::'+sid(x.id));}}
+  else{for(const [m,list] of Object.entries(rows)){if(!Array.isArray(list))throw Error('Fila local inválida.');for(const x of list){if(x?.id==null)throw Error('Pendência sem identidade.');pending.add(m+'::'+sid(x.id));}}}
+ }
+ if(pending.has('cuts::'+id)||pending.has('cuts|'+id))throw Error('Existe alteração pendente neste corte. Confira a sincronização antes de salvar.');
+}
 async function openAdjust(id){
  const found=cuts().filter(x=>sid(x?.id)===sid(id)),c=found.length===1?JSON.parse(JSON.stringify(found[0])):null;
  if(!c||!c.modelSplitChildV1)return;
@@ -54,8 +71,12 @@ async function openAdjust(id){
    if(attempt){
     if(!equal9723(input,attempt.input))throw Error('Existe uma tentativa anterior; restaure os campos enviados antes de conferir.');
    }else{
+    if(typeof hlgbRecordCanWrite==='function'&&!hlgbRecordCanWrite('cuts'))throw Error('Sem permissão para gravar cortes.');
+    await confirmGradeQueue9724(id);
     const before=await readGradeCut9723(id);
-    if(!equal9723(before.data,c)||!active()||!equal9723(input,draft())||!equal9723(cuts().find(x=>sid(x.id)===id),c))throw Error('O corte ou formulário mudou durante a conferência.');
+    const snap=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots.cuts?.get(id):null;
+    if(!snap||snap.deleted_at||Number(snap.revision)!==Number(before.revision)||!equal9723(snap.data,before.data))throw Error('A versão carregada não corresponde à nuvem. Atualize antes de salvar.');
+    if(!equal9723(before.data,c)||!active()||!equal9723(input,draft())||!equal9723(cuts().find(x=>sid(x.id)===id),c)||!editable9723(cuts().find(x=>sid(x.id)===id)))throw Error('O corte ou formulário mudou durante a conferência.');
     const next={...c,originalGrade:input.g2,actualCutGrade:input.g2.map(x=>({...x})),pieces:input.pieces,cutGradeAdjustmentNote:input.note,cutGradeAdjustedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
     if(!Array.isArray(next.plannedGradeBeforeAdjustmentV9243)||!next.plannedGradeBeforeAdjustmentV9243.length)next.plannedGradeBeforeAdjustmentV9243=grade.map(x=>({...x}));
     attempt={input,next,revision:Number(before.revision)};
