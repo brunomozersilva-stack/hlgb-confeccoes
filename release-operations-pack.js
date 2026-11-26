@@ -66,7 +66,8 @@ function routeCollect9534(base,draftId,createdAt){
    const keys=new Set(items.map(x=>sid(x.key)));
    for(const old of saved.routeItems)if(old?.key&&!keys.has(sid(old.key))){items.push(clone(old));keys.add(sid(old.key))}
   }
-  for(const item of items){const inCarry=carry.includes(item.line),inPickup=pickup.includes(item.line);if(inCarry&&inPickup)throw new Error('O mesmo item está em LEVAR e BUSCAR na parada '+(i+1)+'. Confira a direção.');if(inCarry)item.direction='carry';else if(inPickup)item.direction='pickup'}
+  const writeoffs=routeWriteoffIndex9733();
+  for(const item of items){const inCarry=carry.includes(item.line),inPickup=pickup.includes(item.line);if((inCarry||inPickup)&&routeWrittenOff9733(item,writeoffs)&&(!base||!/^conclu[ií]d[ao]$|^cancelad[ao]$/i.test(sid(base.status))||!/^conclu[ií]d[ao]$|^cancelad[ao]$/i.test(sid(document.getElementById('opsRouteStatus')?.value))))throw Error('A parada '+(i+1)+' contém item já baixado operacionalmente: '+sid(item.line)+'. Retire esta linha de LEVAR/BUSCAR; o histórico permanece preservado.');if(inCarry&&inPickup)throw new Error('O mesmo item está em LEVAR e BUSCAR na parada '+(i+1)+'. Confira a direção.');if(inCarry)item.direction='carry';else if(inPickup)item.direction='pickup'}
   stops.push({...(sameSaved?clone(saved):{}),order:i+1,type:loc.type,locationId:loc.id,name:loc.name,
     address:loc.address,phone:loc.phone,carry,pickup,
     routeItems:items,notes:el.querySelector('.ops-route-note')?.value?.trim()||''});
@@ -268,11 +269,15 @@ function routeProductName9249(p){
  const prod=arr('products').find(x=>sid(x.id)===sid(p?.productId));
  return prod?.name||p?.product||'Produto';
 }
+// Reuse the canonical operational writeoff index, never infer a writeoff from a payment or name.
+function routeWriteoffIndex9733(){try{const x=window.hlgbWriteoffIntegrity9391?.pairIndex?.();return x&&typeof x.has==='function'?x:null}catch(_){return null}}
+function routeWrittenOff9733(row,index){const o=sid(row?.orderId),p=sid(row?.productId);return !!(index&&o&&p&&index.has(o+'|'+p))}
 function routeAssignedProducts9249(loc,productionRows=null){
  if(!loc)return {active:[],planned:[]};
- const active=[],planned=[],seen=new Set();
+ const active=[],planned=[],seen=new Set(),writtenOff=routeWriteoffIndex9733();
  const prods=(Array.isArray(productionRows)?productionRows:arr('production')).filter(p=>p&&!p.deleted_at&&!p.deletedAt&&(loc.type==='Facção'?sid(p.factionId)===sid(loc.id):(!p.factionId&&sid(p.productionLocationId)===sid(loc.id))));
  for(const p of prods){
+   if(routeWrittenOff9733(p,writtenOff))continue;
    const qty=Math.max(0,q(p.planned)-q(p.done));if(qty<=0)continue;
    const o=arr('orders').find(x=>sid(x.id)===sid(p.orderId)),pid=sid(p.productId),prod=arr('products').find(x=>sid(x.id)===pid),name=p.product||prod?.name||'Produto';
    const key='production:'+sid(p.id??p.__hlgbId??(sid(p.orderId)+'-'+pid));seen.add(sid(p.orderId)+'|'+pid);
@@ -280,6 +285,7 @@ function routeAssignedProducts9249(loc,productionRows=null){
    active.push({key,source:'production',productionId:sid(p.id??p.__hlgbId),orderId:sid(p.orderId),productId:pid,orderNo:o?routeOrderNo9249(o):'',product:name,qty,stage:p.stage||'Em produção',op:p.op||'',direction:sent?'pickup':'carry',sent});
  }
  for(const c of arr('capacityAssignments')){
+   if(routeWrittenOff9733(c,writtenOff))continue;
    const same=loc.type==='Facção'?sid(c.factionId)===sid(loc.id):sid(c.locationId||c.productionLocationId)===sid(loc.id);if(!same)continue;
    const o=arr('orders').find(x=>sid(x.id)===sid(c.orderId)),pid=sid(c.productId),dupe=sid(c.orderId)+'|'+pid;if(seen.has(dupe))continue;
    const prod=arr('products').find(x=>sid(x.id)===pid),qty=q(c.pieces||c.qty||c.planned);if(qty<=0)continue;
@@ -337,7 +343,8 @@ window.routeRefreshAssigned9683=async function(btn){
    if(savedItem&&!c.includes(line)&&!p.includes(line)){node.querySelectorAll('button[data-dir]').forEach(b=>b.className='secondary');continue}
    if(!c.includes(line)&&!p.includes(line)){routeEditLine9683(stop,line,item.direction);added++}
   }
-  notice.textContent=added+' modelo(s) novo(s) incluído(s) no rascunho. '+(changed?changed+' modelo(s) com quantidade ou descrição diferente; confira antes de salvar. ':'')+'Confira LEVAR/BUSCAR e salve a rota. Nenhuma produção foi alterada.';
+  const index=routeWriteoffIndex9733(),stale=[...savedItems,...[...box.querySelectorAll('[data-route-item9249]')].map(x=>({orderId:x.dataset.orderId,productId:x.dataset.productId,line:x.dataset.line}))].filter(x=>routeWrittenOff9733(x,index)&&[...routeLines9249(stop.querySelector('.ops-route-carry').value),...routeLines9249(stop.querySelector('.ops-route-pickup').value)].includes(x.line));
+  notice.textContent=(stale.length?'Atenção: item com baixa operacional ainda está no roteiro. Retire a linha identificada antes de salvar. ':'')+added+' modelo(s) novo(s) incluído(s) no rascunho. '+(changed?changed+' modelo(s) com quantidade ou descrição diferente; confira antes de salvar. ':'')+'Confira LEVAR/BUSCAR e salve a rota. Nenhuma produção foi alterada.';
  }catch(e){if(valid())notice.textContent='Não foi possível atualizar os modelos da nuvem. Rascunho preservado.'}
  finally{if(btn.isConnected&&stop.__routeRefresh9683===generation)btn.disabled=false}
 };
