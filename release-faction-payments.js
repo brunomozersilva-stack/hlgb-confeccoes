@@ -6,12 +6,19 @@ function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
 function faction(id){return arr('factions').find(f=>sid(f?.id)===sid(id))||null}
 function payment(id){return arr('factionPayments').find(p=>sid(p?.id)===sid(id))||null}
 function perDelivery(f){return !!(f&&f.paymentByDeliveryV9135===true)}
-function activePayments(fid){return arr('factionPayments').filter(p=>p&&sid(p.factionServiceId)===sid(fid)&&!['cancelado','cancelada'].includes(norm(p.status)))}
+function activePayments(fid){return arr('factionPayments').filter(p=>p&&sid(fid)&&sid(p.factionServiceId)===sid(fid)&&!p.manualCanceledV9590&&!['cancelado','cancelada'].includes(norm(p.status)))}
+function deliveryPayment9737(p){return !p.manual&&(!p.serviceModeV9577||p.serviceModeV9577==='faccao')&&(/^(faction_delivery)(_|$)/.test(norm(p.source))||!!sid(p.deliveryId).trim())}
 function overAccounted(f){
   if(!f)return null;
-  const ps=activePayments(f.id),sum=ps.reduce((s,p)=>s+q(p.quantity),0),limit=Math.max(q(f.sent),q(f.done));
-  return ps.length>1&&sum>limit?{payments:ps,sum,limit,sent:q(f.sent),done:q(f.done),excess:sum-limit}:null;
+  const all=activePayments(f.id),explicit=all.some(deliveryPayment9737),byDelivery=perDelivery(f)||explicit;
+  const ps=byDelivery?all.filter(p=>!p.manual&&(!p.serviceModeV9577||p.serviceModeV9577==='faccao')):all;
+  const sum=ps.reduce((s,p)=>s+q(p.quantity),0),limit=byDelivery?q(f.done):Math.max(q(f.sent),q(f.done));
+  const keys=new Set(),duplicates=new Set();for(const p of ps){const id=sid(p.deliveryId).trim();if(!id)continue;if(keys.has(id))duplicates.add(id);keys.add(id)}
+  const invalid=byDelivery&&(ps.some(p=>p.quantity==null||sid(p.quantity).trim()===''||!Number.isSafeInteger(Number(p.quantity))||Number(p.quantity)<=0)||f.done==null||sid(f.done).trim()===''||!Number.isSafeInteger(Number(f.done))||Number(f.done)<0);
+  const reason=byDelivery&&duplicates.size?'duplicate-delivery':invalid?'invalid-quantity':(byDelivery?sum>limit:ps.length>1&&sum>limit)?'excess-quantity':'';
+  return reason?{payments:ps,sum,limit,sent:q(f.sent),done:q(f.done),excess:Math.max(0,sum-limit),reason,duplicateDeliveryIds:[...duplicates],byDelivery}:null;
 }
+function badReason9737(b){return b.reason==='duplicate-delivery'?'A mesma entrega aparece em mais de um pagamento.':b.reason==='invalid-quantity'?'Quantidade entregue ou contabilizada inválida.':'Quantidade em pagamentos superior ao '+(b.byDelivery?'total efetivamente entregue.':'limite do envio.');}
 function weekKey(p){
   // A baixa agrupada usa a semana explicitamente escolhida antes da data.
   if(p?.scheduledPaymentWeek)return sid(p.scheduledPaymentWeek);
@@ -52,7 +59,7 @@ const oldPay=window.payFactionPayment;
 window.payFactionPayment=function(id){
   const p=payment(id),f=p?faction(p.factionServiceId):null,bad=f?overAccounted(f):null;
   if(bad){
-    alert('Pagamento bloqueado por segurança. Esta facção possui '+bad.sum.toLocaleString('pt-BR')+' peças distribuídas em pagamentos, mas o envio é de '+bad.sent.toLocaleString('pt-BR')+' peças e o entregue é '+bad.done.toLocaleString('pt-BR')+'. Revise os lançamentos antes de dar baixa.');
+    alert('Pagamento bloqueado por segurança. Esta facção possui '+bad.sum.toLocaleString('pt-BR')+' peças distribuídas em pagamentos, mas o envio é de '+bad.sent.toLocaleString('pt-BR')+' peças e o entregue é '+bad.done.toLocaleString('pt-BR')+'. '+badReason9737(bad)+' Revise os lançamentos antes de dar baixa.');
     return false;
   }
   return typeof oldPay==='function'?oldPay.apply(this,arguments):false;
@@ -64,7 +71,7 @@ if(typeof oldGroupPay==='function')window.hlgbPayFactionGroup9230=function(key){
   const issue=badGroup(key);
   if(issue){
     const first=issue.issues[0].bad;
-    alert('Acerto bloqueado por segurança. Há pagamento inconsistente neste grupo: '+first.sum.toLocaleString('pt-BR')+' peças em pagamentos para '+first.sent.toLocaleString('pt-BR')+' peças enviadas. Corrija a duplicidade antes de abrir a baixa semanal.');
+    alert('Acerto bloqueado por segurança. Há pagamento inconsistente neste grupo: '+first.sum.toLocaleString('pt-BR')+' peças em pagamentos para '+first.sent.toLocaleString('pt-BR')+' peças enviadas. '+badReason9737(first)+' Confira os registros antes de abrir a baixa semanal.');
     return false;
   }
   return oldGroupPay.apply(this,arguments);
@@ -92,11 +99,11 @@ function repairPaymentWarnings(){
   root.querySelectorAll('tbody tr').forEach(tr=>{
     tr.querySelectorAll('.hlgb-payment-warning').forEach(x=>x.remove());
     const groupBtn=[...tr.querySelectorAll('button[onclick]')].find(b=>/hlgbPayFactionGroup9230\(/.test(String(b.getAttribute('onclick')||'')));
-    if(groupBtn){const key=groupedKeyFromButton(groupBtn),issue=badGroup(key);if(!issue)return;groupBtn.disabled=true;groupBtn.classList.remove('primary');groupBtn.classList.add('secondary');groupBtn.textContent='Bloqueado — revisar';groupBtn.title='A quantidade em pagamentos ultrapassa a quantidade enviada.';const cell=tr.children?.[1]||tr.firstElementChild;if(cell){const w=document.createElement('div');w.className='badge warn hlgb-payment-warning';w.style.marginTop='4px';w.textContent='⚠ Pagamentos acima do enviado';cell.appendChild(w)}return}
+    if(groupBtn){const key=groupedKeyFromButton(groupBtn),issue=badGroup(key);if(!issue)return;groupBtn.disabled=true;groupBtn.classList.remove('primary');groupBtn.classList.add('secondary');groupBtn.textContent='Bloqueado — revisar';groupBtn.title=badReason9737(issue.issues[0].bad);const cell=tr.children?.[1]||tr.firstElementChild;if(cell){const w=document.createElement('div');w.className='badge warn hlgb-payment-warning';w.style.marginTop='4px';w.textContent='⚠ '+badReason9737(issue.issues[0].bad);cell.appendChild(w)}return}
     const btn=[...tr.querySelectorAll('button[onclick]')].find(b=>/payFactionPayment\((\d+)\)/.test(String(b.getAttribute('onclick')||''))||/editFactionPayment\((\d+)\)/.test(String(b.getAttribute('onclick')||'')));
     if(!btn)return;const m=String(btn.getAttribute('onclick')||'').match(/(?:payFactionPayment|editFactionPayment)\((\d+)\)/),p=m?payment(m[1]):null,f=p?faction(p.factionServiceId):null,bad=f?overAccounted(f):null;
     if(!bad)return;
-    const cell=tr.children?.[1]||tr.firstElementChild;if(cell){const w=document.createElement('div');w.className='badge warn hlgb-payment-warning';w.style.marginTop='4px';w.textContent='⚠ Revisar: soma de pagamentos excede o envio';cell.appendChild(w)}
+    const cell=tr.children?.[1]||tr.firstElementChild;if(cell){const w=document.createElement('div');w.className='badge warn hlgb-payment-warning';w.style.marginTop='4px';w.textContent='⚠ Revisar: '+badReason9737(bad);cell.appendChild(w)}
   });
 }
 const oldRenderFactions=window.renderFactions;
