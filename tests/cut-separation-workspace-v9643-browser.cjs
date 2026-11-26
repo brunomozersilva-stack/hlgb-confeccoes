@@ -51,6 +51,9 @@
  await p.waitForFunction(()=>document.activeElement?.id==='sepQty938_10');
  assert.equal(await p.locator('#sepQty938_10').inputValue(),'60');assert.equal(await p.evaluate(()=>window.__sepClicks),0);
  await p.locator('#sepBtn938_10').click();assert.equal(await p.evaluate(()=>window.__sepClicks),1);
+ // Rapid selection of a second model within the same order must not restore stale focus.
+ await p.evaluate(()=>{const input=document.createElement('input');input.id='sepQty938_11';input.value='50';document.getElementById('separationTable').appendChild(input);const rows=window.HLGB_CUT_SEPARATION_CORE_9647.workspace.inspect(db,true,new Set()).rows;const a=rows.find(x=>x.orderId==='1'&&x.productId==='10'),b=rows.find(x=>x.orderId==='1'&&x.productId==='11');if(!a||!b)throw Error('model fixtures missing');window.hlgbCutOrganization.openModelSeparation9715(a);window.hlgbCutOrganization.openModelSeparation9715(b)});
+ await p.waitForTimeout(200);assert.equal(await p.evaluate(()=>document.activeElement?.id),'sepQty938_11');assert.equal(await p.locator('#sepQty938_11').inputValue(),'50');assert.equal(await p.evaluate(()=>window.__sepClicks),1);
  await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!!document.querySelector('#pedidos #originalSep')&&!document.getElementById('hlgbSeparationOperation9715'));
  assert.equal(await p.evaluate(()=>window.__originalSep===document.getElementById('originalSep')),true);
  assert.equal(await p.locator('#beforeSep + #originalSep + #afterSep').count(),1);

@@ -221,14 +221,16 @@ function openModelSeparation9715(row){
  // The original selector may not have been populated yet. Only refresh on explicit action.
  if(!Array.from(sel.options||[]).some(o=>sid(o.value)===sid(exact.orderId))&&typeof fillSeparationOrders==='function')fillSeparationOrders();
  if(!Array.from(sel.options||[]).some(o=>sid(o.value)===sid(exact.orderId))){dock.host.open=true;dock.info.textContent='Pedido não localizado na seleção original. Atualize os dados antes de confirmar.';return false}
- dock.host.open=true;selectSeparationOrder(exact.orderId);
+ dock.host.open=true;const request=(dock.request||0)+1;dock.request=request;selectSeparationOrder(exact.orderId);
  const focus=()=>{
-  if(dock!==separationDock9715||draftOwner9644()!==dock.actor||sid(sel.value)!==sid(exact.orderId))return;
+  if(dock!==separationDock9715||dock.request!==request||draftOwner9644()!==dock.actor||sid(sel.value)!==sid(exact.orderId))return false;
+  const pending=window.hlgbSeparationDirect9321?.status?.()?.busy;
+  if(Array.isArray(pending)&&pending.length)return false;
   const input=document.getElementById('sepQty938_'+sid(exact.productId));
-  if(input&&dock.panel.contains(input)){input.scrollIntoView?.({block:'center',behavior:'auto'});input.focus?.();dock.info.textContent='Modelo selecionado: '+exact.productName+' · Pedido #'+exact.orderNumber+'. Confira a quantidade antes de confirmar.';separationDockEvidence9715={observed:true,moved:true,modelOpened:true,at:new Date().toISOString()}}
+  if(input&&dock.panel.contains(input)){input.scrollIntoView?.({block:'center',behavior:'auto'});input.focus?.();dock.info.textContent='Modelo selecionado: '+exact.productName+' · Pedido #'+exact.orderNumber+'. Confira a quantidade antes de confirmar.';separationDockEvidence9715={observed:true,moved:true,modelOpened:true,at:new Date().toISOString()};return true}
   else{dock.info.textContent='Pedido aberto. A baixa parcial deste modelo não está disponível nesta consulta; confira o progresso ou a conclusão.';separationDockEvidence9715={observed:true,moved:true,modelOpened:false,at:new Date().toISOString()}}
  };
- focus();setTimeout(focus,150);return true;
+ if(!focus())setTimeout(focus,150);return true;
 }
 function materialCard9711(parent,row,inline=false){
  const el=(tag,text,host=parent)=>{const x=document.createElement(tag);x.textContent=text;host.appendChild(x);return x};
