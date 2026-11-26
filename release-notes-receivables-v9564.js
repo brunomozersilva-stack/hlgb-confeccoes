@@ -92,7 +92,11 @@ function pendingProtection9710(){
 function archiveAllowed9710(n,pending){
  if(!settledForArchive9710(n)||!pending)return false;
  const module=n.type==='projection'?'projectionInvoices':'orders',id=sid(n.id);
- return !pending.has(module+'::'+id)&&!pending.has(module+'|'+id);
+ const blocked=(m,k)=>pending.has(m+'::'+sid(k))||pending.has(m+'|'+sid(k));
+ if(blocked(module,id))return false;
+ // A pending finance edit can change the payment proof used for this note.
+ if(list('finance').some(x=>sid(n.type==='projection'?x.projectionInvoiceId:x.orderId)===id&&blocked('finance',x.id)))return false;
+ return true;
 }
 function category(n,now=today()){
  if(n.balance<=1)return n.credit>0?'compensated':'paid';
