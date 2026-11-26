@@ -380,14 +380,16 @@ function merchandiseEvidence9755(orders,invoices,pairs){
  return out;
 }
 function organizeMerchandise9755(){
- const host=document.getElementById('openCutOrdersTable');if(!host||typeof window.hlgbCanonicalProjectionInvoices!=='function'||typeof window.hlgbWriteoffIntegrity9391?.pairIndex!=='function')return;
- let evidence;try{evidence=merchandiseEvidence9755(arr('orders'),window.hlgbCanonicalProjectionInvoices(),window.hlgbWriteoffIntegrity9391.pairIndex())}catch(_){return}
+ const host=document.getElementById('openCutOrdersTable');if(!host)return;
+ const restore=()=>{Array.from(host.querySelectorAll('tbody tr')).forEach(row=>setFilterVisible9709(row,true));document.getElementById('hlgbMerchandiseEvidence9755')?.remove()};
+ if(window.__HLGB_AUTH_READY!==true||typeof canOpenPage!=='function'||!canOpenPage('corte')||typeof window.hlgbCanonicalProjectionInvoices!=='function'||typeof window.hlgbWriteoffIntegrity9391?.pairIndex!=='function'){restore();return}
+ let evidence;try{const invoices=window.hlgbCanonicalProjectionInvoices(),pairs=window.hlgbWriteoffIntegrity9391.pairIndex();if(!Array.isArray(invoices)||!(pairs instanceof Set)){restore();return}evidence=merchandiseEvidence9755(arr('orders'),invoices,pairs)}catch(_){restore();return}
  const rows=Array.from(host.querySelectorAll('tbody tr')),identified=[];
  for(const row of rows){
   const ids=new Set();for(const b of row.querySelectorAll('button[onclick]')){const m=sid(b.getAttribute('onclick')).match(/^\s*(?:editOpenMerchandise|deleteOpenMerchandise)\(\s*(['"]?)([^'")\s]+)\1\s*\)\s*;?\s*$/);if(m)ids.add(m[2])}
   identified.push({row,id:ids.size===1?[...ids][0]:''});
  }
- if(identified.some(x=>!x.id)||new Set(identified.map(x=>x.id)).size!==identified.length)return;
+ if(identified.some(x=>!x.id)||new Set(identified.map(x=>x.id)).size!==identified.length){restore();return}
  const orders=new Map(arr('orders').filter(o=>o&&o.id!=null).map(o=>[sid(o.id),o]));
  let hidden=0,qty=0,value=0,known=true,review=0;
  for(const {row,id} of identified){const e=evidence.get(id),hide=e?.hide===true;setFilterVisible9709(row,!hide);if(hide){hidden++;continue}if(e?.reason==='review'||!e)review++;const o=orders.get(id);let n;try{n=typeof qtyOfOrder==='function'?Number(qtyOfOrder(o)):Number(o?.qty??o?.totalQty)}catch(_){n=NaN}

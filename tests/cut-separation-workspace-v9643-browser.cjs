@@ -40,6 +40,22 @@
  await p.evaluate(()=>{const card=document.querySelector('[data-hlgb-cut-model-id="19"]');const canonical=document.createElement('button');canonical.className='secondary hlgbAdjustSplitGradeBtn';canonical.textContent='Ajustar grade';canonical.onclick=()=>window.hlgbOpenSplitGradeAdjust('19');const collapsed=document.createElement('details');collapsed.appendChild(canonical);card.appendChild(collapsed);window.__originalGradeButton=canonical;window.hlgbCutOrganization.apply()});assert.equal(await splitGrade.count(),1,'canonical control replaces only our fallback');assert.equal(await splitGrade.isVisible(),true,'canonical control is moved out of collapsed details');assert.equal(await p.evaluate(()=>window.__originalGradeButton===document.querySelector('[data-hlgb-cut-model-id="19"] .hlgbAdjustSplitGradeBtn')),true);
  await p.evaluate(()=>{const tr=document.createElement('tr');tr.innerHTML='<td>Sem identidade</td>';document.querySelector('#cutTable tbody').appendChild(tr);window.hlgbCutOrganization.apply()});
  assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0,'unknown rows restore original layout');
+ // Merchandise projection uses explicit model coverage, not status or payment.
+ await p.evaluate(()=>{
+  const host=document.getElementById('openCutOrdersTable');host.innerHTML='<table><tr><th>Pedido</th><th>Ações</th></tr><tr id="merch1"><td>12</td><td><button onclick="editOpenMerchandise(1)">Editar</button></td></tr></table>';
+  db.orders[0].total=1500;window.qtyOfOrder=o=>o.grade.reduce((n,g)=>n+g.qty,0);
+  window.__merchInvoices=[{id:'n1',items:[{orderId:1,productId:10,qty:100}]}];window.hlgbCanonicalProjectionInvoices=()=>window.__merchInvoices;
+  window.__merchPairs=[];window.hlgbWriteoffIntegrity9391.pairIndex=()=>new Set(window.__merchPairs);
+  window.__merchBefore=JSON.stringify(db);window.hlgbCutOrganization.organizeMerchandise9755();
+ });
+ assert.equal(await p.locator('#merch1').evaluate(x=>x.style.display),'');
+ await p.evaluate(()=>{window.__merchPairs=['1|11'];window.hlgbCutOrganization.organizeMerchandise9755()});
+ assert.equal(await p.locator('#merch1').evaluate(x=>x.style.display),'none');assert.match(await p.locator('#hlgbMerchandiseEvidence9755').textContent(),/1 com todos os modelos cobertos/);
+ await p.evaluate(()=>{window.__merchInvoices[0].status='Cancelada';window.hlgbCutOrganization.organizeMerchandise9755()});
+ assert.equal(await p.locator('#merch1').evaluate(x=>x.style.display),'');
+ assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__merchBefore),true);
+ await p.evaluate(()=>{window.__merchPairs=[];window.hlgbCanonicalProjectionInvoices=undefined;window.hlgbCutOrganization.organizeMerchandise9755()});
+ assert.equal(await p.locator('#hlgbMerchandiseEvidence9755').count(),0);
  // Preserve the exact original panel and controls; the operation never clones or writes.
  await p.evaluate(()=>{
   const orders=document.createElement('section');orders.id='pedidos';orders.className='page';
