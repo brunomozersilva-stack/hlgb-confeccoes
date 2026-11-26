@@ -24,6 +24,9 @@
   const index=rows=>{const m=new Map();for(const x of rows.filter(live)){const k=id(x.id);if(k)m.set(k,m.has(k)?null:x)}return m};
   const orders=index(db.orders),products=index(db.products),materials=index(db.materials),models=[],groups=new Map();
   const safe=new Set((d?.state==='discovery-only'?d.groups:[]).flatMap(g=>g.models.map(m=>m.key)));
+  const cutByPair=new Map();
+  for(const c of (Array.isArray(db.cuts)?db.cuts:[]).filter(live)){if(!id(c.orderId)||!id(c.productId)||c.hiddenByModelSplitV1||c.modelSplitParentV1)continue;const k=pair(c.orderId,c.productId),rows=cutByPair.get(k)||[];rows.push(c);cutByPair.set(k,rows)}
+
   let review=0;
   for(const [oid,o] of orders){
    if(!o){review++;continue}
@@ -42,6 +45,8 @@
     if(!m.pieces&&!m.review)continue;
     const p=products.get(m.productId);
     m.materialIds=[...new Set((Array.isArray(p?.materials)?p.materials:[]).filter(b=>{const mat=materials.get(id(b?.materialId));return mat&&['tecido','malha','renda','tule'].includes(norm(mat.cat||b.cat))}).map(b=>id(b.materialId)))];
+    const observedCuts=cutByPair.get(m.key)||[];
+    m.cutStatus=observedCuts.length===1?id(observedCuts[0].status)||'Não informado':observedCuts.length>1?'Múltiplos registros — conferir':'Sem corte individual identificado';
     m.planningEligible=!m.review&&safe.has(m.key);if(!m.materialIds.length||m.review)review++;
     models.push(m);
     for(const mid of m.materialIds){const g=groups.get(mid)||{materialId:mid,materialName:id(materials.get(mid).name)||mid,models:[]};g.models.push(m);groups.set(mid,g)}
