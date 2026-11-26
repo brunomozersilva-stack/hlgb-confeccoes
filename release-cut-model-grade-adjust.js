@@ -32,7 +32,28 @@ async function openAdjust(id){
   try{const out=await hlgbRecordSaveWithRetry('cuts',sid(next.id),next,false);if(!out?.applied)throw new Error('Nuvem não confirmou.');const i=cuts().findIndex(x=>sid(x.id)===sid(next.id));if(i>=0)db.cuts[i]=out.data||next;try{localSaveOnly?.()}catch(e){}closeModal();renderCuts?.();return true}catch(e){console.warn('[HLGB '+V+'] salvar grade',e);alert('Não foi possível salvar a grade.');return false}
  });
 }
-function decorate(){const panel=document.getElementById('hlgbCutSplitPanel');if(!panel)return;panel.querySelectorAll('button[onclick*="hlgbFinishSplitCut"]').forEach(b=>{const m=(b.getAttribute('onclick')||'').match(/hlgbFinishSplitCut\(['"]?([^'\")]+)['"]?\)/);if(!m)return;const host=b.parentElement;if(!host||host.querySelector('.hlgbAdjustSplitGradeBtn'))return;const n=document.createElement('button');n.type='button';n.className='secondary hlgbAdjustSplitGradeBtn';n.textContent='Ajustar grade';n.onclick=()=>openAdjust(m[1]);host.insertBefore(n,b)})}
+function decorate(){
+ const panel=document.getElementById('hlgbCutSplitPanel');if(!panel)return;
+ panel.querySelectorAll('button[onclick*="hlgbFinishSplitCut"]').forEach(b=>{
+  const m=(b.getAttribute('onclick')||'').match(/hlgbFinishSplitCut\(['"]?([^'"\)]+)['"]?\)/);if(!m)return;
+  const host=b.parentElement,card=b.closest?.('[data-hlgb-cut-model-id]')||host;if(!host||!card)return;
+  const canonical=card.querySelector('[data-hlgb-grade-group9711] .hlgbAdjustSplitGradeBtn');
+  if(canonical){
+   // Only remove fallback controls created by this module, not unrelated grade/print actions.
+   card.querySelectorAll('[data-hlgb-grade-fallback9711]').forEach(n=>{if(n.dataset.hlgbGradeFallback9711===m[1])n.remove()});
+   return;
+  }
+  if(card.querySelector('.hlgbAdjustSplitGradeBtn'))return;
+  // Do not make an ambiguous model editable merely because its old action is absent.
+  const cut=cuts().filter(x=>sid(x?.id)===sid(m[1]));
+  if(cut.length!==1||!cut[0].modelSplitChildV1||String(cut[0].status||'').toLowerCase()==='finalizado')return;
+  const n=document.createElement('button');n.type='button';n.className='secondary hlgbAdjustSplitGradeBtn';n.textContent='Ajustar grade';n.dataset.hlgbGradeFallback9711=m[1];
+  const competitors=window.hlgbCutModelSplit?.competingModelCuts;
+  if(typeof competitors==='function'&&competitors(cut[0]).length>1){n.disabled=true;n.title='Corte duplicado: conferência necessária'}
+  n.onclick=()=>openAdjust(m[1]);host.insertBefore(n,b);
+ });
+}
+
 window.hlgbOpenSplitGradeAdjust=openAdjust;
 const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbAdjust9423){const w=function(){const r=old.apply(this,arguments);setTimeout(decorate,0);return r};w.__hlgbAdjustV1=true;w.__hlgbAdjust9423=true;window.renderCuts=w}
 setTimeout(decorate,1200);
