@@ -98,7 +98,14 @@ async function saveConfirmed(base,desired,verify){
  status('☁️ Salvando folha compartilhada…','warn');
  const out=await saveFn()('payroll',id,clone(merged),false);
  if(!out||out.applied!==true)throw new Error('A nuvem não confirmou a alteração da folha.');
- const finalData=clone(out.data||merged);if(typeof verify==='function'&&!verify(finalData)){throw new Error('A nuvem respondeu, mas não confirmou o valor de passagem solicitado. Reabra o lançamento antes de tentar novamente.')}replaceLocal(id,finalData);saveLocal();redraw();status('✅ Folha salva e compartilhada','ok');return finalData;
+ // An ACK without the actual record cannot prove the requested fields.
+ const response=out.data;
+ if(!response||typeof response!=='object'||Array.isArray(response)||sid(response.id)!==id||sid(response.employeeId)!==sid(desired.employeeId)||sid(response.month)!==sid(desired.month))throw new Error('A nuvem respondeu sem confirmar a identidade e o conteúdo da folha. Confira o registro antes de repetir.');
+ const finalData=clone(response);
+ const changed=Object.keys(desired).filter(k=>k!=='updatedAt'&&!employeeEqual(base?.[k],desired[k]));
+ if(changed.some(k=>!employeeEqual(finalData[k],desired[k])))throw new Error('A nuvem respondeu, mas não confirmou todos os campos alterados da folha. Confira o registro antes de repetir.');
+ if(typeof verify==='function'&&!verify(finalData))throw new Error('A nuvem respondeu, mas não confirmou o valor de passagem solicitado. Reabra o lançamento antes de tentar novamente.');
+ replaceLocal(id,finalData);saveLocal();redraw();status('✅ Folha salva e compartilhada','ok');return finalData;
 }
 function editPayrollRowShared(id){
  const r=findRow(id);if(!r)return alert('Folha não encontrada. Atualize a página e tente novamente.');
