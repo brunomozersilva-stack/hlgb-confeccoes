@@ -23,3 +23,23 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  ok(api.coverageCandidate('2026-13',opt.asOf,{},transport).state==='unavailable','bad month');
  ok(JSON.stringify(b)===bb&&JSON.stringify(enrichedPeople)===ep,'batch immutable');
 })(api,transport,(v,m)=>assert.ok(v,m));console.log('PASS attendance and transport preview');
+
+(function digitalAttendanceSalary(){
+ const text=['Matricula;Data;Previsto;Trabalhado;Situacao','A01;03/11/2026;08:00;07:30;Trabalhado','A01;04/11/2026;480;0;Falta injustificada','A01;05/11/2026;480;0;Falta justificada','A01;06/11/2026;480;09:00;Trabalhado','A01;07/11/2026;0;0;Folga','A01;06/11/2026;480;09:00;Trabalhado'].join('\n');
+ const mapping={employee:'Matricula',date:'Data',scheduled:'Previsto',worked:'Trabalhado',status:'Situacao'},people=[{id:'001',salary:2200}],links=[{code:'A01',employeeId:'001'}],table=api.digitalTable(text,';',true);
+ const b=api.inspectDigital(table,mapping,people,'2026-11',true,links),before=JSON.stringify(b);
+ assert.equal(b.rows.length,5);assert.equal(b.duplicateCount,1);assert.equal(b.issues.length,0);
+ const v=api.salaryDigitalPreview(b,people[0],{monthlyHours:220,approvedDeductionMinutes:510,approvedExtraMinutes:60,extraPercent:150,reviewed:true},true);
+ assert.equal(v.state,'local-salary-preview');assert.equal(v.counts.shortfall,30);assert.equal(v.counts.absenceUnjustified,480);assert.equal(v.counts.absenceJustified,480);assert.equal(v.counts.extra,60);
+ assert.equal(v.deductionCents,8500);assert.equal(v.extraCents,1500);assert.equal(v.indicativeGrossCents,213000);assert.equal(v.officialNetCents,null);assert.equal(v.partial,true);assert.equal(v.canWrite,false);
+ const invalid=api.salaryDigitalPreview(b,people[0],{monthlyHours:220,approvedDeductionMinutes:990,approvedExtraMinutes:60,extraPercent:150,reviewed:true},true);
+ assert.equal(invalid.indicativeGrossCents,null);assert.equal(api.salaryDigitalPreview(b,people[0],{monthlyHours:220},true).deductionCents,null);
+ assert.equal(api.inspectDigital(table,mapping,people,'2026-11',true).rows.length,0);
+ assert.equal(api.inspectDigital(table,mapping,people,'2026-11',false,links).state,'forbidden');
+ assert.equal(api.inspectDigital(table,{...mapping,date:'Matricula'},people,'2026-11',true,links).state,'invalid-mapping');
+ const conflict=api.inspectDigital(api.digitalTable(text+'\nA01;03/11/2026;480;08:00;Trabalhado',';',true),mapping,people,'2026-11',true,links);
+ assert.equal(conflict.rows.length,4);assert.equal(conflict.issues.length,1);
+ assert.deepEqual(api.digitalTable('id,date\n"001",2026-11-03',',',true).rows,[['001','2026-11-03']]);
+ assert.throws(()=>api.digitalTable('id;id\n001;002',';',true));assert.equal(JSON.stringify(b),before);
+ console.log('PASS mapped digital attendance and reviewed salary preview');
+})();
