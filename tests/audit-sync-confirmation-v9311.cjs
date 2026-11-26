@@ -10,10 +10,10 @@ assert.doesNotMatch(source,/localStorage\.removeItem\(WAL_KEY\)/,'recovery não 
 assert.match(source,/hlgb955FlushSilent/,'recovery deve reenviar a WAL durável');
 assert.match(source,/realtime-primary-cloud-verified-after-confirmation/,'Realtime deve continuar principal com confirmação de nuvem');
 
-async function scenario(confirm){
+async function scenario(confirm,guardState={probes:1,readFailed:false,unsupported:false,localReadFailed:false,indexedDbOnly:0}){
  const storage=new Map();
  storage.set('hlgb_durable_wal_v1',JSON.stringify({entries:{'cuts|1':{key:'cuts|1',module:'cuts',id:'1',data:{status:'Finalizado'},createdAt:'2026-10-06T10:00:00Z',attempts:0,state:'pending'}}}));
- const loadCalls=[];let flushCalls=0;
+ const loadCalls=[],messages=[];let flushCalls=0;
  const sandbox={window:null,console,setTimeout:()=>0,clearTimeout:()=>{},setInterval:()=>0,navigator:{onLine:true},
   document:{visibilityState:'visible',activeElement:null,documentElement:{dataset:{}},getElementById:id=>id==='appShell'?{}:null,querySelector:()=>null,addEventListener:()=>{}},
   getComputedStyle:()=>({display:'block'}),
@@ -23,13 +23,14 @@ async function scenario(confirm){
   hlgbRecordLoadBundle:async opts=>{loadCalls.push({...opts});return {rows:[]}},
   hlgbRecordPendingStore:()=>{},hlgbNormalizedSyncNow:async()=>true,
   hlgb955FlushSilent:async()=>{flushCalls++;if(confirm)storage.set('hlgb_durable_wal_v1',JSON.stringify({entries:{}}));return confirm},
-  hlgbRealtimeState:'SUBSCRIBED',hlgbStartRealtime:()=>true,localSaveOnly:()=>{},setCloudStatus:()=>{},
+  hlgbRealtimeState:'SUBSCRIBED',hlgbStartRealtime:()=>true,localSaveOnly:()=>{},setCloudStatus:(message)=>messages.push(message),
   hlgbRecordLastSeen:{},hlgbRecordGlobalLastSeen:'2026-10-06T10:00:00Z',hlgbRecordLastPullAt:0,HLGB_RELEASE_VERSION:'93.47',addEventListener:()=>{}
  };
+ if(guardState)sandbox.hlgbWalIdbGuard9536={status:()=>guardState,keys:()=>[]};
  sandbox.window=sandbox;vm.createContext(sandbox);vm.runInContext(source,sandbox);
  const ok=await sandbox.hlgbSyncRecovery9301.fullSync(confirm?'confirmed':'unconfirmed',true);
  const wal=JSON.parse(storage.get('hlgb_durable_wal_v1')||'{"entries":{}}');
- return {ok,loadCalls,flushCalls,wal};
+ return {ok,loadCalls,flushCalls,wal,messages,pending:sandbox.hlgbSyncRecovery9301.pending()};
 }
 (async()=>{
  const confirmed=await scenario(true);
@@ -43,5 +44,8 @@ async function scenario(confirm){
  assert.equal(unconfirmed.flushCalls,1,'WAL deve ter tentativa de reenvio');
  assert.ok(unconfirmed.loadCalls.every(x=>x.preserveLocal===true),'com WAL pendente nenhuma leitura pode sobrescrever o navegador');
  assert.equal(Object.keys(unconfirmed.wal.entries||{}).length,1,'WAL não confirmada deve continuar protegida');
+ for(const [label,guard] of [['missing',null],['not-yet-probed',{probes:0,readFailed:false}],['read-failed',{probes:1,readFailed:true}],['unsupported',{probes:1,readFailed:false,unsupported:true}],['local-malformed',{probes:1,readFailed:false,localReadFailed:true}]]){
+  const x=await scenario(true,guard);assert.equal(x.ok,false,label);assert.equal(x.pending.indexedDbVerified,false,label);assert.equal(x.pending.indexedDbOnly,null,label);assert.ok(x.messages.some(m=>m.includes('Confirmação incompleta')),label);assert.ok(!x.messages.some(m=>m.includes('tudo confirmado')),label);
+ }
  console.log('OK v93.48: WAL só sai após confirmação; pendência não confirmada permanece protegida e Realtime segue principal.');
 })().catch(err=>{console.error(err);process.exit(1)});
