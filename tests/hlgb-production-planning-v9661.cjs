@@ -286,3 +286,19 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.distributeFactionOrder(db,{...input,productId:'n'},true).allocated,0);assert.equal(plan.distributeFactionOrder(db,{...input,teams:[t('a'),t('a')]},true).state,'invalid-input');assert.equal(plan.distributeFactionOrder(db,input,false).state,'forbidden');assert.equal(JSON.stringify([db,input]),before);
  console.log('PASS multi-faction distribution with historical ranges, exact feasible quantities and queue safeguards');
 })();
+
+
+(function factionForecastBacktest(){
+ const D=86400000,iso=n=>new Date(Date.parse('2026-09-01T00:00:00Z')+n*D).toISOString().slice(0,10);
+ const make=(i,start,days,team='a')=>({id:team+'-'+i,productId:'m',productionLocationId:team,status:'Finalizado',sentAt:iso(start),finishedAt:iso(start+days),sent:200,returned:200,deliveryHistory:[{id:team+'-event-'+i,date:iso(start+days),qty:200}]});
+ const data=[make(0,0,2),make(1,5,2),make(2,10,2),make(3,15,2),make(4,20,4),make(5,25,4),make(6,30,4),make(7,35,5),make(8,42,6),make(9,50,8),make(10,58,2),make(11,58,3),make(0,0,2,'b')];
+ const db={products:[{id:'m',name:'Camisola'}],productionLocations:[{id:'a',name:'A'},{id:'b',name:'B'}],factions:data},before=JSON.stringify(db),v=plan.factionForecastBacktest(db,iso(70),true);
+ assert.equal(v.state,'local-forecast-backtest');assert.equal(v.summary.eligibleLots,13);assert.equal(v.summary.evaluated,8);assert.equal(v.summary.insufficient,5);assert.equal(v.summary.suggestedBufferDays,null);
+ const a=v.rows.find(r=>r.teamId==='a'),first=a.records[0],cal=a.records.find(r=>r.recordId==='a-8');
+ assert.equal(first.recordId,'a-4');assert.equal(first.trainingCount,4);assert.equal(first.predictedDays,2);assert.equal(first.errorDays,2);assert.equal(first.calibratedErrorDays,null);
+ assert.equal(cal.priorErrorCount,4);assert.equal(cal.calibratedBufferDays,2);assert.equal(cal.predictedDays,4);assert.equal(cal.calibratedErrorDays,0);
+ const sameDay=a.records.find(r=>r.recordId==='a-10');assert.equal(sameDay.trainingCount,9);assert.equal(sameDay.priorErrorCount,5);
+ assert.equal(v.rows.find(r=>r.teamId==='b').evaluated,0);assert.equal(v.rows.find(r=>r.teamId==='b').suggestedBufferDays,null);
+ assert.equal(v.autoApply,false);assert.equal(v.canWrite,false);assert.equal(plan.factionForecastBacktest(db,iso(70),false).state,'forbidden');assert.equal(JSON.stringify(db),before);
+ console.log('PASS walk-forward forecast validation and candidate calibration without future leakage');
+})();

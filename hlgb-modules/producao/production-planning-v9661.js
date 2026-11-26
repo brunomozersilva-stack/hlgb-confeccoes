@@ -927,5 +927,46 @@
   if(remaining!==0)return empty('allocation-inconsistent');
   return {...empty('local-distribution-scenario'),productId:pid,pieces,allocated,unallocated:pieces-allocated,deadline:input.dueDate,finishBufferDays:finish,teams,allocations,referenceDelivery:allocations.length?allocations.map(a=>a.deliveryReference).sort().at(-1):null,partial:allocated!==pieces||teams.some(t=>t.reason),historyIssues:history.issues.length};
  }
- return {distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Walk-forward validation: only lots already returned BEFORE the historical send date
+ // may train a prediction. The reconstructed history is not a saved forecast ledger.
+ function factionForecastBacktest(db,asOf,allowed){
+  const empty=state=>({state,rows:[],summary:null,issues:[],canWrite:false,canPromise:false,autoApply:false});
+  if(allowed!==true)return empty('forbidden');
+  const history=factionLeadTimes(db,asOf,true);
+  if(history.state!=='local-leadtime-observation')return empty(history.state);
+  const D=86400000,ms=s=>Date.parse(s+'T00:00:00Z'),iso=n=>new Date(n).toISOString().slice(0,10),p75=a=>a.slice().sort((x,y)=>x-y)[Math.ceil(a.length*.75)-1];
+  const aggregate=records=>{
+   const n=records.length;if(!n)return {evaluated:0,meanAbsoluteErrorDays:null,meanSignedErrorDays:null,onTimePercent:null,lateCount:0,calibratedOnTimePercent:null,calibratedMeanAbsoluteErrorDays:null,calibratedEvaluated:0,suggestedBufferDays:null};
+   const round=v=>Math.round(v*10)/10,lateCount=records.filter(r=>r.errorDays>0).length,calibrated=records.filter(r=>r.calibratedErrorDays!==null);
+   return {evaluated:n,meanAbsoluteErrorDays:round(records.reduce((s,r)=>s+Math.abs(r.errorDays),0)/n),meanSignedErrorDays:round(records.reduce((s,r)=>s+r.errorDays,0)/n),onTimePercent:round((n-lateCount)*100/n),lateCount,
+    calibratedEvaluated:calibrated.length,calibratedOnTimePercent:calibrated.length?round(calibrated.filter(r=>r.calibratedErrorDays<=0).length*100/calibrated.length):null,
+    calibratedMeanAbsoluteErrorDays:calibrated.length?round(calibrated.reduce((s,r)=>s+Math.abs(r.calibratedErrorDays),0)/calibrated.length):null,
+    suggestedBufferDays:n>=4?Math.max(0,p75(records.map(r=>r.errorDays))):null};
+  };
+  const rows=[],all=[];let eligibleLots=0,insufficient=0;
+  for(const group of history.rows){
+   const samples=group.samples.slice().sort((a,b)=>a.sentAt.localeCompare(b.sentAt)||a.recordId.localeCompare(b.recordId)),records=[];
+   eligibleLots+=samples.length;
+   for(const lot of samples){
+    const sent=ms(lot.sentAt);
+    // Strict date boundary: ordering within a day is unknown.
+    const training=samples.filter(s=>s.recordId!==lot.recordId&&ms(s.finishedAt)<sent&&ms(s.finishedAt)>=sent-84*D);
+    if(training.length<4){insufficient++;continue}
+    const baseline=p75(training.map(s=>s.elapsedDays)),actual=lot.elapsedDays;
+    // Use only errors whose outcomes were known before this lot was sent.
+    const earlier=records.filter(r=>ms(r.actualDate)<sent&&ms(r.actualDate)>=sent-84*D);
+    const buffer=earlier.length>=4?Math.max(0,p75(earlier.map(r=>r.errorDays))):null;
+    const record={recordId:lot.recordId,sentAt:lot.sentAt,actualDate:lot.finishedAt,pieces:lot.pieces,trainingCount:training.length,priorErrorCount:earlier.length,
+     predictedDays:baseline,predictedDate:iso(sent+baseline*D),actualDays:actual,errorDays:actual-baseline,calibratedBufferDays:buffer,
+     calibratedDate:buffer===null?null:iso(sent+(baseline+buffer)*D),calibratedErrorDays:buffer===null?null:actual-baseline-buffer};
+    records.push(record);all.push(record);
+   }
+   rows.push({productId:group.productId,productName:group.productName,teamId:group.teamId,teamName:group.teamName,band:group.band,eligibleLots:samples.length,insufficient:samples.length-records.length,...aggregate(records),records});
+  }
+  // The pooled results are descriptive only. A pooled buffer is never applied across models.
+  const summary=aggregate(all);summary.suggestedBufferDays=null;
+  return {...empty('local-forecast-backtest'),rows:rows.sort((a,b)=>b.evaluated-a.evaluated||a.productName.localeCompare(b.productName,'pt-BR')),summary:{...summary,eligibleLots,insufficient},issues:history.issues,windowDays:84,method:'walk-forward-prior-completed-lots-only'};
+ }
+ return {factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });

@@ -346,6 +346,30 @@ function mountPlanner(){
     const detail=el('details','',dout);el('summary','Por que cada local foi considerado ou excluído',detail);for(const t of v.teams){el('p',t.teamName+' · '+(t.reason?reasons[t.reason]||t.reason:t.ranges.map(r=>r.min+'–'+r.max+' pç ('+r.days+' dias)').join(' · ')),detail);if(t.queue?.issues?.length)el('p',t.queue.issues.length+' ocorrências na fila a conferir',detail)}
     el('p','Histórico com '+v.historyIssues+' ocorrências a conferir. Referência, não garantia de retorno ou entrega. Nenhuma alteração gravada.',dout);
    });loadDistribution();
+
+   const learning=el('details','',stages);el('summary','Precisão das previsões e aprendizagem histórica',learning);
+   el('p','Reconstrói previsões para lotes já concluídos, usando somente os retornos conhecidos antes de cada envio. Não é histórico de previsões salvas. Sem quatro lotes anteriores comparáveis não calcula prazo; sem quatro erros anteriores resolvidos não testa reserva adicional.',learning);
+   const learnSearch=field('Buscar modelo ou facção','search','',learning),learnOut=el('div','',learning);let learnData=null,learnOffset=0;
+   function drawLearning(){
+    learnOut.replaceChildren();if(!active()||learnData?.state!=='local-forecast-backtest')return;
+    const s=learnData.summary,show=n=>n===null?'Sem amostra suficiente':String(n);
+    el('h4','Avaliação retrospectiva — últimas '+learnData.windowDays+' dias',learnOut);
+    el('p',s.evaluated+' lotes avaliados de '+s.eligibleLots+' reconciliados · '+s.insufficient+' sem histórico anterior suficiente · '+learnData.issues.length+' ocorrências na fonte.',learnOut);
+    el('p','Dentro do prazo de referência: '+show(s.onTimePercent)+(s.onTimePercent===null?'':'%')+' · erro absoluto médio '+show(s.meanAbsoluteErrorDays)+(s.meanAbsoluteErrorDays===null?'':' dias')+' · atrasos '+s.lateCount,learnOut);
+    el('p','Reserva adicional testada em '+s.calibratedEvaluated+' lotes: '+show(s.calibratedOnTimePercent)+(s.calibratedOnTimePercent===null?'':'% dentro da referência')+' · erro médio absoluto '+show(s.calibratedMeanAbsoluteErrorDays),learnOut);
+    el('p','Percentuais dos dois métodos podem representar amostras diferentes. Não são garantia de desempenho futuro.',learnOut);
+    const query=learnSearch.value.toLocaleLowerCase('pt-BR'),rows=learnData.rows.filter(r=>(r.productName+' '+r.teamName).toLocaleLowerCase('pt-BR').includes(query));
+    for(const r of rows.slice(learnOffset,learnOffset+20)){
+     const d=el('details','',learnOut);el('summary',r.teamName+' · '+r.productName+' · '+r.band+' pç · '+r.evaluated+' avaliações',d);
+     el('p','Erro absoluto médio '+show(r.meanAbsoluteErrorDays)+' · erro assinado médio '+show(r.meanSignedErrorDays)+' · reserva candidata '+show(r.suggestedBufferDays)+(r.suggestedBufferDays===null?'':' dias')+' (não aplicada)',d);
+     for(const a of r.records)el('p','Envio '+a.sentAt+' · referência '+a.predictedDate+' · retorno '+a.actualDate+' · erro '+a.errorDays+' dias · '+a.trainingCount+' lotes anteriores'+(a.calibratedDate?' · referência calibrada '+a.calibratedDate+' · erro '+a.calibratedErrorDays+' dias':''),d);
+    }
+    if(learnOffset>0)btn('Anterior',learnOut,()=>{learnOffset-=20;drawLearning()});if(learnOffset+20<rows.length)btn('Mais avaliações',learnOut,()=>{learnOffset+=20;drawLearning()});
+    el('p','Nenhuma reserva ou previsão é aplicada automaticamente. Resultados dependem do histórico atualmente disponível, sem comprovação de cobertura integral.',learnOut);
+   }
+   btn('Avaliar precisão com os registros atuais',learning,()=>{
+    if(!active())return;learnData=api.factionForecastBacktest(typeof db!=='undefined'?db:window.db,today(),active());learnOffset=0;drawLearning();if(learnData.state!=='local-forecast-backtest')el('p','Histórico indisponível.',learnOut);
+   });learnSearch.oninput=()=>{learnOffset=0;drawLearning()};
    const stageOut=el('div','',stages),lines=s=>s.split(/\r?\n/).filter(x=>x.trim()).map(x=>x.split(';').map(v=>v.trim())),num=v=>/^\d+$/.test(String(v).trim())?Number(v):NaN;
    for(const r of stageRows){for(const f of [r.capacity,r.wip,r.hist,r.teams].filter(Boolean))f.oninput=()=>{if(f===r.wip)r.confirmed.checked=false;stageOut.replaceChildren()};r.confirmed.onchange=()=>stageOut.replaceChildren()}
    target.oninput=()=>stageOut.replaceChildren();
