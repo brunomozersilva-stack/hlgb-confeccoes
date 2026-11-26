@@ -359,6 +359,58 @@ function observeProjectionArchive9710(n){if(window.__HLGB_AUTH_READY===true&&Num
 function historyAuthorized9710(){
  try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('clientes')&&canOpenPage('notas')}catch(_){return false}
 }
+// Positive opening means customer owes us; negative means customer credit.
+// Read-only estimate over current note balances; opening must be independent.
+function clientAccountPreview9759(rows,input,allowed){
+ const blocked=reason=>({state:'blocked',reason,canWrite:false});
+ if(allowed!==true||!Array.isArray(rows)||!input)return blocked('permission-or-source');
+ const opening=input.openingCents,payment=input.paymentCents,day=input.date;
+ if(!Number.isSafeInteger(opening)||!Number.isSafeInteger(payment)||payment<0||!date(day)||day!==date(day))return blocked('invalid-input');
+ if(opening!==0&&(input.independentOpening!==true||!sid(input.reason).trim()))return blocked('opening-proof');
+ const key=sid(input.clientKey);if(!key.startsWith('id:')||key.length<=3)return blocked('client-identity');
+ const seen=new Set();let notesBalance=0;const notes=[];
+ for(const n of rows){
+  if(!n||n.clientKey!==key||!['order','projection'].includes(n.type)||n.key!==n.type+':'+sid(n.id)||!sid(n.id)||seen.has(n.key)||n.mismatch||/cancelad|excluid|estornad/.test(norm(n.sourceStatus))||!['total','paid','credit','balance'].every(k=>Number.isSafeInteger(n[k])&&n[k]>=0)||n.total-n.paid-n.credit!==n.balance||n.paid>0&&n.paymentEvidence!==true)return blocked('note-review');
+  seen.add(n.key);notesBalance+=n.balance;if(!Number.isSafeInteger(notesBalance))return blocked('amount-limit');
+  if(n.balance>0)notes.push(n);
+ }
+ const ordered=notes.slice().sort((a,b)=>(a.issued||'9999-12-31').localeCompare(b.issued||'9999-12-31')||a.key.localeCompare(b.key));
+ const chosen=input.noteKeys==null?ordered.map(n=>n.key):input.noteKeys;
+ if(!Array.isArray(chosen)||new Set(chosen).size!==chosen.length||chosen.some(k=>!ordered.some(n=>n.key===k)))return blocked('selection');
+ let left=payment,allocated=0,weighted=0,dated=0;const allocations=[];
+ for(const k of chosen){const n=ordered.find(n=>n.key===k),amount=Math.min(left,n.balance);if(!amount)continue;left-=amount;allocated+=amount;const elapsed=n.issued&&date(n.issued)===n.issued&&n.issued<=day?days(day,n.issued):null;if(elapsed!==null){weighted+=amount*elapsed;dated+=amount}allocations.push({key:k,number:n.number,issued:n.issued||'',before:n.balance,amount,after:n.balance-amount,days:elapsed})}
+ const openingApplied=Math.min(left,Math.max(0,opening));left-=openingApplied;
+ const before=notesBalance+opening,after=before-payment;
+ if(![before,after,allocated,weighted,dated].every(Number.isSafeInteger))return blocked('amount-limit');
+ return {state:'preview-only',clientKey:key,notesBalance,opening,payment,before,after,allocations,openingApplied,unallocatedPayment:left,weightedDays:dated?weighted/dated:null,datedAmount:dated,canWrite:false};
+}
+function signedMoney9759(v){
+ const s=sid(v).trim();if(!/^-?\d{1,10}(?:[,.]\d{1,2})?$/.test(s))return null;
+ const n=Math.round(Number(s.replace(',','.'))*100);return Number.isSafeInteger(n)?n:null;
+}
+function openAccountPreview9759(id){
+ if(!historyAuthorized9710())return false;
+ const result=clientNotes9710(id);if(!result.available||result.ambiguous||typeof window.openModal!=='function')return false;
+ const client=list('clients').find(x=>sid(x.id)===sid(id));
+ const html='<p>Prévia de conta corrente contínua — não registra recebimento nem altera notas ou Hub.</p><p>Saldo inicial somente de valores <b>não incluídos nas notas existentes</b>. Positivo: cliente deve; negativo: crédito do cliente.</p>'+
+ '<div class="grid"><label>Saldo inicial independente (R$)<input id="ca9759-opening" value="0" inputmode="decimal"></label><label>Justificativa<input id="ca9759-reason"></label><label>Pagamento global (R$)<input id="ca9759-payment" value="0" inputmode="decimal"></label><label>Data do pagamento<input id="ca9759-date" type="date" value="'+today()+'"></label></div>'+
+ '<label><input id="ca9759-independent" type="checkbox"> Confirmo que o saldo inicial não repete notas existentes.</label><p>Distribuição sugerida: emissão mais antiga primeiro; notas sem data ficam no final. Selecione quais notas deseja incluir.</p>'+
+ '<div style="overflow:auto;max-height:250px">'+result.rows.filter(n=>n.balance>0).map(n=>'<label style="display:block"><input type="checkbox" data-ca9759-note="'+esc(n.key)+'" checked> '+esc(n.number)+' · '+esc(dateFmt(n.issued))+' · '+brl(n.balance)+'</label>').join('')+'</div>'+
+ '<button type="button" class="primary" id="ca9759-preview">Simular pagamento global</button><div id="ca9759-result" aria-live="polite"></div><button type="button" class="secondary modalSave">Fechar</button>';
+ window.openModal('Conta corrente — '+esc(client.name)+' (prévia)',html,()=>window.closeModal?.());
+ const host=document.getElementById('modalContent')||document.getElementById('modal'),btn=host?.querySelector('#ca9759-preview');if(!btn)return false;
+ const signature=JSON.stringify(result.rows);
+ btn.onclick=()=>{
+  if(!historyAuthorized9710())return;
+  const latest=clientNotes9710(id),out=host.querySelector('#ca9759-result');if(!out)return;
+  if(!latest.available||latest.ambiguous||JSON.stringify(latest.rows)!==signature){out.textContent='As notas mudaram. Reabra a consulta antes de simular.';return}
+  const val=k=>host.querySelector('#ca9759-'+k)?.value;
+  const p=clientAccountPreview9759(latest.rows.map(n=>({...n,clientKey:'id:'+sid(id)})),{clientKey:'id:'+sid(id),openingCents:signedMoney9759(val('opening')),paymentCents:signedMoney9759(val('payment')),date:val('date'),reason:val('reason'),independentOpening:host.querySelector('#ca9759-independent')?.checked===true,noteKeys:Array.from(host.querySelectorAll('[data-ca9759-note]:checked')).map(x=>x.dataset.ca9759Note).sort((a,b)=>{const x=latest.rows.find(n=>n.key===a),y=latest.rows.find(n=>n.key===b);return (x.issued||'9999-12-31').localeCompare(y.issued||'9999-12-31')||a.localeCompare(b)})},true);
+  if(p.state!=='preview-only'){out.textContent='Confira valores, saldo inicial independente e divergências das notas antes de simular.';return}
+  out.innerHTML='<p><b>Saldo das notas: '+brl(p.notesBalance)+' · Saldo anterior: '+brl(p.before)+' · Pagamento: '+brl(p.payment)+' · Saldo projetado: '+brl(p.after)+'</b></p><p>Abatimento do saldo inicial: '+brl(p.openingApplied)+' · Pagamento sem alocação: '+brl(p.unallocatedPayment)+' (crédito ainda não registrado).</p><div style="overflow:auto"><table><thead><tr><th>Nota</th><th>Antes</th><th>Abatimento</th><th>Depois</th></tr></thead><tbody>'+p.allocations.map(a=>'<tr><td>'+esc(a.number)+'</td><td>'+brl(a.before)+'</td><td>'+brl(a.amount)+'</td><td>'+brl(a.after)+'</td></tr>').join('')+'</tbody></table></div><p>Prazo médio simulado: '+(p.weightedDays===null?'sem datas comprováveis':p.weightedDays.toFixed(1)+' dias sobre '+brl(p.datedAmount))+' · Não é histórico de recebimentos.</p><p>Nenhum valor foi gravado.</p>';
+ };
+ return true;
+}
 function openClientNotes9710(id){
  if(!historyAuthorized9710())return false;
  const result=clientNotes9710(id);if(!result.available||typeof window.openModal!=='function')return false;
@@ -379,10 +431,10 @@ function decorateClients9710(){
  const root=document.getElementById('clientTable');if(!root)return;
  for(const tr of Array.from(root.querySelectorAll('tbody tr'))){
   const existing=tr.querySelector('[data-hlgb-client-notes9710]');
-  if(!historyAuthorized9710()){existing?.remove();continue}if(existing)continue;
+  if(!historyAuthorized9710()){existing?.remove();tr.querySelector('[data-hlgb-client-account9759]')?.remove();continue}if(existing)continue;
   const ids=Array.from(tr.querySelectorAll('button[onclick]')).map(b=>sid(b.getAttribute('onclick')).match(/^editClient\(\s*(['"]?)([^'")\s]+)\1\s*\)$/)?.[2]).filter(Boolean);
   if(ids.length!==1||!clientNotes9710(ids[0],[]).available)continue;
-  const b=document.createElement('button');b.type='button';b.className='secondary';b.dataset.hlgbClientNotes9710='1';b.textContent='Histórico de notas';b.onclick=()=>openClientNotes9710(ids[0]);tr.lastElementChild?.appendChild(b);
+  const b=document.createElement('button');b.type='button';b.className='secondary';b.dataset.hlgbClientNotes9710='1';b.textContent='Histórico de notas';b.onclick=()=>openClientNotes9710(ids[0]);tr.lastElementChild?.appendChild(b);const account=document.createElement('button');account.type='button';account.className='secondary';account.dataset.hlgbClientAccount9759='1';account.textContent='Conta corrente (prévia)';account.onclick=()=>openAccountPreview9759(ids[0]);tr.lastElementChild?.appendChild(account);
  }
 }
 function installClients9710(){
@@ -402,11 +454,11 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
+window.hlgbNotesReceivables9564={version:V,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,350));
-window.addEventListener?.('hlgb:logout',()=>{archiveEvidence9710={observed:false,legacyPaid:null,projectionPaid:null};document.querySelectorAll?.('[data-hlgb-client-notes9710]').forEach(x=>x.remove())});
+window.addEventListener?.('hlgb:logout',()=>{archiveEvidence9710={observed:false,legacyPaid:null,projectionPaid:null};document.querySelectorAll?.('[data-hlgb-client-notes9710],[data-hlgb-client-account9759]').forEach(x=>x.remove())});
 console.info('[HLGB] notas v'+V+' organização/recebíveis somente leitura');
 })();
