@@ -104,5 +104,16 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  const final=await api.markGroupPaid('group-wal','2026-11-13','Dinheiro',null);
  assert.equal(final.total,20);
  assert.equal(db.hubFinanceEntries.length,3);
+ // Historical cancelled first row must never select the active recipient or settlement date.
+ const cancelled={...row('group-date','D-0',90),status:'Cancelado',manualCanceledV9590:true,factionName:'Vanessa',scheduledPaymentDate:'2026-11-01',paymentDate:'2026-11-01'};
+ const a={...row('group-date','D-1',30),status:'Pago',paidAmount:30,paymentDate:'2026-11-25',paymentMethod:'Pix'};
+ const b={...a,id:'D-2',value:40,paidAmount:40};
+ db.factionPayments.push(cancelled,a,b);
+ const observed=JSON.stringify(db),writeCount=writes.length,summary=api.receiptGroups().find(x=>x.id==='group-date');
+ assert.equal(summary.factionName,'Roseli');assert.equal(summary.date,'2026-11-25');assert.equal(summary.paidDate,'2026-11-25');assert.equal(summary.total,70);assert.equal(summary.rows.length,3);assert.equal(summary.dateEvidence,'consistent');
+ assert.equal(JSON.stringify(db),observed);assert.equal(writes.length,writeCount);
+ b.paymentDate='2026-11-26';
+ const mixed=api.receiptGroups().find(x=>x.id==='group-date');assert.equal(mixed.date,'');assert.equal(mixed.paidDate,'');assert.equal(mixed.dateEvidence,'review');assert.equal(mixed.status,'Pago','do not reopen a paid group merely because its dates disagree');
+ assert.equal(writes.length,writeCount);
  console.log('PASS faction manual v95.88: edits, same IDs, PDF preservation, WAL/stale blocks, one Hub per payment, readbacks, partial retry and paid protection.');
 })().catch(e=>{console.error(e);process.exitCode=1});
