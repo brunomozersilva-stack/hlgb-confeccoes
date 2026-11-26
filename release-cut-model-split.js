@@ -206,7 +206,7 @@ function renderSplitPanel(){
   }
   html+='</div>';
  }
- panel.innerHTML=html;hideAggregateRows();window.hlgbCutOrganization?.apply?.();window.hlgbCutOrganization?.renderMaterials?.();
+ panel.innerHTML=html;hideAggregateRows();window.hlgbCutOrganization?.apply?.();window.hlgbCutOrganization?.scheduleMaterials?.();
 }
 function hideAggregateRows(){
  const root=document.getElementById('cutTable');if(!root)return;
