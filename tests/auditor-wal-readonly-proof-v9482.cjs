@@ -3,8 +3,8 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
 const sample={key:'routePlans|route-1',module:'routePlans',id:'route-1',opId:'op-abc',
  data:{id:'route-1',driver:'Entregas',stops:[{id:'a'},{id:'b'}],updatedAt:'2026-11-04T10:00:00Z'}};
-async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
- const transactionModes=[],requests=[],writes=[],events=[];let active=0,peak=0;
+async function scenario(remote,available=true,idbRows=[sample],reviewAll=false,changeAfterFull=false){
+ const transactionModes=[],requests=[],writes=[],events=[];let active=0,peak=0,idbReads=0;
  const indexedDB={
   open(name){
    assert.equal(name,'hlgb_durable_wal');
@@ -14,7 +14,7 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
      objectStoreNames:{contains:x=>x==='entries'},
      transaction(store,mode){
       assert.equal(store,'entries');transactionModes.push(mode);
-      return {objectStore(){return {getAll(){const g={};queueMicrotask(()=>{g.result=structuredClone(idbRows);g.onsuccess?.()});return g}}}}
+      return {objectStore(){return {getAll(){const g={};queueMicrotask(()=>{idbReads++;g.result=structuredClone(idbRows);if(changeAfterFull&&idbReads===3){g.result[0].opId='new-op';g.result[0].data.driver='changed local'}g.onsuccess?.()});return g}}}}
      },
      close(){}
     };
@@ -129,6 +129,8 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  assert(complete.transactionModes.every(mode=>mode==='readonly'));
  assert.equal(complete.requests.length,30,'eight automatic plus twenty-two explicitly requested GETs');
  assert(complete.requests.every(x=>x.method==='GET'));
+ const changed=await scenario(sample.data,true,[sample],true,true);
+ assert.equal(changed.full.status,'snapshot-changed');assert.equal(changed.full.snapshotStable,false);assert.equal(changed.full.matched,0);assert.equal(changed.full.unverified,1);assert.equal(changed.full.items[0].status,'snapshot-changed');assert.equal(changed.full.removed,0);assert.equal(changed.fullReviewWrites,0);assert.equal(changed.full.currentTotal,1);assert(!JSON.stringify(changed.full).includes('changed local'));
  const disconnected=await scenario(sample.data,false);
  assert.equal(disconnected.out.walProof.status,'cloud-api-unavailable');
  assert.equal(disconnected.out.walProof.attempted,false);
