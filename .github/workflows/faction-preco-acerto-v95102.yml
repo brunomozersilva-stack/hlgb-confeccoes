@@ -7,6 +7,8 @@ on:
       - 'release-faction-manual-payment-v9566.js'
       - 'release-faction-acerto-consolidated-v95102.js'
       - 'release-faction-payee-settlement-v95104.js'
+      - 'release-faction-payments.js'
+      - 'tests/audit-faction-payment-guard.cjs'
       - 'tests/faction-payee-settlement-v95104.cjs'
       - 'release-pricing.js'
       - 'release-note-price-reconcile-v95103.js'
