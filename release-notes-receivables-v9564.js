@@ -39,7 +39,7 @@ function projectionView(inv){
  client:sid(inv.client||inv.clientName||'Sem cliente'),
  clientKey:inv.clientId!=null&&sid(inv.clientId)?'id:'+sid(inv.clientId):'name:'+norm(inv.client||inv.clientName||'Sem cliente'),
  issued:date(inv.issueDate||inv.date),due:date(inv.dueDate),
- total,paid,credit,balance,paymentEvidence:history.length>0||inv.paid!=null||finance?.paid!=null,terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
+ total,paid,credit,balance,paymentEvidence:history.length>0||inv.paid!=null||finance?.paid!=null,sourceStatus:sid(inv.status),terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
  mismatch:inv.remaining!=null&&Math.abs(cent(inv.remaining)-balance)>1};
 }
 function orderView(o){
@@ -50,7 +50,7 @@ function orderView(o){
  client:sid(o.client||'Sem cliente'),
  clientKey:o.clientId!=null&&sid(o.clientId)?'id:'+sid(o.clientId):'name:'+norm(o.client||'Sem cliente'),
  issued:date(o.invoiceDate||o.date),due:date(o.dueDate),total,paid,credit,balance:Math.max(0,total-paid-credit),
- paymentEvidence:history.length>0||o.received!=null,terms:sid(o.paymentTerms||'-'),source:'Pedido com nota pronta',
+ paymentEvidence:history.length>0||o.received!=null,sourceStatus:sid(o.status),terms:sid(o.paymentTerms||'-'),source:'Pedido com nota pronta',
  mismatch:o.remaining!=null&&Math.abs(cent(o.remaining)-Math.max(0,total-paid-credit))>1};
 }
 function allNotes(){
@@ -72,7 +72,7 @@ function allNotes(){
 }
 /* v97.10: archive only visual evidence; never move or modify the ledger. */
 function settledForArchive9710(n){
- return !!n&&n.paymentEvidence===true&&Number.isSafeInteger(n.total)&&n.total>0&&
+ return !!n&&!/cancelad|excluid|estornad/.test(norm(n.sourceStatus))&&n.paymentEvidence===true&&Number.isSafeInteger(n.total)&&n.total>0&&
  Number.isSafeInteger(n.paid)&&n.paid===n.total&&n.balance===0&&n.credit===0&&!n.mismatch;
 }
 function clientNotes9710(clientId,rows=allNotes()){
@@ -334,7 +334,7 @@ function organizeLegacyNotes9710(){
  for(const hostId of ['orderNotesTable','allOrderNotesTable']){
   const host=document.getElementById(hostId);if(!host)continue;observed=true;
   for(const existing of Array.from(host.querySelectorAll('[data-hlgb-paid-legacy9710]'))){
-   for(const tr of Array.from(existing.querySelectorAll('tbody tr'))){const body=tr.__hlgbPaidOriginalBody9710;if(body?.isConnected)body.appendChild(tr)}
+   for(const tr of Array.from(existing.querySelectorAll('tbody tr'))){const body=tr.__hlgbPaidOriginalBody9710;if(body?.isConnected){body.__hlgbPaidHistoryOpen9710=existing.open;body.appendChild(tr)}}
    existing.remove();
   }
   for(const table of Array.from(host.querySelectorAll('table')).filter(t=>!t.closest('.v930ProjectionNotes'))){
@@ -344,7 +344,7 @@ function organizeLegacyNotes9710(){
     if(ids.length!==1)return false;const o=orders.get(ids[0]);return !!o&&archiveAllowed9710(orderView(o),pending);
    });
    if(!rows.length)continue;
-   const details=document.createElement('details');details.dataset.hlgbPaidLegacy9710='1';
+   const details=document.createElement('details');details.dataset.hlgbPaidLegacy9710='1';details.open=body.__hlgbPaidHistoryOpen9710===true;
    const summary=document.createElement('summary');summary.textContent='Notas pagas — histórico ('+rows.length+')';details.appendChild(summary);
    const wrap=document.createElement('div');wrap.style.overflowX='auto';
    const historical=table.cloneNode(false);historical.removeAttribute('id');const head=table.querySelector('thead');if(head)historical.appendChild(head.cloneNode(true));
