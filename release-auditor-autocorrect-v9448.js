@@ -211,6 +211,7 @@ async function reviewWalAll9593(onProgress){
  let snapshot=null;
  const result=await verify(60,onProgress,rows=>{snapshot=rows});
  if(!authReady())throw new Error('Sessão encerrada durante a conferência.');
+ if(result.snapshotStable===false)snapshot=null;
  result.moduleReview9708=summarizeWalModules9708(result,snapshot);
  result.routeDuplicateReview9595=Array.isArray(snapshot)?summarizeRouteDuplicates9595(snapshot):{status:'unavailable',error:'Fotografia local compartilhada indisponível',duplicateCopies:null,groups:[]};
  snapshot=null;
@@ -222,6 +223,7 @@ function walReviewText9593(r){
   ' · Conteúdo igual (não é ACK): '+Number(r?.matched||0)+
   ' · Diferentes: '+Number(r?.different||0)+' · Ausentes: '+Number(r?.missing||0)+
   ' · Sem prova: '+Number(r?.unverified||0)+' · Removidas: 0. Status: '+sid(r?.status||'desconhecido')+'.'+
+   (r?.snapshotStable===false?' A fila mudou ou não foi relida; refaça a conferência.':'')+
    (Number(r?.routeDuplicateReview9595?.duplicateCopies)>0?' ATENÇÃO: '+Number(r.routeDuplicateReview9595.duplicateCopies)+' cópias adicionais de rotas equivalentes na WAL; não reenviar tudo sem conciliação.':'');
 }
 function downloadWalReview9593(result=state.lastWalReview9593){
@@ -230,6 +232,7 @@ function downloadWalReview9593(result=state.lastWalReview9593){
   explanation:'Comparação de conteúdo não constitui ACK de opId. Nenhuma operação removida.',
   total:result.total,checked:result.checked,matched:result.matched,different:result.different,
   missing:result.missing,unverified:result.unverified,removed:0,status:result.status,
+  snapshotStable:result.snapshotStable??null,currentTotal:result.currentTotal??null,
   remoteDurationMs:Number.isFinite(result?.remoteDurationMs)?result.remoteDurationMs:null,parallelism:result?.parallelism??null,
   items:(result.items||[]).map(x=>({module:x.module,id:x.id,opId:x.opId,status:x.status,
    revision:x.revision,remoteDeleted:x.remoteDeleted,
