@@ -45,4 +45,8 @@ const unknown=api.cutMeta9709(context.db.cuts[1],api.cutIndex9709());
 assert.equal(unknown.valueCents,null);assert(!api.matchesCut9709(unknown,{min:0}));
 assert(api.compareCut9712({meta:priced},{meta:unknown},'value')<0);
 assert(api.compareCut9712({meta:priced},{meta:unknown},'client')<0);
+const identify=(...actions)=>api.cutIdentity9709({dataset:{},querySelectorAll:()=>actions.map(a=>({getAttribute:()=>a}))});
+assert.equal(identify("hlgbEditCut9189('cut-48')","finishCut('cut-48')"),'cut-48');
+assert.equal(identify("editCut('cut-48')","finishCut('cut-49')"),'','conflicting row IDs must not open an editor');
+assert.equal(identify("viewCutGradeComparison(48)"),'48');
 console.log('PASS combined client/date/value filters and unknown-value protection');
