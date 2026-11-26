@@ -119,10 +119,11 @@ async function flushOutgoing(reason='sync'){
  return {recordSyncAttempted,walFlushAttempted,lastError,...pendingCounts()};
 }
 async function fullSync(reason='manual',force=false){
- if(busy)return lastResult?.ok===true;
+ // An earlier successful run is not evidence of an in-flight run.
+ if(busy)return false;
  if(!navigator.onLine||document.visibilityState==='hidden'||!loggedIn())return false;
  if(userEditing()&&!force){clearTimeout(retryTimer);retryTimer=setTimeout(()=>fullSync(reason+'-after-edit',false),1500);return false}
- const now=Date.now();if(!force&&now-lastFull<120000)return pendingConfirmed(pendingCounts());
+ const now=Date.now();if(!force&&now-lastFull<120000)return lastResult?.ok===true&&pendingConfirmed(pendingCounts());
  busy=true;lastReason=reason;snapshotState();
  try{
    setStatus('☁️ Conferindo alterações pendentes…');
@@ -183,11 +184,11 @@ async function incrementalSync(force=false){
  // O desenho da tela (não a atualização dos dados em memória) aguarda a edição terminar.
  if(busy||!navigator.onLine||document.visibilityState==='hidden'||!loggedIn())return false;
  if(!ready()||!token())return fullSync('incremental-not-ready',true);
- const now=Date.now();if(!force&&now-lastIncremental<MIN_INCREMENTAL_MS)return pendingConfirmed(pendingCounts());
+ const now=Date.now();if(!force&&now-lastIncremental<MIN_INCREMENTAL_MS)return lastResult?.ok===true&&pendingConfirmed(pendingCounts());
  const hadPending=totalPending()>0;
  /* Realtime é a via principal, mas SUBSCRIBED sozinho não prova que nenhum evento
     foi perdido. A cada dois minutos fazemos uma confirmação curta no banco. */
- if(!force&&!hadPending&&pendingConfirmed(pendingCounts())&&realtimeState()==='SUBSCRIBED'&&now-lastCloudVerify<REALTIME_VERIFY_EVERY_MS){
+ if(!force&&!hadPending&&lastResult?.ok===true&&pendingConfirmed(pendingCounts())&&realtimeState()==='SUBSCRIBED'&&now-lastCloudVerify<REALTIME_VERIFY_EVERY_MS){
    skippedRealtime++;lastIncremental=now;lastReason='realtime-skip';snapshotState();return true;
  }
  busy=true;lastReason='incremental';snapshotState();
