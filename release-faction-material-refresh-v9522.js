@@ -221,10 +221,12 @@ function groupEligible9734(c){
  try{const idx=window.hlgbWriteoffIntegrity9391?.pairIndex?.();if(c.orderId&&c.productId&&idx?.has(sid(c.orderId)+'|'+sid(c.productId)))return false}catch(_){return false}
  return true;
 }
+function groupOrder9734(c){const o=rows('orders').find(x=>sid(x.id)===sid(c.orderId));return sid(o?.orderNumber||c.orderId||'—')}
 function groupCandidates9734(){return rows(M).filter(groupEligible9734).slice().sort((a,b)=>sid(b.createdAt).localeCompare(sid(a.createdAt)))}
 function sewingMaterial9734(m){
  // Keep only non-cut checklist supplies. Explicit category or name identifies cut material.
- const cat=norm(m.cat),name=norm(m.name);
+ const master=rows('materials').find(x=>sid(x.id)===sid(m.materialId));
+ const cat=norm([m.cat,master?.cat].filter(Boolean).join(' ')),name=norm(m.name);
  return !/\b(tecido|tecidos|renda|rendas|malha|malhas|tule|tules|forro|forros)\b/.test(cat)&&
         !/^(tecido|renda|malha|tule|forro)(\s|$)/.test(name);
 }
@@ -246,6 +248,7 @@ function groupPlan9734(ids){
   if(review.status!=='current'&&review.status!=='detail-needed'){fail(id,label+': '+(review.reason||'checklist desatualizado; revise o envio individual antes de separar.'));continue}
   if(review.locked){fail(id,label+': conferência individual iniciada.');continue}
   const items=review.materials.filter(m=>sewingMaterial9734(m)&&m.qty>0);
+  if(items.some(m=>!sid(m.cat).trim()&&!sid(rows('materials').find(x=>sid(x.id)===sid(m.materialId))?.cat).trim())){fail(id,label+': material sem categoria; classifique para distinguir tecido de aviamento.');continue}
   if(items.some(m=>!sid(m.materialId)||!sid(m.unit)||!Number.isFinite(m.qty))){fail(id,label+': material sem código/unidade confiável. Revise a ficha.');continue}
   models.push({id,product:label,destination:sid(c.destinationName),orderId:sid(c.orderId),pieces:Number(c.qty),detailNeeded:review.status==='detail-needed',items});
   for(const m of items){
@@ -277,8 +280,8 @@ function openGroup9734(){
  const root=document.getElementById('hlgbGroupMaterials9734');if(!root)return;
  const search=root.querySelector('#hlgbGroupSearch9734'),choices=root.querySelector('#hlgbGroupChoices9734'),out=root.querySelector('#hlgbGroupOutput9734'),print=root.querySelector('#hlgbGroupPrint9734');
  const valid=()=>root.isConnected&&groupAccess9734()&&groupActor9734()===actor&&!!root.closest('#modal.show');
- const visible=()=>groupCandidates9734().filter(c=>norm([c.productName,c.destinationName,c.orderId,c.id].join(' ')).includes(norm(search.value)));
- const draw=()=>{if(!valid()){root.replaceChildren();return}choices.innerHTML=visible().map(c=>'<label style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #ddd;overflow-wrap:anywhere"><input type="checkbox" value="'+esc(c.id)+'" '+(selected.has(sid(c.id))?'checked':'')+'> <span>'+esc(c.productName)+' · '+esc(c.destinationName)+' · '+fmt(c.qty)+' peças · pedido '+esc(c.orderId||'—')+' · envio '+esc(c.id)+'</span></label>').join('')||'<p>Nenhum envio pendente encontrado.</p>';const result=groupPlan9734([...selected]);out.innerHTML=groupReport9734(result);print.disabled=!result.ok};
+ const visible=()=>groupCandidates9734().filter(c=>norm([c.productName,c.destinationName,groupOrder9734(c),c.orderId,c.id].join(' ')).includes(norm(search.value)));
+ const draw=()=>{if(!valid()){root.replaceChildren();return}choices.innerHTML=visible().map(c=>'<label style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #ddd;overflow-wrap:anywhere"><input type="checkbox" value="'+esc(c.id)+'" '+(selected.has(sid(c.id))?'checked':'')+'> <span>'+esc(c.productName)+' · '+esc(c.destinationName)+' · '+fmt(c.qty)+' peças · pedido '+esc(groupOrder9734(c))+' · envio '+esc(c.id)+'</span></label>').join('')||'<p>Nenhum envio pendente encontrado.</p>';const result=groupPlan9734([...selected]);out.innerHTML=groupReport9734(result);print.disabled=!result.ok};
  search.oninput=draw;
  choices.onchange=e=>{const id=sid(e.target?.value);if(e.target?.type==='checkbox'){if(e.target.checked)selected.add(id);else selected.delete(id);draw()}};
  root.querySelector('#hlgbGroupAll9734').onclick=()=>{for(const c of visible())selected.add(sid(c.id));draw()};
@@ -579,6 +582,7 @@ function install(){
  // Atualiza o aviso ao voltar à aba dos envios após editar fichas ou sincronizar outra sessão.
  try{window.addEventListener('focus',()=>setTimeout(ensurePanel,120))}catch(e){}
  try{document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(ensurePanel,120)})}catch(e){}
+ try{window.addEventListener('hlgb:logout',()=>{document.getElementById('hlgbGroupButton9734')?.remove();document.getElementById('hlgbGroupMaterials9734')?.replaceChildren()});window.addEventListener('hlgb:authenticated',()=>setTimeout(ensureGroupButton9734,0))}catch(_){}
  state.installed=true;setTimeout(ensurePanel,100);
 }
 window.hlgbFactionMaterialRefresh9522={version:V,state,install,analyze,buildMaterials,compare,openReview,reloadAndSave,ensurePanel,
