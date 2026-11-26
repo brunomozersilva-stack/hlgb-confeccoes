@@ -55,6 +55,7 @@ function pendingProductionRows(){
 }
 // Read-only: build waiting UI from genuine unassigned production, not the
 // finalized-cut history. Preserves old pending items even when history grows.
+let queueEvidence9709={observed:false,waiting:null,missingProduction:null,source:'local-observation',remoteConfirmed:false};
 function waitingTrackingRows(){
  const cuts=arr('cuts'),orders=arr('orders');
  const pending=pendingProductionRows().map(p=>{
@@ -64,6 +65,7 @@ function waitingTrackingRows(){
   return {c,o,p};
  });
  const empty=trackingSources().filter(r=>!r.p);
+ queueEvidence9709={observed:true,waiting:pending.length,missingProduction:empty.length,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};
  return [...pending,...empty];
 }
 let showAlreadyAssigned=false;
@@ -130,10 +132,11 @@ if(typeof oldQueue==='function'&&!oldQueue.__hlgbStepQueue9528){
 }
 window.hlgbCutStepQueues9528={version:V,hasDestination,assigned,isAwaiting,
  pendingTrackingRow,trackingSources,waitingTrackingRows,pendingAssignedByCut,pendingProductionRows,updateTrackingTitle,
- status:()=>({waiting:pendingProductionRows().length,missingProduction:trackingSources().filter(r=>!r.p).length,source:'local-observation',remoteConfirmed:false}),
+ status:()=>({...queueEvidence9709}),
  showAssigned:()=>showAlreadyAssigned,originalPending:oldPending};
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{
  try{window.renderCutAssignmentQueue?.();window.renderCutTracking9173?.()}catch(_){}
 },0)}catch(_){}
+window.addEventListener?.('hlgb:logout',()=>{queueEvidence9709={observed:false,waiting:null,missingProduction:null,source:'local-observation',remoteConfirmed:false};showAlreadyAssigned=false});
 console.info('[HLGB] '+V+' avanço automático das filas ativo (histórico preservado)');
 })();

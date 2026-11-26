@@ -23,7 +23,7 @@ function matchesCut9709(meta,filters){
  return (!filters.q||filters.q.split(/\s+/).every(t=>meta.search.includes(t)))&&
  (!filters.priority||meta.priority===filters.priority)&&(!filters.cutter||meta.cutter===filters.cutter)&&(!filters.date||meta.date===filters.date);
 }
-let filterEvidence9709={legacyRows:0,modelRows:0,shown:0,unresolved:0};
+let filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};
 function ensureToolbar(){
   const root=document.getElementById('cutTable'),panel=root?.closest?.('.panel');if(!root||!panel)return;
   const existing=document.getElementById('hlgbCutFilters'),split=document.getElementById('hlgbCutSplitPanel');
@@ -62,7 +62,7 @@ function apply(){
  root.querySelectorAll('tbody tr').forEach(row=>run(row,false));
  panel?.querySelectorAll('[data-hlgb-cut-model-id]').forEach(row=>run(row,true));
  panel?.querySelectorAll('[data-hlgb-cut-order-group]').forEach(group=>{const rows=Array.from(group.querySelectorAll('[data-hlgb-cut-model-id]'));setFilterVisible9709(group,!active||!rows.length||rows.some(row=>row.style.display!=='none'))});
- filterEvidence9709=stats;
+ filterEvidence9709={...stats,observed:true,at:new Date().toISOString()};
  const count=document.getElementById('hlgbCutFilterCount');if(count)count.textContent=stats.shown+' de '+(stats.legacyRows+stats.modelRows)+' corte(s)'+(stats.unresolved?' · '+stats.unresolved+' identidade(s) não verificadas':'');
 }
 
@@ -183,6 +183,6 @@ const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const 
 function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
-window.addEventListener?.('hlgb:logout',()=>{clearCutDrafts9644();document.getElementById('hlgbCutSeparation9643')?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();
