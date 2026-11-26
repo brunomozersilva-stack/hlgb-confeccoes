@@ -283,11 +283,12 @@ function mountHistorySearch9652(host){
     line(d,'Planejado',fmt(g.planned,'pç'));line(d,'Cortado',fmt(g.cutQuantity,'pç'));
     if(g.grade.length)line(d,'Grade',g.grade.map(v=>[v.color,v.size,fmt(v.qty,'pç')].filter(Boolean).join(' ')).join(' · '));
     el('h4','Pesagem e materiais',d);
+    if(g.sharedMeasurement)el('p','Corte com grade de múltiplos modelos: peso e quantidade total não atribuídos individualmente. Consulte o registro de origem.',d);
     if(g.weights){line(d,'Peso total',fmt(g.weights.totalKg,'kg'));line(d,'Peso usado',fmt(g.weights.usedKg,'kg'));line(d,'Refugo',fmt(g.weights.wasteKg,'kg'));if(g.weights.note)line(d,'Observação',g.weights.note);
      if(g.weights.totalKg>0&&g.weights.usedKg!=null&&g.weights.usedKg<=g.weights.totalKg)line(d,'Aproveitamento informado',fmt(100*g.weights.usedKg/g.weights.totalKg,'%'));}
-    else el('p','Pesagem total não registrada.',d);
+    else if(!g.sharedMeasurement)el('p','Pesagem total não registrada.',d);
     for(const m of g.materials)line(d,m.name||'Material',fmt(m.weight,m.unit));
-    if(!g.materials.length)el('p','Consumo por material não registrado.',d);
+    if(!g.materials.length&&!g.sharedMeasurement)el('p','Consumo por material não registrado.',d);
     el('h4','Produção e facções vinculadas',d);
     for(const e of g.events)line(d,e.date||'Sem data',[e.source==='production'?'Produção':'Facção',e.destination,e.status,e.source==='production'?'Planejado '+fmt(e.planned,'pç')+' / produzido '+fmt(e.quantity,'pç'):'Enviado '+fmt(e.quantity,'pç')+' / feito '+fmt(e.done,'pç')+' / devolvido '+fmt(e.returned,'pç')].filter(Boolean).join(' · '));
     if(!g.events.length)el('p','Sem movimentações vinculadas por ID de corte.',d);

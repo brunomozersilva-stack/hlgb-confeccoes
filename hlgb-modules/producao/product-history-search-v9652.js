@@ -38,7 +38,7 @@
    if(!selected.has(source))continue;let unknown=0;
    for(const r of list(db[source]).filter(live)){
     const id=sid(r.id),key=source+':'+id,oid=source==='orders'?id:sid(r.orderId);
-    if(source==='cuts'&&r.hiddenByModelSplitV1)continue;
+    if(source==='cuts'&&(r.hiddenByModelSplitV1||r.modelSplitParentV1))continue;
     const grade=source==='orders'?(Array.isArray(r.grade)?r.grade:list(r.items)):list(r.actualCutGrade);
     const relevant=source==='orders'?grade.filter(g=>sid(g.productId)===pid):[];
     if(source==='orders'&&!relevant.length)continue;
@@ -72,19 +72,23 @@
   const groups=new Map(),productionLinks=new Map();
   for(const e of t.rows.filter(e=>e.source==='cuts')){
    const c=lookup('cuts',e.sourceId);if(!c)continue;
-   const w=c.cutWeightV9579,weights=w&&typeof w==='object'?{totalKg:q(w.totalKg),usedKg:q(w.usedKg),wasteKg:q(w.wasteKg),note:sid(w.note)}:null;
-   const materials=list(c.materialUsage).map(m=>({name:sid(m?.name||m?.materialId),weight:q(m?.weight),unit:sid(m?.unit)}));
+   // A mixed-model grade proves that the cut's aggregate measures cannot
+   // be presented as the selected product's individual consumption.
+   const gradeProductIds=unique([sid(c.productId),...['actualCutGrade','cutGrade','originalGrade'].flatMap(k=>list(c[k]).map(g=>sid(g?.productId||g?.product_id)))]);
+   const sharedMeasurement=gradeProductIds.length>1;
+   const w=c.cutWeightV9579,weights=!sharedMeasurement&&w&&typeof w==='object'?{totalKg:q(w.totalKg),usedKg:q(w.usedKg),wasteKg:q(w.wasteKg),note:sid(w.note)}:null;
+   const materials=sharedMeasurement?[]:list(c.materialUsage).map(m=>({name:sid(m?.name||m?.materialId),weight:q(m?.weight),unit:sid(m?.unit)}));
    const o=modules.includes('orders')?lookup('orders',c.orderId):null;
    const cutGrade=[c.actualCutGrade,c.cutGrade,c.originalGrade].find(a=>Array.isArray(a)&&a.length)||[];
    const people=unique([sid(c.cutterName),sid(c.cutter2Name),sid(c.infestadorName),sid(lookup('cutters',c.cutterId)?.name)]);
    const finished=norm(c.status)==='finalizado';
-   groups.set(e.sourceId,{cutId:e.sourceId,orderId:e.orderId,date:e.date,status:e.status,client:sid(o?.client),orderNumber:sid(o?.orderNumber||o?.number||o?.id),planned:q(c.plannedPieces),cutQuantity:finished?q(c.pieces):q(c.done),people,grade:cutGrade.map(g=>({color:sid(g?.color||g?.colorName),size:sid(g?.size||g?.sizeName||g?.tam),qty:q(g?.qty??g?.quantity??g?.pieces)})),weights,materials,events:[]});
+   groups.set(e.sourceId,{cutId:e.sourceId,orderId:e.orderId,date:e.date,status:e.status,client:sid(o?.client),orderNumber:sid(o?.orderNumber||o?.number||o?.id),planned:sharedMeasurement?null:q(c.plannedPieces??c.originalPieces),cutQuantity:sharedMeasurement?null:finished?q(c.pieces):q(c.done),people,grade:cutGrade.filter(g=>!sharedMeasurement||sid(g?.productId||g?.product_id)===sid(pid)).map(g=>({color:sid(g?.color||g?.colorName),size:sid(g?.size||g?.sizeName||g?.tam),qty:q(g?.qty??g?.quantity??g?.pieces)})),weights,materials,sharedMeasurement,events:[]});
   }
   const matching=(g,e)=>g&&(!g.orderId||!e.orderId||g.orderId===e.orderId);
   let unlinked=0;
   for(const e of t.rows.filter(e=>e.source==='production')){
    const p=lookup('production',e.sourceId),g=groups.get(sid(p?.cutId));
-   if(matching(g,e)){g.events.push({...e,planned:q(p.planned)});productionLinks.set(e.sourceId,g)}else unlinked++;
+   if(matching(g,e)){g.events.push({...e,planned:q(p.planned),status:sid(p.stage||p.status),destination:e.destination||sid(p.factionName||p.productionLocationName)});productionLinks.set(e.sourceId,g)}else unlinked++;
   }
   for(const e of t.rows.filter(e=>e.source==='factions')){
    const f=lookup('factions',e.sourceId),g=productionLinks.get(sid(f?.productionId));
