@@ -143,3 +143,23 @@ test('assignment preflight preserves production and rejects missing, duplicate a
  h.db.products[1].materials=[];assert.equal(pre(123,172,'F').ok,true);assert.equal(pre(123,172,'F').configured,0);
  delete h.db.products[1].materials;assert.equal(pre(123,172,'F').ok,false);assert.equal(h.posts,0);
 });
+
+test('group separation: 15 real checklist identities, same colors and rolls summed once, no writes',()=>{
+ const h=setup(),api=h.ctx.hlgbFactionMaterialRefresh9522;
+ const p={id:8,name:'Modelo A',materials:[{materialId:1,name:'Fita',cat:'Aviamento',unit:'m',qty:1},{materialId:2,name:'Romantic',cat:'Tecido',unit:'kg',qty:1},{materialId:3,name:'Renda',cat:'Renda',unit:'m',qty:2},{materialId:4,name:'Laço',cat:'Outro',unit:'un.',qty:2}]};
+ h.db.products=[p];h.db.materials=[{id:1,name:'Fita',cat:'Aviamento',unit:'m',purchaseUnit:'rolo',purchaseConversion:50}];
+ h.db.materialChecklists=Array.from({length:15},(_,i)=>({id:i+1,productionId:i+101,orderId:i+201,productId:8,productName:'Modelo A',destinationType:'F',destinationName:i%2?'Cris':'Vanessa',qty:6,status:'Pendente',gradeV9198:[{productId:8,color:i===14?'Rubi':'Preto',qty:6}]}));
+ for(const c of h.db.materialChecklists)c.materials=api.buildMaterials(p,c.qty,'F',c);
+ const before=JSON.stringify(h.db),ids=h.db.materialChecklists.map(c=>c.id),r=api.groupPlan(ids);
+ assert.equal(r.ok,true,JSON.stringify(r.issues));assert.equal(r.selected,15);assert.equal(r.pieces,90);
+ assert.equal(r.models.length,15);assert.equal(r.totals.length,3);
+ const black=r.totals.find(m=>m.name==='Fita'&&m.color==='Preto');assert.equal(black.qty,84);assert.equal(black.rolls,2);
+ assert.equal(r.totals.find(m=>m.color==='Rubi').qty,6);
+ assert.equal(r.totals.find(m=>m.name==='Laço').qty,180);assert(!r.totals.some(m=>/Romantic|Renda/.test(m.name)));
+ assert.equal(api.groupPlan([1,1]).pieces,6);assert.equal(JSON.stringify(h.db),before);assert.equal(h.posts,0);assert.equal(h.cacheWrites,0);
+ h.db.materialChecklists[0].materials[0].checked=true;assert.equal(api.groupPlan([1,2]).ok,false);
+ h.db.materialChecklists[0].materials[0].checked=false;h.db.materialChecklists[0].materials=[];assert.equal(api.groupPlan([1]).ok,false);
+ h.db.materialChecklists[1].status='Conferido';assert.equal(api.groupPlan([2]).ok,false);
+ h.db.materialChecklists.push({...h.db.materialChecklists[2],id:99});assert.equal(api.groupPlan([3,99]).ok,false);
+ h.ctx.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set(['203|8'])};assert.equal(api.groupPlan([3]).ok,false);
+});
