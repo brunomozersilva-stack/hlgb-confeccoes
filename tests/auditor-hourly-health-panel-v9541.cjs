@@ -24,6 +24,7 @@ function harness(options={}){
    calls.push({url,init});
    const urlString=String(url);
    if(options.fail)throw Error('Network unavailable');
+   if(options.httpStatus&&(!options.scheduleOnly||urlString.includes('event=schedule')))return {ok:false,status:options.httpStatus,headers:{get:k=>options.headers?.[k]??null}};
    if(urlString.endsWith('/branches/main'))return {ok:true,json:async()=>({commit:{sha:SHA}})};
    if(urlString.includes('event=schedule'))return {ok:true,json:async()=>({
     workflow_runs:options.noHourly?[]:[monitor]})};
@@ -82,4 +83,30 @@ test('lack of recent monitor does not declare all clear or hide CI failures',asy
 test('no operational write or browser-stored credentials are ever used',()=>{
  assert.doesNotMatch(src,/localStorage\.(?:setItem|removeItem)|indexedDB\.deleteDatabase|method:\s*['"](?:POST|PATCH|PUT|DELETE)['"]/);
  assert.doesNotMatch(src,/Bearer |service_role|SUPABASE_KEY|rpc\/hlgb_save_record/);
+});
+
+test('403 without rate-limit evidence is not labeled rate limit; repeated clicks do not retry',async()=>{
+ const {window,calls}=harness({httpStatus:403});
+ const api=window.hlgbHourlyHealthPanel9541;
+ await assert.rejects(api.collect(true),/causa não comprovada/);
+ const x=api.status();
+ assert.equal(x.accessEvidence.httpStatus,403);
+ assert.equal(x.accessEvidence.classification,'access-denied-unclassified');
+ assert.equal(x.latest,null);assert(x.retryAfterAt>Date.now());
+ const count=calls.length;await assert.rejects(api.collect(true),/403/);
+ assert.equal(calls.length,count);
+});
+test('confirmed rate limit honors retry-after and preserves last successful data as stale',async()=>{
+ const options={}, {window,calls}=harness(options),api=window.hlgbHourlyHealthPanel9541;
+ await api.collect(true);options.httpStatus=429;options.headers={'retry-after':'120'};
+ await api.collect(true);const x=api.status();assert.equal(x.accessEvidence.classification,'rate-limit');
+ assert(x.retryAfterAt>=Date.now()+119000);assert.equal(x.latest.stale,true);assert.equal(x.latest.ci.failed,1);
+ const count=calls.length;await api.collect(true);assert.equal(calls.length,count);
+});
+test('failed supplemental monitor lookup retains verified CI results without claiming monitor absence',async()=>{
+ const {window,calls}=harness({httpStatus:403,scheduleOnly:true,noHourly:true,headers:{'x-ratelimit-remaining':'0','x-ratelimit-reset':String(Math.ceil(Date.now()/1000)+120)}});
+ const api=window.hlgbHourlyHealthPanel9541;const result=await api.collect(true);
+ assert.equal(result.monitorLookupIncomplete,true);assert.equal(result.lastHourlyRun,null);
+ const x=api.report();assert.equal(x.ci.failed,1);assert.equal(x.accessEvidence.classification,'rate-limit');assert.equal(x.stale,true);
+ assert.equal(calls.length,3);await api.collect(true);assert.equal(calls.length,3);
 });
