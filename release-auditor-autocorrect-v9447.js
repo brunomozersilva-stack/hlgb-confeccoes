@@ -151,28 +151,43 @@ async function walRemoteReadOnlyProof9482(max=8,notify){
  result.unverified=Math.max(0,idb.rows.length-ops.length); // Restante não consultado também exige prova.
  if(!authReady()||navigator?.onLine===false||typeof window.cloudRequest!=='function'){result.status='cloud-api-unavailable';result.unverified=idb.rows.length;return result}
  result.attempted=true;result.status='checked';
- for(const op of ops){
+ async function inspect(op){
   const module=sid(op?.module),id=sid(op?.id),opId=sid(op?.opId);
   const row={module,id,opId,status:'unverified'};
-  if(!module||!id||!opId){row.status='invalid-local-operation';result.unverified++;result.checked++;result.items.push(row);progress();continue}
+  if(!module||!id||!opId){row.status='invalid-local-operation';return row}
   try{
    const query='hlgb_records?select=module,entity_id,data,deleted_at,revision,updated_at&module=eq.'+encodeURIComponent(module)+'&entity_id=eq.'+encodeURIComponent(id)+'&limit=1';
-   const response=await Promise.race([Promise.resolve(window.cloudRequest(query,{method:'GET'})),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Timeout da prova remota')),12000))]);
+   let timer;const controller=typeof AbortController==='function'?new AbortController():null;
+   let response;try{response=await Promise.race([Promise.resolve(window.cloudRequest(query,{method:'GET',...(controller?{signal:controller.signal}:{})})),new Promise((_,reject)=>{timer=setTimeout(()=>{controller?.abort();reject(new Error('Timeout da prova remota'))},12000)})])}finally{clearTimeout(timer)}
    if(!Array.isArray(response))throw new Error('Resposta remota inválida');
    const found=response.find(x=>sid(x?.module)===module&&sid(x?.entity_id)===id)||null;
    if(found){row.revision=found.revision;row.remoteDeleted=!!found.deleted_at}
-   if(!found){row.status=op?.deleted===true?'delete-absent':'missing';result.missing++}
-   else if(op?.deleted===true){row.status=found.deleted_at?'delete-confirmed':'different';if(found.deleted_at)result.matched++;else result.different++}
-   else if(!found.deleted_at&&sameWalBusiness9482(found.data,op.data)){row.status='content-match';row.revision=found.revision;result.matched++}
+   if(!found){row.status=op?.deleted===true?'delete-absent':'missing';}
+   else if(op?.deleted===true){row.status=found.deleted_at?'delete-confirmed':'different';}
+   else if(!found.deleted_at&&sameWalBusiness9482(found.data,op.data)){row.status='content-match';row.revision=found.revision;}
    else{
-    row.status='different';result.different++;
+    row.status='different';
     if(!found.deleted_at&&op?.deleted!==true)row.differentFields=walFieldDifferences9498(found.data,op.data);
     else row.differentFields=['(exclusão ou restauração pendente)'];
    }
-  }catch(e){row.status='error';result.unverified++;result.errors.push({module,id,opId,error:sid(e?.message||e).slice(0,220)})}
-  result.checked++;result.items.push(row);
-  progress();
+  }catch(e){row.status='error';row.error=sid(e?.message||e).slice(0,220)}
+  return row;
  }
+ // Full review: three independent GETs per batch; routine scan stays serial.
+ // Count only settled results, in original order, never mutate WAL.
+ const began=Date.now(),parallelism=result.checkedLimit>8?3:1;
+ result.parallelism=parallelism;
+ for(let i=0;i<ops.length;i+=parallelism){
+  const rows=await Promise.all(ops.slice(i,i+parallelism).map(inspect));
+  for(const row of rows){
+   if(['missing','delete-absent'].includes(row.status))result.missing++;
+   else if(['content-match','delete-confirmed'].includes(row.status))result.matched++;
+   else if(row.status==='different')result.different++;
+   else{result.unverified++;if(row.error){result.errors.push({module:row.module,id:row.id,opId:row.opId,error:row.error});delete row.error}}
+   result.checked++;result.items.push(row);progress();
+  }
+ }
+ result.remoteDurationMs=Math.max(0,Date.now()-began);
  if(result.unverified)result.status='partially-unverified';
  else if(result.different||result.missing)result.status='not-confirmed';
  else result.status='all-content-matched';
