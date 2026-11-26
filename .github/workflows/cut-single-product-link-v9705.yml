@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'release-cut-single-product-link-v9705.js'
+      - 'hlgb-modules/producao/cut-single-product-link-v9705.js'
       - 'tests/cut-single-product-link-v9705.cjs'
       - 'app-stable3.html'
       - '.github/workflows/cut-single-product-link-v9705.yml'
@@ -20,5 +20,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --check release-cut-single-product-link-v9705.js
+      - run: node --check hlgb-modules/producao/cut-single-product-link-v9705.js
       - run: node tests/cut-single-product-link-v9705.cjs

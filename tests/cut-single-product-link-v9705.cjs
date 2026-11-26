@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync('release-cut-single-product-link-v9705.js','utf8');
-assert(fs.readFileSync('app-stable3.html','utf8').includes("'release-cut-single-product-link-v9705.js'"));
+const source=fs.readFileSync('hlgb-modules/producao/cut-single-product-link-v9705.js','utf8');
+assert(fs.readFileSync('app-stable3.html','utf8').includes("'hlgb-modules/producao/cut-single-product-link-v9705.js'"));
 const CUT='1794488399889',ORDER='1794488399888',PRODUCT='1788193589429';
 const clone=x=>JSON.parse(JSON.stringify(x));
 async function scenario(mode){

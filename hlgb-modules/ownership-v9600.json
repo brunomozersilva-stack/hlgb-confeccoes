@@ -29,7 +29,7 @@
     "release-cutter-sheet-materials-v9523.js",
     "release-record-integrity.js",
     "release-cut-duplicate-repair-v95105.js",
-    "release-cut-single-product-link-v9705.js",
+    "hlgb-modules/producao/cut-single-product-link-v9705.js",
     "release-notes.js",
     "release-note-integrity.js",
     "release-trade-settlement-v9422.js",
@@ -253,7 +253,7 @@
       "release-cut-model-grade-adjust.js",
       "release-cutter-sheet-materials-v9523.js",
       "release-cut-duplicate-repair-v95105.js",
-      "release-cut-single-product-link-v9705.js",
+      "hlgb-modules/producao/cut-single-product-link-v9705.js",
       "hlgb-modules/producao/cortadores-grade-core-v9622.js",
       "release-cutter-planner.js",
       "release-cutter-history-v9250.js",
@@ -628,7 +628,7 @@
     "hlgb-modules/producao/production-planning-view-v9661.js",
     "hlgb-modules/financeiro/rh-planning-v9636.js",
     "hlgb-modules/financeiro/rh-live-view-v9667.js",
-    "release-cut-single-product-link-v9705.js"
+    "hlgb-modules/producao/cut-single-product-link-v9705.js"
   ],
   "extractionChanges": {
     "release-separation-commit-v9319.js": {
