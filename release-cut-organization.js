@@ -381,10 +381,11 @@ function merchandiseEvidence9755(orders,invoices,pairs){
 }
 function organizeMerchandise9755(){
  const host=document.getElementById('openCutOrdersTable');if(!host)return;
- const restore=()=>{Array.from(host.querySelectorAll('tbody tr')).forEach(row=>setFilterVisible9709(row,true));document.getElementById('hlgbMerchandiseEvidence9755')?.remove()};
+ const restore=()=>{Array.from(host.querySelectorAll('tbody tr')).forEach(row=>setFilterVisible9709(row,true));document.getElementById('hlgbMerchandiseEvidence9755')?.remove();const cards=document.getElementById('cutSummaryCards');const card=Array.from(cards?.querySelectorAll?.('.card')||[]).find(c=>norm(c.querySelector('small')?.textContent)==='mercadoria sem nota pronta');for(const node of [card?.querySelector('strong'),card?.querySelector('div')])if(node?.hasAttribute('data-hlgb-merch-original9755')){node.textContent=node.getAttribute('data-hlgb-merch-original9755');node.removeAttribute('data-hlgb-merch-original9755')}};
  if(window.__HLGB_AUTH_READY!==true||typeof canOpenPage!=='function'||!canOpenPage('corte')||typeof window.hlgbCanonicalProjectionInvoices!=='function'||typeof window.hlgbWriteoffIntegrity9391?.pairIndex!=='function'){restore();return}
  let evidence;try{const invoices=window.hlgbCanonicalProjectionInvoices(),pairs=window.hlgbWriteoffIntegrity9391.pairIndex();if(!Array.isArray(invoices)||!(pairs instanceof Set)){restore();return}evidence=merchandiseEvidence9755(arr('orders'),invoices,pairs)}catch(_){restore();return}
- const rows=Array.from(host.querySelectorAll('tbody tr')),identified=[];
+ // The actual legacy table puts its TH header in an implicit TBODY.
+ const rows=Array.from(host.querySelectorAll('tbody tr')).filter(row=>!row.querySelector('th')),identified=[];
  for(const row of rows){
   const ids=new Set();for(const b of row.querySelectorAll('button[onclick]')){const m=sid(b.getAttribute('onclick')).match(/^\s*(?:editOpenMerchandise|deleteOpenMerchandise)\(\s*(['"]?)([^'")\s]+)\1\s*\)\s*;?\s*$/);if(m)ids.add(m[2])}
   identified.push({row,id:ids.size===1?[...ids][0]:''});
@@ -395,7 +396,7 @@ function organizeMerchandise9755(){
  for(const {row,id} of identified){const e=evidence.get(id),hide=e?.hide===true;setFilterVisible9709(row,!hide);if(hide){hidden++;continue}if(e?.reason==='review'||!e)review++;const o=orders.get(id);let n;try{n=typeof qtyOfOrder==='function'?Number(qtyOfOrder(o)):Number(o?.qty??o?.totalQty)}catch(_){n=NaN}
  const amount=Number(o?.total);if(!Number.isFinite(n)||!Number.isFinite(amount)||o?.total==null){known=false}else{qty+=n;value+=amount}}
  const cards=document.getElementById('cutSummaryCards');const card=Array.from(cards?.querySelectorAll?.('.card')||[]).find(c=>norm(c.querySelector('small')?.textContent)==='mercadoria sem nota pronta');
- if(card){const n=card.querySelector('strong'),v=card.querySelector('div');if(n)n.textContent=known?qty.toLocaleString('pt-BR')+' peças':'Conferir quantidade';if(v)v.textContent=known?value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Conferir valor'}
+ if(card){const n=card.querySelector('strong'),v=card.querySelector('div');for(const node of [n,v])if(node&&!node.hasAttribute('data-hlgb-merch-original9755'))node.setAttribute('data-hlgb-merch-original9755',node.textContent);if(n)n.textContent=known?qty.toLocaleString('pt-BR')+' peças':'Conferir quantidade';if(v)v.textContent=known?value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Conferir valor'}
  let info=document.getElementById('hlgbMerchandiseEvidence9755');if(!info){info=document.createElement('p');info.id='hlgbMerchandiseEvidence9755';info.className='sub';host.insertAdjacentElement('afterend',info)}
  info.textContent=(identified.length-hidden)+' pedidos na lista · '+hidden+' com todos os modelos cobertos por nota ou baixa local · '+review+' para conferência. Pedidos parciais permanecem; totais representam o pedido inteiro, não saldo. Nenhuma baixa foi realizada.';
 }
