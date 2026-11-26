@@ -227,6 +227,21 @@ function mountPlanner(){
     const teamLabel=el('label','Dividir por equipe/facção: nome;capacidade semanal, uma por linha',panel),teams=el('textarea','',teamLabel);teams.rows=3;teams.style.cssText='display:block;width:100%;box-sizing:border-box';teams.placeholder='Equipe A;1000';
     stageRows.push({key,name,capacity,wip,confirmed,hist,teams});
    }
+
+   const observed=el('details','',stages);el('summary','Histórico observado automaticamente por modelo e local',observed);
+   el('p','Cortes finalizados pela grade realizada, devoluções de facção por evento e conclusões internas sem vínculo externo. Semanas sem registros não são zero; devolução não mede horas trabalhadas. Confira a cobertura antes de usar como capacidade.',observed);
+   const observedOut=el('div','',observed),queryObserved=field('Buscar modelo ou local','search','',observed);let observedData=null,observedOffset=0;
+   function drawObserved(){
+    observedOut.replaceChildren();if(!active()||observedData?.state!=='local-observation')return;
+    const labels={cut:'Corte',external:'Devolução de facção',internal:'Conclusão interna'},query=queryObserved.value.toLocaleLowerCase('pt-BR');
+    el('p',observedData.eventCount+' eventos aceitos nas últimas 12 semanas completas · '+observedData.issues.length+' registros a conferir.',observedOut);
+    const selected=observedData.rows.filter(r=>(r.productName+' '+r.teamName+' '+labels[r.source]).toLocaleLowerCase('pt-BR').includes(query));
+    for(const r of selected.slice(observedOffset,observedOffset+25)){const d=el('details','',observedOut);el('summary',labels[r.source]+' · '+r.productName+' · '+r.teamName+' · '+fmt(r.total)+' pç',d);el('p','Média nas '+r.observedWeeks+' semanas com movimento: '+fmt(r.averageActiveWeek)+' pç (não é capacidade validada).',d);for(const w of r.samples)el('p',w.week+' · '+w.pieces+' pç',d)}
+    if(observedOffset>0)btn('Anterior',observedOut,()=>{observedOffset-=25;drawObserved()});if(observedOffset+25<selected.length)btn('Mais resultados',observedOut,()=>{observedOffset+=25;drawObserved()});
+   }
+   btn('Consultar histórico dos registros atuais',observed,()=>{if(!active())return;observedData=api.observedThroughput(typeof db!=='undefined'?db:window.db,start.value,active());observedOffset=0;drawObserved();if(observedData.state!=='local-observation')el('p','Fonte histórica indisponível.',observedOut)});
+   queryObserved.oninput=()=>{observedOffset=0;drawObserved()};
+   btn('Copiar semanas observadas de corte para revisar',observed,()=>{if(!active()||observedData?.state!=='local-observation')return;const row=stageRows.find(r=>r.key==='cut');const values=observedData.weeks.filter(w=>w.source==='cut');if(!values.length)return;const draft=values.map(w=>w.week+';'+w.pieces).join('\n');if(!confirm('Conferiu as semanas e a cobertura do histórico de corte? As semanas sem registro não serão incluídas. Substituir o histórico informado para esta simulação?'))return;row.hist.value=draft;stageOut.replaceChildren()});
    const stageOut=el('div','',stages),lines=s=>s.split(/\r?\n/).filter(x=>x.trim()).map(x=>x.split(';').map(v=>v.trim())),num=v=>/^\d+$/.test(String(v).trim())?Number(v):NaN;
    for(const r of stageRows){for(const f of [r.capacity,r.wip,r.hist,r.teams].filter(Boolean))f.oninput=()=>{if(f===r.wip)r.confirmed.checked=false;stageOut.replaceChildren()};r.confirmed.onchange=()=>stageOut.replaceChildren()}
    target.oninput=()=>stageOut.replaceChildren();
