@@ -88,6 +88,9 @@ jobs:
       - name: Validate Faction checklist search focus v94.64
         run: node tests/faction-checklist-focus-v9464.cjs
 
+      - name: Validate exact faction delivery writeoff and partial balance
+        run: node tests/audit-missing-route-regression.cjs
+
       - name: Validate incremental sync delta-only redraw v94.62
         run: node tests/sync-incremental-delta-v9462.cjs
 

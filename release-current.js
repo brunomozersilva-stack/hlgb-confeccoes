@@ -8,6 +8,14 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const q=v=>Math.max(0,Number(v)||0);
 function arr(name){try{return Array.isArray(db?.[name])?db[name]:[]}catch(e){return []}}
 function getFaction(id){return arr('factions').find(f=>String(f?.id)===String(id))||null}
+function factionWrittenOff9736(f){
+ if(!f)return false;
+ const hits=f.productionId?arr('production').filter(p=>String(p?.id)===String(f.productionId)):[];
+ if(hits.length>1)return false;
+ const p=hits[0],oid=String(f.orderId||p?.orderId||''),pid=String(f.productId||p?.productId||'');
+ if(!oid||!pid||(p?.orderId&&String(p.orderId)!==oid)||(p?.productId&&String(p.productId)!==pid))return false;
+ try{return window.hlgbWriteoffIntegrity9391?.pairIndex?.()?.has(oid+'|'+pid)===true}catch(_){return false}
+}
 function getProductName(f){const p=arr('products').find(x=>String(x?.id)===String(f?.productId));return String(p?.name||f?.description||f?.product||'Produto')}
 function getOrder(f){return arr('orders').find(o=>String(o?.id)===String(f?.orderId))||null}
 function orderDisplay(o){try{return typeof displayOrderNumber==='function'?displayOrderNumber(o):(o?.orderNumber||o?.number||o?.id||'-')}catch(e){return o?.id||'-'}}
@@ -22,6 +30,7 @@ function stamp(){
 const missingFn=window.hlgbRegisterFactionMissing9197;
 function exactMissing(id){
   const f=getFaction(id);if(!f){alert('Não foi possível identificar este envio. Atualize a página e tente novamente.');return false}
+  if(factionWrittenOff9736(f)){alert('Este pedido/modelo já recebeu baixa operacional. Consulte o histórico.');return false}
   const fn=typeof missingFn==='function'?missingFn:window.hlgbRegisterFactionMissing9197;
   if(typeof fn!=='function'){alert('A função de registrar falta não carregou.');return false}
   return fn(String(f.id));
@@ -42,6 +51,7 @@ function repairMainFactionTable(){
   root.querySelectorAll('tbody tr').forEach(tr=>{
     const id=idFromRow(tr);if(!id)return;
     const buttons=[...tr.querySelectorAll('button')].filter(b=>norm(b.textContent).includes('registrar falta'));
+    if(factionWrittenOff9736(getFaction(id))){buttons.forEach(b=>b.remove());return}
     const correct=buttons.length===1&&buttons[0].classList.contains('hlgb-release-missing')&&String(buttons[0].dataset.factionId||'')===String(id);
     if(correct)return;
     buttons.forEach(b=>b.remove());
@@ -59,17 +69,21 @@ function renderFactionDeliveryExact(){
   const list=arr('factions').filter(f=>q(f.sent)>0).slice().sort((a,b)=>{
     const ab=Math.max(0,q(a.sent)-q(a.done)-q(a.defects)-q(a.waste));
     const bb=Math.max(0,q(b.sent)-q(b.done)-q(b.defects)-q(b.waste));
-    return (ab>0?0:1)-(bb>0?0:1)||String(b.sentAt||b.date||'').localeCompare(String(a.sentAt||a.date||''));
+    return (ab>0&&!factionWrittenOff9736(a)?0:1)-(bb>0&&!factionWrittenOff9736(b)?0:1)||String(b.sentAt||b.date||'').localeCompare(String(a.sentAt||a.date||''));
   });
   const rows=list.map(f=>{
     const o=getOrder(f),sent=q(f.sent),done=q(f.done),loss=q(f.defects)+q(f.waste),bal=Math.max(0,sent-done-loss),hist=Array.isArray(f.deliveryHistory)?f.deliveryHistory:[],last=hist[hist.length-1];
-    const actions=bal>0?'<div><button type="button" class="primary" onclick="registerFactionDelivery935('+Number(f.id)+')">📦 Registrar entrega</button> <button type="button" class="secondary hlgb9198-delivery-missing hlgb-release-missing" data-faction-id="'+esc(f.id)+'">⚠️ Registrar falta</button></div>':'<span class="sub">Entrega concluída</span>';
-    return [esc(f.name||'-'),'#'+esc(o?orderDisplay(o):(f.op||'-')),'<b>'+esc(getProductName(f))+'</b>',sent.toLocaleString('pt-BR'),done.toLocaleString('pt-BR'),loss.toLocaleString('pt-BR'),bal.toLocaleString('pt-BR'),last?.date?esc(fmtDateSafe(last.date)):(f.lastDeliveryAt?esc(fmtDateSafe(f.lastDeliveryAt)):'-'),esc(last?.paymentWeek||'-'),bal>0?'<span class="badge warn">Em produção</span>':'<span class="badge ok">Finalizado</span>',actions];
+    const writtenOff=factionWrittenOff9736(f);
+    const actions=writtenOff?'<span class="sub">Histórico · baixa operacional</span>':bal>0?'<div><button type="button" class="primary" onclick="registerFactionDelivery935('+Number(f.id)+')">📦 Registrar entrega</button> <button type="button" class="secondary hlgb9198-delivery-missing hlgb-release-missing" data-faction-id="'+esc(f.id)+'">⚠️ Registrar falta</button></div>':'<span class="sub">Entrega concluída</span>';
+    return [esc(f.name||'-'),'#'+esc(o?orderDisplay(o):(f.op||'-')),'<b>'+esc(getProductName(f))+'</b>',sent.toLocaleString('pt-BR'),done.toLocaleString('pt-BR'),loss.toLocaleString('pt-BR'),writtenOff?'—':bal.toLocaleString('pt-BR'),last?.date?esc(fmtDateSafe(last.date)):(f.lastDeliveryAt?esc(fmtDateSafe(f.lastDeliveryAt)):'-'),esc(last?.paymentWeek||'-'),writtenOff?'<span class="badge ok">Baixa operacional</span>':bal>0?'<span class="badge warn">Em produção</span>':'<span class="badge ok">Finalizado</span>',actions];
   });
   try{el.innerHTML=list.length?table(['Facção','Pedido','Modelo','Enviado','Já entregue','Faltas/defeitos','Saldo','Última entrega','Pagamento','Situação','Ação'],rows):'<div class="empty">Nenhum envio de facção encontrado.</div>'}catch(e){console.error('[HLGB '+V+'] entrega facção',e)}
   el.querySelectorAll('button[data-faction-id]').forEach(b=>{b.onclick=e=>{e.preventDefault();e.stopPropagation();exactMissing(b.dataset.factionId)}});
 }
 window.renderFactionDelivery935=renderFactionDeliveryExact;
+// Guard the legacy delivery entry point without changing financial or delivery history.
+function guardFactionDelivery9736(){const old=window.registerFactionDelivery935;if(typeof old!=='function'||old.__hlgbDeliveryWriteoff9736)return;const wrapped=function(id){if(factionWrittenOff9736(getFaction(id))){alert('Este pedido/modelo já recebeu baixa operacional. Consulte o histórico.');return false}return old.apply(this,arguments)};wrapped.__hlgbDeliveryWriteoff9736=true;wrapped.__original=old;window.registerFactionDelivery935=wrapped}
+guardFactionDelivery9736();
 
 /* 2) A grade NÃO aparece por fora no Checklist das facções. Fica só em Conferir/Imprimir. */
 function removeChecklistGradeColumn(){
@@ -110,7 +124,7 @@ if(typeof oldHiddenCutsRenderer==='function')window.renderHiddenCuts9239=functio
 
 /* 5) Mantém a sessão visualmente estável no refresh. */
 function normalizeAuth(){const loader=document.getElementById('sessionLoader'),login=document.getElementById('loginScreen'),app=document.getElementById('appShell');if(!loader||!login||!app)return;if(app.style.display==='block'){if(loader.style.display!=='none')loader.style.display='none';if(login.style.display!=='none')login.style.display='none'}}
-function repairDynamic(){removeChecklistGradeColumn();repairMainFactionTable();enhanceDateModal();suppressHiddenCutsPanel()}
+function repairDynamic(){guardFactionDelivery9736();removeChecklistGradeColumn();repairMainFactionTable();enhanceDateModal();suppressHiddenCutsPanel()}
 function repair(){stamp();normalizeAuth();repairDynamic()}
 const oldRenderFactions=window.renderFactions;
 if(typeof oldRenderFactions==='function')window.renderFactions=function(){const r=oldRenderFactions.apply(this,arguments);setTimeout(()=>{repairMainFactionTable();removeChecklistGradeColumn();renderFactionDeliveryExact()},120);return r};
