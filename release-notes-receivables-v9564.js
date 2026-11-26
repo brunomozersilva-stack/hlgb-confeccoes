@@ -39,7 +39,7 @@ function projectionView(inv){
  client:sid(inv.client||inv.clientName||'Sem cliente'),
  clientKey:inv.clientId!=null&&sid(inv.clientId)?'id:'+sid(inv.clientId):'name:'+norm(inv.client||inv.clientName||'Sem cliente'),
  issued:date(inv.issueDate||inv.date),due:date(inv.dueDate),
- total,paid,credit,balance,terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
+ total,paid,credit,balance,paymentEvidence:history.length>0||inv.paid!=null||finance?.paid!=null,sourceStatus:sid(inv.status),terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
  mismatch:inv.remaining!=null&&Math.abs(cent(inv.remaining)-balance)>1};
 }
 function orderView(o){
@@ -50,7 +50,7 @@ function orderView(o){
  client:sid(o.client||'Sem cliente'),
  clientKey:o.clientId!=null&&sid(o.clientId)?'id:'+sid(o.clientId):'name:'+norm(o.client||'Sem cliente'),
  issued:date(o.invoiceDate||o.date),due:date(o.dueDate),total,paid,credit,balance:Math.max(0,total-paid-credit),
- terms:sid(o.paymentTerms||'-'),source:'Pedido com nota pronta',
+ paymentEvidence:history.length>0||o.received!=null,sourceStatus:sid(o.status),terms:sid(o.paymentTerms||'-'),source:'Pedido com nota pronta',
  mismatch:o.remaining!=null&&Math.abs(cent(o.remaining)-Math.max(0,total-paid-credit))>1};
 }
 function allNotes(){
@@ -69,6 +69,34 @@ function allNotes(){
      (o.invoiceReady===true||o.noteReady===true||existing.has(sid(o.id)))&&
      !/cancelad|excluid/.test(norm(o.status)))invoices.push(orderView(o));
  return [...new Map(invoices.map(x=>[x.key,x])).values()];
+}
+/* v97.10: archive only visual evidence; never move or modify the ledger. */
+function settledForArchive9710(n){
+ return !!n&&!/cancelad|excluid|estornad/.test(norm(n.sourceStatus))&&n.paymentEvidence===true&&Number.isSafeInteger(n.total)&&n.total>0&&
+ Number.isSafeInteger(n.paid)&&n.paid===n.total&&n.balance===0&&n.credit===0&&!n.mismatch;
+}
+function clientNotes9710(clientId,rows=allNotes()){
+ const id=sid(clientId),clients=list('clients').filter(x=>x&&!x.deleted_at&&!x.deletedAt&&x.deleted!==true);
+ const exact=clients.filter(x=>sid(x.id)===id);if(exact.length!==1)return {rows:[],ambiguous:0,available:false};
+ const name=norm(exact[0].name),unique=!!name&&clients.filter(x=>norm(x.name)===name).length===1;
+ return {rows:rows.filter(n=>n.clientKey==='id:'+id||(unique&&n.clientKey==='name:'+name)),
+ ambiguous:unique?0:rows.filter(n=>n.clientKey==='name:'+name).length,available:true};
+}
+function pendingProtection9710(){
+ try{
+  const guard=window.hlgbWalIdbGuard9536,fn=window.hlgbRecordPendingIdentitySet9535,status=guard?.status?.();
+  if(!status||status.readFailed!==false||!(Number(status.probes)>0)||typeof guard.ids!=='function'||typeof fn!=='function')return null;
+  return new Set([...guard.ids(),...fn()].map(sid));
+ }catch(_){return null}
+}
+function archiveAllowed9710(n,pending){
+ if(!settledForArchive9710(n)||!pending)return false;
+ const module=n.type==='projection'?'projectionInvoices':'orders',id=sid(n.id);
+ const blocked=(m,k)=>pending.has(m+'::'+sid(k))||pending.has(m+'|'+sid(k));
+ if(blocked(module,id))return false;
+ // A pending finance edit can change the payment proof used for this note.
+ if(list('finance').some(x=>sid(n.type==='projection'?x.projectionInvoiceId:x.orderId)===id&&blocked('finance',x.id)))return false;
+ return true;
 }
 function category(n,now=today()){
  if(n.balance<=1)return n.credit>0?'compensated':'paid';
@@ -298,21 +326,87 @@ function hasPanelWrapper(fn){
  }
  return false;
 }
+let archiveEvidence9710={observed:false,legacyPaid:null,projectionPaid:null};
+function organizeLegacyNotes9710(){
+ if(window.__HLGB_AUTH_READY!==true)return;
+ const pending=pendingProtection9710(),orders=new Map();for(const o of list('orders')){const id=sid(o.id);orders.set(id,orders.has(id)?null:o)}
+ let archived=0,observed=false;
+ for(const hostId of ['orderNotesTable','allOrderNotesTable']){
+  const host=document.getElementById(hostId);if(!host)continue;observed=true;
+  for(const existing of Array.from(host.querySelectorAll('[data-hlgb-paid-legacy9710]'))){
+   for(const tr of Array.from(existing.querySelectorAll('tbody tr'))){const body=tr.__hlgbPaidOriginalBody9710;if(body?.isConnected){body.__hlgbPaidHistoryOpen9710=existing.open;body.appendChild(tr)}}
+   existing.remove();
+  }
+  for(const table of Array.from(host.querySelectorAll('table')).filter(t=>!t.closest('.v930ProjectionNotes'))){
+   const body=table.querySelector('tbody');if(!body)continue;
+   const rows=Array.from(body.children).filter(tr=>{
+    const ids=Array.from(tr.querySelectorAll('button[onclick]')).map(b=>sid(b.getAttribute('onclick')).match(/^openAcerto\(\s*(['"]?)([^'")\s]+)\1\s*\)$/)?.[2]).filter(Boolean);
+    if(ids.length!==1)return false;const o=orders.get(ids[0]);return !!o&&archiveAllowed9710(orderView(o),pending);
+   });
+   if(!rows.length)continue;
+   const details=document.createElement('details');details.dataset.hlgbPaidLegacy9710='1';details.open=body.__hlgbPaidHistoryOpen9710===true;
+   const summary=document.createElement('summary');summary.textContent='Notas pagas — histórico ('+rows.length+')';details.appendChild(summary);
+   const wrap=document.createElement('div');wrap.style.overflowX='auto';
+   const historical=table.cloneNode(false);historical.removeAttribute('id');const head=table.querySelector('thead');if(head)historical.appendChild(head.cloneNode(true));
+   const dest=document.createElement('tbody');historical.appendChild(dest);wrap.appendChild(historical);details.appendChild(wrap);
+   table.insertAdjacentElement('afterend',details);
+   for(const tr of rows){tr.__hlgbPaidOriginalBody9710=body;dest.appendChild(tr);archived++}
+  }
+ }
+ archiveEvidence9710={...archiveEvidence9710,observed,legacyPaid:observed?archived:null,at:new Date().toISOString()};
+}
+function observeProjectionArchive9710(n){if(window.__HLGB_AUTH_READY===true&&Number.isSafeInteger(n)&&n>=0)archiveEvidence9710={...archiveEvidence9710,observed:true,projectionPaid:n,at:new Date().toISOString()}}
+function historyAuthorized9710(){
+ try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('clientes')&&canOpenPage('notas')}catch(_){return false}
+}
+function openClientNotes9710(id){
+ if(!historyAuthorized9710())return false;
+ const result=clientNotes9710(id);if(!result.available||typeof window.openModal!=='function')return false;
+ const rows=result.rows.slice().sort((a,b)=>b.issued.localeCompare(a.issued)||a.number.localeCompare(b.number));
+ const client=list('clients').find(x=>sid(x.id)===sid(id));
+ const html='<div class="sub">Histórico de notas do cadastro. Consulta dos dados carregados, sem alterar lançamentos.</div>'+
+ (result.ambiguous?'<p>Há '+result.ambiguous+' nota(s) sem identidade inequívoca. Confira na central de notas.</p>':'')+
+ '<p><b>'+rows.length+' nota(s) · A receber: '+brl(sum(rows,'balance'))+' · Recebido: '+brl(sum(rows,'paid'))+'</b></p>'+
+ '<div style="overflow:auto"><table><thead><tr><th>Nota</th><th>Emissão</th><th>Valor</th><th>Recebido</th><th>Saldo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>'+
+ rows.map(n=>'<tr><td>'+esc(n.number)+'</td><td>'+esc(dateFmt(n.issued))+'</td><td>'+brl(n.total)+'</td><td>'+brl(n.paid)+'</td><td>'+brl(n.balance)+'</td><td>'+esc(label(n,today())[0])+(n.mismatch?' · Conferir saldo':'')+'</td><td><button type="button" class="secondary" data-client-note-type="'+esc(n.type)+'" data-client-note-id="'+esc(n.id)+'">Abrir</button></td></tr>').join('')+
+ '</tbody></table></div><button type="button" class="secondary modalSave">Fechar</button>';
+ window.openModal('Histórico de notas — '+esc(client.name),html,()=>window.closeModal?.());
+ const host=document.getElementById('modalContent');
+ host?.querySelectorAll('[data-client-note-id]').forEach(b=>b.onclick=()=>{if(!historyAuthorized9710())return;const current=clientNotes9710(id).rows.find(n=>n.id===b.dataset.clientNoteId&&n.type===b.dataset.clientNoteType);if(!current)return;if(current.type==='projection')window.hlgbViewNote9411?.(current.id);else window.viewOrderDetails?.(current.id)});
+ return true;
+}
+function decorateClients9710(){
+ const root=document.getElementById('clientTable');if(!root)return;
+ for(const tr of Array.from(root.querySelectorAll('tbody tr'))){
+  const existing=tr.querySelector('[data-hlgb-client-notes9710]');
+  if(!historyAuthorized9710()){existing?.remove();continue}if(existing)continue;
+  const ids=Array.from(tr.querySelectorAll('button[onclick]')).map(b=>sid(b.getAttribute('onclick')).match(/^editClient\(\s*(['"]?)([^'")\s]+)\1\s*\)$/)?.[2]).filter(Boolean);
+  if(ids.length!==1||!clientNotes9710(ids[0],[]).available)continue;
+  const b=document.createElement('button');b.type='button';b.className='secondary';b.dataset.hlgbClientNotes9710='1';b.textContent='Histórico de notas';b.onclick=()=>openClientNotes9710(ids[0]);tr.lastElementChild?.appendChild(b);
+ }
+}
+function installClients9710(){
+ const old=window.renderClients;let fn=old;const seen=new Set();
+ while(typeof fn==='function'&&!seen.has(fn)){if(fn.__hlgbClientNotes9710){decorateClients9710();return}seen.add(fn);fn=fn.__original}
+ if(typeof old==='function'){const wrapper=function(){const result=old.apply(this,arguments);decorateClients9710();return result};wrapper.__hlgbClientNotes9710=true;wrapper.__original=old;window.renderClients=wrapper}
+ decorateClients9710();
+}
 function install(){
- ensure();paint();
+ ensure();paint();installClients9710();organizeLegacyNotes9710();
  const old=window.renderOrderNotes;
  if(typeof old==='function'&&!hasPanelWrapper(old)){
-  const wrapper=function(){const result=old.apply(this,arguments);setTimeout(paint,0);return result};
+  const wrapper=function(){const result=old.apply(this,arguments);setTimeout(()=>{paint();organizeLegacyNotes9710()},0);return result};
   // Preserve the existing live-sync signature. Otherwise its delayed
   // installer could wrap us repeatedly, causing nested redraw loops.
   if(old.__hlgbNotesLive9563)wrapper.__hlgbNotesLive9563=true;
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,readOnly:true};
+window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
-window.addEventListener?.('hlgb:authenticated',()=>setTimeout(paint,350));
+window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,350));
+window.addEventListener?.('hlgb:logout',()=>{archiveEvidence9710={observed:false,legacyPaid:null,projectionPaid:null};document.querySelectorAll?.('[data-hlgb-client-notes9710]').forEach(x=>x.remove())});
 console.info('[HLGB] notas v'+V+' organização/recebíveis somente leitura');
 })();

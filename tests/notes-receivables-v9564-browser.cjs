@@ -79,6 +79,27 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(results.writes,3,'only three user-confirmed note writes; no hidden automatic save');
   await page.evaluate(()=>{window.db.projectionInvoices.push({id:'6',client:'Cliente A',clientId:1,value:50,paid:0,dueDate:offset(3),status:'Pendente'});window.renderOrderNotes()});
   await page.waitForFunction(()=>document.querySelector('#nr-tabs [data-tab="all"]').textContent.includes('(6)'));
+  // Synthetic legacy list and client registration, using actual module controls.
+  await page.evaluate(()=>{
+   window.closeModal();window.canOpenPage=()=>true;
+   window.db.clients=[{id:1,name:'Cliente A'},{id:2,name:'Cliente B'}];
+   window.db.orders=[{id:97001,client:'Cliente A',clientId:1,noteReady:true,total:100,received:100,status:'Pedido finalizado'},{id:97002,client:'Cliente B',clientId:2,noteReady:true,total:200,received:20}];
+   window.hlgbWalIdbGuard9536.status=()=>({readFailed:false,probes:1});window.hlgbRecordPendingIdentitySet9535=()=>new Set();
+   const host=document.createElement('div');host.id='allOrderNotesTable';host.innerHTML='<table><thead><tr><th>Nota</th><th>Ação</th></tr></thead><tbody><tr id="legacyPaid"><td>Quitada</td><td><button onclick="openAcerto(97001)">Acerto</button></td></tr><tr id="legacyPartial"><td>Parcial</td><td><button onclick="openAcerto(97002)">Acerto</button></td></tr></tbody></table>';document.body.appendChild(host);
+   const clients=document.createElement('div');clients.id='clientTable';clients.innerHTML='<table><tbody><tr><td>Cliente A</td><td><button onclick="editClient(1)">Editar</button></td></tr></tbody></table>';document.body.appendChild(clients);
+   window.hlgbNotesReceivables9564.install();
+  });
+  assert.equal(await page.locator('[data-hlgb-paid-legacy9710] #legacyPaid').count(),1);
+  assert.equal(await page.locator('#legacyPaid').isVisible(),false);
+  assert.equal(await page.locator('#legacyPartial').isVisible(),true);
+  await page.locator('[data-hlgb-client-notes9710]').click();
+  assert.match(await page.locator('#modal').innerText(),/Histórico de notas do cadastro/);
+  assert.match(await page.locator('#modal').innerText(),/97001/);
+  assert.doesNotMatch(await page.locator('#modal').innerText(),/97002/);
+  await page.evaluate(()=>{window.closeModal();window.db.orders[0].received=40;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
+  assert.equal(await page.locator('#legacyPaid').isVisible(),true,'reopened note returns to active list');
+  assert.equal(await page.locator('[data-hlgb-paid-legacy9710]').count(),0);
+  assert.equal(await page.evaluate(()=>window.__writes),3,'visual archive and client history do not write');
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.locator('#nr-client').isVisible(),true);
   assert.equal(await page.locator('#nr-tabs button[data-tab="paid"]').isVisible(),true);
