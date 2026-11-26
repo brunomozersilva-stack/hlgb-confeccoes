@@ -103,3 +103,21 @@ test('prior confirmed pair is not offered for duplicate writeoff',()=>{
  assert.ok(!p.some(x=>String(x.productId)==='4'));
  assert.equal(p.length,3);
 });
+
+test('packaging: unlinked cut ids cannot merge unrelated production or match manual records',()=>{
+ const f=fixture(),api=f.ctx.hlgbOperationalVisibility9385;
+ f.db.production.push({id:'pA',orderId:37,productId:1,stage:'Em produção',planned:12},{id:'pB',orderId:38,productId:1,stage:'Em produção',planned:24});
+ f.db.packagingAssignments=[{id:'manual',productId:1,sourceCutId:'',qty:999},{id:'pack-A',sourceProductionId:'pA',sourceCutId:'',orderId:37,productId:1,qty:12},{id:'wrong',sourceProductionId:'pA',productId:2,qty:999}];
+ const before=JSON.stringify(f.db),lots=api.packagingLots();
+ const a=lots.find(x=>x.id==='pA'),b=lots.find(x=>x.id==='pB');
+ assert.ok(a);assert.ok(b);assert.equal(api.packagingMatches(a).length,1);assert.equal(api.packagingMatches(a)[0].id,'pack-A');assert.equal(api.packagingMatches(b).length,0);
+ assert.equal(JSON.stringify(f.db),before);
+ f.db.operationalWriteoffs.push({id:'off',sourceType:'model',orderProductRefs:[{orderId:'37',productId:'1'}],productId:1,quantity:192});
+ const after=api.packagingLots();assert.ok(!after.some(x=>x.id==='pA'));assert.ok(after.some(x=>x.id==='pB'));assert.equal(f.db.packagingAssignments.length,3);
+});
+test('packaging: shared cut cannot assign another product or another production explicitly linked',()=>{
+ const f=fixture(),api=f.ctx.hlgbOperationalVisibility9385;
+ const lot=api.packagingLots().find(x=>x.id==='1001');assert.ok(lot);
+ f.db.packagingAssignments=[{id:'exact',sourceProductionId:1001,sourceCutId:371,productId:1},{id:'wrong-product',sourceCutId:371,productId:2},{id:'wrong-prod',sourceProductionId:888,sourceCutId:371,productId:1}];
+ assert.equal(api.packagingMatches(lot).length,1);assert.equal(api.packagingMatches(lot)[0].id,'exact');
+});
