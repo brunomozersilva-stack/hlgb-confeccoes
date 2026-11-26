@@ -111,6 +111,22 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   // Completed payments cannot silently have their amount rewritten.
   await page.evaluate(()=>{window.db.payroll.find(x=>x.id==='p-z').paid=true});
   await assert.rejects(()=>page.evaluate(()=>window.hlgbPayrollSaveStability9296.saveEmployeeFare('2','2026-11','18.00')),/PAGO/);
+  // Real table shape, permission gate, sorting/filtering and rerender without touching stored rows.
+  const baseline=await page.evaluate(()=>{
+   window.__HLGB_AUTH_READY=true;window.canOpenPage=p=>p==='funcionarios';
+   window.db.employees[0].hireDate='2025-01-01';window.db.employees[1].hireDate='2020-01-01';
+   const host=document.getElementById('employeeTable');
+   window.renderEmployees=()=>{host.innerHTML='<table><tbody>'+window.db.employees.map(e=>'<tr><td>'+e.name+'</td><td><button onclick="editEmployee('+e.id+')">Editar / histórico</button></td></tr>').join('')+'</tbody></table>'};
+   window.hlgbPayrollSaveStability9296.install();window.renderEmployees();
+   return JSON.stringify(window.db.employees);
+  });
+  const filters=page.locator('#hlgbEmployeeRegistryFilters9751'),rows=page.locator('#employeeTable tbody tr:visible');
+  await filters.locator('select').selectOption('tenure-desc');assert.match(await rows.first().textContent(),/Zuleica/);
+  await filters.locator('input').fill('ÁNA');assert.equal(await rows.count(),1);assert.match(await rows.first().textContent(),/Ana/);
+  await page.evaluate(()=>window.renderEmployees());assert.equal(await rows.count(),1);assert.equal(await page.locator('#employeeTable tbody tr:visible [data-hlgb-employee-fare-9490]').count(),1);
+  await filters.locator('input').fill('');await filters.locator('select').selectOption('name-asc');assert.match(await rows.first().textContent(),/Ana/);
+  assert.equal(await page.evaluate(()=>JSON.stringify(window.db.employees)),baseline);
+  await page.evaluate(()=>window.dispatchEvent(new Event('hlgb:logout')));assert.equal(await filters.count(),0);
   assert.equal(errors.length,0,errors.join(' | '));
   console.log('PASS v94.90 '+(process.env.HLGB_BROWSER||'chromium')+': employee and payroll visible passage buttons, isolated cloud ACK, zero/reset, other month, failed cloud, paid protected');
  }finally{await browser.close()}
