@@ -78,6 +78,41 @@
    };
    for(const f of [person,divisor,ded,extra,percent])f.onchange=()=>{review.checked=false;calculate()};review.onchange=calculate;
    dbtn('Calcular impacto no salário',salaryHost,calculate);
+   const collective=el('details','',salaryHost);el('summary','Conferência salarial coletiva',collective);
+   el('p','Confira todos os funcionários, inclusive os que não aparecem no arquivo. Os valores são prévias brutas; nenhum lançamento automático.',collective);
+   const roster=root.HLGBAttendance9658.digitalSalaryRoster(x,data()?.employees,true);
+   if(roster.state!=='local-digital-roster')return;
+   const query=df('Buscar funcionário ou confecção','search',collective),list=el('div','',collective),report=el('div','',collective),selected=new Map();let offset=0;
+   const filtered=()=>roster.rows.filter(r=>(r.name+' '+r.company+' '+r.employeeId).toLocaleLowerCase('pt-BR').includes(query.value.toLocaleLowerCase('pt-BR')));
+   function choose(r){if(!selected.has(r.employeeId)&&selected.size<200)selected.set(r.employeeId,{employeeId:r.employeeId,signature:r.signature,monthlyHours:null,approvedDeductionMinutes:null,approvedExtraMinutes:null,extraPercent:null,reviewed:false})}
+   function draw(){
+    list.replaceChildren();report.replaceChildren();if(!current())return;const visible=filtered();
+    if(offset>=visible.length)offset=Math.max(0,Math.floor((visible.length-1)/20)*20);
+    el('p',visible.length+' funcionários no filtro · '+selected.size+' selecionados',list);
+    for(const r of visible.slice(offset,offset+20)){
+     const card=el('article','',list);card.className='panel';const s=selected.get(r.employeeId);
+     dbtn((s?'Remover ':'Adicionar ')+r.name+' · '+r.company+(r.imported?'':' · Sem ponto importado'),card,()=>{if(!current())return;if(s)selected.delete(r.employeeId);else choose(r);draw()});
+     if(!s||!r.imported)continue;
+     el('p','Salário-base atual: '+money(r.baseCents),card);
+     const fields=[['monthlyHours','Divisor mensal'],['approvedDeductionMinutes','Minutos de desconto aprovados'],['approvedExtraMinutes','Minutos extras aprovados'],['extraPercent','Percentual total de hora extra']];
+     const label=el('label','Conferi parâmetros e ocorrências deste funcionário',card),check=el('input','',label);check.type='checkbox';check.checked=s.reviewed;
+     for(const [key,title] of fields){const f=df(title,'number',card);f.min='0';f.step='1';f.value=s[key]===null?'':String(s[key]);f.onchange=()=>{s[key]=f.value.trim()===''?null:Number(f.value);s.reviewed=false;check.checked=false;report.replaceChildren()}}
+     check.onchange=()=>{s.reviewed=check.checked;report.replaceChildren()};
+    }
+    if(offset>0)dbtn('Funcionários anteriores',list,()=>{offset-=20;draw()});if(offset+20<visible.length)dbtn('Mais funcionários',list,()=>{offset+=20;draw()});
+   }
+   query.oninput=()=>{offset=0;draw()};
+   dbtn('Selecionar todos do filtro',collective,()=>{if(!current())return;const all=filtered();if(new Set([...selected.keys(),...all.map(r=>r.employeeId)]).size>200){report.replaceChildren();el('p','Limite de 200 funcionários por conferência.',report);return}for(const r of all)choose(r);draw()});
+   dbtn('Limpar seleção',collective,()=>{selected.clear();draw()});
+   dbtn('Calcular prévia salarial coletiva',collective,()=>{
+    report.replaceChildren();if(!current())return;const b=root.HLGBAttendance9658.digitalSalaryBatch(x,data()?.employees,[...selected.values()],true);
+    if(b.state!=='local-digital-batch'){el('p','Selecione os funcionários e confira os parâmetros.',report);return}
+    el('h4',b.reviewedCount+' de '+b.selectedCount+' funcionários calculados',report);
+    el('p',b.partial?'Prévia parcial: existem dados faltantes, pendências ou parâmetros não conferidos.':'Prévia bruta dos dados revisados; não é fechamento da folha.',report);
+    if(b.totals)el('p','Salários-base '+money(b.totals.baseCents)+' · Descontos '+money(b.totals.deductionCents)+' · Extras '+money(b.totals.extraCents)+' · Bruto indicativo '+money(b.totals.indicativeGrossCents),report);
+    for(const r of b.rows){const item=el('article','',report);el('strong',r.name+' · '+r.company,item);if(r.preview){const p=r.preview;el('p','Faltas injustificadas '+p.counts.absenceUnjustified+' min · Justificadas '+p.counts.absenceJustified+' min · Diferença de jornada '+p.counts.shortfall+' min · Extras observadas '+p.counts.extra+' min · Dias sem registro '+p.missingDays,item);if(p.reviewed)el('p','Descontos '+money(p.deductionCents)+' · Extras '+money(p.extraCents)+' · Bruto indicativo '+money(p.indicativeGrossCents),item)}if(r.reason)el('p',({'roster-or-report-changed':'Cadastro ou relatório alterado: importe novamente','missing-attendance':'Sem ponto importado','parameters-unreviewed':'Parâmetros ainda não conferidos','unavailable':'Confira salário e divisor'})[r.reason]||r.reason,item)}
+   });draw();
+
   });
   const bulk=el('details','',host);bulk.className='panel';el('summary','Conferência coletiva de ponto e passagem por confecção',bulk);
   el('p','Selecione os funcionários, confira a tarifa de cada um e a data até a qual a passagem foi antecipada. O valor sugerido de cobertura é somente calendário; não comprova pagamento. A prévia não altera a edição individual da Folha.',bulk);
