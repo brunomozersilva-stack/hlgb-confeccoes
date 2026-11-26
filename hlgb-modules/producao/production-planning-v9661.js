@@ -701,5 +701,57 @@
   const bottleneck=known.length?Math.min(...known.map(s=>s.capacity)):null,final=unknown?null:result.at(-1).done;
   return {...empty('local-stage-goals',issues),goal,workdays:workDates.length,stages:result.map((s,i)=>({...s,periodCapacity:limits[i],simulatedPieces:unknown?null:s.done,remainingGoal:unknown?null:Math.max(0,goal-s.done),endingWip:unknown?null:wip[i]})),days,bottlenecks:unknown?[]:known.filter(s=>s.capacity===bottleneck),simulatedDeliveries:final,goalGap:final===null?null:Math.max(0,goal-final),partial:issues.length>0||unknown};
  }
- return {productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Observe actual events, separately for cuts, external returns and internal completions.
+ // Never equate a return date with hours worked, or absence of records with zero capacity.
+ function observedThroughput(db,start,allowed){
+  const empty=state=>({state,rows:[],weeks:[],issues:[],canWrite:false,capacityVerified:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!['cuts','factions','production','products','productionLocations'].every(k=>Array.isArray(db?.[k])))return empty('unavailable');
+  const D=86400000,dt=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?Date.parse(s+'T00:00:00Z'):null;
+  const asOf=dt(start);if(asOf===null)return empty('invalid-date');const monday=n=>n-((new Date(n).getUTCDay()+6)%7)*D,first=monday(asOf)-12*7*D,end=monday(asOf),iso=n=>new Date(n).toISOString().slice(0,10);
+  const index=rows=>{const m=new Map();for(const r of rows.filter(live)){const k=id(r.id);if(k)m.set(k,m.has(k)?null:r)}return m};
+  const products=index(db.products),locations=index(db.productionLocations),cuts=index(db.cuts),factions=index(db.factions),production=index(db.production),events=[],issues=[];
+  const validQty=n=>Number.isSafeInteger(n)&&n>0&&n<=10000000;
+  const issue=(source,recordId,reason)=>issues.push({source,recordId,reason});
+  function add(source,recordId,productId,teamId,date,pieces){
+   const t=dt(date);if(t===null||!products.get(productId)||!validQty(pieces)){issue(source,recordId,'invalid-event');return}
+   if(t<first||t>=end)return;
+   events.push({source,productId,productName:id(products.get(productId).name)||productId,teamId,teamName:teamId?id(locations.get(teamId)?.name)||teamId:'Sem equipe identificada',week:iso(monday(t)),pieces});
+  }
+  for(const c of db.cuts.filter(live)){
+   if(c.modelSplitParentV1||c.hiddenByModelSplitV1||!['finalizado','cortado','concluido'].includes(norm(c.status)))continue;
+   const k=id(c.id),grade=c.actualCutGrade,models=new Map(),cells=new Set();let total=0,valid=!!k&&cuts.get(k)===c&&Array.isArray(grade)&&grade.length>0;
+   if(valid)for(const g of grade){const pid=id(g?.productId||g?.product_id||c.productId),color=id(g?.color),size=id(g?.size),q=g?.qty,cell=JSON.stringify([pid,id(g?.orderId||c.orderId),color,size]);
+    if(!products.get(pid)||!color||!size||cells.has(cell)||!Number.isSafeInteger(q)||q<0){valid=false;break}cells.add(cell);total+=q;if(q)models.set(pid,(models.get(pid)||0)+q)}
+   if(!valid||!validQty(total)||total!==c.pieces){issue('cut',k,'grade-or-identity');continue}
+   for(const [pid,q] of models)add('cut',k,pid,'',c.finishedAt,q);
+  }
+  // All linked external production rows are excluded from the internal series, including transfers.
+  const externalProduction=new Set(db.factions.filter(live).map(f=>id(f.productionId)).filter(Boolean));
+  const eventCounts=new Map();for(const f of db.factions.filter(live))for(const h of Array.isArray(f.deliveryHistory)?f.deliveryHistory:[]){const k=id(h?.id);if(k)eventCounts.set(k,(eventCounts.get(k)||0)+1)}
+  for(const f of db.factions.filter(live)){
+   const k=id(f.id),pid=id(f.productId),team=id(f.productionLocationId||f.factionId),history=f.deliveryHistory;
+   if(!Array.isArray(history)||!history.length){if(Number(f.returned)>0)issue('external',k,'return-history-missing');continue}
+   if(!k||factions.get(k)!==f||!products.get(pid)||!team||!locations.get(team)||f.transferHistory?.length||!Number.isSafeInteger(f.returned)||!Number.isSafeInteger(f.sent)){issue('external',k,'identity-or-transfer-review');continue}
+   const total=history.reduce((n,h)=>n+(validQty(h?.qty)?h.qty:NaN),0);
+   if(!Number.isSafeInteger(total)||total!==f.returned||total>f.sent||history.some(h=>!id(h.id)||eventCounts.get(id(h.id))!==1||dt(h.date)===null)){issue('external',k,'return-history-conflict');continue}
+   for(const h of history)add('external',k,pid,team,h.date,h.qty);
+  }
+  for(const p of db.production.filter(live)){
+   if(!['finalizado','pronto'].includes(norm(p.stage))||id(p.factionId)||externalProduction.has(id(p.id))||p.sentToFactionAt||p.transferHistory?.length)continue;
+   const k=id(p.id),team=id(p.productionLocationId),pid=id(p.productId);
+   if(!k||production.get(k)!==p||!team||!locations.get(team)||!validQty(p.done)||!validQty(p.planned)||p.done>p.planned){issue('internal',k,'identity-or-quantity');continue}
+   add('internal',k,pid,team,p.finishedAt,p.done);
+  }
+  const weeks=new Map(),groups=new Map();
+  for(const e of events){
+   const wk=JSON.stringify([e.source,e.week]),w=weeks.get(wk)||{source:e.source,week:e.week,pieces:0,confirmed:false};w.pieces+=e.pieces;weeks.set(wk,w);
+   const k=JSON.stringify([e.source,e.productId,e.teamId]),g=groups.get(k)||{source:e.source,productId:e.productId,productName:e.productName,teamId:e.teamId,teamName:e.teamName,byWeek:new Map()};
+   g.byWeek.set(e.week,(g.byWeek.get(e.week)||0)+e.pieces);groups.set(k,g);
+  }
+  const rows=[...groups.values()].map(({byWeek,...g})=>{const samples=[...byWeek].sort((a,b)=>a[0].localeCompare(b[0])).map(([week,pieces])=>({week,pieces})),total=samples.reduce((n,s)=>n+s.pieces,0);return {...g,samples,total,observedWeeks:samples.length,averageActiveWeek:Math.round(total/samples.length),capacityVerified:false}});
+  return {...empty('local-observation'),rows:rows.sort((a,b)=>a.source.localeCompare(b.source)||b.total-a.total),weeks:[...weeks.values()].sort((a,b)=>a.week.localeCompare(b.week)||a.source.localeCompare(b.source)),issues,eventCount:events.length};
+ }
+ return {observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
