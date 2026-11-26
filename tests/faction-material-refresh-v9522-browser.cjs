@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),{chromium,webkit}=require('playwright'),fs=require('node:fs');
-const actual=fs.readFileSync('app9240.html','utf8');const from=actual.indexOf('<section id="faccoes" class="page">'),to=actual.indexOf('</section>',from);assert(from>=0&&to>from);const realFactionPage=actual.slice(from,to+10);
+const vm=require('node:vm'),router=fs.readFileSync('app-stable3.html','utf8');const beginPatch=router.indexOf('function addFactionGroupEntry9738(html){'),endPatch=router.indexOf('h=addFactionGroupEntry9738(h);',beginPatch);assert(beginPatch>=0&&endPatch>beginPatch);const transform=vm.runInNewContext(router.slice(beginPatch,endPatch)+';addFactionGroupEntry9738',{console});const base=fs.readFileSync('app9240.html','utf8'),actual=transform(base);assert.notEqual(actual,base);assert.equal(transform(actual),actual);assert.equal(actual.split('id="hlgbGroupButton9734"').length,2);const from=actual.indexOf('<section id="faccoes" class="page">'),to=actual.indexOf('</section>',from);assert(from>=0&&to>from);const realFactionPage=actual.slice(from,to+10);
 const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
 (async()=>{
  const browser=await engine.launch({headless:true});
