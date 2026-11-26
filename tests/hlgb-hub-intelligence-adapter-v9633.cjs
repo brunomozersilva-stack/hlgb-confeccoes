@@ -49,6 +49,12 @@ const assert=require('node:assert/strict');const api=require('../hlgb-modules/fi
  ok(base14.incomingCents===1200000&&base14.outgoingCents===3200000&&base14.netObservedCents===-2000000,'observed flow only');
  ok(base14.hypotheticalPeakGapCents===3200000&&delay14.incomingCents===0&&delay14.hypotheticalPeakGapCents===3200000,'payments first, delay stress');
  ok(plan.base.every(x=>x.actualFundingNeedCents===null)&&!plan.canPublish&&!plan.openingBalanceVerified,'no real funding need inferred');
+ const priorities=e.weeklyActions,alert=priorities.actions.find(x=>x.code==='review-above-range');
+ ok(priorities.state==='partial-local'&&!priorities.canPublish&&priorities.officialDiagnosis===null,'weekly priorities not official health');
+ ok(alert.evidence.category==='Matéria-prima'&&alert.evidence.differenceCents===2100000&&alert.evidence.recordedWeeks===4,'action includes observed comparison evidence');
+ ok(priorities.actions.some(x=>x.code==='review-overdue-in'&&x.evidence.amountCents===300000),'late receipt evidence');
+ ok(priorities.actions.some(x=>x.code==='review-concentration'&&x.evidence.sevenDayTotalCents>0),'due concentration based on scheduled outflows');
+ ok(!p().weeklyActions.actions.some(x=>x.code==='review-above-range'),'no anomaly with insufficient historical data');
  const pending=p({pendingEvidence:{state:'observed',ids:['hubFinanceEntries::1']}});
  ok(!pending.observations.some(x=>x.category==='Matéria-prima')&&pending.pendingEvidence.excludedCount===1&&pending.pendingEvidence.remoteConfirmed===false,'known WAL expense excluded, not remote proof');
  const mixed=p({db:{...ctx.db,hubFinanceEntries:[...rows,{...rows[0],value:'invalid'}]}});
