@@ -25,6 +25,60 @@
   file.addEventListener('change',async()=>{const selected=file.files?.[0],token=++request,competence=month.value;batch=null;employee.replaceChildren();out.replaceChildren();resetBatch();if(!selected||selected.size>2000000||!active())return;try{const text=await selected.text();if(token!==request||!active()||month.value!==competence)return;const people=data()?.employees;batch=root.HLGBAttendance9658.inspect(text,people,competence,true);if(batch.state!=='local-preview'||!active())throw Error('review');el('p',batch.rows.length+' registros observados · '+batch.duplicateCount+' repetições ignoradas · '+batch.issues.length+' ocorrências de importação a revisar.',out);for(const id of [...new Set(batch.rows.map(r=>r.employeeId))]){const e=people.find(x=>String(x.id)===id),o=el('option',String(e?.name||id)+' · ID '+id,employee);o.value=id}refreshBatch()}catch(_){batch=null;resetBatch();if(!active())return;el('p','Não foi possível importar. Confira o formato, competência e IDs.',out)}});
   for(const x of [paid,fare,employee])x.addEventListener('change',()=>out.replaceChildren());
   button.onclick=()=>{out.replaceChildren();if(!active()||!batch)return;const people=data()?.employees||[],matches=people.filter(x=>String(x.id)===employee.value&&!x.deletedAt&&!x.deleted_at&&!x.deleted&&!x._deleted);if(matches.length!==1||!/^\d{1,7}(?:[.,]\d{1,2})?$/.test(fare.value.trim())||!paid.value||paid.value>today()){el('p','Selecione funcionário, tarifa e cobertura comprovada até hoje.',out);return}try{const x=root.HLGBAttendance9658.preview(batch,matches[0],{asOf:today(),paidThrough:paid.value,rateCents:Math.round(Number(fare.value.replace(',','.'))*100)},root.HLGBPayrollPlanning9645);if(x.state!=='local-preview'||!active())throw Error('review');el('p','Dias escalados: '+x.counts.scheduled+' · Trabalhados: '+x.counts.worked+' · Faltas justificadas: '+x.counts.justified+' · Injustificadas: '+x.counts.unjustified+' · Pendências: '+x.counts.pending,out);el('p','Dias sem registro: '+x.missingDays+' · Linhas rejeitadas/conflitos no arquivo: '+batch.issues.length,out);if(x.transport){el('p','Antecipação estimada: '+money(x.transport.forecastCents)+' · Crédito possível por ausência de deslocamento: '+money(x.transport.possibleCreditCents),out);el('p','Primeiro dia não coberto observado: '+(x.transport.firstUncoveredDate||'não identificado')+' · Valor definitivo não confirmado.',out)}else el('p','Passagem indisponível: confira elegibilidade e dados.',out);for(const row of x.rows)el('p',row.date+' · '+row.status+' · Deslocamento '+row.commute+' · Antecipado '+money(row.advanceCents)+' · Compensado '+row.adjusted,out)}catch(_){el('p','Prévia indisponível. Confira o período e os dados.',out)}};
+  const digital=el('details','',host);digital.className='panel';el('summary','Importar cartão de ponto digital e conferir salário',digital);
+  el('p','Relatório diário consolidado em CSV/TSV: matrícula, data, minutos previstos, minutos trabalhados e ocorrência. Horas podem ser HH:MM ou minutos inteiros. Arquivos brutos do relógio, PDF e XLSX ainda requerem adaptador específico.',digital);
+  const df=(label,type,parent=digital)=>{const l=el('label',label,parent);l.style.cssText='display:block;margin:6px 0';const x=el('input','',l);x.type=type;x.style.cssText='display:block;width:100%;max-width:100%;box-sizing:border-box';return x};
+  const ds=(label,parent=digital)=>{const l=el('label',label,parent),x=el('select','',l);x.setAttribute('aria-label',label);x.style.cssText='display:block;width:100%;max-width:100%';return x};
+  const opt=(select,value,label)=>{const x=el('option',label,select);x.value=value;return x};
+  const dbtn=(label,parent,fn)=>{const x=el('button',label,parent);x.type='button';x.className='secondary';x.onclick=fn;return x};
+  const dfile=df('Relatório digital','file'),sep=ds('Separador do relatório'),mapHost=el('div','',digital),linkHost=el('div','',digital),dout=el('div','',digital),salaryHost=el('div','',digital);dfile.accept='.csv,.tsv,.txt,text/csv,text/tab-separated-values';
+  opt(sep,';','Ponto e vírgula');opt(sep,',','Vírgula');opt(sep,'\t','Tabulação');
+  let rawDigital=null,tableDigital=null,batchDigital=null,requestDigital=0,mapped={},links=new Map();
+  function invalidateDigital(){batchDigital=null;dout.replaceChildren();salaryHost.replaceChildren()}
+  function drawDigital(){
+   invalidateDigital();mapHost.replaceChildren();linkHost.replaceChildren();if(!active()||rawDigital===null)return;
+   try{tableDigital=root.HLGBAttendance9658.digitalTable(rawDigital,sep.value,true)}catch(_){tableDigital=null;el('p','Não foi possível ler o arquivo. Confira separador e cabeçalhos.',mapHost);return}
+   el('p',tableDigital.rows.length+' linhas lidas. Confira a associação das colunas.',mapHost);
+   mapped={};links.clear();
+   for(const [key,label,aliases] of [['employee','Matrícula / ID',['funcionario_id','matricula','id','codigo']],['date','Data',['data','date']],['scheduled','Duração prevista',['minutos_previstos','horas_previstas','jornada']],['worked','Duração trabalhada',['minutos_trabalhados','horas_trabalhadas','trabalhado']],['status','Ocorrência',['ocorrencia','status']]]){
+    const x=ds(label,mapHost);opt(x,'','Escolher coluna');for(const c of tableDigital.columns)opt(x,c,c);x.value=tableDigital.columns.find(c=>aliases.includes(c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,'_')))||'';mapped[key]=x;x.onchange=invalidateDigital;
+   }
+   el('p','Use o ID do cadastro ou vincule a matrícula externa ao funcionário. Não fazemos associação automática por nome.',linkHost);
+   const code=df('Matrícula externa','text',linkHost),person=ds('Funcionário correspondente',linkHost);opt(person,'','Escolher funcionário');
+   for(const e of (data()?.employees||[]).filter(e=>e&&!e.deletedAt&&!e.deleted_at&&!e.deleted&&!e._deleted))opt(person,String(e.id),String(e.name||e.id)+' · ID '+e.id);
+   const linkList=el('div','',linkHost);
+   const showLinks=()=>{linkList.replaceChildren();for(const [k,v] of links){const row=el('div',k+' → ID '+v,linkList);dbtn('Remover vínculo',row,()=>{links.delete(k);invalidateDigital();showLinks()})}};
+   dbtn('Vincular matrícula nesta sessão',linkHost,()=>{if(!active()||!/^[A-Za-z0-9_-]{1,100}$/.test(code.value.trim())||!person.value)return;links.set(code.value.trim(),person.value);invalidateDigital();showLinks()});
+  }
+  dfile.addEventListener('change',async()=>{const f=dfile.files?.[0],token=++requestDigital;rawDigital=null;tableDigital=null;drawDigital();if(!f||f.size>2000000||!active())return;try{const t=await f.text();if(token!==requestDigital||!active())return;rawDigital=t;drawDigital()}catch(_){if(active())el('p','Falha ao ler relatório.',dout)}});
+  sep.onchange=drawDigital;month.addEventListener('change',()=>{requestDigital++;rawDigital=null;tableDigital=null;dfile.value='';drawDigital()});
+  dbtn('Conferir relatório de ponto',digital,()=>{
+   invalidateDigital();if(!active()||!tableDigital)return;
+   const mapping=Object.fromEntries(Object.entries(mapped).map(([k,x])=>[k,x.value]));
+   const x=root.HLGBAttendance9658.inspectDigital(tableDigital,mapping,data()?.employees,month.value,true,[...links].map(([code,employeeId])=>({code,employeeId})));
+   if(x.state!=='local-digital-preview'){el('p','Confira colunas, vínculos e competência.',dout);return}
+   batchDigital=x;el('p',x.rows.length+' dias/funcionários importados · '+x.duplicateCount+' repetidos ignorados · '+x.issues.length+' linhas a revisar.',dout);
+   for(const i of x.issues.slice(0,30))el('p','Linha '+i.line+' · '+i.reason+' · matrícula '+i.code,dout);
+   const person=ds('Funcionário para prévia salarial',salaryHost);opt(person,'','Escolher funcionário');
+   for(const pid of new Set(x.rows.map(r=>r.employeeId))){const e=(data()?.employees||[]).find(z=>String(z.id)===pid);opt(person,pid,String(e?.name||pid))}
+   const divisor=df('Divisor mensal de horas (confirmar com RH/contador)','number',salaryHost),ded=df('Minutos de desconto aprovados','number',salaryHost),extra=df('Minutos extras aprovados','number',salaryHost),percent=df('Percentual total de hora extra (ex.: 150)','number',salaryHost),reviewLabel=el('label','Conferi a jornada, regras e valores',salaryHost),review=el('input','',reviewLabel);review.type='checkbox';
+   for(const field of [divisor,ded,extra,percent]){field.min='0';field.step='1'}
+   const result=el('div','',salaryHost);const current=()=>active()&&batchDigital===x;
+   const calculate=()=>{
+    result.replaceChildren();if(!current())return;
+    const matches=(data()?.employees||[]).filter(e=>String(e.id)===person.value&&!e.deletedAt&&!e.deleted_at&&!e.deleted&&!e._deleted);
+    if(matches.length!==1)return;
+    const n=v=>v.trim()===''?NaN:Number(v),p=root.HLGBAttendance9658.salaryDigitalPreview(x,matches[0],{monthlyHours:n(divisor.value),approvedDeductionMinutes:n(ded.value),approvedExtraMinutes:n(extra.value),extraPercent:n(percent.value),reviewed:review.checked},true);
+    if(p.state!=='local-salary-preview'){el('p','Informe o divisor mensal revisado e confira o salário do cadastro.',result);return}
+    el('p','Salário-base cadastrado: '+money(p.baseCents)+' · Previsto '+p.counts.scheduled+' min · Trabalhado '+p.counts.worked+' min',result);
+    el('p','Faltas injustificadas '+p.counts.absenceUnjustified+' min · Justificadas '+p.counts.absenceJustified+' min · Jornada abaixo da prevista '+p.counts.shortfall+' min · Jornada acima '+p.counts.extra+' min',result);
+    el('p','Dias sem linha no relatório: '+p.missingDays+' · Pendências: '+p.counts.pending+' · Linhas a revisar: '+p.issues,result);
+    if(p.reviewed)el('p','Desconto simulado '+money(p.deductionCents)+' · Acréscimo simulado '+money(p.extraCents)+' · Bruto indicativo '+money(p.indicativeGrossCents)+(p.partial?' · Dados incompletos; não fechar folha.':''),result);else el('p','Confirme os minutos autorizados, percentual e divisor. Ausência de linha não é falta.',result);
+    el('p','Não é salário líquido nem fechamento da folha; não inclui demais verbas, tributos ou ajustes. Nada foi gravado.',result);
+   };
+   for(const f of [person,divisor,ded,extra,percent])f.onchange=()=>{review.checked=false;calculate()};review.onchange=calculate;
+   dbtn('Calcular impacto no salário',salaryHost,calculate);
+  });
   const bulk=el('details','',host);bulk.className='panel';el('summary','Conferência coletiva de ponto e passagem por confecção',bulk);
   el('p','Selecione os funcionários, confira a tarifa de cada um e a data até a qual a passagem foi antecipada. O valor sugerido de cobertura é somente calendário; não comprova pagamento. A prévia não altera a edição individual da Folha.',bulk);
   const bulkField=(label,type,val='',parent=bulk)=>{const l=el('label',label,parent);l.style.cssText='display:block;margin:6px 0;min-width:0';const x=el('input','',l);x.type=type;x.value=val;x.style.cssText='display:block;min-width:0;max-width:100%;width:100%;box-sizing:border-box';return x};
