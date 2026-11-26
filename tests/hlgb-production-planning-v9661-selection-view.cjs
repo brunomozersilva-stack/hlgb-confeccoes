@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),api=require('../hlgb-modules/producao/production-planning-v9661.js');
 function fixture(){
  class Element{
-  constructor(tag){this.tagName=tag;this.children=[];this.parentNode=null;this.dataset={};this.style={};this.attributes={};this.listeners={};this._text='';this.value='';this.checked=false;this.className='';this.classList={contains:k=>this.className.split(/\s+/).includes(k)}}
+  constructor(tag){this.tagName=tag;this.children=[];this.parentNode=null;this.dataset={};this.style={};this.attributes={};this.listeners={};this._text='';this.value='';this.checked=false;this.className='';this.classList={contains:k=>this.className.split(/\s+/).includes(k),add:k=>{if(!this.classList.contains(k))this.className+=' '+k},remove:k=>{this.className=this.className.split(/\s+/).filter(x=>x!==k).join(' ')}}}
   set textContent(v){this.replaceChildren();this._text=String(v??'')}
   get textContent(){return this._text+this.children.map(x=>x.textContent).join('')}
   get isConnected(){return this===body||!!this.parentNode?.isConnected}
@@ -21,7 +21,7 @@ function fixture(){
  const body=new Element('body'),cut=new Element('section'),productsPage=new Element('section'),purchase=new Element('section'),purchaseTable=new Element('div');
  cut.id='corte';cut.className='page active';productsPage.id='produtos';productsPage.className='page';purchase.id='compras';purchase.className='page';purchaseTable.id='purchaseTable';purchase.appendChild(purchaseTable);for(const x of [cut,productsPage,purchase])body.appendChild(x);
  const walk=r=>[r,...r.children.flatMap(walk)],byId=id=>walk(body).find(x=>x.id===id)||null,docEvents={},winEvents={};
- const document={body,createElement:t=>new Element(t),getElementById:byId,querySelectorAll:s=>s==='[data-planning9661]'?walk(body).filter(x=>x.dataset.planning9661):[],addEventListener:(k,f)=>(docEvents[k]??=[]).push(f)};
+ const document={body,createElement:t=>new Element(t),getElementById:byId,querySelectorAll:s=>s==='[data-planning9661]'?walk(body).filter(x=>x.dataset.planning9661):s==='.page'?walk(body).filter(x=>x.classList.contains('page')):[],addEventListener:(k,f)=>(docEvents[k]??=[]).push(f)};
  const data={orders:[{id:1,orderNumber:12,status:'Aguardando corte',grade:[{productId:10,color:'Rubi',size:'P',qty:30},{productId:11,color:'Rubi',size:'M',qty:40}]}],products:[{id:10,name:'Camisola',materials:[{materialId:1,name:'Malha',qty:3,unit:'kg',calcMode:'yield'},{materialId:2,name:'Renda',qty:.1,unit:'m'}]},{id:11,name:'Calcinha',materials:[{materialId:1,name:'Malha',qty:.2,unit:'kg'},{materialId:2,name:'Renda',qty:.2,unit:'m'}]}],materials:[{id:1,name:'Malha',cat:'Malha',unit:'kg'},{id:2,name:'Renda',cat:'Renda',unit:'m'}],cuts:[],production:[],operationalWriteoffs:[]};
  const permission={corte:true,pedidos:true,produtos:true,materiais:true,producao:true,compras:true,estoque:true,fornecedores:true};
  let selected=[{productId:'old',pieces:5}],writes=0,confirmAnswer=false,nav=null,userId='fixture';
@@ -32,8 +32,9 @@ function fixture(){
  return {host,cut,shortcut:()=>byId('hlgbJointCutShortcut9673'),data,permission,win,find,click,search,counts:()=>({writes,selected,nav}),confirm:v=>{confirmAnswer=v},user:v=>{userId=v},fire:(events,k)=>{for(const f of events[k]||[])f()},docEvents,winEvents};
 }
 const f=fixture(),before=JSON.stringify(f.data);
+assert.equal(f.host(),null);assert.equal(f.cut.children[0],f.shortcut());f.click(f.shortcut(),'Corte Conjunto');assert.equal(f.host().parentNode.id,'hlgbJointCutPage9732');assert.equal(f.cut.classList.contains('active'),false);
 assert.match(f.host().textContent,/Peças pedidas únicas70/);assert.equal(f.win.hlgbJointWorkspaceEvidence9714.pairs,2);assert.equal(f.win.hlgbJointWorkspaceEvidence9714.materials,2);assert.equal(f.win.hlgbJointWorkspaceEvidence9714.adjustedRows,0);assert.equal(f.win.hlgbJointWorkspaceEvidence9714.duplicatePlannedPairs,0);assert.equal(f.win.hlgbJointWorkspaceEvidence9714.remoteConfirmed,false);
-assert.ok(f.host());assert.equal(f.cut.children[0],f.shortcut());f.click(f.shortcut(),'Corte Conjunto');assert.equal(f.host().focused,true);assert.equal(f.host().scrolled,true);f.permission.materiais=false;f.fire(f.docEvents,'click');assert.equal(f.host(),null);assert.equal(f.find(f.shortcut(),'Corte Conjunto')[0].disabled,true);assert.match(f.shortcut().textContent,/requer acesso/);f.permission.materiais=true;f.fire(f.docEvents,'click');assert.ok(f.host());assert.equal(f.find(f.shortcut(),'Corte Conjunto')[0].disabled,false);assert.equal(f.find(f.host(),'Selecionar todos deste grupo').length,2);
+assert.ok(f.host());assert.equal(f.host().focused,true);assert.equal(f.host().scrolled,true);f.permission.materiais=false;f.fire(f.docEvents,'click');assert.equal(f.host(),null);assert.equal(f.find(f.shortcut(),'Corte Conjunto')[0].disabled,true);assert.match(f.shortcut().textContent,/requer acesso/);f.permission.materiais=true;f.fire(f.docEvents,'click');assert.ok(f.host());assert.equal(f.find(f.shortcut(),'Corte Conjunto')[0].disabled,false);assert.equal(f.find(f.host(),'Selecionar todos deste grupo').length,2);
 f.click(f.host(),'Selecionar todos deste grupo',0);assert.match(f.host().textContent,/70 peças únicas na cesta · 2 modelos/);
 f.click(f.host(),'Selecionar todos deste grupo',1);assert.match(f.host().textContent,/70 peças únicas na cesta · 2 modelos/);assert.match(f.host().textContent,/Malha · cor da ficha não informada · 18 kg/);assert.match(f.host().textContent,/Renda · cor da ficha não informada · 11 m/);
 f.search('sem correspondência');assert.match(f.host().textContent,/70 peças únicas na cesta · 2 modelos/);assert.equal(f.find(f.host(),'Selecionar todos deste grupo').length,0);
