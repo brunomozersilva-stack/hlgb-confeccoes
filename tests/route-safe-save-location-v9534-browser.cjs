@@ -7,7 +7,8 @@ const kind=process.env.HLGB_BROWSER||'chromium';
  try{
   async function fixture(mode='confirmed'){
    const page=await browser.newPage();
-   await page.setContent('<!doctype html><html lang="pt-BR"><body><main id="appShell"></main><div id="modal"><div id="modalContent"></div></div></body></html>');
+   await page.route('http://hlgb-route.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><html lang="pt-BR"><body><main id="appShell"></main><div id="modal"><div id="modalContent"></div></div></body></html>'}));
+   await page.goto('http://hlgb-route.test/');
    await page.evaluate(mode=>{
     window.db={
      routePlans:[],
@@ -24,6 +25,7 @@ const kind=process.env.HLGB_BROWSER||'chromium';
      labels:[],users:[]
     };
     window.__testRouteMode=mode;
+    window.__routeWalIds=[];window.hlgbWalIdbGuard9536={probe:async()=>({}),ids:()=>new Set(window.__routeWalIds),status:()=>({probes:1,readFailed:false,unsupported:false})};
     window.__sentRouteRows=[];
     window.__remoteRoute=null;
     window.__alerts=[];
@@ -138,6 +140,19 @@ const kind=process.env.HLGB_BROWSER||'chromium';
    assert.equal(await edit.evaluate(()=>window.__sentRouteRows.length),1,'Automatic refresh never writes');
    console.log('PASS '+kind+' — existing route edit, bulk refresh, automatic new stop, no duplicate, no production writes');
   }finally{await edit.close()}
+  const reloaded=await fixture();
+  try{
+   await reloaded.evaluate(()=>{window.__routeWalIds=['routePlans::route-before-reload'];window.addRouteStop9249()});
+   await reloaded.locator('.ops-route-loc').first().selectOption('1');
+   await reloaded.evaluate(()=>window.modalSave());
+   assert.match(await reloaded.locator('#opsRouteCloudStatus9534').textContent(),/gravação local pendente/);
+   assert.equal(await reloaded.evaluate(()=>window.__sentRouteRows.length),0);
+   await reloaded.evaluate(()=>{window.__routeWalIds=[];localStorage.setItem('hlgb_durable_wal_v1','{invalid')});
+   await reloaded.evaluate(()=>window.modalSave());assert.equal(await reloaded.evaluate(()=>window.__sentRouteRows.length),0);
+   await reloaded.evaluate(()=>localStorage.removeItem('hlgb_durable_wal_v1'));
+   await reloaded.evaluate(()=>window.modalSave());
+   assert.equal(await reloaded.evaluate(()=>window.__sentRouteRows.length),1);
+  }finally{await reloaded.close()}
   const timeout=await fixture('commit_timeout');
   try{
    await timeout.evaluate(()=>window.addRouteStop9249());

@@ -196,6 +196,7 @@ function routeLocations(){
    Somente este módulo é atualizado, sem renderAll nem gravação remota. */
 const routeSync9453={busy:false,lastCheck:0,lastSuccess:'',lastError:'',reads:0,changed:0};
 function routePending9453(id){
+ try{if(window.hlgbWalIdbGuard9536?.ids?.()?.has('routePlans::'+sid(id)))return true}catch(_){}
  try{
   const p=JSON.parse(localStorage.getItem('hlgb_records_pending_v91')||'null');
   if((p?.modules?.routePlans||[]).some(x=>sid(x?.id)===sid(id)))return true;
@@ -379,6 +380,25 @@ window.routeLocationChanged9249=function(select){
 
 // Keep an uncertain new-route attempt recoverable within this authenticated page.
 let unresolvedNewRoute9704=null;
+// A new editor may follow a browser reload, when the in-memory draft no longer exists.
+// Do not create a second identity while another route has unverified durable operations.
+async function otherPendingRoutes9718(draftId){
+ const guard=window.hlgbWalIdbGuard9536;
+ if(typeof guard?.probe!=='function'||typeof guard?.ids!=='function')throw Error('Conferência das pendências locais indisponível. Não crie outra rota antes de verificar.');
+ await guard.probe();const state=guard.status?.();
+ if(!state||state.unsupported||state.readFailed||state.localReadFailed||!(state.probes>0))throw Error('Pendências locais de rotas ainda não verificadas. Não crie outra rota antes de conferir.');
+ const ids=new Set([...guard.ids()].filter(k=>k.startsWith('routePlans::')).map(k=>k.slice('routePlans::'.length)));
+ for(const [key,kind] of [['hlgb_durable_wal_v1','wal'],['hlgb_records_pending_v91','pending']]){
+  const raw=localStorage.getItem(key);if(raw===null)continue;
+  const value=JSON.parse(raw);if(!value||typeof value!=='object')throw Error('Fila local inválida. Não crie outra rota antes de verificar.');
+  const container=kind==='wal'?value.entries:value.modules;
+  if(!container||typeof container!=='object'||Array.isArray(container))throw Error('Fila local inválida. Não crie outra rota antes de verificar.');
+  const rows=kind==='wal'?Object.values(container).filter(x=>x?.module==='routePlans'):container.routePlans||[];
+  if(!Array.isArray(rows))throw Error('Fila de rotas inválida.');
+  for(const x of rows){const id=sid(x?.id||x?.entity_id);if(!id)throw Error('Pendência de rota sem identificação.');ids.add(id)}
+ }
+ ids.delete(sid(draftId));return ids.size;
+}
 function openRouteEditor(r,resume=null){
  r=r?clone(r):null;
  const initial=r||resume;
@@ -430,6 +450,11 @@ function openRouteEditor(r,resume=null){
     const prior=await routeRemoteProof9534(lastAttempt);
     if(prior.status==='confirmed'){await finalizeIfConfirmed(lastAttempt,'retry');return}
     if(prior.status!=='missing'||routeFingerprint9534(lastAttempt)!==routeFingerprint9534(row)){routeStatus9534('Tentativa anterior ainda não reconciliada. Verifique a gravação antes de alterar ou reenviar a rota.');return}
+    if(!saveButton?.isConnected||routeFingerprint9534(routeCollect9534(r,draftId,createdAt))!==routeFingerprint9534(row)){routeStatus9534('O formulário mudou durante a conferência. Confira novamente.');return}
+   }
+   if(!r&&!lastAttempt){
+    const other=await otherPendingRoutes9718(draftId);
+    if(other){routeStatus9534('Existem '+other+' rota(s) com gravação local pendente. Confira a rota anterior e o Auditor antes de criar outra. Nenhuma nova gravação enviada.');return}
     if(!saveButton?.isConnected||routeFingerprint9534(routeCollect9534(r,draftId,createdAt))!==routeFingerprint9534(row)){routeStatus9534('O formulário mudou durante a conferência. Confira novamente.');return}
    }
    lastAttempt=clone(row);writeStarted=true;
