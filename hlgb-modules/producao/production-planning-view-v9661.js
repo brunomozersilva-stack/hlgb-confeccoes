@@ -29,6 +29,7 @@
   const filterGrid=el('div','',filters);filterGrid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px';
   const search=field('Buscar matéria-prima, pedido ou modelo',filterGrid,'search'),maxLayers=field('Limite de folhas para simulação (opcional)',filterGrid,'number');
   const select=(label,items)=>{const l=el('label',label,filterGrid);l.style.cssText='display:block;min-width:0';const s=el('select','',l);s.style.cssText='display:block;width:100%;max-width:100%;min-width:0';s.setAttribute('aria-label',label);for(const [v,t] of items){const o=el('option',t,s);o.value=v}return s};
+  const focusModel=select('Escolher corte / modelo',[['','Todos os candidatos']]);
   const material=select('Matéria-prima',[['','Todas']]),orderBy=select('Ordenar grupos',[['','Ordem original'],['pieces','Mais peças'],['pairs','Mais modelos/pedidos'],['colors','Mais cores em comum'],['name','Nome do material']]);
   const commonLabel=el('label','',filters),common=el('input','',commonLabel);common.type='checkbox';el('span',' Mostrar somente grupos com pelo menos uma cor de grade em comum',commonLabel);
   const flow=el('p','2. Selecionar modelos → 3. Comparar grades e enfestos → 4. Revisar a cesta e planejar compras',host);flow.style.cssText='font-weight:600;margin:12px 0';
@@ -63,7 +64,7 @@
    const d=api.materialDemand(v,data(),active());if(!active()){basketOut.replaceChildren();return}
    if(d.state!=='local-estimate'){el('p','Fichas técnicas indisponíveis para estimativa.',basketOut);return}
    el('h4','Necessidade bruta de materiais',basketOut);el('p',d.partial?'Estimativa parcial: existem fichas, unidades ou materiais a revisar.':'Estimativa de consumo e perdas das fichas técnicas locais; sem abatimento de estoque.',basketOut);
-   const materialList=el('details','',basketOut);materialList.open=true;el('summary',d.rows.length+' materiais/unidades/cores consolidados',materialList);
+   const materialList=el('details','',basketOut);materialList.open=false;el('summary',d.rows.length+' materiais/unidades/cores consolidados',materialList);
    for(const r of d.rows){const item=el('div','',materialList);el('strong',r.materialName+' · '+(r.color||'cor da ficha não informada')+' · '+fmt(r.needed)+' '+r.unit,item);const detail=el('details','',item);el('summary','Ver consumo por modelo',detail);for(const m of r.models)el('p',m.productName+' · '+fmt(m.needed)+' '+r.unit,detail)}
    if(d.issues.length){const detail=el('details','',basketOut);el('summary','Conferências necessárias ('+d.issues.length+')',detail);for(const m of d.models.filter(x=>x.issues.length))el('p',m.productName+' · '+m.issues.join(', '),detail)}
    if(purchaseAllowed()&&typeof root.hlgbWeeklyMaterialPlanner9583?.setSelection==='function')button('Enviar cesta para planejamento semanal de Compras',basketOut,transfer);
@@ -88,16 +89,16 @@
    const tbody=el('tbody','',table);for(const color of colors){const tr=el('tr','',tbody);el('th',color,tr);let total=0;for(const size of sizes){const v=grid.get(JSON.stringify([color,size]))||0;total+=v;el('td',fmt(v),tr)}el('td',fmt(total),tr)}
    const foot=el('tfoot','',table),tr=el('tr','',foot);el('th','Total',tr);let grand=0;for(const size of sizes){const v=colors.reduce((n,color)=>n+(grid.get(JSON.stringify([color,size]))||0),0);grand+=v;el('td',fmt(v),tr)}el('td',fmt(grand),tr);
   }
-  function drawGradeSuggestions(g,card){
-   const details=el('details','',card);details.open=true;el('summary','Sugestão automática de grade para encaixe',details);
+  function drawGradeSuggestions(g,card,open=false){
+   const details=el('details','',card);details.open=open;el('summary','Sugestão automática de grade para encaixe',details);
    const limit=maxLayers.value===''?null:Number(maxLayers.value);if(limit!==null&&(!Number.isSafeInteger(limit)||limit<1||limit>10000)){el('p','Informe um limite inteiro de 1 a 10.000 folhas.',details);return}
    for(const v of api.gradeSuggestions(g,limit)){
     const area=el('section','',details);el('h4',v.color+' · '+fmt(v.total)+' peças · '+fmt(v.layers)+' folhas (divisão matemática)',area);
     el('p',v.modelCount>=2?'Combinação de pedidos/modelos da mesma cor informada.':'Apenas um pedido/modelo nesta cor; não misturar cores sem conferir o tecido físico.',area);
     for(const r of v.base)el('p','Pedido #'+r.orderNumber+' · '+r.productName+' · '+r.size+' · '+r.perLayer+' por folha × '+v.layers+' = '+r.planned,area);
     if(v.alternative){const alt=el('details','',area);el('summary','Alternativa de '+v.alternative.layers+' folhas + grade restante',alt);for(const r of v.alternative.rows)el('p',r.productName+' · '+r.size+' · '+r.perLayer+' por folha · '+r.remainder+' restantes',alt)}
-    if(v.multiSpreads?.length){const alternatives=el('details','',area);alternatives.open=true;el('summary','Planos com múltiplos enfestos',alternatives);el('p','Ordenação matemática: mais peças em enfestos conjuntos, menor quantidade de peças por folha e menos enfestos. Não é ranking de economia de tecido. '+(limit===null?'Informe o limite real de folhas antes de utilizar.':''),alternatives);
-     for(const [i,p] of v.multiSpreads.entries()){const plan=el('details','',alternatives);plan.open=i===0;el('summary','Opção '+(i+1)+' · '+p.spreads.length+' enfestos · '+fmt(p.total)+' peças · '+fmt(p.remaining)+' restantes',plan);el('p',fmt(p.combinedPieces)+' peças em enfestos com dois ou mais pedidos/modelos · máximo '+fmt(p.peakPiecesPerLayer)+' peças por folha',plan);
+    if(v.multiSpreads?.length){const alternatives=el('details','',area);alternatives.open=false;el('summary','Planos com múltiplos enfestos',alternatives);el('p','Ordenação matemática: mais peças em enfestos conjuntos, menor quantidade de peças por folha e menos enfestos. Não é ranking de economia de tecido. '+(limit===null?'Informe o limite real de folhas antes de utilizar.':''),alternatives);
+     for(const [i,p] of v.multiSpreads.entries()){const plan=el('details','',alternatives);plan.open=false;el('summary','Opção '+(i+1)+' · '+p.spreads.length+' enfestos · '+fmt(p.total)+' peças · '+fmt(p.remaining)+' restantes',plan);el('p',fmt(p.combinedPieces)+' peças em enfestos com dois ou mais pedidos/modelos · máximo '+fmt(p.peakPiecesPerLayer)+' peças por folha',plan);
       for(const [j,s] of p.spreads.entries()){const spread=el('section','',plan);el('h5','Enfesto '+(j+1)+' · '+fmt(s.layers)+' folhas · '+fmt(s.pieces)+' peças',spread);for(const r of s.rows)el('p','Pedido #'+r.orderNumber+' · '+r.productName+' · '+r.size+' · '+r.perLayer+' por folha × '+s.layers+' = '+r.planned,spread)}
      }
     }
@@ -149,13 +150,23 @@
     for(const g of x.groups){const o=el('option',g.materialName,material);o.value=g.materialId}
     material.value=x.groups.some(g=>g.materialId===oldMaterial)?oldMaterial:'';material.__options9714=optionsSignature;
    }
+   const uniqueModels=new Map();
+   for(const g of x.groups)for(const m of g.models)if(!uniqueModels.has(m.key))uniqueModels.set(m.key,m);
+   const modelOptions=[...uniqueModels.values()].sort((a,b)=>a.productName.localeCompare(b.productName,'pt-BR')||a.orderNumber.localeCompare(b.orderNumber,'pt-BR',{numeric:true}));
+   const focusSignature=JSON.stringify(modelOptions.map(m=>[m.key,m.productName,m.orderNumber,m.pieces]));
+   if(focusModel.__signature9753!==focusSignature){
+    const old=focusModel.value;focusModel.replaceChildren();const all=el('option','Todos os candidatos',focusModel);all.value='';
+    for(const m of modelOptions){const o=el('option','Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' pç',focusModel);o.value=m.key}
+    focusModel.value=uniqueModels.has(old)?old:'';focusModel.__signature9753=focusSignature;
+   }
    const q=norm(search.value).replace(/#/g,'').trim(),tokens=q.split(/\s+/).filter(Boolean);
    const groups=x.groups.filter(g=>{
     const text=norm([g.materialName,...g.models.flatMap(m=>['Pedido '+m.orderNumber,m.productName])].join(' '));
-    return (!material.value||g.materialId===material.value)&&(!common.checked||!!byMaterial.get(g.materialId)?.sharedColors.length)&&tokens.every(t=>text.includes(t))
+    return (!focusModel.value||g.models.some(m=>m.key===focusModel.value))&&(!material.value||g.materialId===material.value)&&(!common.checked||!!byMaterial.get(g.materialId)?.sharedColors.length)&&tokens.every(t=>text.includes(t))
    });
    if(orderBy.value)groups.sort((a,b)=>{const x=byMaterial.get(a.materialId),y=byMaterial.get(b.materialId);return orderBy.value==='name'?a.materialName.localeCompare(b.materialName,'pt-BR'):orderBy.value==='colors'?(y?.sharedColors.length||0)-(x?.sharedColors.length||0):((y?.[orderBy.value]||0)-(x?.[orderBy.value]||0))||a.materialName.localeCompare(b.materialName,'pt-BR')});
    el('h3','2. Modelos candidatos por material',out);
+   if(focusModel.value)el('p','Exibindo materiais compartilhados pelo corte escolhido. Marque somente os modelos que deseja experimentar. A compatibilidade física ainda precisa ser conferida.',out);
    el('p',groups.length+' grupos de matéria-prima observados. Quantidades podem aparecer em mais de uma matéria-prima; a cesta elimina a duplicidade.',out);
    if(!groups.length)el('p','Nenhum grupo encontrado com os filtros atuais. Altere o material ou retire o filtro de cor em comum.',out);
    el('p',(x.plannedRows||0)+' registros planejados reconhecidos · '+(x.blockedActivityPairs||0)+' vínculos com atividade/estado a conferir.',out);
@@ -165,7 +176,7 @@
    for(const g of groups.slice(offset,offset+15)){
     const card=el('article','',out);card.className='panel';card.dataset.jointMaterial9714=g.materialId;card.style.cssText='min-width:0;max-width:100%;border:1px solid #ddd;border-radius:12px;padding:14px;box-sizing:border-box';el('h3',g.materialName+' · ID '+g.materialId,card);el('p',fmt(g.orderedPieces)+' peças pedidas em '+g.models.length+' modelos/pedidos candidatos.',card);const coverage=byMaterial.get(g.materialId);el('p',coverage?.sharedColors.length?'Cores de grade em comum: '+coverage.sharedColors.join(', '):'Não há cor de grade compartilhada por dois candidatos. Não comprova cor física do tecido.',card);
     const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
-    const compatible=api.gradeMatches9726(g,active()),matchPanel=el('details','',card);matchPanel.open=true;
+    const compatible=api.gradeMatches9726(g,active()),matchPanel=el('details','',card);matchPanel.open=false;
     el('summary','Grades proporcionais da mesma cor e material',matchPanel);
     el('p','Sugestões por proporção de tamanhos, não por encaixe físico. Selecionar adiciona os modelos completos (todas as cores) à cesta sem duplicar os pedidos.',matchPanel);
     if(compatible.state!=='local-observation')el('p','Grades precisam de conferência.',matchPanel);
@@ -191,7 +202,8 @@
      }matchOffset+=10;moreMatches.hidden=matchOffset>=compatible.matches.length};
      const moreMatches=button('Mais sugestões de grades proporcionais',matchPanel,appendMatches);appendMatches();
     }
-    drawGradeSuggestions(g,card);
+    const allPreview=el('details','',card);el('summary','Consultar sugestões de todos os modelos (opcional)',allPreview);
+    let allBuilt=false;allPreview.addEventListener('toggle',()=>{if(allPreview.open&&!allBuilt&&active()){allBuilt=true;drawGradeSuggestions(g,allPreview,true)}});
     const evidence=el('details','',card);el('summary','Histórico de pesagens e oportunidades de sobra',evidence);
     let loaded=false;evidence.addEventListener('toggle',()=>{if(!evidence.open||loaded||!active())return;
      const latest=fresh(),current=latest.groups?.find(z=>z.materialId===g.materialId);
@@ -200,7 +212,7 @@
      drawEvidence(g,card,history,materialHistory,evidence);loaded=true;
     });
     const update=(currentDiscovery,checked)=>{result.replaceChildren();if(!active())return;for(const [key,c] of boxes)c.checked=selected.has(key);const current=currentDiscovery.groups?.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}
-     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key);if(keys.some(key=>api.modelSignature(current.models.find(m=>m.key===key))!==selected.get(key)?.signature)||checked?.state!=='local-preview'){el('p','Seleção alterada ou ambígua. Limpe e selecione novamente.',result);return}const v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);combinedMatrix9714(v.combinedGrade,result);if(v.models.length){const preview=el('details','',result);el('summary','3. Simular enfestos somente dos modelos selecionados',preview);let built=false;preview.addEventListener('toggle',()=>{if(preview.open&&!built&&active()){built=true;drawGradeSuggestions({...current,models:v.models},preview)}})}el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
+     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key);if(!keys.length){el('p','Selecione os cortes acima para simular sua combinação.',result);return}if(keys.some(key=>api.modelSignature(current.models.find(m=>m.key===key))!==selected.get(key)?.signature)||checked?.state!=='local-preview'){el('p','Seleção alterada ou ambígua. Limpe e selecione novamente.',result);return}const v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);const matrix=el('details','',result);el('summary','Conferir grade combinada por cor e tamanho',matrix);combinedMatrix9714(v.combinedGrade,matrix);if(v.models.length){const preview=el('details','',result);el('summary','3. Simular enfestos somente dos modelos selecionados',preview);let built=false;preview.addEventListener('toggle',()=>{if(preview.open&&!built&&active()){built=true;drawGradeSuggestions({...current,models:v.models},preview,true)}})}el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
     function append(){for(const m of g.models.slice(shown,shown+50)){const label=el('label','',controls);label.style.cssText='display:flex;align-items:center;gap:8px;min-width:0;padding:8px;border-bottom:1px solid #ddd;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=selected.has(m.key);boxes.set(m.key,c);el('span',' Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' peças',label);c.onchange=()=>{if(!active())return;if(c.checked){if(selected.size>=1000&&!selected.has(m.key)){c.checked=false;return}if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key);sync()}}shown+=50;more.hidden=shown>=g.models.length}
     const more=button('Mais modelos deste grupo',card,append);append();button('Selecionar todos deste grupo',card,()=>addGroup(g,true));button('Limpar seleção',card,()=>addGroup(g,false));visible.push(update);
    }
@@ -209,7 +221,7 @@
    let shownCatalog=0;const list=el('div','',catalog);function moreCatalog(){for(const g of cg.slice(shownCatalog,shownCatalog+15)){const group=el('details','',list);el('summary',g.materialName+' · '+g.products.length+' modelos',group);for(const p of g.products)el('p',p.productName,group)}shownCatalog+=15;moreCatalogButton.hidden=shownCatalog>=cg.length}const moreCatalogButton=button('Mais grupos do catálogo',catalog,moreCatalog);moreCatalog();
    if(offset>0)button('Grupos anteriores',out,()=>{offset=Math.max(0,offset-15);draw()});if(offset+15<groups.length)button('Mais grupos',out,()=>{offset+=15;draw()});sync(x)
   }
-  button('Limpar toda a cesta',basket,clearAll);button('Consultar / atualizar grupos',host,()=>{offset=0;draw()});search.addEventListener('input',()=>{offset=0;draw()});maxLayers.addEventListener('change',()=>{offset=0;draw()});for(const input of [material,orderBy,common])input.addEventListener('change',()=>{offset=0;draw()});draw()
+  button('Limpar toda a cesta',basket,clearAll);button('Consultar / atualizar grupos',host,()=>{offset=0;draw()});search.addEventListener('input',()=>{offset=0;draw()});maxLayers.addEventListener('change',()=>{offset=0;draw()});for(const input of [focusModel,material,orderBy,common])input.addEventListener('change',()=>{offset=0;draw()});draw()
  }
  function mountRemnants(){
   const context=hostFor('produtos','hlgbRemnant9661',remAllowed);if(!context)return;const {host,active}=context,api=root.HLGBProductionPlanning9661;
