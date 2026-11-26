@@ -357,7 +357,7 @@ function destinationSelectorEvidence9713(){
 }
 function jointWorkspaceEvidence9714(){
  try{if(!authReady())return {observed:false};const x=window.hlgbJointWorkspaceEvidence9714;if(x?.observed!==true)return {observed:false};const count=v=>Number.isSafeInteger(v)&&v>=0?v:null;
- return {observed:true,materials:count(x.materials),pairs:count(x.pairs),products:count(x.products),orders:count(x.orders),ambiguous:count(x.ambiguous),at:sid(x.at||''),remoteConfirmed:false,geometryVerified:false};
+ return {observed:true,materials:count(x.materials),pairs:count(x.pairs),products:count(x.products),orders:count(x.orders),ambiguous:count(x.ambiguous),adjustedRows:count(x.adjustedRows),duplicatePlannedPairs:count(x.duplicatePlannedPairs),blockedActivityPairs:count(x.blockedActivityPairs),at:sid(x.at||''),remoteConfirmed:false,geometryVerified:false};
  }catch(_){return {observed:false}}
 }
 // Read-only finance/projection evidence: never infer deletion from an empty result.

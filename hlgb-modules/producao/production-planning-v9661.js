@@ -62,6 +62,34 @@
    return {color,layers,commonFactor:factor,total,modelCount,base,alternative:alternative&&alternative.rows.some(x=>x.perLayer>0)?alternative:null,multiSpreads:factor===1||maxLayers!==null&&factor%maxLayers!==0?multiSpreadPlans(rows,maxLayers):[],geometryVerified:false,canWrite:false}
   }).filter(Boolean).sort((a,b)=>b.modelCount-a.modelCount||b.total-a.total||a.color.localeCompare(b.color,'pt-BR'));
  }
+ // Equal proportional grades by exact colour and size labels. Only arithmetic, not a marker.
+ function gradeMatches9726(group,allowed){
+  const empty=state=>({state,matches:[],geometryVerified:false,canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!id(group?.materialId)||!Array.isArray(group.models)||group.models.length>1000)return empty('unavailable');
+  const seen=new Set(),buckets=new Map(),gcd=(a,b)=>{while(b){const r=a%b;a=b;b=r}return a};
+  for(const m of group.models){
+   if(!m?.key||m.key!==pair(m.orderId,m.productId)||seen.has(m.key)||!Array.isArray(m.grade)||!m.grade.length||m.grade.length>2000||!Number.isSafeInteger(m.pieces)||m.pieces<=0)return empty('unavailable');
+   seen.add(m.key);const colors=new Map();let total=0;
+   for(const row of m.grade){
+    if(!id(row.color)||!id(row.size)||!Number.isSafeInteger(row.qty)||row.qty<=0||row.qty>10000000)return empty('unavailable');
+    const bySize=colors.get(row.color)||new Map();if(bySize.has(row.size))return empty('unavailable');bySize.set(row.size,row.qty);colors.set(row.color,bySize);total+=row.qty;
+   }
+   if(!Number.isSafeInteger(total)||total!==m.pieces)return empty('unavailable');
+   for(const [color,sizes] of colors){
+    const rows=[...sizes].sort(([a],[b])=>a.localeCompare(b,'pt-BR')|| (a<b?-1:a>b?1:0)),factor=rows.reduce((a,[,q])=>gcd(a,q),0);
+    const ratio=rows.map(([size,q])=>({size,perBlock:q/factor})),key=JSON.stringify([color,ratio]),bucket=buckets.get(key)||{color,ratio,models:[]};
+    bucket.models.push({key:m.key,orderNumber:m.orderNumber,productName:m.productName,productId:m.productId,blocks:factor,colorPieces:rows.reduce((n,[,q])=>n+q,0)});buckets.set(key,bucket);
+   }
+  }
+  const matches=[...buckets.values()].filter(x=>x.models.length>=2).map(x=>{
+   const colorPieces=x.models.reduce((n,m)=>n+m.colorPieces,0),commonFactor=x.models.reduce((a,m)=>gcd(a,m.blocks),0);
+   return {...x,colorPieces,commonFactor,distinctProducts:new Set(x.models.map(m=>m.productId)).size};
+  });
+  if(matches.some(x=>!Number.isSafeInteger(x.colorPieces)))return empty('unavailable');
+  matches.sort((a,b)=>b.distinctProducts-a.distinctProducts||b.models.length-a.models.length||b.commonFactor-a.commonFactor||b.colorPieces-a.colorPieces||a.color.localeCompare(b.color,'pt-BR'));
+  return {...empty('local-observation'),matches};
+ }
  // Unique demand across materials; per-group counts are not additive.
  function workspaceOverview9714(discovery,allowed){
   const empty=state=>({state,groups:[],materials:0,pairs:null,products:null,orders:null,pieces:null,ambiguous:0,canWrite:false,geometryVerified:false});
@@ -312,5 +340,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,workspaceOverview9714,gradeSuggestions,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
