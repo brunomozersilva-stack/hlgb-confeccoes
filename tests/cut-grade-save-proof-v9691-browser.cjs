@@ -30,7 +30,15 @@ assert(begin>=0&&end>begin);
    window.closeModal=()=>document.getElementById('modal').classList.remove('show');window.localSaveOnly=()=>{};window.isFinal9191=()=>false;window.renderCuts=window.renderDailyCuts=window.renderCutters=window.renderProduction=()=>{};
   });
   await page.addScriptTag({content:html.slice(begin,end)});
-  await page.evaluate(()=>window.hlgbAdjustCutGrade9191('c'));
+  await page.evaluate(()=>{
+   const section=document.createElement('section');section.id='corte';section.className='page active';
+   section.innerHTML='<div class="panel"><div id="cutTable"><table><tbody><tr><th>Pedido</th><th>Ações</th></tr><tr><td>Pedido o</td><td><button onclick="hlgbEditCut9189(\'c\')">Editar</button></td></tr></tbody></table></div></div>';
+   document.body.appendChild(section);
+  });
+  await page.addScriptTag({path:'release-cut-organization.js'});
+  await page.evaluate(()=>window.hlgbCutOrganization.apply());
+  const gradeButton=page.locator('#cutTable').getByRole('button',{name:'Ajustar grade',exact:true});assert.equal(await gradeButton.count(),1);
+  await gradeButton.click();
   const real=[20,60,40,20,10,30,20,10,3,9,6,3,2,6,4,2,6,18,12,6,10,30,20,10];
   for(let i=0;i<real.length;i++)await page.locator('#adj9191_'+i).fill(String(real[i]));
   await page.locator('#adjNote9191').fill('Faltou material');
