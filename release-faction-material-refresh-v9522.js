@@ -65,11 +65,11 @@ function rollDetails(master,need){
  if(!conv||!Number.isFinite(conv))return {rolls:null,rollConversion:0,rollLabel:''};
  return {rolls:Math.ceil(need/conv-1e-9),rollConversion:conv,rollLabel:'rolo'};
 }
-function buildMaterials(productRow,pieces,destinationType='F',checklist=null){
+function buildMaterials(productRow,pieces,destinationType='F',checklist=null,exactGrade=null){
  if(!productRow||!Array.isArray(productRow.materials))return null;
  const amount=Number(pieces);
  if(!Number.isInteger(amount)||amount<=0)throw new Error('Quantidade de peças inválida para o envio.');
- const grade=gradeRowsForChecklist({...checklist,productId:checklist?.productId||productRow.id},amount);
+ const grade=exactGrade===null?gradeRowsForChecklist({...checklist,productId:checklist?.productId||productRow.id},amount):exactGrade;
  const byColor=new Map();
  for(const row of grade){const color=row.color||'Total';byColor.set(color,(byColor.get(color)||0)+Number(row.qty))}
  if([...byColor.values()].reduce((sum,n)=>sum+n,0)!==amount)
@@ -289,7 +289,86 @@ function openGroup9734(){
  print.onclick=()=>{if(!valid())return;const result=groupPlan9734([...selected]);if(!result.ok){draw();return}const w=window.open('','_blank');if(!w)return alert('Permita pop-ups para imprimir.');w.document.write('<!doctype html><meta charset="utf-8"><title>Separação em grupo — Facções</title><style>body{font:14px Arial;margin:24px}table{border-collapse:collapse;width:100%}th,td{padding:5px;border:1px solid #aaa;text-align:left}details{margin:10px 0}</style><h1>HLGB — Separação em grupo</h1>'+groupReport9734(result).replace(/<details>/g,'<details open>')+'<p>Planejamento somente leitura · conferir fisicamente cada envio.</p>');w.document.close();w.print()};
  draw();
 }
+// Separate demand preview for orders/cuts; no physical-stock or outstanding-balance claim.
+function orderCutCandidates9760(){
+ const live=x=>x&&!x.deletedAt&&!x.deleted_at&&!x.deleted&&!x._deleted&&!/cancelad|excluid/.test(norm(x.status));
+ const orders=rows('orders').filter(live),cuts=rows('cuts').filter(live),products=rows('products').filter(live),production=rows('production').filter(live);
+ let proof;try{proof=window.hlgbWriteoffIntegrity9391?.pairIndex?.()}catch(_){}
+ if(!proof||typeof proof.has!=='function')return [];
+ const out=[];
+ for(const o of orders){
+  const oid=sid(o.id);if(!oid||orders.filter(x=>sid(x.id)===oid).length!==1||o.invoiceReady||o.noteReady||o.workflowSourceOrderId||/entregue|pedido finalizado|nota emitida|cancelad/.test(norm(o.status)))continue;
+  const grouped=new Map();let bad=false;
+  for(const g of Array.isArray(o.grade)?o.grade:[]){const pid=sid(g?.productId);if(!pid||!sid(g.color)||!sid(g.size)||!Number.isSafeInteger(Number(g.qty))||g.qty==null||Number(g.qty)<0){bad=true;break}if(!Number(g.qty))continue;if(!grouped.has(pid))grouped.set(pid,[]);grouped.get(pid).push({productId:pid,color:sid(g.color),size:sid(g.size),qty:Number(g.qty)})}
+  if(bad)continue;
+  for(const [pid,grade] of grouped){
+   const key=JSON.stringify([oid,pid]),matches=products.filter(p=>sid(p.id)===pid&&p.active!==false);
+   if(matches.length!==1||proof.has(oid+'|'+pid)||proof.has(oid+'|*'))continue;
+   const existing=cuts.filter(c=>sid(c.orderId)===oid&&!c.modelSplitParentV1&&!c.hiddenByModelSplitV1&&(!sid(c.productId)||sid(c.productId)===pid));
+   const activity=production.some(c=>sid(c.orderId)===oid&&(!sid(c.productId)||sid(c.productId)===pid))||rows(M).some(c=>live(c)&&sid(c.orderId)===oid&&(!sid(c.productId)||sid(c.productId)===pid));
+   let source='Pedido',g=grade,review='';
+   if(activity)review='Já há produção/envio vinculado. Use a calculadora de Facções para não somar a etapa duas vezes.';
+   else if(existing.length>1||existing.some(c=>!sid(c.productId)||!sid(c.id)||cuts.filter(x=>sid(x.id)===sid(c.id)).length!==1))review='Cortes concorrentes ou sem modelo identificado.';
+   else if(existing.length===1){
+    const c=existing[0];source='Corte '+sid(c.id);
+    const final=/^finalizado$|^cortado$|^concluido$/.test(norm(c.status));
+    const raw=final?c.actualCutGrade:(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:c.originalGrade);
+    if(!Array.isArray(raw)||!raw.length)review='Grade do corte não comprovada.';
+    else {g=raw.map(z=>({productId:sid(z.productId||z.product_id),color:sid(z.color),size:sid(z.size),qty:Number(z.qty)}));if(g.some((z,i)=>z.productId!==pid||!z.color||!z.size||raw[i].qty==null||!Number.isSafeInteger(z.qty)||z.qty<0)||g.reduce((n,z)=>n+z.qty,0)!==Number(c.pieces))review='Grade e quantidade do corte divergentes.'}
+    source+=final?' — grade realizada':' — grade planejada';
+   }
+   const seen=new Set();for(const z of g){const k=JSON.stringify([norm(z.color),norm(z.size)]);if(seen.has(k))review='Grade duplicada.';seen.add(k)}
+   const pieces=g.reduce((n,z)=>n+z.qty,0);if(!Number.isSafeInteger(pieces)||pieces<=0)review='Quantidade inválida.';
+   out.push({key,orderId:oid,orderNumber:sid(o.orderNumber||o.number||oid),productId:pid,product:sid(matches[0].name),client:sid(o.client),source,pieces,grade:g,review});
+  }
+ }
+ return out;
+}
+function orderCutPlan9760(keys){
+ const candidates=orderCutCandidates9760(),issues=[],models=[],totals=new Map();
+ if(!Array.isArray(keys)||new Set(keys).size!==keys.length||keys.length>1000)return {ok:false,selected:0,pieces:0,models,totals:[],issues:[{reason:'Seleção inválida.'}]};
+ for(const key of keys){
+  const found=candidates.filter(c=>c.key===key),c=found[0];
+  if(found.length!==1||c.review){issues.push({id:key,reason:c?.review||'Modelo não identificado.'});continue}
+  const p=rows('products').find(p=>sid(p.id)===c.productId);
+  let items;try{
+   if(!Array.isArray(p?.materials)||p.materials.some(m=>!sid(m.materialId)||rows('materials').filter(x=>sid(x.id)===sid(m.materialId)&&!x.deleted_at&&!x.deletedAt&&!x.deleted&&!x._deleted).length!==1))throw Error('Ficha ou material sem identidade única.');
+   items=buildMaterials(p,c.pieces,'F',null,c.grade.filter(g=>g.qty>0)).filter(m=>sewingMaterial9734(m)&&m.qty>0);
+   if(items.some(m=>!sid(m.cat)||!sid(m.unit)||!Number.isFinite(m.qty)))throw Error('Material sem categoria/unidade válida.');
+  }catch(e){issues.push({id:key,reason:sid(e.message)});continue}
+  models.push({...c,items,id:key,destination:c.source});
+  for(const m of items){const k=JSON.stringify([sid(m.materialId),norm(m.unit),norm(m.color)]),conv=Number(m.rollConversion)||0,r=totals.get(k)||{materialId:sid(m.materialId),name:m.name,unit:m.unit,color:m.color||'',qty:0,rollConversion:conv,rolls:null};
+   if(r.rollConversion!==conv)issues.push({id:key,reason:'Conversão divergente: '+m.name});
+   r.qty=Number((r.qty+m.qty).toFixed(6));r.rolls=conv>0?Math.ceil(r.qty/conv-1e-9):null;totals.set(k,r);
+  }
+ }
+ return {ok:keys.length>0&&!issues.length,selected:keys.length,pieces:models.reduce((n,m)=>n+m.pieces,0),models,issues,totals:[...totals.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.color.localeCompare(b.color,'pt-BR'))};
+}
+function orderCutAccess9760(){try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&['pedidos','corte','produtos','materiais'].every(p=>canOpenPage(p))}catch(_){return false}}
+function openOrderCut9760(){
+ const actor=groupActor9734();if(!actor||!orderCutAccess9760()||typeof openModal!=='function')return;
+ openModal('Calculadora de aviamentos — Pedidos e Corte','<p>Selecione os modelos. Cada pedido/modelo entra uma vez. Usa a grade do corte quando identificada, senão a do pedido. Estimativa de consumo da ficha atual, não saldo físico.</p><input type="search" id="oc9760-search" placeholder="Buscar modelo, pedido ou cliente"><div id="oc9760-list" style="max-height:260px;overflow:auto"></div><button type="button" class="secondary" id="oc9760-all">Selecionar visíveis</button><button type="button" class="secondary" id="oc9760-clear">Limpar</button><div id="oc9760-output"></div><button type="button" class="secondary" id="oc9760-print" disabled>Imprimir resumo</button> <button type="button" class="secondary modalSave">Fechar</button>',()=>window.closeModal?.());
+ const root=document.getElementById('modalContent'),search=root?.querySelector('#oc9760-search');if(!search)return;
+ const list=root.querySelector('#oc9760-list'),output=root.querySelector('#oc9760-output'),print=root.querySelector('#oc9760-print'),selected=new Set();
+ const valid=()=>root.isConnected&&orderCutAccess9760()&&groupActor9734()===actor;
+ const visible=()=>orderCutCandidates9760().filter(c=>norm([c.product,c.orderNumber,c.client,c.source].join(' ')).includes(norm(search.value)));
+ const report=r=>!r.ok?r.issues.map(x=>'<p>'+esc(x.reason)+'</p>').join('')||'<p>Selecione modelos.</p>':'<h3>'+r.models.length+' modelos/pedidos · '+fmt(r.pieces)+' peças</h3>'+groupTable9734(r.totals)+'<p>Rolos arredondados após somar por cor/unidade. Não inclui tecidos, rendas, malhas, tule ou forros.</p>'+r.models.map(m=>'<details><summary>'+esc(m.product)+' · Pedido '+esc(m.orderNumber)+' · '+esc(m.source)+' · '+fmt(m.pieces)+' pç</summary>'+groupTable9734(m.items)+'</details>').join('');
+ const draw=()=>{if(!valid())return;list.innerHTML=visible().map(c=>'<label style="display:block;padding:6px;border-bottom:1px solid #ddd"><input type="checkbox" value="'+esc(c.key)+'" '+(selected.has(c.key)?'checked ':'')+(c.review?'disabled ':'')+'> '+esc(c.product)+' · Pedido '+esc(c.orderNumber)+' · '+esc(c.source)+' · '+fmt(c.pieces)+' pç'+(c.review?' · '+esc(c.review):'')+'</label>').join('')||'<p>Nenhum modelo encontrado com fontes disponíveis.</p>';const r=orderCutPlan9760([...selected]);output.innerHTML=report(r);print.disabled=!r.ok};
+ search.oninput=draw;list.onchange=e=>{if(e.target?.type!=='checkbox')return;if(e.target.checked)selected.add(e.target.value);else selected.delete(e.target.value);draw()};
+ root.querySelector('#oc9760-all').onclick=()=>{for(const c of visible())if(!c.review)selected.add(c.key);draw()};
+ root.querySelector('#oc9760-clear').onclick=()=>{selected.clear();draw()};
+ print.onclick=()=>{if(!valid())return;const r=orderCutPlan9760([...selected]);if(!r.ok){draw();return}const html='<!doctype html><meta charset="utf-8"><style>body{font:12px Arial;margin:18px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #aaa;padding:4px}details{break-inside:avoid}</style><h1>HLGB — Aviamentos de Pedidos e Corte</h1>'+report(r).replace(/<details>/g,'<details open>');if(typeof window.hlgbCutterSheetV9523?.previewOnPage9523==='function')window.hlgbCutterSheetV9523.previewOnPage9523(html);else alert('Prévia de impressão indisponível. Atualize a página.')};
+ draw();
+}
+function ensureOrderCut9760(){
+ for(const page of ['pedidos','corte']){
+  const host=document.getElementById(page),old=document.getElementById('hlgbOrderCutMaterials9760-'+page);
+  if(!orderCutAccess9760()||!groupActor9734()){old?.remove();continue}
+  if(old||!host)continue;const b=document.createElement('button');b.type='button';b.id='hlgbOrderCutMaterials9760-'+page;b.className='secondary';b.textContent='Calculadora de aviamentos — Pedidos e Corte';b.onclick=openOrderCut9760;host.insertBefore(b,host.firstChild);
+ }
+}
 function ensureGroupButton9734(){
+ ensureOrderCut9760();
  const panel=document.getElementById('factionChecklistPanel9176'),toolbar=panel?.querySelector?.('.toolbar'),old=document.getElementById('hlgbGroupButton9734');
  // The commercial HTML owns the permanent entry. Never delete it at boot or logout.
  if(old){old.onclick=openGroup9734;return}
@@ -583,11 +662,11 @@ function install(){
  // Atualiza o aviso ao voltar à aba dos envios após editar fichas ou sincronizar outra sessão.
  try{window.addEventListener('focus',()=>setTimeout(ensurePanel,120))}catch(e){}
  try{document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(ensurePanel,120)})}catch(e){}
- try{window.addEventListener('hlgb:logout',()=>{const b=document.getElementById('hlgbGroupButton9734');if(b?.dataset.hlgbGroupFallback9738==='1')b.remove();document.getElementById('hlgbGroupMaterials9734')?.replaceChildren()});window.addEventListener('hlgb:authenticated',()=>setTimeout(ensureGroupButton9734,0))}catch(_){}
+ try{window.addEventListener('hlgb:logout',()=>{const b=document.getElementById('hlgbGroupButton9734');if(b?.dataset.hlgbGroupFallback9738==='1')b.remove();document.getElementById('hlgbGroupMaterials9734')?.replaceChildren();for(const p of ['pedidos','corte'])document.getElementById('hlgbOrderCutMaterials9760-'+p)?.remove()});window.addEventListener('hlgb:authenticated',()=>setTimeout(ensureGroupButton9734,0))}catch(_){}
  state.installed=true;setTimeout(ensurePanel,100);
 }
 window.hlgbFactionMaterialRefresh9522={version:V,state,install,analyze,buildMaterials,compare,openReview,reloadAndSave,ensurePanel,
- groupPlan:groupPlan9734,groupCandidates:groupCandidates9734,openGroup:openGroup9734,test:{materialKey,isRelevantPending,comparisonRows,comparisonTable,gradeRowsForChecklist,rollDetails,assignmentMaterials9730,sewingMaterial9734}};
+ orderCutCandidates9760,orderCutPlan9760,openOrderCut9760,groupPlan:groupPlan9734,groupCandidates:groupCandidates9734,openGroup:openGroup9734,test:{materialKey,isRelevantPending,comparisonRows,comparisonTable,gradeRowsForChecklist,rollDetails,assignmentMaterials9730,sewingMaterial9734}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 try{window.hlgbAfterLogin?.(()=>setTimeout(()=>{install();ensureGroupButton9734()},200),0)}catch(e){}
 setTimeout(install,1500);
