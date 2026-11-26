@@ -140,7 +140,7 @@ function gradeMini(c,o,ambiguous){
  const rows=colors.map(color=>'<tr><td>'+escSafe(color)+'</td>'+sizes.map(sz=>'<td>'+q(grade.filter(g=>String(g.color||'-')===String(color)&&String(g.size||'')===String(sz)).reduce((a,g)=>a+q(g.qty),0))+'</td>').join('')+'</tr>').join('');
  const print=typeof printCuttingSheet==='function'?'<button type="button" class="secondary" onclick="printCuttingSheet(\''+escSafe(o.id)+'\',\''+escSafe(c.id)+'\')">Imprimir ficha</button>':'';
  const edit=done?'':'<button type="button" class="secondary hlgbAdjustSplitGradeBtn" '+(ambiguous?'disabled title="Corte duplicado: conferência necessária" ':'')+'onclick="hlgbOpenSplitGradeAdjust(\''+escSafe(c.id)+'\')">Ajustar grade</button>';
- return '<details data-hlgb-grade-group9711="1" style="margin-top:6px;min-width:0"><summary>📐 Grade'+(done?' cortada':' do modelo')+'</summary>'+
+ return '<details data-hlgb-grade-group9711="1" style="margin-top:6px;min-width:0"><summary>'+(done?'📐 Ver grade realmente cortada':'📐 Grade do modelo')+'</summary>'+
  (sizes.length?'<div style="overflow:auto"><table><thead><tr><th>Cor</th>'+sizes.map(sz=>'<th>'+escSafe(sz)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="sub">Grade não disponível para conferência.</div>')+
  '<div class="toolbar">'+print+edit+'</div></details>';
 }
