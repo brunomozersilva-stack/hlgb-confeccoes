@@ -3,6 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
  vm=require('node:vm'),path=require('node:path');
 const ROOT=path.join(__dirname,'..');
 const source=fs.readFileSync(path.join(ROOT,'release-faction-payee-settlement-v95104.js'),'utf8');
+const guard=fs.readFileSync(path.join(ROOT,'release-faction-payments.js'),'utf8');
 const consolidate=require('../release-faction-acerto-consolidated-v95102.js').consolidate;
 const clone=x=>JSON.parse(JSON.stringify(x));
 const ID='1794935162875130',FID='1793731913460',VAN='1788439866181',ROS='1788439191914';
@@ -26,6 +27,7 @@ function fixture(opts={}){
  const cloud={
   factionPayments:new Map([[ID,{module:'factionPayments',entity_id:ID,
      data:clone(original),revision:3,deleted_at:null}]]),
+  factions:new Map([[FID,{module:'factions',entity_id:FID,data:clone(db.factions[0]),revision:1,deleted_at:null}]]),
   factionMasters:new Map(masters.map(m=>[String(m.id),{module:'factionMasters',
     entity_id:String(m.id),data:clone(m),revision:1,deleted_at:null}]))
  };
@@ -35,6 +37,7 @@ function fixture(opts={}){
   cloudRequest:async(url)=>{
    reads.push(url);
    if(url.includes('module=eq.hubFinanceEntries'))return clone(hub);
+   if(url.includes('data->>factionServiceId=eq.'))return clone([...cloud.factionPayments.values()].filter(x=>String(x.data.factionServiceId)===FID));
    const mod=url.match(/module=eq\.([^&]+)/)?.[1],id=url.match(/entity_id=eq\.([^&]+)/)?.[1];
    return cloud[mod]?.has(id)?[clone(cloud[mod].get(id))]:[];
   },
@@ -70,11 +73,11 @@ function fixture(opts={}){
   return request;
  }};
  const document={addEventListener(){},getElementById:()=>null};
- const context={window,localStorage,indexedDB,document,navigator:{onLine:true},
+ const context={window,db,localStorage,indexedDB,document,navigator:{onLine:true},
   setTimeout:fn=>{Promise.resolve().then(fn);return 1},console,alert:()=>{},
   Error,Number,Object,Array,Map,Promise,encodeURIComponent,Date,JSON};
  vm.createContext(context);
- vm.runInContext(source,context);
+ vm.runInContext(guard,context);vm.runInContext(source,context);
  return {api:window.hlgbFactionPayeeSettlement95104,window,db,cloud,writes,reads,log};
 }
 test('Robe Gabrielle 159 peças R$492,90: Vanessa -> Roseli, com origem e entrega preservadas',async()=>{
@@ -160,4 +163,20 @@ test('Proteção do sync legado e ações visíveis no acerto mantidas no carreg
  assert.match(acerto,/data-manual-payee104-group/);
  assert.match(manual,/payeeTransferHistoryV95104/);
  assert.match(manual,/Para trocar a facção do acerto avulso/);
+});
+
+test('Já pago: bloqueia duplicidade encontrada somente na nuvem e saldo alterado',async()=>{
+ const f=fixture(),before=JSON.stringify(f.db);
+ const row=clone(f.cloud.factionPayments.get(ID));row.entity_id='extra';row.data.id='extra';row.data.quantity=1;row.data.status='Pendente';
+ f.cloud.factionPayments.set('extra',row);
+ await assert.rejects(()=>f.api.markPreviouslyPaid(ID,'2026-11-14','PIX','Pagamento anterior comprovado'),/duplicado na nuvem/);
+ assert.equal(f.writes.length,0);assert.equal(JSON.stringify(f.db),before);
+ f.cloud.factionPayments.delete('extra');f.cloud.factions.get(FID).data.done=158;
+ await assert.rejects(()=>f.api.markPreviouslyPaid(ID,'2026-11-14','PIX','Pagamento anterior comprovado'),/mudou na nuvem/);
+ assert.equal(f.writes.length,0);
+});
+test('Já pago: não contorna a prova de entrega quando a proteção está ausente',async()=>{
+ const f=fixture();delete f.window.hlgbFactionPaymentOverAccounted;
+ await assert.rejects(()=>f.api.markPreviouslyPaid(ID,'2026-11-14','PIX','Pagamento anterior comprovado'),/Proteção de entrega indisponível/);
+ assert.equal(f.writes.length,0);
 });

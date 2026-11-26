@@ -6,11 +6,11 @@ function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
 function faction(id){return arr('factions').find(f=>sid(f?.id)===sid(id))||null}
 function payment(id){return arr('factionPayments').find(p=>sid(p?.id)===sid(id))||null}
 function perDelivery(f){return !!(f&&f.paymentByDeliveryV9135===true)}
-function activePayments(fid){return arr('factionPayments').filter(p=>p&&sid(fid)&&sid(p.factionServiceId)===sid(fid)&&!p.manualCanceledV9590&&!['cancelado','cancelada'].includes(norm(p.status)))}
+function activePayments(fid,input=arr('factionPayments')){return input.filter(p=>p&&sid(fid)&&sid(p.factionServiceId)===sid(fid)&&!p.manualCanceledV9590&&!['cancelado','cancelada'].includes(norm(p.status)))}
 function deliveryPayment9737(p){return !p.manual&&(!p.serviceModeV9577||p.serviceModeV9577==='faccao')&&(/^(faction_delivery)(_|$)/.test(norm(p.source))||!!sid(p.deliveryId).trim())}
-function overAccounted(f){
+function overAccounted(f,input=arr('factionPayments')){
   if(!f)return null;
-  const all=activePayments(f.id),explicit=all.some(deliveryPayment9737),byDelivery=perDelivery(f)||explicit;
+  const all=activePayments(f.id,input),explicit=all.some(deliveryPayment9737),byDelivery=perDelivery(f)||explicit;
   const ps=byDelivery?all.filter(p=>!p.manual&&(!p.serviceModeV9577||p.serviceModeV9577==='faccao')):all;
   const sum=ps.reduce((s,p)=>s+q(p.quantity),0),limit=byDelivery?q(f.done):Math.max(q(f.sent),q(f.done));
   const keys=new Set(),duplicates=new Set();for(const p of ps){const id=sid(p.deliveryId).trim();if(!id)continue;if(keys.has(id))duplicates.add(id);keys.add(id)}
@@ -18,6 +18,7 @@ function overAccounted(f){
   const reason=byDelivery&&duplicates.size?'duplicate-delivery':invalid?'invalid-quantity':(byDelivery?sum>limit:ps.length>1&&sum>limit)?'excess-quantity':'';
   return reason?{payments:ps,sum,limit,sent:q(f.sent),done:q(f.done),excess:Math.max(0,sum-limit),reason,duplicateDeliveryIds:[...duplicates],byDelivery}:null;
 }
+function usesDelivery9739(f){return perDelivery(f)||activePayments(f?.id).some(deliveryPayment9737)}
 function badReason9737(b){return b.reason==='duplicate-delivery'?'A mesma entrega aparece em mais de um pagamento.':b.reason==='invalid-quantity'?'Quantidade entregue ou contabilizada inválida.':'Quantidade em pagamentos superior ao '+(b.byDelivery?'total efetivamente entregue.':'limite do envio.');}
 function weekKey(p){
   // A baixa agrupada usa a semana explicitamente escolhida antes da data.
@@ -36,7 +37,7 @@ function badGroup(key){
 const oldSync=window.syncFactionPayments;
 if(typeof oldSync==='function'&&!oldSync.__hlgbPaymentDeliveryGuard){
   const guarded=function(){
-    const protectedRows=arr('factions').filter(perDelivery),flags=protectedRows.map(f=>[f,f.paymentSeparated]);
+    const protectedRows=arr('factions').filter(usesDelivery9739),flags=protectedRows.map(f=>[f,f.paymentSeparated]);
     protectedRows.forEach(f=>{f.paymentSeparated=false});
     try{return oldSync.apply(this,arguments)}finally{flags.forEach(([f,v])=>{f.paymentSeparated=v})}
   };
@@ -47,7 +48,7 @@ if(typeof oldSync==='function'&&!oldSync.__hlgbPaymentDeliveryGuard){
 const oldSeparate=window.separateFactionForPayment;
 window.separateFactionForPayment=function(id){
   const f=faction(id);
-  if(perDelivery(f)){
+  if(usesDelivery9739(f)){
     alert('Esta facção usa pagamento por entrega. Os pagamentos já são criados quando cada entrega é registrada; não use a separação antiga.');
     return false;
   }
