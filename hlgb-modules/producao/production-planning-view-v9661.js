@@ -12,15 +12,28 @@
  const fmt=x=>x==null?'Não confirmado':Number(x).toLocaleString('pt-BR',{maximumFractionDigits:3});
  const cutAllowed=()=>['corte','pedidos','produtos','materiais','producao'].every(can);
  const remAllowed=()=>can('produtos')&&can('materiais');
- function clear(){for(const x of document.querySelectorAll('[data-planning9661]'))x.remove()}
+ function clear(){root.hlgbJointWorkspaceEvidence9714={observed:false};for(const x of document.querySelectorAll('[data-planning9661]'))x.remove()}
  function hostFor(page,id,allowed){const area=document.getElementById(page),old=document.getElementById(id),actor=user();if(!allowed()||!actor||!area?.classList.contains('active')){old?.remove();return null}if(old&&old.dataset.planningActor!==actor)old.remove();else if(old)return null;if(!root.HLGBProductionPlanning9661)return null;const host=el('section','',area);host.id=id;host.className='panel';host.dataset.planning9661='1';host.dataset.planningActor=actor;return {host,active:()=>host.isConnected&&allowed()&&area.classList.contains('active')&&user()===actor}}
 
  function mountCut(){
   const context=hostFor('corte','hlgbJointCut9661',cutAllowed);if(!context)return;const {host,active}=context,api=root.HLGBProductionPlanning9661;
-  el('h2','Corte Conjunto — planejamento por matéria-prima',host);el('p','Agrupamento de pedidos locais por ID de matéria-prima. Não confirma saldo, lote, cor física do tecido, encaixe Audaces ou economia. Não cria corte nem baixa estoque.',host);
-  const search=field('Buscar matéria-prima, pedido ou modelo',host,'search'),maxLayers=field('Limite de folhas para simulação (opcional)',host,'number'),basket=el('section','',host);maxLayers.min='1';maxLayers.max='10000';maxLayers.step='1';basket.className='panel';el('h3','Cesta única de planejamento',basket);
+  host.dataset.jointWorkspace9714='1';host.style.cssText='min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere';
+  const area=document.getElementById('corte'),summary=document.getElementById('cutSummaryCards');
+  if(summary?.parentNode===area&&summary.nextElementSibling!==host)area.insertBefore(host,summary.nextElementSibling||null);
+  const heading=el('header','',host);heading.style.cssText='border-bottom:1px solid #ddd;padding:6px 0 14px;margin-bottom:14px';
+  el('h2','Corte Conjunto — planejamento por matéria-prima',heading);
+  el('p','Planeje modelos que utilizam o mesmo material, confira grades e compare enfestos. Não cria corte nem baixa estoque.',heading);
+  const stats=el('div','',host);stats.dataset.jointOverview9714='1';stats.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr));gap:10px;margin:12px 0';
+  const filters=el('section','',host);filters.className='panel';el('h3','1. Encontrar matéria-prima e modelos',filters);
+  const filterGrid=el('div','',filters);filterGrid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px';
+  const search=field('Buscar matéria-prima, pedido ou modelo',filterGrid,'search'),maxLayers=field('Limite de folhas para simulação (opcional)',filterGrid,'number');
+  const select=(label,items)=>{const l=el('label',label,filterGrid);l.style.cssText='display:block;min-width:0';const s=el('select','',l);s.style.cssText='display:block;width:100%;max-width:100%;min-width:0';s.setAttribute('aria-label',label);for(const [v,t] of items){const o=el('option',t,s);o.value=v}return s};
+  const material=select('Matéria-prima',[['','Todas']]),orderBy=select('Ordenar grupos',[['','Ordem original'],['pieces','Mais peças'],['pairs','Mais modelos/pedidos'],['colors','Mais cores em comum'],['name','Nome do material']]);
+  const commonLabel=el('label','',filters),common=el('input','',commonLabel);common.type='checkbox';el('span',' Mostrar somente grupos com pelo menos uma cor de grade em comum',commonLabel);
+  const flow=el('p','2. Selecionar modelos → 3. Comparar grades e enfestos → 4. Revisar a cesta e planejar compras',host);flow.style.cssText='font-weight:600;margin:12px 0';
+  const basket=el('section','',host);maxLayers.min='1';maxLayers.max='10000';maxLayers.step='1';basket.className='panel';el('h3','4. Cesta única de planejamento',basket);
   el('p','A mesma combinação pedido/modelo aparece uma única vez na cesta, mesmo que utilize vários materiais. A seleção permanece ao mudar o filtro ou página.',basket);
-  const basketOut=el('div','',basket),out=el('div','',host);let offset=0,visible=[],selected=new Map();
+  const basketOut=el('div','',basket),out=el('div','',host);out.style.cssText='display:grid;grid-template-columns:minmax(0,1fr);gap:12px';let offset=0,visible=[],selected=new Map();
   const fresh=()=>active()?api.discover(data(),root.hlgbWriteoffIntegrity9391,true):{state:'forbidden',groups:[]};
   const plan=x=>api.planSelection(x,[...selected.values()]);
   const clearAll=()=>{selected.clear();sync()};
@@ -38,11 +51,11 @@
     if(typeof page==='function'&&can(pageId))page(pageId)
    }catch(_){el('p','Não foi possível confirmar a abertura do planejamento. Confira Compras antes de repetir.',basketOut)}
   }
-  function drawBasket(x){
+  function drawBasket(x,selectionPreview){
    basketOut.replaceChildren();if(!active())return;
    el('p',selected.size+' combinações pedido/modelo selecionadas.',basketOut);
    if(!selected.size)return;
-   const v=plan(x);if(v.state!=='local-preview'){el('p','Há seleção alterada ou ambígua. Limpe a cesta e selecione novamente. Não será calculada nem enviada para Compras.',basketOut);return}
+   const v=selectionPreview||plan(x);if(v.state!=='local-preview'){el('p','Há seleção alterada ou ambígua. Limpe a cesta e selecione novamente. Não será calculada nem enviada para Compras.',basketOut);return}
    el('h4',fmt(v.orderedPieces)+' peças únicas na cesta · '+v.byProduct.length+' modelos',basketOut);
    const models=el('details','',basketOut);el('summary','Modelos consolidados por quantidade',models);
    for(const m of v.byProduct)el('p',m.productName+' · '+fmt(m.pieces)+' peças · '+m.orderCount+' pedido(s)',models);
@@ -55,8 +68,25 @@
    if(purchaseAllowed()&&typeof root.hlgbWeeklyMaterialPlanner9583?.setSelection==='function')button('Enviar cesta para planejamento semanal de Compras',basketOut,transfer);
    else el('p','Envio para Compras requer acesso a compras, estoque e fornecedores.',basketOut);
   }
-  function sync(x=fresh()){if(!active())return;drawBasket(x);for(const fn of visible)fn(x)}
+  function sync(x=fresh()){if(!active())return;const checked=plan(x);drawBasket(x,checked);for(const fn of visible)fn(x,checked)}
   function addGroup(g,on){if(!active())return;const add=g.models.filter(m=>!selected.has(m.key));if(on&&selected.size+add.length>1000){el('p','Limite de 1000 combinações por cesta. Separe o planejamento.',basketOut);return}for(const m of g.models){if(on){if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key)}sync()}
+  function overview9714(x){
+   const o=api.workspaceOverview9714(x,active());stats.replaceChildren();
+   const values=[['Matérias-primas',o.state==='unavailable'?null:o.materials],['Pedidos únicos',o.orders],['Modelos únicos',o.products],['Peças pedidas únicas',o.pieces]];
+   for(const [label,value] of values){const item=el('div','',stats);item.className='card';item.style.cssText='min-width:0;padding:12px;border:1px solid #ddd;border-radius:10px';el('small',label,item);const n=el('strong',value==null?'Não confirmado':fmt(value),item);n.style.cssText='display:block;font-size:1.4rem;margin-top:5px'}
+   if(o.ambiguous)el('p',o.ambiguous+' combinação(ões) divergentes não incluídas nos totais.',stats);
+   return o;
+  }
+  function combinedMatrix9714(rows,host){
+   const colors=[...new Set(rows.map(r=>r.color))],sizes=[...new Set(rows.map(r=>r.size))];
+   if(!colors.length||!sizes.length)return;
+   const order=['PP','P','M','G','GG','XG','EG','G1','G2','G3','G4'];sizes.sort((a,b)=>{const i=order.indexOf(a),j=order.indexOf(b);return (i<0?999:i)-(j<0?999:j)||a.localeCompare(b,'pt-BR',{numeric:true})});
+   const grid=new Map();for(const r of rows){const k=JSON.stringify([r.color,r.size]);grid.set(k,(grid.get(k)||0)+r.qty)}
+   const wrap=el('div','',host);wrap.style.cssText='overflow:auto;max-width:100%;min-width:0';wrap.dataset.jointMatrix9714='1';
+   const table=el('table','',wrap),head=el('thead','',table),h=el('tr','',head);for(const name of ['Cor',...sizes,'Total'])el('th',name,h);
+   const tbody=el('tbody','',table);for(const color of colors){const tr=el('tr','',tbody);el('th',color,tr);let total=0;for(const size of sizes){const v=grid.get(JSON.stringify([color,size]))||0;total+=v;el('td',fmt(v),tr)}el('td',fmt(total),tr)}
+   const foot=el('tfoot','',table),tr=el('tr','',foot);el('th','Total',tr);let grand=0;for(const size of sizes){const v=colors.reduce((n,color)=>n+(grid.get(JSON.stringify([color,size]))||0),0);grand+=v;el('td',fmt(v),tr)}el('td',fmt(grand),tr);
+  }
   function drawGradeSuggestions(g,card){
    const details=el('details','',card);details.open=true;el('summary','Sugestão automática de grade para encaixe',details);
    const limit=maxLayers.value===''?null:Number(maxLayers.value);if(limit!==null&&(!Number.isSafeInteger(limit)||limit<1||limit>10000)){el('p','Informe um limite inteiro de 1 a 10.000 folhas.',details);return}
@@ -73,9 +103,9 @@
    }
    el('p','Grade sugerida apenas por divisão das quantidades pedidas. Conferir saldo, lotes, largura, direção, limites do enfesto e moldes Audaces. Não comprova encaixe, consumo ou economia.',details);
   }
-  function drawEvidence(g,card,history,materialHistory){
+  function drawEvidence(g,card,history,materialHistory,existing){
    const d=api.groupEvidence(g,data(),history,active());if(d.state!=='local-observation')return;
-   const box=el('details','',card);el('summary','Histórico de pesagens e oportunidades de sobra',box);
+   const box=existing||el('details','',card);if(!existing)el('summary','Histórico de pesagens e oportunidades de sobra',box);
    el('p','Pesagens locais do corte inteiro por modelo, sem atribuição ao tecido deste grupo. Descarte registrado não equivale à economia possível; saldo não classificado não é sobra reutilizável.',box);
    for(const m of d.models){const item=el('div','',box);el('strong',m.productName,item);el('p',m.valid?m.valid+' cortes com pesagem válida · '+fmt(m.totalKg)+' kg pesados · '+fmt(m.wasteKg)+' kg de descarte · '+fmt(m.wastePct)+'% descarte registrado · '+fmt(m.unclassifiedKg)+' kg não classificados':'Sem pesagem finalizada válida para análise.',item);if(m.review)el('p',m.review+' registros a conferir (não incluídos nos totais).',item)}
    const measured=api.materialEstimate(g,materialHistory,active());
@@ -105,17 +135,41 @@
   }
   function draw(){
    out.replaceChildren();visible=[];if(!active())return;const x=fresh();
-   if(x.state!=='discovery-only'){drawBasket(x);el('p','Consulta indisponível. Confira pedidos, materiais, produção e baixas.',out);return}
-   const q=norm(search.value),groups=x.groups.filter(g=>!q||norm([g.materialName,...g.models.flatMap(m=>[m.orderNumber,m.productName])].join(' ')).includes(q));el('p',groups.length+' grupos de matéria-prima observados. Quantidades podem aparecer em mais de uma matéria-prima; a cesta elimina a duplicidade.',out);
+   if(x.state!=='discovery-only'){overview9714(x);root.hlgbJointWorkspaceEvidence9714={observed:false};drawBasket(x);el('p','Consulta indisponível. Confira pedidos, materiais, produção e baixas.',out);return}
+   const overview=overview9714(x),byMaterial=new Map(overview.groups.map(g=>[g.materialId,g]));
+   root.hlgbJointWorkspaceEvidence9714={observed:overview.state==='local-observation'||overview.state==='partial',materials:overview.materials,pairs:overview.pairs,products:overview.products,orders:overview.orders,ambiguous:overview.ambiguous,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};
+   const optionsSignature=JSON.stringify(x.groups.map(g=>[g.materialId,g.materialName]));
+   if(material.__options9714!==optionsSignature){
+    const oldMaterial=material.value;material.replaceChildren();const all=el('option','Todas',material);all.value='';
+    for(const g of x.groups){const o=el('option',g.materialName,material);o.value=g.materialId}
+    material.value=x.groups.some(g=>g.materialId===oldMaterial)?oldMaterial:'';material.__options9714=optionsSignature;
+   }
+   const q=norm(search.value).replace(/#/g,'').trim(),tokens=q.split(/\s+/).filter(Boolean);
+   const groups=x.groups.filter(g=>{
+    const text=norm([g.materialName,...g.models.flatMap(m=>['Pedido '+m.orderNumber,m.productName])].join(' '));
+    return (!material.value||g.materialId===material.value)&&(!common.checked||!!byMaterial.get(g.materialId)?.sharedColors.length)&&tokens.every(t=>text.includes(t))
+   });
+   if(orderBy.value)groups.sort((a,b)=>{const x=byMaterial.get(a.materialId),y=byMaterial.get(b.materialId);return orderBy.value==='name'?a.materialName.localeCompare(b.materialName,'pt-BR'):orderBy.value==='colors'?(y?.sharedColors.length||0)-(x?.sharedColors.length||0):((y?.[orderBy.value]||0)-(x?.[orderBy.value]||0))||a.materialName.localeCompare(b.materialName,'pt-BR')});
+   el('h3','2. Modelos candidatos por material',out);
+   el('p',groups.length+' grupos de matéria-prima observados. Quantidades podem aparecer em mais de uma matéria-prima; a cesta elimina a duplicidade.',out);
+   if(!groups.length)el('p','Nenhum grupo encontrado com os filtros atuais. Altere o material ou retire o filtro de cor em comum.',out);
    el('p',(x.plannedRows||0)+' registros planejados reconhecidos · '+(x.blockedActivityPairs||0)+' vínculos com atividade/estado a conferir.',out);
    if(x.unlinkedActivity)el('p','Há atividade sem pedido vinculado; disponibilidade exige revisão.',out);
-   const history=api.cutEvidence(data(),active()),materialHistory=api.materialHistory(data(),active());
+   let history=null,materialHistory=null;
    for(const g of groups.slice(offset,offset+15)){
-    const card=el('article','',out);card.className='panel';el('h3',g.materialName+' · ID '+g.materialId,card);el('p',fmt(g.orderedPieces)+' peças pedidas em '+g.models.length+' modelos/pedidos candidatos.',card);
-    drawGradeSuggestions(g,card);drawEvidence(g,card,history,materialHistory);const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
-    const update=(currentDiscovery)=>{result.replaceChildren();if(!active())return;for(const [key,c] of boxes)c.checked=selected.has(key);const current=currentDiscovery.groups?.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}
-     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key),v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);for(const l of v.combinedGrade)el('p',l.color+' · '+l.size+' · '+l.qty,result);el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
-    function append(){for(const m of g.models.slice(shown,shown+50)){const label=el('label','',controls);label.style.cssText='display:block;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=selected.has(m.key);boxes.set(m.key,c);el('span',' Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' peças',label);c.onchange=()=>{if(!active())return;if(c.checked){if(selected.size>=1000&&!selected.has(m.key)){c.checked=false;return}if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key);sync()}}shown+=50;more.hidden=shown>=g.models.length}
+    const card=el('article','',out);card.className='panel';card.dataset.jointMaterial9714=g.materialId;card.style.cssText='min-width:0;max-width:100%;border:1px solid #ddd;border-radius:12px;padding:14px;box-sizing:border-box';el('h3',g.materialName+' · ID '+g.materialId,card);el('p',fmt(g.orderedPieces)+' peças pedidas em '+g.models.length+' modelos/pedidos candidatos.',card);const coverage=byMaterial.get(g.materialId);el('p',coverage?.sharedColors.length?'Cores de grade em comum: '+coverage.sharedColors.join(', '):'Não há cor de grade compartilhada por dois candidatos. Não comprova cor física do tecido.',card);
+    const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
+    drawGradeSuggestions(g,card);
+    const evidence=el('details','',card);el('summary','Histórico de pesagens e oportunidades de sobra',evidence);
+    let loaded=false;evidence.addEventListener('toggle',()=>{if(!evidence.open||loaded||!active())return;
+     const latest=fresh(),current=latest.groups?.find(z=>z.materialId===g.materialId);
+     if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Dados alterados. Atualize os grupos antes de consultar o histórico.',evidence);loaded=true;return}
+     history=history||api.cutEvidence(data(),active());materialHistory=materialHistory||api.materialHistory(data(),active());
+     drawEvidence(g,card,history,materialHistory,evidence);loaded=true;
+    });
+    const update=(currentDiscovery,checked)=>{result.replaceChildren();if(!active())return;for(const [key,c] of boxes)c.checked=selected.has(key);const current=currentDiscovery.groups?.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}
+     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key);if(keys.some(key=>api.modelSignature(current.models.find(m=>m.key===key))!==selected.get(key)?.signature)||checked?.state!=='local-preview'){el('p','Seleção alterada ou ambígua. Limpe e selecione novamente.',result);return}const v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);combinedMatrix9714(v.combinedGrade,result);if(v.models.length){const preview=el('details','',result);el('summary','3. Simular enfestos somente dos modelos selecionados',preview);let built=false;preview.addEventListener('toggle',()=>{if(preview.open&&!built&&active()){built=true;drawGradeSuggestions({...current,models:v.models},preview)}})}el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
+    function append(){for(const m of g.models.slice(shown,shown+50)){const label=el('label','',controls);label.style.cssText='display:flex;align-items:center;gap:8px;min-width:0;padding:8px;border-bottom:1px solid #ddd;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=selected.has(m.key);boxes.set(m.key,c);el('span',' Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' peças',label);c.onchange=()=>{if(!active())return;if(c.checked){if(selected.size>=1000&&!selected.has(m.key)){c.checked=false;return}if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key);sync()}}shown+=50;more.hidden=shown>=g.models.length}
     const more=button('Mais modelos deste grupo',card,append);append();button('Selecionar todos deste grupo',card,()=>addGroup(g,true));button('Limpar seleção',card,()=>addGroup(g,false));visible.push(update);
    }
    const catalog=el('details','',out);el('summary','Outros modelos cadastrados com matéria-prima em comum (sem ordem de corte)',catalog);
@@ -123,7 +177,7 @@
    let shownCatalog=0;const list=el('div','',catalog);function moreCatalog(){for(const g of cg.slice(shownCatalog,shownCatalog+15)){const group=el('details','',list);el('summary',g.materialName+' · '+g.products.length+' modelos',group);for(const p of g.products)el('p',p.productName,group)}shownCatalog+=15;moreCatalogButton.hidden=shownCatalog>=cg.length}const moreCatalogButton=button('Mais grupos do catálogo',catalog,moreCatalog);moreCatalog();
    if(offset>0)button('Grupos anteriores',out,()=>{offset=Math.max(0,offset-15);draw()});if(offset+15<groups.length)button('Mais grupos',out,()=>{offset+=15;draw()});sync(x)
   }
-  button('Limpar toda a cesta',basket,clearAll);button('Consultar / atualizar grupos',host,()=>{offset=0;draw()});search.addEventListener('input',()=>{offset=0;draw()});maxLayers.addEventListener('change',()=>{offset=0;draw()});draw()
+  button('Limpar toda a cesta',basket,clearAll);button('Consultar / atualizar grupos',host,()=>{offset=0;draw()});search.addEventListener('input',()=>{offset=0;draw()});maxLayers.addEventListener('change',()=>{offset=0;draw()});for(const input of [material,orderBy,common])input.addEventListener('change',()=>{offset=0;draw()});draw()
  }
  function mountRemnants(){
   const context=hostFor('produtos','hlgbRemnant9661',remAllowed);if(!context)return;const {host,active}=context,api=root.HLGBProductionPlanning9661;
@@ -179,6 +233,6 @@
   const note=allowed?(ready?'Selecione pedidos e modelos que compartilham matéria-prima.':'Planejamento ainda indisponível. Confira o carregamento dos módulos.'):'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
   bar.children[0].disabled=!ready;if(bar.children[1].textContent!==note)bar.children[1].textContent=note;
  }
- function refresh(){mountCut();mountRemnants();mountCutShortcut()}
+ function refresh(){mountCut();mountRemnants();mountCutShortcut();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
  document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)refresh()});root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});setTimeout(refresh,1000);
 })(typeof window!=='undefined'?window:null);
