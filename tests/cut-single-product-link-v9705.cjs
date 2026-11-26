@@ -12,7 +12,7 @@ async function scenario(mode){
  const before=clone(cut);let posts=0,confirmations=0,probes=0;
  if(mode==='wrong-grade')order.data.grade[0].productId=123;
  if(mode==='already')cut.data.productId=Number(PRODUCT);
- const w={__HLGB_AUTH_READY:true,hlgbWalIdbGuard9536:{supportsCustomTimeout:true,probe:async()=>{probes++},status:()=>({readFailed:mode==='wal-error'}),ids:()=>new Set(mode==='pending'?['cuts::'+CUT]:[])},hlgbRecordPendingIdentitySet9535:()=>new Set(),addEventListener(){},confirm(){confirmations++;if(mode==='changed')cut.revision=2;return mode!=='cancel'},cloudRequest:async(path,opts)=>{
+ const w={__HLGB_AUTH_READY:true,hlgbWalIdbGuard9536:{supportsCustomTimeout:true,probe:async()=>{probes++},status:()=>({readFailed:mode==='wal-error',unsupported:mode==='unsupported',localReadFailed:mode==='local-error',probes:mode==='not-probed'?0:probes,entryCount:['pending','unidentified'].includes(mode)?1:0}),ids:()=>new Set(mode==='pending'?['cuts::'+CUT]:[])},hlgbRecordPendingIdentitySet9535:()=>new Set(),addEventListener(){},confirm(){confirmations++;if(mode==='changed')cut.revision=2;return mode!=='cancel'},cloudRequest:async(path,opts)=>{
   if(opts.method==='POST'){
    posts++;assert.equal(path,'rpc/hlgb_save_record');const b=JSON.parse(opts.body);
    assert.equal(b.p_expected_revision,1);assert.equal(b.p_entity_id,CUT);assert.equal(b.p_deleted,false);assert.deepEqual(b.p_data,{...before.data,productId:Number(PRODUCT)});
@@ -28,7 +28,7 @@ async function scenario(mode){
   if(path.includes('module=eq.production'))return mode==='production'?[{entity_id:'p'}]:[];
   throw Error('Unexpected query');
  }};
- const ctx={window:w,document:{getElementById:()=>null},console};
+ const ctx={window:w,document:{getElementById:()=>null},localStorage:{getItem:key=>mode==='malformed'&&key==='hlgb_durable_wal_v1'?'{broken':mode==='local-pending'&&key==='hlgb_durable_wal_v1'?JSON.stringify({entries:{['cuts|'+CUT]:{module:'cuts',id:CUT}}}):null},console};
  vm.createContext(ctx);vm.runInContext(source,ctx);
  let result,error;try{result=await w.hlgbCutSingleProductLink9705.execute()}catch(e){error=e}
  if(['ok','timeout'].includes(mode)){assert.equal(result.ok,true);assert.equal(posts,1);assert.equal(result.ack,mode==='ok');assert.equal(probes,2);assert.equal(cut.revision,2);assert.deepEqual(cut.data,{...before.data,productId:Number(PRODUCT)})}
@@ -37,4 +37,4 @@ async function scenario(mode){
  else{assert(error,mode+' must block');assert.equal(posts,mode==='conflict'?1:0);assert.equal(cut.data.productId,null)}
  console.log('PASS cut link '+mode);
 }
-(async()=>{for(const m of ['ok','timeout','already','cancel','pending','wal-error','wrong-grade','changed','production','conflict'])await scenario(m)})().catch(e=>{console.error(e);process.exitCode=1});
+(async()=>{for(const m of ['ok','timeout','already','cancel','pending','wal-error','unsupported','local-error','not-probed','unidentified','malformed','local-pending','wrong-grade','changed','production','conflict'])await scenario(m)})().catch(e=>{console.error(e);process.exitCode=1});
