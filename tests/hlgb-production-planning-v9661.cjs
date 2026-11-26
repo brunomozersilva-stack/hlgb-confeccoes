@@ -136,3 +136,21 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(JSON.stringify(db),before);
  console.log('PASS planned model eligibility inside production order');
 })();
+
+
+(function compactJointPrintMatrix(){
+ const mk=(key,orderNumber,productName)=>({key,orderNumber,productName,pieces:200,grade:['Preto','Rubi'].flatMap(color=>['P','M','G','GG'].map((size,i)=>({color,size,qty:[20,30,30,20][i]})))});
+ const g={materialId:'1',materialName:'Romantic',models:[mk('a','2','Juliana'),mk('b','50','Leticia')]},before=JSON.stringify(g);
+ const html=plan.jointPrintDraft(g,null,'packet',true),combined=html.split('data-joint-sheet="combined"')[1].split('data-joint-sheet="individual"')[0],individuals=html.split('data-joint-sheet="individual"').slice(1);
+ assert.equal(individuals.length,2);
+ assert.ok(combined.includes('Grade por folha'));assert.ok(combined.includes('Grade prevista'));assert.ok(combined.includes('Realizado por tam.'));
+ assert.ok(combined.includes('P: 20 / M: 30 / G: 30 / GG: 20'));
+ assert.ok(combined.includes('P: 2 / M: 3 / G: 3 / GG: 2'));
+ assert.ok(combined.includes('P: ___ / M: ___ / G: ___ / GG: ___'));
+ assert.equal((combined.match(/<td>Juliana<\/td>/g)||[]).length,2);
+ assert.equal((combined.match(/<td>Leticia<\/td>/g)||[]).length,2);
+ for(const sheet of individuals){assert.ok(sheet.includes('P: 20 / M: 30 / G: 30 / GG: 20'));assert.ok(!sheet.includes('<th>Modelo</th>'));assert.ok(sheet.includes('Pesagem coletiva consta'))}
+ assert.ok(combined.includes('Refugo kg')&&combined.includes('Cortador 2')&&combined.includes('Infestador'));
+ assert.equal(JSON.stringify(g),before);
+ console.log('PASS compact print grade matrix and separation sheets');
+})();
