@@ -87,6 +87,15 @@ const autoOpenCurrent=`loginScreen.style.display="none";sessionLoader.style.disp
 const autoOpenNew=`sessionLoader.style.display="none";appShell.style.display="none";loginScreen.style.display="flex";window.__HLGB_RESTORED_SESSION_READY=true;window.__HLGB_RESTORED_SESSION_ENTER=function(){if(!window.__HLGB_RESTORED_SESSION_READY)return false;window.__HLGB_RESTORED_SESSION_READY=false;loginScreen.style.display="none";sessionLoader.style.display="none";appShell.style.display="block";window.hlgbMarkAuthenticated?.();applyAccess();restoreNavGroups();{const prevApplying=cloudApplying;cloudApplying=true;try{renderAll()}finally{cloudApplying=prevApplying}}return true};`;
 if(h.includes(autoOpenCurrent))h=h.split(autoOpenCurrent).join(autoOpenNew);else console.warn('[HLGB v94.08] trecho atual de restauração não localizado; gate v94.07 continua ativo');
 h=h.replace('function doLogin(){','function doLogin(){if(window.__HLGB_RESTORED_SESSION_READY&&typeof window.__HLGB_RESTORED_SESSION_ENTER===\'function\')return window.__HLGB_RESTORED_SESSION_ENTER();');
+/* v97.38 — entrada nativa no HTML entregue pelo carregador; base comercial imutável. */
+function addFactionGroupEntry9738(html){
+ const anchor='<section id="faccoes" class="page">\n<h1>Envios para facção</h1>\n<div class="sub">Acompanhe somente a operação enviada para as facções, sem misturar com telas de cadastro.</div>';
+ const entry='<div class="toolbar" style="margin:10px 0;flex-wrap:wrap"><button id="hlgbGroupButton9734" type="button" class="primary" onclick="if(window.hlgbFactionMaterialRefresh9522?.openGroup){window.hlgbFactionMaterialRefresh9522.openGroup()}else{alert(\'A calculadora de matéria-prima não carregou. Atualize a página e tente novamente.\')}">🧮 Calculadora de matéria-prima — Separação em grupo</button></div>';
+ if(html.includes('id="hlgbGroupButton9734"'))return html;
+ if(html.split(anchor).length!==2){console.warn('[HLGB v97.38] entrada da calculadora não localizada');return html}
+ return html.replace(anchor,anchor+'\n'+entry);
+}
+h=addFactionGroupEntry9738(h);
 /* v95.104: manter o destinatário do acerto após a sincronização legada.
  * Não altera o envio físico da facção nem os pagamentos sem transferência.
  */
