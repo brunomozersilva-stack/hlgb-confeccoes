@@ -242,6 +242,40 @@ function mountPlanner(){
    btn('Consultar histórico dos registros atuais',observed,()=>{if(!active())return;observedData=api.observedThroughput(typeof db!=='undefined'?db:window.db,start.value,active());observedOffset=0;drawObserved();if(observedData.state!=='local-observation')el('p','Fonte histórica indisponível.',observedOut)});
    queryObserved.oninput=()=>{observedOffset=0;drawObserved()};
    btn('Copiar semanas observadas de corte para revisar',observed,()=>{if(!active()||observedData?.state!=='local-observation')return;const row=stageRows.find(r=>r.key==='cut');const values=observedData.weeks.filter(w=>w.source==='cut');if(!values.length)return;const draft=values.map(w=>w.week+';'+w.pieces).join('\n');if(!confirm('Conferiu as semanas e a cobertura do histórico de corte? As semanas sem registro não serão incluídas. Substituir o histórico informado para esta simulação?'))return;row.hist.value=draft;stageOut.replaceChildren()});
+
+   const lead=el('details','',stages);el('summary','Tempo de retorno por facção e modelo',lead);
+   el('p','Dias corridos entre envio e último retorno conciliado. Compara lotes do mesmo modelo, local e faixa de quantidade. Não inclui fila futura, transporte, acabamento ou capacidade disponível.',lead);
+   const leadOut=el('div','',lead),leadSearch=field('Buscar facção ou modelo','search','',lead),leadReport=el('div','',lead);let leadData=null,leadOffset=0;
+   function drawLead(){
+    leadOut.replaceChildren();if(!active()||leadData?.state!=='local-leadtime-observation')return;
+    const search=leadSearch.value.toLocaleLowerCase('pt-BR'),matches=x=>(x.productName+' '+x.teamName).toLocaleLowerCase('pt-BR').includes(search);
+    const list=leadData.rows.filter(matches);
+    el('p',leadData.rows.length+' combinações históricas · '+leadData.open.length+' lotes abertos observados · '+leadData.issues.length+' registros a conferir.',leadOut);
+    for(const r of list.slice(leadOffset,leadOffset+20)){
+     const d=el('details','',leadOut);el('summary',r.teamName+' · '+r.productName+' · '+r.band+' pç',d);
+     el('p',r.count+' lotes · média '+r.averageDays+' dias · mediana '+r.medianDays+' · máximo '+r.maxDays+' · referência conservadora '+(r.conservativeDays===null?'histórico insuficiente':r.conservativeDays+' dias'),d);
+     for(const s of r.samples)el('p',s.sentAt+' → '+s.finishedAt+' · '+s.pieces+' pç · '+s.elapsedDays+' dias',d);
+    }
+    if(leadOffset>0)btn('Anterior',leadOut,()=>{leadOffset-=20;drawLead()});if(leadOffset+20<list.length)btn('Mais históricos',leadOut,()=>{leadOffset+=20;drawLead()});
+    const pending=el('details','',leadOut);el('summary','Lotes em andamento e sinais de atraso',pending);
+    for(const o of leadData.open.filter(matches))el('p',o.teamName+' · '+o.productName+' · '+o.remaining+' pç pendentes · '+o.elapsedDays+' dias desde envio · prazo '+(o.dueDate||'não informado')+(o.lateAgainstDue?' (vencido)':'')+' · '+(o.referenceDate?'referência histórica '+o.referenceDate+(o.pastReference?' (superada)':''):'sem referência suficiente'),pending);
+   }
+   const modelField=field('ID do modelo para simular','text','',lead),teamField=field('ID do local/facção','text','',lead),qtyField=field('Quantidade do novo lote','number','',lead),sentField=field('Data hipotética de envio','date',start.value,lead);
+   const models=el('datalist','',lead),teams=el('datalist','',lead);models.id='hlgbLeadModels';teams.id='hlgbLeadTeams';modelField.setAttribute('list',models.id);teamField.setAttribute('list',teams.id);
+   btn('Consultar histórico e lotes abertos',lead,()=>{
+    if(!active())return;
+    const source=typeof db!=='undefined'?db:window.db;leadData=api.factionLeadTimes(source,today(),active());leadOffset=0;drawLead();leadReport.replaceChildren();models.replaceChildren();teams.replaceChildren();
+    if(leadData.state!=='local-leadtime-observation'){el('p','Histórico indisponível.',leadOut);return}
+    for(const r of source.products||[]){if(r?.id==null||r.deletedAt||r.deleted_at||r.deleted===true)continue;const o=el('option','',models);o.value=sid(r.id);o.label=sid(r.name)}
+    for(const r of source.productionLocations||[]){if(r?.id==null||r.deletedAt||r.deleted_at||r.deleted===true)continue;const o=el('option','',teams);o.value=sid(r.id);o.label=sid(r.name)}
+   });
+   leadSearch.oninput=()=>{leadOffset=0;drawLead()};for(const f of [modelField,teamField,qtyField,sentField])f.oninput=()=>leadReport.replaceChildren();
+   btn('Simular referência de retorno',lead,()=>{
+    leadReport.replaceChildren();if(!active())return;
+    const v=api.factionLeadTimePreview(leadData,{productId:modelField.value.trim(),teamId:teamField.value.trim(),pieces:Number(qtyField.value),sentAt:sentField.value},active());
+    if(v.state!=='historical-reference'){el('p',v.state==='insufficient-history'?'Ainda não há quatro lotes concluídos comparáveis ('+v.sampleCount+' observados). Não estimar prazo automaticamente.':'Consulte o histórico e confira modelo, local, data e quantidade.',leadReport);return}
+    el('p','Referência: '+v.referenceDays+' dias corridos · retorno em '+v.referenceDate+' · '+v.sampleCount+' lotes comparáveis. Não é promessa de entrega; confira fila e capacidade atuais.',leadReport);
+   });
    const stageOut=el('div','',stages),lines=s=>s.split(/\r?\n/).filter(x=>x.trim()).map(x=>x.split(';').map(v=>v.trim())),num=v=>/^\d+$/.test(String(v).trim())?Number(v):NaN;
    for(const r of stageRows){for(const f of [r.capacity,r.wip,r.hist,r.teams].filter(Boolean))f.oninput=()=>{if(f===r.wip)r.confirmed.checked=false;stageOut.replaceChildren()};r.confirmed.onchange=()=>stageOut.replaceChildren()}
    target.oninput=()=>stageOut.replaceChildren();
