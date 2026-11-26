@@ -470,12 +470,69 @@ function injectEmployeeFareButtons(){
  }
  return true
 }
+/* Cadastro: projeção somente visual. Preserva ações e não modifica db.employees. */
+const employeeListState={query:'',sort:'name-asc'};
+function employeeRegistryOrder(rows,query,sort){
+ const fold=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR').trim();
+ const day=v=>{const s=sid(v),n=Date.parse(s+'T00:00:00Z');return /^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(n)&&new Date(n).toISOString().slice(0,10)===s?s:null};
+ const terms=fold(query).split(/\s+/).filter(Boolean);
+ const nameCmp=(a,b)=>fold(a.name).localeCompare(fold(b.name),'pt-BR')||sid(a.id).localeCompare(sid(b.id),'pt-BR',{numeric:true});
+ return rows.filter(x=>terms.every(t=>fold(x.name).includes(t))).slice().sort((a,b)=>{
+  if(sort==='tenure-desc'||sort==='tenure-asc'){
+   const da=day(a.hireDate),db=day(b.hireDate);
+   if(da&&!db)return -1;if(!da&&db)return 1;
+   if(da&&db&&da!==db)return (sort==='tenure-desc'?1:-1)*da.localeCompare(db);
+  }
+  return sort==='name-desc'?-nameCmp(a,b):nameCmp(a,b);
+ });
+}
+function employeeRegistryAllowed(){
+ try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('funcionarios')===true}catch(_){return false}
+}
+function applyEmployeeRegistryFilters(){
+ const host=document.getElementById('employeeTable'),panel=document.getElementById('hlgbEmployeeRegistryFilters9751');
+ if(!host||!panel||!employeeRegistryAllowed())return false;
+ const bodies=host.querySelectorAll('tbody');if(bodies.length!==1)return false;
+ const body=bodies[0],rows=Array.from(body.querySelectorAll('tr')),known=new Map();
+ for(const e of arr('employees')){const id=sid(e?.id);if(id)known.set(id,known.has(id)?null:e)}
+ const matches=[],ids=new Set();
+ for(const row of rows){
+  const button=row.querySelector('button[onclick*="editEmployee("]'),m=(button?.getAttribute('onclick')||'').match(/^\s*editEmployee\((\d+)\)\s*;?\s*$/),id=m?.[1],e=known.get(id);
+  // If the table contract changes, restore visibility rather than guess identity.
+  if(!e||ids.has(id)){for(const item of rows)item.hidden=false;panel.querySelector('[data-employee-count]').textContent='Filtro indisponível para esta listagem.';return false}
+  ids.add(id);matches.push({id,name:e.name,hireDate:e.hireDate,row});
+ }
+ const ordered=employeeRegistryOrder(matches,employeeListState.query,employeeListState.sort),visible=new Set(ordered.map(x=>x.id));
+ for(const x of matches)x.row.hidden=!visible.has(x.id);
+ for(const x of ordered)body.appendChild(x.row);
+ panel.querySelector('[data-employee-count]').textContent=ordered.length+' de '+matches.length+' funcionários nesta lista';
+ return true;
+}
+function mountEmployeeRegistryFilters(){
+ const host=document.getElementById('employeeTable');if(!host||!host.parentElement||!employeeRegistryAllowed())return false;
+ let panel=document.getElementById('hlgbEmployeeRegistryFilters9751');
+ if(!panel){
+  panel=document.createElement('div');panel.id='hlgbEmployeeRegistryFilters9751';panel.className='panel';panel.style.cssText='display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:10px 0';
+  const label=document.createElement('label');label.textContent='Pesquisar funcionário';label.style.cssText='flex:1 1 180px;min-width:0';
+  const query=document.createElement('input');query.type='search';query.placeholder='Nome do funcionário';query.value=employeeListState.query;query.style.cssText='display:block;width:100%;box-sizing:border-box';label.appendChild(query);
+  const orderLabel=document.createElement('label');orderLabel.textContent='Ordenar por';orderLabel.style.cssText='flex:1 1 180px;min-width:0';
+  const order=document.createElement('select');order.style.cssText='display:block;width:100%;box-sizing:border-box';
+  for(const [v,t] of [['name-asc','Nome A–Z'],['name-desc','Nome Z–A'],['tenure-desc','Maior tempo de casa'],['tenure-asc','Menor tempo de casa']]){const o=document.createElement('option');o.value=v;o.textContent=t;order.appendChild(o)}
+  order.value=employeeListState.sort;orderLabel.appendChild(order);
+  const count=document.createElement('span');count.setAttribute('data-employee-count','');count.setAttribute('role','status');count.className='sub';
+  panel.appendChild(label);panel.appendChild(orderLabel);panel.appendChild(count);host.parentElement.insertBefore(panel,host);
+  query.addEventListener('input',()=>{employeeListState.query=query.value;applyEmployeeRegistryFilters()});
+  order.addEventListener('change',()=>{employeeListState.sort=order.value;applyEmployeeRegistryFilters()});
+ }
+ if(!host.querySelector('tbody')){panel.querySelector('[data-employee-count]').textContent='Nenhuma linha disponível nesta lista.';return true}
+ return applyEmployeeRegistryFilters();
+}
 function wrapEmployeeList(){
  const original=window.renderEmployees;
  if(typeof original!=='function'||original.__hlgbFareEmployeeList9490)return false;
  const wrapped=function(){
   const out=original.apply(this,arguments);
-  try{injectEmployeeFareButtons()}catch(e){console.warn('[HLGB passagem 94.90] lista',e)}
+  try{injectEmployeeFareButtons();mountEmployeeRegistryFilters()}catch(e){console.warn('[HLGB cadastro] lista',e)}
   return out
  };
  wrapped.__hlgbFareEmployeeList9490=true;wrapped.__original=original;
@@ -485,14 +542,15 @@ function wrapEmployeeList(){
 
 function install(){
  installFareCalculator();ensureFareControls();
- wrapEmployeeEditor();wrapEmployeeList();injectEmployeeFareButtons();
+ wrapEmployeeEditor();wrapEmployeeList();injectEmployeeFareButtons();mountEmployeeRegistryFilters();
  window.editPayrollRow=editPayrollRowShared;
  window.togglePayrollPaid=togglePayrollPaidShared;
  window.generatePayrollMonth=generatePayrollMonthShared;
  return true
 }
 install();setTimeout(install,400);setTimeout(install,1600);setTimeout(install,5000);
-window.hlgbPayrollSaveStability9296={version:V,install,edit:editPayrollRowShared,togglePaid:togglePayrollPaidShared,generate:generatePayrollMonthShared,reconcileMonth,ensureFareControls,installFareCalculator,manualFare,saveEmployeeFare,fareMonthInfo,employeeFarePanel,injectEmployeeFareButtons,wrapEmployeeEditor,wrapEmployeeList,saveEmployeeConfirmedFromModal,employeeSaveState};
+window.hlgbPayrollSaveStability9296={version:V,install,edit:editPayrollRowShared,togglePaid:togglePayrollPaidShared,generate:generatePayrollMonthShared,reconcileMonth,ensureFareControls,installFareCalculator,manualFare,saveEmployeeFare,fareMonthInfo,employeeFarePanel,injectEmployeeFareButtons,wrapEmployeeEditor,wrapEmployeeList,employeeRegistryOrder,mountEmployeeRegistryFilters,saveEmployeeConfirmedFromModal,employeeSaveState};
 window.HLGB_PAYROLL_SAVE_STABILITY_9296=V;
+window.addEventListener?.('hlgb:logout',()=>{employeeListState.query='';employeeListState.sort='name-asc';document.getElementById('hlgbEmployeeRegistryFilters9751')?.remove()});
 console.info('[HLGB] Folha v'+V+' — compartilhada e confirmada na nuvem');
 })();
