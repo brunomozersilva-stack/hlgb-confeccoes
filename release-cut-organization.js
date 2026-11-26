@@ -184,6 +184,50 @@ function addChecklistDraft9644(card,row,el){
 
 let materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};
 function removeInlineMaterials9711(root){root?.querySelectorAll?.('[data-hlgb-inline-materials9711]').forEach(x=>x.remove())}
+/* v97.15 — move the single authoritative panel, never clone controls or write records. */
+let separationDock9715=null,separationDockEvidence9715={observed:false,moved:false,modelOpened:false};
+function restoreSeparationDock9715(){
+ const d=separationDock9715;if(d){if(d.anchor?.parentNode)d.anchor.parentNode.insertBefore(d.panel,d.anchor);d.anchor?.remove();d.host?.remove();separationDock9715=null}
+ separationDockEvidence9715={observed:false,moved:false,modelOpened:false};
+}
+function dockSeparation9715(){
+ const actor=draftOwner9644(),cut=document.getElementById('corte'),orders=document.getElementById('pedidos');
+ if(!actor||!cut||!orders){restoreSeparationDock9715();return null}
+ if(separationDock9715&&separationDock9715.actor!==actor)restoreSeparationDock9715();
+ const sel=document.getElementById('separationOrder'),list=document.getElementById('separationList'),table=document.getElementById('separationTable'),panel=sel?.closest?.('.panel');
+ const canonical=window.hlgbSeparationDirect9321;
+ let ready=false;try{ready=canonical?.status?.()?.installed===true&&typeof window.selectSeparationOrder==='function'&&typeof window.renderSeparation==='function'}catch(_){}
+ if(!ready||!panel||!list||!table||!panel.contains(list)||!panel.contains(table)||!panel.querySelector?.('button[onclick*="openMultiOrderPurchase"]')){
+  restoreSeparationDock9715();return null;
+ }
+ if(separationDock9715){if(separationDock9715.panel===panel&&separationDock9715.host.isConnected&&separationDock9715.host.contains(panel))return separationDock9715;restoreSeparationDock9715()}
+ if(panel.parentNode!==orders)return null;
+ const anchor=document.createElement('span');anchor.hidden=true;anchor.dataset.hlgbSeparationOrigin9715='1';orders.insertBefore(anchor,panel);
+ const host=document.createElement('details');host.id='hlgbSeparationOperation9715';host.className='panel';host.style.cssText='min-width:0;max-width:100%';
+ const summary=document.createElement('summary');summary.textContent='Operação de separação e compra de materiais';host.appendChild(summary);
+ const info=document.createElement('p');info.className='sub';info.textContent='Abra pela ficha do modelo ou consulte os pedidos pendentes. Confirmações e baixas usam a rotina original.';info.setAttribute('role','status');host.appendChild(info);
+ const top=document.getElementById('cutSummaryCards');if(top?.parentNode===cut)cut.insertBefore(host,top.nextSibling);else cut.appendChild(host);
+ host.appendChild(panel);separationDock9715={actor,panel,host,anchor,info};
+ separationDockEvidence9715={observed:true,moved:true,modelOpened:false,at:new Date().toISOString()};return separationDock9715;
+}
+function openModelSeparation9715(row){
+ if(!separationAllowed9643())return false;
+ let exact;try{const matches=inspectWorkspace9643().rows.filter(x=>x.orderId===row.orderId&&x.productId===row.productId&&x.cutId===row.cutId);if(matches.length!==1||cutChecklist9644.signature(matches[0])!==cutChecklist9644.signature(row))return false;exact=matches[0]}catch(_){return false}
+ const dock=dockSeparation9715();
+ if(!dock){if(typeof page==='function'&&typeof selectSeparationOrder==='function'){page('pedidos',null);selectSeparationOrder(exact.orderId);return true}return false}
+ const sel=document.getElementById('separationOrder');if(!sel||!dock.panel.contains(sel))return false;
+ // The original selector may not have been populated yet. Only refresh on explicit action.
+ if(!Array.from(sel.options||[]).some(o=>sid(o.value)===sid(exact.orderId))&&typeof fillSeparationOrders==='function')fillSeparationOrders();
+ if(!Array.from(sel.options||[]).some(o=>sid(o.value)===sid(exact.orderId))){dock.host.open=true;dock.info.textContent='Pedido não localizado na seleção original. Atualize os dados antes de confirmar.';return false}
+ dock.host.open=true;selectSeparationOrder(exact.orderId);
+ const focus=()=>{
+  if(dock!==separationDock9715||draftOwner9644()!==dock.actor||sid(sel.value)!==sid(exact.orderId))return;
+  const input=document.getElementById('sepQty938_'+sid(exact.productId));
+  if(input&&dock.panel.contains(input)){input.scrollIntoView?.({block:'center',behavior:'auto'});input.focus?.();dock.info.textContent='Modelo selecionado: '+exact.productName+' · Pedido #'+exact.orderNumber+'. Confira a quantidade antes de confirmar.';separationDockEvidence9715={observed:true,moved:true,modelOpened:true,at:new Date().toISOString()}}
+  else{dock.info.textContent='Pedido aberto. A baixa parcial deste modelo não está disponível nesta consulta; confira o progresso ou a conclusão.';separationDockEvidence9715={observed:true,moved:true,modelOpened:false,at:new Date().toISOString()}}
+ };
+ focus();setTimeout(focus,150);return true;
+}
 function materialCard9711(parent,row,inline=false){
  const el=(tag,text,host=parent)=>{const x=document.createElement(tag);x.textContent=text;host.appendChild(x);return x};
  const fmt=x=>Number(x).toLocaleString('pt-BR',{maximumFractionDigits:3});
@@ -192,7 +236,7 @@ function materialCard9711(parent,row,inline=false){
    for(const m of row.materials)el('p',m.name+' · '+fmt(m.amount)+' '+m.unit+' necessários (estimativa)',detail);
    if(row.issues.length)el('p','Revisão necessária: '+row.issues.join(', '),detail);
    const actions=el('div','',card);actions.className='toolbar';
-   const sep=el('button','Abrir separação do pedido',actions);sep.type='button';sep.className='secondary';sep.onclick=()=>{if(!separationAllowed9643())return;try{if(typeof page==='function'&&typeof selectSeparationOrder==='function'){page('pedidos',null);selectSeparationOrder(row.orderId)}}catch(_){alert('Separação indisponível. Abra pelo menu de Pedidos.')}};
+   const sep=el('button','Abrir separação do pedido',actions);sep.type='button';sep.className='secondary';sep.onclick=()=>{if(!separationAllowed9643())return;try{if(!openModelSeparation9715(row))alert('Confira o vínculo e os dados atuais do modelo antes de abrir a separação.')}catch(_){alert('Separação indisponível. Confira a rotina original.')}};
    const print=el('button','Folha de corte do modelo',actions);print.type='button';print.className='secondary';print.disabled=!row.cutId;print.onclick=()=>{if(!separationAllowed9643()||!row.cutId)return;const fresh=inspectWorkspace9643().rows.find(x=>x.orderId===row.orderId&&x.productId===row.productId&&x.cutId===row.cutId);if(!fresh||typeof window.printCuttingSheet!=='function'){alert('Corte precisa de revisão antes de imprimir.');return}window.printCuttingSheet(row.orderId,row.cutId)};
    if(!row.cutId)el('p','Folha individual disponível quando houver corte identificado; impressão antiga permanece em Pedidos.',card);
    addChecklistDraft9644(card,row,el);
@@ -200,6 +244,7 @@ function materialCard9711(parent,row,inline=false){
  return card;
 }
 function renderSeparationWorkspace9643(){
+ dockSeparation9715();
  const root=document.getElementById('corte'),table=document.getElementById('cutTable');if(!root||!table)return;
  let host=document.getElementById('hlgbCutSeparation9643');
  if(!separationAllowed9643()){clearCutDrafts9644();removeInlineMaterials9711(root);host?.remove();materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};return}
@@ -267,11 +312,12 @@ function applyExtraState(){
   secondaryPanels().forEach(p=>{if(!p.dataset.hlgbCutOriginalDisplay)p.dataset.hlgbCutOriginalDisplay=p.style.display||'';p.style.display=open?p.dataset.hlgbCutOriginalDisplay:'none'});
 }
 function toggleExtra(){let open=false;try{open=localStorage.getItem('hlgb_cut_extra_open_v1')==='1';localStorage.setItem('hlgb_cut_extra_open_v1',open?'0':'1')}catch(e){}applyExtraState()}
-window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,compareCut9712,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,scheduleMaterials:scheduleMaterials9711,materialsStatus9711:()=>({...materialsEvidence9711})};
+window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,compareCut9712,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,scheduleMaterials:scheduleMaterials9711,materialsStatus9711:()=>({...materialsEvidence9711}),separationDockStatus9715:()=>({...separationDockEvidence9715}),dockSeparation9715,openModelSeparation9715};
 const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{apply();applyExtraState();scheduleMaterials9711()},0);return r};w.__hlgbOrgV1=true;w.__original=old;window.renderCuts=w}
 function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
-window.addEventListener?.('hlgb:logout',()=>{filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
+document.addEventListener?.('click',e=>{if(e.target?.closest?.('nav'))setTimeout(dockSeparation9715,0)},true);
+window.addEventListener?.('hlgb:logout',()=>{restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();
