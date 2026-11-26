@@ -67,7 +67,7 @@ function routeCollect9534(base,draftId,createdAt){
    for(const old of saved.routeItems)if(old?.key&&!keys.has(sid(old.key))){items.push(clone(old));keys.add(sid(old.key))}
   }
   const writeoffs=routeWriteoffIndex9733();
-  for(const item of items){const inCarry=carry.includes(item.line),inPickup=pickup.includes(item.line);if((inCarry||inPickup)&&routeWrittenOff9733(item,writeoffs)&&(!base||!/^conclu[ií]d[ao]$|^cancelad[ao]$/i.test(sid(base.status))))throw Error('A parada '+(i+1)+' contém item já baixado operacionalmente: '+sid(item.line)+'. Retire esta linha de LEVAR/BUSCAR; o histórico permanece preservado.');if(inCarry&&inPickup)throw new Error('O mesmo item está em LEVAR e BUSCAR na parada '+(i+1)+'. Confira a direção.');if(inCarry)item.direction='carry';else if(inPickup)item.direction='pickup'}
+  for(const item of items){const inCarry=carry.includes(item.line),inPickup=pickup.includes(item.line);if((inCarry||inPickup)&&routeWrittenOff9733(item,writeoffs)&&(!base||!/^conclu[ií]d[ao]$|^cancelad[ao]$/i.test(sid(base.status))||!/^conclu[ií]d[ao]$|^cancelad[ao]$/i.test(sid(document.getElementById('opsRouteStatus')?.value))))throw Error('A parada '+(i+1)+' contém item já baixado operacionalmente: '+sid(item.line)+'. Retire esta linha de LEVAR/BUSCAR; o histórico permanece preservado.');if(inCarry&&inPickup)throw new Error('O mesmo item está em LEVAR e BUSCAR na parada '+(i+1)+'. Confira a direção.');if(inCarry)item.direction='carry';else if(inPickup)item.direction='pickup'}
   stops.push({...(sameSaved?clone(saved):{}),order:i+1,type:loc.type,locationId:loc.id,name:loc.name,
     address:loc.address,phone:loc.phone,carry,pickup,
     routeItems:items,notes:el.querySelector('.ops-route-note')?.value?.trim()||''});
