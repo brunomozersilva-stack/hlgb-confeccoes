@@ -344,6 +344,59 @@ function renderSeparationWorkspace9643(){
 let materialsScheduled9711=false;
 function scheduleMaterials9711(){if(materialsScheduled9711)return;materialsScheduled9711=true;setTimeout(()=>{materialsScheduled9711=false;try{renderSeparationWorkspace9643()}catch(e){console.warn('[HLGB materiais por corte]',e)}},0)}
 function clearFilters(){['hlgbCutSearch','hlgbCutPriority','hlgbCutCutter','hlgbCutDate','hlgbCutClient9712','hlgbCutFrom9712','hlgbCutTo9712','hlgbCutMin9712','hlgbCutMax9712','hlgbCutSort9712'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});apply()}
+// Read-only: only explicit complete model coverage hides an order.
+function merchandiseEvidence9755(orders,invoices,pairs){
+ const out=new Map();if(!Array.isArray(orders)||!Array.isArray(invoices)||!(pairs instanceof Set))return out;
+ const live=x=>x&&!x.deletedAt&&!x.deleted_at&&x.deleted!==true&&!x._deleted&&!/cancelad|excluid|estornad|arquivad/.test(norm(x.status));
+ const count=rows=>{const m=new Map();for(const x of rows.filter(live)){const id=sid(x.id);if(id)m.set(id,(m.get(id)||0)+1)}return m};
+ const oc=count(orders),ic=count(invoices),billed=new Map(),uncertain=new Set();
+ for(const inv of invoices.filter(live)){
+  if(inv.manualNote===true||inv.noteOnly===true)continue;
+  for(const row of Array.isArray(inv.items)?inv.items:[]){
+   const oid=sid(row?.orderId),pid=sid(row?.productId||row?.itemKey);if(!oid||row?.noteOnly===true)continue;
+   const qty=Number(row?.qty),k=JSON.stringify([oid,pid]);
+   if(!pid||!sid(inv.id)||ic.get(sid(inv.id))!==1||!Number.isSafeInteger(qty)||qty<=0){uncertain.add(oid);continue}
+   billed.set(k,(billed.get(k)||0)+qty);
+  }
+ }
+ for(const o of orders.filter(live)){
+  const id=sid(o.id);if(!id||oc.get(id)!==1)continue;
+  const grade=new Map(),seen=new Set();let valid=Array.isArray(o.grade)&&o.grade.length>0;
+  for(const g of Array.isArray(o.grade)?o.grade:[]){
+   const pid=sid(g?.productId),qty=Number(g?.qty),key=JSON.stringify([pid,sid(g?.color),sid(g?.size)]);
+   if(!pid||!sid(g?.color)||!sid(g?.size)||g?.qty==null||!Number.isSafeInteger(qty)||qty<0||seen.has(key)){valid=false;continue}
+   seen.add(key);if(qty>0)grade.set(pid,(grade.get(pid)||0)+qty);
+  }
+  if(!valid||!grade.size||uncertain.has(id)){out.set(id,{hide:false,reason:'review'});continue}
+  let all=true,partial=false,ambiguous=false;
+  for(const [pid,qty] of grade){
+   const amount=billed.get(JSON.stringify([id,pid]))||0,written=pairs.has(id+'|'+pid);
+   if(amount>qty){ambiguous=true;all=false;continue}
+   if(!written&&amount!==qty)all=false;
+   if(written||amount>0)partial=true;
+  }
+  out.set(id,{hide:all&&!ambiguous,reason:ambiguous?'review':all?'covered':partial?'partial':'open'});
+ }
+ return out;
+}
+function organizeMerchandise9755(){
+ const host=document.getElementById('openCutOrdersTable');if(!host||typeof window.hlgbCanonicalProjectionInvoices!=='function'||typeof window.hlgbWriteoffIntegrity9391?.pairIndex!=='function')return;
+ let evidence;try{evidence=merchandiseEvidence9755(arr('orders'),window.hlgbCanonicalProjectionInvoices(),window.hlgbWriteoffIntegrity9391.pairIndex())}catch(_){return}
+ const rows=Array.from(host.querySelectorAll('tbody tr')),identified=[];
+ for(const row of rows){
+  const ids=new Set();for(const b of row.querySelectorAll('button[onclick]')){const m=sid(b.getAttribute('onclick')).match(/^\s*(?:editOpenMerchandise|deleteOpenMerchandise)\(\s*(['"]?)([^'")\s]+)\1\s*\)\s*;?\s*$/);if(m)ids.add(m[2])}
+  identified.push({row,id:ids.size===1?[...ids][0]:''});
+ }
+ if(identified.some(x=>!x.id)||new Set(identified.map(x=>x.id)).size!==identified.length)return;
+ const orders=new Map(arr('orders').filter(o=>o&&o.id!=null).map(o=>[sid(o.id),o]));
+ let hidden=0,qty=0,value=0,known=true,review=0;
+ for(const {row,id} of identified){const e=evidence.get(id),hide=e?.hide===true;setFilterVisible9709(row,!hide);if(hide){hidden++;continue}if(e?.reason==='review'||!e)review++;const o=orders.get(id);let n;try{n=typeof qtyOfOrder==='function'?Number(qtyOfOrder(o)):Number(o?.qty??o?.totalQty)}catch(_){n=NaN}
+ const amount=Number(o?.total);if(!Number.isFinite(n)||!Number.isFinite(amount)||o?.total==null){known=false}else{qty+=n;value+=amount}}
+ const cards=document.getElementById('cutSummaryCards');const card=Array.from(cards?.querySelectorAll?.('.card')||[]).find(c=>norm(c.querySelector('small')?.textContent)==='mercadoria sem nota pronta');
+ if(card){const n=card.querySelector('strong'),v=card.querySelector('div');if(n)n.textContent=known?qty.toLocaleString('pt-BR')+' peças':'Conferir quantidade';if(v)v.textContent=known?value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Conferir valor'}
+ let info=document.getElementById('hlgbMerchandiseEvidence9755');if(!info){info=document.createElement('p');info.id='hlgbMerchandiseEvidence9755';info.className='sub';host.insertAdjacentElement('afterend',info)}
+ info.textContent=(identified.length-hidden)+' pedidos na lista · '+hidden+' com todos os modelos cobertos por nota ou baixa local · '+review+' para conferência. Pedidos parciais permanecem; totais representam o pedido inteiro, não saldo. Nenhuma baixa foi realizada.';
+}
 function secondaryPanels(){
   const page=document.getElementById('corte');if(!page)return [];
   return [...page.querySelectorAll(':scope > .panel')].filter(p=>{const h=norm(p.querySelector('h2')?.textContent||'');return h.includes('cortes prontos')||h.includes('atribuicao de corte')||h.includes('distribuicao dos cortes')||h.includes('mercadoria sem nota')||h.includes('relatorio de necessidade')});
@@ -353,9 +406,9 @@ function applyExtraState(){
   secondaryPanels().forEach(p=>{if(!p.dataset.hlgbCutOriginalDisplay)p.dataset.hlgbCutOriginalDisplay=p.style.display||'';p.style.display=open?p.dataset.hlgbCutOriginalDisplay:'none'});
 }
 function toggleExtra(){let open=false;try{open=localStorage.getItem('hlgb_cut_extra_open_v1')==='1';localStorage.setItem('hlgb_cut_extra_open_v1',open?'0':'1')}catch(e){}applyExtraState()}
-window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,compareCut9712,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,scheduleMaterials:scheduleMaterials9711,materialsStatus9711:()=>({...materialsEvidence9711}),separationDockStatus9715:()=>({...separationDockEvidence9715}),dockSeparation9715,openModelSeparation9715};
-const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{apply();applyExtraState();scheduleMaterials9711()},0);return r};w.__hlgbOrgV1=true;w.__original=old;window.renderCuts=w}
-function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
+window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels,merchandiseEvidence9755,organizeMerchandise9755,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,compareCut9712,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,scheduleMaterials:scheduleMaterials9711,materialsStatus9711:()=>({...materialsEvidence9711}),separationDockStatus9715:()=>({...separationDockEvidence9715}),dockSeparation9715,openModelSeparation9715};
+const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{apply();applyExtraState();scheduleMaterials9711();organizeMerchandise9755()},0);return r};w.__hlgbOrgV1=true;w.__original=old;window.renderCuts=w}
+function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643();organizeMerchandise9755()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('nav'))setTimeout(dockSeparation9715,0)},true);
