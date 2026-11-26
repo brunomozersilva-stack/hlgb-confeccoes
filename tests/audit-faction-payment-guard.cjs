@@ -54,3 +54,23 @@ assert.equal(oldGroupCalls,1,'Vanessa must not open the original modal');
 assert.equal(window.hlgbFactionPaymentBadGroup('vanessa||2026-W38').issues[0].bad.sum,925);
 assert.equal(window.HLGB_FACTION_PAYMENT_GUARD,'v3');
 console.log('PASS faction payment guard v3: explicit scheduled week, individual and grouped over-accounted payments; valid legacy flow remains available.');
+
+ // A partial delivery may have valid acerto but never above the delivered pieces.
+db.factions.push({id:4,name:'Parcial',sent:100,done:80,paymentByDeliveryV9135:true});
+db.factionPayments.push({id:41,factionServiceId:4,factionName:'Parcial',quantity:90,status:'Pendente',scheduledPaymentWeek:'2026-W37',deliveryId:'d41'});
+assert.equal(window.hlgbFactionPaymentOverAccounted(db.factions.at(-1)).limit,80);
+assert.equal(window.payFactionPayment(41),false,'one payment alone cannot exceed actual delivery');
+assert.equal(window.hlgbPayFactionGroup9230('parcial||2026-W37'),false);
+db.factionPayments.at(-1).quantity=80;
+assert.equal(window.payFactionPayment(41),true,'80 delivered out of 100 can be settled normally');
+db.factionPayments.at(-1).quantity=40;
+db.factionPayments.push({id:42,factionServiceId:4,factionName:'Parcial',quantity:40,status:'Pendente',scheduledPaymentWeek:'2026-W38',deliveryId:'d41'});
+assert.equal(window.hlgbFactionPaymentOverAccounted(db.factions.at(-1)).reason,'duplicate-delivery');
+assert.equal(window.hlgbPayFactionGroup9230('parcial||2026-W38'),false,'duplicate even when quantity sums to 80');
+db.factionPayments.at(-1).status='Cancelado';assert.equal(window.hlgbFactionPaymentOverAccounted(db.factions.at(-1)),null);
+db.factionPayments.push({id:43,factionServiceId:4,quantity:400,manual:true,status:'Pendente'});
+assert.equal(window.hlgbFactionPaymentOverAccounted(db.factions.at(-1)),null,'manual payment is not delivery evidence');
+db.factions.push({id:5,name:'Entrega antiga',sent:100,done:30});
+db.factionPayments.push({id:51,factionServiceId:5,quantity:31,source:'faction_delivery_v9223',status:'Pendente'});
+assert.equal(window.payFactionPayment(51),false,'explicit delivery source protected even without legacy flag');
+console.log('PASS partial delivery guard, exact duplicate and canceled history');
