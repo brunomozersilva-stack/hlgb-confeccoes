@@ -4,43 +4,66 @@
 const V='2026.10.01-cut-organization-v1';
 const sid=v=>String(v??''),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
-function cutByRow(tr){const b=[...tr.querySelectorAll('button[onclick]')].find(x=>/editCut\(([^)]+)\)/.test(x.getAttribute('onclick')||''));const m=(b?.getAttribute('onclick')||'').match(/editCut\(([^)]+)\)/);return m?arr('cuts').find(c=>sid(c?.id)===sid(m[1].replace(/['"]/g,''))):null}
-function orderById(id){return arr('orders').find(o=>sid(o?.id)===sid(id))||null}
-function cutterById(id){return arr('cutters').find(c=>sid(c?.id)===sid(id))||null}
+function cutIdentity9709(row){
+ const explicit=sid(row?.dataset?.hlgbCutModelId||'');if(explicit)return explicit;
+ const buttons=Array.from(row?.querySelectorAll?.('button[onclick]')||[]);
+ for(const b of buttons){const m=sid(b.getAttribute('onclick')).match(/(?:^|\b)editCut\(\s*(['"]?)([^'")\s]+)\1\s*\)/);if(m)return m[2]}
+ return '';
+}
+function cutIndex9709(){
+ const index=n=>{const map=new Map();for(const x of arr(n)){if(!x||x.id==null)continue;const id=sid(x.id);map.set(id,map.has(id)?null:x)}return map};
+ return {cuts:index('cuts'),orders:index('orders'),cutters:index('cutters'),products:index('products'),materials:index('materials')};
+}
+function cutMeta9709(c,idx){
+ const o=idx.orders.get(sid(c.orderId)),ct=idx.cutters.get(sid(c.cutterId)),p=idx.products.get(sid(c.productId));
+ const materialNames=(Array.isArray(p?.materials)?p.materials:[]).map(m=>[m?.name,m?.materialName,idx.materials.get(sid(m?.materialId||m?.id))?.name].filter(Boolean).join(' '));
+ return {search:norm([c.id,c.orderId,'Pedido '+sid(o?.orderNumber||o?.number||c.orderId),o?.orderNumber,o?.number,o?.client,o?.clientName,c.product,p?.name,p?.code,p?.sku,p?.reference,ct?.name,c.op,o?.priority,c.date,c.plannedCutDate,...materialNames].filter(v=>v!=null).join(' ')),priority:sid(o?.priority||'Padrão'),cutter:sid(c.cutterId||''),date:sid(c.plannedCutDate||c.date||'').slice(0,10),cutterName:ct?.name||'Sem cortador',completed:norm(c.status)==='finalizado'||norm(c.status).includes('desmembrado')||c.modelSplitParentV1===true||c.hiddenByModelSplitV1===true};
+}
+function matchesCut9709(meta,filters){
+ return (!filters.q||filters.q.split(/\s+/).every(t=>meta.search.includes(t)))&&
+ (!filters.priority||meta.priority===filters.priority)&&(!filters.cutter||meta.cutter===filters.cutter)&&(!filters.date||meta.date===filters.date);
+}
+let filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};
 function ensureToolbar(){
-  const root=document.getElementById('cutTable'),panel=root?.closest?.('.panel');if(!root||!panel||document.getElementById('hlgbCutFilters'))return;
+  const root=document.getElementById('cutTable'),panel=root?.closest?.('.panel');if(!root||!panel)return;
+  const existing=document.getElementById('hlgbCutFilters'),split=document.getElementById('hlgbCutSplitPanel');
+  if(existing){if(split&&existing.nextElementSibling!==split)split.insertAdjacentElement('beforebegin',existing);return;}
   const bar=document.createElement('div');bar.id='hlgbCutFilters';bar.className='toolbar';bar.style.cssText='align-items:flex-end;flex-wrap:wrap;margin:10px 0';
   bar.innerHTML='<div class="field" style="min-width:260px;flex:1"><label>Buscar corte</label><input id="hlgbCutSearch" placeholder="Pedido, cliente, produto ou cortador" oninput="hlgbCutApplyFilters()"></div><div class="field"><label>Urgência</label><select id="hlgbCutPriority" onchange="hlgbCutApplyFilters()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div><div class="field"><label>Cortador</label><select id="hlgbCutCutter" onchange="hlgbCutApplyFilters()"><option value="">Todos</option></select></div><div class="field"><label>Data do corte</label><input id="hlgbCutDate" type="date" onchange="hlgbCutApplyFilters()"></div><button type="button" class="secondary" onclick="hlgbCutClearFilters()">Limpar</button><button type="button" class="secondary" onclick="hlgbCutToggleExtra()">Seções adicionais</button><div id="hlgbCutFilterCount" class="sub" style="align-self:center"></div>';
-  root.insertAdjacentElement('beforebegin',bar);
+  (document.getElementById('hlgbCutSplitPanel')||root).insertAdjacentElement('beforebegin',bar);
 }
 function syncCutters(){
   const sel=document.getElementById('hlgbCutCutter');if(!sel)return;const cur=sel.value;
   sel.innerHTML='<option value="">Todos</option>'+arr('cutters').filter(c=>c.active!==false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>'<option value="'+sid(c.id)+'">'+String(c.name||'Cortador').replace(/</g,'&lt;')+'</option>').join('');
   if([...sel.options].some(o=>o.value===cur))sel.value=cur;
 }
-function decorateRows(){
-  const root=document.getElementById('cutTable');if(!root)return;
-  root.querySelectorAll('tbody tr').forEach(tr=>{
-    const c=cutByRow(tr);if(!c)return;const o=orderById(c.orderId),ct=cutterById(c.cutterId);
-    tr.dataset.hlgbSearch=norm([o?.client,c.product,ct?.name,c.op,o?.priority,c.date,c.plannedCutDate].join(' '));tr.dataset.hlgbPriority=String(o?.priority||'Padrão');tr.dataset.hlgbCutter=sid(c.cutterId||'');tr.dataset.hlgbDate=String(c.plannedCutDate||c.date||'').slice(0,10);
-    if(!tr.querySelector('.hlgbCutMeta')){
-      const cell=tr.children?.[2];if(cell){const meta=document.createElement('div');meta.className='sub hlgbCutMeta';meta.style.marginTop='4px';meta.textContent='📅 '+(tr.dataset.hlgbDate||'Sem data')+' · ✂️ '+(ct?.name||'Sem cortador');cell.appendChild(meta)}
-    }
-    if(/urgentissimo|urgentíssimo/i.test(o?.priority||''))tr.style.outline='2px solid rgba(180,35,24,.22)';
-  });
+function setFilterVisible9709(row,visible){
+ // Only restore visibility owned by this filter. Never unhide a split aggregate.
+ if(!visible){if(row.dataset.hlgbCutFilterHidden!=='1'){row.dataset.hlgbCutFilterPrevious=row.style.display||'';row.dataset.hlgbCutFilterHidden='1'}row.style.display='none'}
+ else if(row.dataset.hlgbCutFilterHidden==='1'){row.style.display=row.dataset.hlgbCutFilterPrevious||'';delete row.dataset.hlgbCutFilterHidden;delete row.dataset.hlgbCutFilterPrevious}
 }
 function apply(){
-  ensureToolbar();syncCutters();decorateRows();
-  const root=document.getElementById('cutTable');if(!root)return;
-  const q=norm(document.getElementById('hlgbCutSearch')?.value||''),priority=document.getElementById('hlgbCutPriority')?.value||'',cutter=document.getElementById('hlgbCutCutter')?.value||'',date=document.getElementById('hlgbCutDate')?.value||'';
-  let shown=0,total=0;root.querySelectorAll('tbody tr').forEach(tr=>{total++;const cut=cutByRow(tr),st=norm(cut?.status||'');
-    // Filtro não pode reabrir corte-pai desmembrado nem modelo já finalizado.
-    const completed=!!cut&&(st==='finalizado'||st.includes('desmembrado')||
-      cut.modelSplitParentV1===true||cut.hiddenByModelSplitV1===true);
-    const ok=!completed&&(!q||String(tr.dataset.hlgbSearch||'').includes(q))&&
-      (!priority||tr.dataset.hlgbPriority===priority)&&(!cutter||tr.dataset.hlgbCutter===cutter)&&
-      (!date||tr.dataset.hlgbDate===date);tr.style.display=ok?'':'none';if(ok)shown++});
-  const count=document.getElementById('hlgbCutFilterCount');if(count)count.textContent=shown+' de '+total+' corte(s)';
+ ensureToolbar();syncCutters();
+ const root=document.getElementById('cutTable'),panel=document.getElementById('hlgbCutSplitPanel');if(!root)return;
+ const filters={q:norm(document.getElementById('hlgbCutSearch')?.value||'').replace(/#/g,'').trim(),priority:document.getElementById('hlgbCutPriority')?.value||'',cutter:document.getElementById('hlgbCutCutter')?.value||'',date:document.getElementById('hlgbCutDate')?.value||''};
+ const active=!!(filters.q||filters.priority||filters.cutter||filters.date),idx=cutIndex9709(),stats={legacyRows:0,modelRows:0,shown:0,unresolved:0};
+ const run=(row,model)=>{
+  const id=cutIdentity9709(row),cut=idx.cuts.get(id);
+  if(!id||!cut){if(id)stats.unresolved++;return} // headings, placeholders and unresolved identities remain untouched
+  if(!model&&row.dataset.hlgbSplitAggregateHidden==='1'){delete row.dataset.hlgbCutFilterHidden;delete row.dataset.hlgbCutFilterPrevious;row.style.display='none';return}
+  const meta=cutMeta9709(cut,idx);stats[model?'modelRows':'legacyRows']++;
+  const completed=meta.completed;
+  const visible=(model||!completed)&&matchesCut9709(meta,filters);
+  setFilterVisible9709(row,visible);if(visible&&row.style.display!=='none')stats.shown++;
+  if(!model&&!row.querySelector('.hlgbCutMeta')){
+   const cell=row.children?.[2];if(cell){const el=document.createElement('div');el.className='sub hlgbCutMeta';el.textContent='📅 '+(meta.date||'Sem data')+' · ✂️ '+meta.cutterName;cell.appendChild(el)}
+  }
+ };
+ root.querySelectorAll('tbody tr').forEach(row=>run(row,false));
+ panel?.querySelectorAll('[data-hlgb-cut-model-id]').forEach(row=>run(row,true));
+ panel?.querySelectorAll('[data-hlgb-cut-order-group]').forEach(group=>{const rows=Array.from(group.querySelectorAll('[data-hlgb-cut-model-id]'));setFilterVisible9709(group,!active||!rows.length||rows.some(row=>row.style.display!=='none'))});
+ filterEvidence9709={...stats,observed:true,at:new Date().toISOString()};
+ const count=document.getElementById('hlgbCutFilterCount');if(count)count.textContent=stats.shown+' de '+(stats.legacyRows+stats.modelRows)+' corte(s)'+(stats.unresolved?' · '+stats.unresolved+' identidade(s) não verificadas':'');
 }
 
 /* v96.43: read-only bridge to material separation, without moving legacy controls. */
@@ -155,11 +178,11 @@ function applyExtraState(){
   secondaryPanels().forEach(p=>{if(!p.dataset.hlgbCutOriginalDisplay)p.dataset.hlgbCutOriginalDisplay=p.style.display||'';p.style.display=open?p.dataset.hlgbCutOriginalDisplay:'none'});
 }
 function toggleExtra(){let open=false;try{open=localStorage.getItem('hlgb_cut_extra_open_v1')==='1';localStorage.setItem('hlgb_cut_extra_open_v1',open?'0':'1')}catch(e){}applyExtraState()}
-window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels};
+window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,status:()=>({...filterEvidence9709})};
 const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{apply();applyExtraState();renderSeparationWorkspace9643()},0);return r};w.__hlgbOrgV1=true;w.__original=old;window.renderCuts=w}
 function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
-window.addEventListener?.('hlgb:logout',()=>{clearCutDrafts9644();document.getElementById('hlgbCutSeparation9643')?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();

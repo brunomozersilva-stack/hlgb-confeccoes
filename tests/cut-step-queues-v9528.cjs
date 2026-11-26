@@ -104,3 +104,21 @@ test('older waiting cut remains visible even with more than 60 already attribute
  assert.ok(ctx.lastVisible.includes(7),'incomplete destination should remain in queue');
  assert.equal(ctx.lastVisible.includes(1001),false,'assigned row not shown in waiting queue');
 });
+
+test('a canceled destination or duplicated identity cannot suppress genuine pending quantity',()=>{
+ const {ctx,db}=fixture();const api=ctx.hlgbCutStepQueues9528;
+ db.cuts.push({id:'Z',orderId:37,productId:15,status:'Finalizado',pieces:240});
+ const pending={id:201,cutId:'Z',orderId:37,productId:15,planned:240,stage:'Aguardando atribuição'};
+ db.production.push(pending,{id:202,cutId:'Z',orderId:37,productId:15,planned:240,stage:'Cancelado',factionId:200});
+ assert.equal(api.pendingAssignedByCut(pending),false);assert(api.pendingProductionRows().some(p=>p.id===201));
+ db.production.push({id:203,cutId:'Z',orderId:37,productId:15,planned:120,stage:'Em produção',factionId:200},{id:203,cutId:'Z',orderId:37,productId:15,planned:120,stage:'Em produção',factionId:200});
+ assert.equal(api.pendingAssignedByCut(pending),false);assert(api.pendingProductionRows().some(p=>p.id===201));
+});
+test('filter interaction recomputes current queue after destination and includes older rows beyond 120',()=>{
+ const {ctx,db}=fixture();ctx.renderCutTracking9173();
+ db.production.find(p=>p.id===5).factionId=200;
+ for(let i=0;i<130;i++)db.production.push({id:2000+i,cutId:'C',orderId:37,productId:15,planned:1,stage:'Aguardando produção'});
+ const before=JSON.stringify(db);ctx.filterCutTracking9173();
+ assert(!ctx.lastVisible.includes(5));assert(ctx.lastVisible.includes(2129));assert(ctx.lastVisible.includes(7));
+ assert.equal(ctx.hlgbCutStepQueues9528.status().remoteConfirmed,false);assert.equal(JSON.stringify(db),before);
+});

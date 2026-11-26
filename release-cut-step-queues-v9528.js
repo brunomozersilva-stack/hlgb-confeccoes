@@ -7,30 +7,30 @@ if(window.hlgbCutStepQueues9528)return;
 const V='95.28',sid=v=>String(v==null?'':v);
 const norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const arr=k=>{try{return Array.isArray(db&&db[k])?db[k]:[]}catch(_){return []}};
-const hasDestination=p=>!!(p&&(p.productionLocationId||p.factionId));
+const hasDestination=p=>!!(p&&(sid(p.productionLocationId).trim()||sid(p.factionId).trim()));
+const activeRow9709=p=>!!p&&!p.deleted_at&&!p.deletedAt&&p.deleted!==true&&p._deleted!==true&&!['cancelado','cancelada','consolidado'].includes(norm(p.stage||p.status));
 // A etapa só foi concluída para esta lista se há destino concreto gravado.
 // Stage/assignedAt isolados sem local apontam inconsistência, não podem esconder pendência.
 const assigned=p=>hasDestination(p);
 const isAwaiting=p=>{
- if(!p||!p.cutId||p.finishedAt||Number(p.planned)<=0||assigned(p))return false;
+ if(!activeRow9709(p)||!p.cutId||p.finishedAt||!Number.isFinite(Number(p.planned))||Number(p.planned)<=0||assigned(p))return false;
  return !['cancelado','cancelada','pronto','finalizado','concluido','consolidado'].includes(norm(p.stage));
 };
 function currentProduction(p){
  if(!p)return null;
- return arr('production').find(x=>sid(x?.id)===sid(p.id))||p;
+ const rows=arr('production').filter(x=>sid(x?.id)===sid(p.id));return rows.length===1?rows[0]:null;
 }
 function pendingTrackingRow(r){
  const p=currentProduction(r?.p);
  // Sem produção materializada, permanece visível para investigação do corte.
- return !p||(isAwaiting(p)&&!pendingAssignedByCut(p));
+ return !r?.p||(!!p&&isAwaiting(p)&&!pendingAssignedByCut(p));
 }
 function trackingSources(){
  const orders=arr('orders'),prod=arr('production'),rows=[];
  for(const c of arr('cuts')){
-  if(!c||norm(c.status)!=='finalizado')continue;
+  if(!activeRow9709(c)||norm(c.status)!=='finalizado')continue;
   const o=orders.find(x=>sid(x.id)===sid(c.orderId))||null;
-  const ps=prod.filter(p=>sid(p.cutId)===sid(c.id)&&Number(p.planned)>0&&
-    norm(p.stage)!=='consolidado');
+  const ps=prod.filter(p=>activeRow9709(p)&&sid(p.cutId)===sid(c.id)&&Number(p.planned)>0);
   if(ps.length)ps.forEach(p=>rows.push({c,o,p}));
   else rows.push({c,o,p:null});
  }
@@ -41,20 +41,21 @@ function pendingAssignedByCut(c){
  // Nunca esconder o saldo de uma atribuição parcial. Só suprimir linhas antigas
  // quando a quantidade total cortada já tiver destino em registros confirmados.
  if(!c||!c.cutId||!c.orderId||!c.productId)return false;
- const cut=arr('cuts').find(x=>sid(x.id)===sid(c.cutId));
- if(!cut||norm(cut.status)!=='finalizado')return false;
+ const cutRows=arr('cuts').filter(x=>sid(x.id)===sid(c.cutId));const cut=cutRows.length===1?cutRows[0]:null;
+ if(!activeRow9709(cut)||norm(cut.status)!=='finalizado'||(cut.productId&&sid(cut.productId)!==sid(c.productId)))return false;
  const actual=Number(cut.pieces||0);
  if(!(actual>0))return false;
- const sent=arr('production').filter(p=>sid(p.cutId)===sid(c.cutId)&&
-  sid(p.productId)===sid(c.productId)&&sid(p.orderId)===sid(c.orderId)&&assigned(p))
-  .reduce((sum,p)=>sum+Math.max(0,Number(p.planned)||0),0);
- return sent>=actual;
+ const rows=arr('production').filter(p=>activeRow9709(p)&&sid(p.cutId)===sid(c.cutId)&&
+  sid(p.productId)===sid(c.productId)&&sid(p.orderId)===sid(c.orderId)&&assigned(p));
+ const ids=new Set();let sent=0;for(const p of rows){const id=sid(p.id),qty=Number(p.planned);if(!id||ids.has(id)||!Number.isSafeInteger(qty)||qty<=0)return false;ids.add(id);sent+=qty;}
+ return sent===actual; // over-allocation is inconsistent, not proof of completion
 }
 function pendingProductionRows(){
  return arr('production').filter(p=>isAwaiting(p)&&!pendingAssignedByCut(p));
 }
 // Read-only: build waiting UI from genuine unassigned production, not the
 // finalized-cut history. Preserves old pending items even when history grows.
+let queueEvidence9709={observed:false,waiting:null,missingProduction:null,source:'local-observation',remoteConfirmed:false};
 function waitingTrackingRows(){
  const cuts=arr('cuts'),orders=arr('orders');
  const pending=pendingProductionRows().map(p=>{
@@ -64,6 +65,7 @@ function waitingTrackingRows(){
   return {c,o,p};
  });
  const empty=trackingSources().filter(r=>!r.p);
+ queueEvidence9709={observed:true,waiting:pending.length,missingProduction:empty.length,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};
  return [...pending,...empty];
 }
 let showAlreadyAssigned=false;
@@ -72,11 +74,9 @@ window.hlgb916UnassignedProduction=pendingProductionRows;
 const oldFilter=window.filterCutTracking9173;
 if(typeof oldFilter==='function'&&!oldFilter.__hlgbStepQueue9528){
  const wrapped=function(){
-  const prior=window.__cutTrackRows9173;
-  if(!showAlreadyAssigned&&Array.isArray(prior))
-   window.__cutTrackRows9173=prior.filter(pendingTrackingRow);
-  try{return oldFilter.apply(this,arguments)}
-  finally{window.__cutTrackRows9173=prior}
+  // A fresh local projection on each interaction avoids restoring an obsolete queue.
+  window.__cutTrackRows9173=showAlreadyAssigned?trackingSources():waitingTrackingRows();
+  return oldFilter.apply(this,arguments);
  };
  wrapped.__hlgbStepQueue9528=true;wrapped.__original=oldFilter;window.filterCutTracking9173=wrapped;
 }
@@ -109,7 +109,7 @@ if(typeof oldRender==='function'&&!oldRender.__hlgbStepQueue9528){
   // A rotina antiga limitava a 60 ANTES de filtrar atribuídos, fazendo
   // pendências antigas sumirem. Filtrar primeiro e limitar depois.
   const complete=trackingSources();
-  window.__cutTrackRows9173=(showAlreadyAssigned?complete:waitingTrackingRows()).slice(0,120);
+  window.__cutTrackRows9173=showAlreadyAssigned?complete:waitingTrackingRows();
   try{window.filterCutTracking9173?.()}catch(e){console.warn('[HLGB '+V+'] atualizar cortes',e)}
   updateTrackingTitle();
   return out;
@@ -132,9 +132,11 @@ if(typeof oldQueue==='function'&&!oldQueue.__hlgbStepQueue9528){
 }
 window.hlgbCutStepQueues9528={version:V,hasDestination,assigned,isAwaiting,
  pendingTrackingRow,trackingSources,waitingTrackingRows,pendingAssignedByCut,pendingProductionRows,updateTrackingTitle,
+ status:()=>({...queueEvidence9709}),
  showAssigned:()=>showAlreadyAssigned,originalPending:oldPending};
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{
  try{window.renderCutAssignmentQueue?.();window.renderCutTracking9173?.()}catch(_){}
 },0)}catch(_){}
+window.addEventListener?.('hlgb:logout',()=>{queueEvidence9709={observed:false,waiting:null,missingProduction:null,source:'local-observation',remoteConfirmed:false};showAlreadyAssigned=false});
 console.info('[HLGB] '+V+' avanço automático das filas ativo (histórico preservado)');
 })();

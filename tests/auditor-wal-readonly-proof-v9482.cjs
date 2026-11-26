@@ -31,6 +31,8 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
   hlgbProductionReconcile9439:{candidates:async()=>[]},
   hlgbAuditorIntelligence9396:{currentMetrics:()=>({metrics:{pendingUnique:0,scriptDuplicates:0,saveDuplicateResponsibilities:0}})},
   hlgbDiagnosticsCenter:{getIssues:()=>[]},
+  hlgbCutOrganization:{status:()=>({observed:true,at:'2026-11-25T22:00:00Z',legacyRows:2,modelRows:4,shown:3,unresolved:1,private:'NO_EXPORT'})},
+  hlgbCutStepQueues9528:{status:()=>({observed:false,waiting:0,missingProduction:0})},
   addEventListener:()=>{}
  };
  if(available)win.cloudRequest=async(query,opts)=>{
@@ -51,6 +53,10 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
 }
 (async()=>{
  const equal=await scenario({...sample.data,updatedAt:'2026-11-04T11:00:00Z'});
+ const cutEvidence=equal.out.report.cutUiEvidence9709;
+ assert.equal(cutEvidence.search.modelRows,4);assert.equal(cutEvidence.search.unresolved,1);assert.equal(cutEvidence.search.remoteConfirmed,false);
+ assert.equal(cutEvidence.destination.observed,false);assert.equal(cutEvidence.destination.waiting,undefined);
+ assert(!JSON.stringify(cutEvidence).includes('NO_EXPORT'));
  assert.equal(equal.out.walProof.mode,'read-only');
  assert.equal(equal.out.walProof.status,'all-content-matched');
  assert.equal(equal.out.walProof.attempted,true);
