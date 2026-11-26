@@ -13,14 +13,15 @@ const factionEventLabels={'faction-paid':'Pagamento registrado','faction-discoun
 const dateLabels={payment:'Pagamento registrado',scheduled:'Programação',service:'Serviço',record:'Registro',issue:'Emissão (não recebimento)',mixed:'Datas de naturezas diferentes'};
 const scopeOK=kind=>auth()&&!!actor()&&api.scopes[kind].every(can);
 function clear(){for(const e of document.querySelectorAll('[data-hlgb-history-view9654]'))e.remove()}
-function closeUnauthorized(){for(const [kind,page] of Object.entries(areas)){const host=document.getElementById(prefix+kind);if(host&&(!scopeOK(kind)||host.dataset.actor!==actor()||!document.getElementById(page)?.classList.contains('active')))host.remove()}}
+function closeUnauthorized(){for(const [kind,page] of Object.entries(areas)){const host=document.getElementById(prefix+kind);if(host&&(!scopeOK(kind)||host.dataset.actor!==actor()||(kind==='faccao'&&host.dataset.hubAccess!==String(can('hubFinanceiro')))||!document.getElementById(page)?.classList.contains('active')))host.remove()}}
 function install(){
  if(!root.HLGBSettlementHistory9653||!auth())return;
  for(const [kind,page] of Object.entries(areas)){
   const area=document.getElementById(page);
   if(!area||!area.classList.contains('active')||!scopeOK(kind)||document.getElementById(prefix+kind))continue;
   const host=document.createElement('section');host.id=prefix+kind;host.className='panel';host.dataset.hlgbHistoryView9654='1';host.dataset.actor=actor();area.appendChild(host);
-  const active=()=>host.isConnected&&scopeOK(kind)&&host.dataset.actor===actor()&&area.classList.contains('active');
+  const initialHubAccess=kind==='faccao'&&can('hubFinanceiro');host.dataset.hubAccess=String(initialHubAccess);
+  const active=()=>host.isConnected&&scopeOK(kind)&&host.dataset.actor===actor()&&area.classList.contains('active')&&(kind!=='faccao'||can('hubFinanceiro')===initialHubAccess);
   el('h3','Histórico individual de acertos',host);el('p','Consulta local. Para clientes, a data é de emissão da nota, não necessariamente do recebimento. Não é confirmação bancária nem total oficial.',host);
   const controls=el('div','',host);controls.className='toolbar';controls.style.cssText='display:flex;flex-wrap:wrap;gap:8px;min-width:0';
   const field=(label,tag,type)=>{const wrap=el('label',label,controls);wrap.style.cssText='display:flex;flex-direction:column;min-width:0;max-width:100%';const e=el(tag,'',wrap);e.setAttribute('aria-label',label);if(type)e.type=type;e.style.cssText='min-width:0;max-width:100%;box-sizing:border-box';return e};
@@ -70,7 +71,7 @@ function install(){
    const known=[['','Todas'],...(x.owners||[]).map(r=>[r.ownerId,(r.name||'Sem nome')+' · ID '+r.ownerId])];if(owner.value&&!known.some(r=>r[0]===owner.value))known.push([owner.value,'ID '+owner.value+' (sem registro)']);options(owner,known);
    if(offset>=x.eventTotal&&offset>0){offset=Math.max(0,Math.floor((x.eventTotal-1)/30)*30);return draw()}
    el('h4','Eventos por data registrada — '+x.eventTotal+' encontrados',output);
-   if(kind==='faccao'){el('p','Pagamentos registrados '+money(x.totals.factionPaidCents)+' · Abatimentos '+money(x.totals.factionDiscountCents),output);el('p','Somente eventos comprovados pelo histórico do pagamento normal; avulsos e históricos incompletos ficam na consulta de acertos. Abatimento não é saída de caixa.',output)}else{
+   if(kind==='faccao'){el('p','Pagamentos registrados '+money(x.totals.factionPaidCents)+' · Abatimentos '+money(x.totals.factionDiscountCents),output);el('p','Pagamentos normais pelo histórico; avulsos somente com prova local do grupo e vínculo único ao Hub (exige acesso ao Hub). Históricos incompletos ficam para revisão. Abatimento não é saída de caixa.',output)}else{
    el('p','Recebimentos registrados '+money(x.totals.paymentRecordedCents)+' · Abatimentos de matéria-prima '+money(x.totals.materialOffsetCents),output);
    el('p','Devoluções ainda ativas '+money(x.totals.activeReturnCents)+' · Devoluções estornadas (referência) '+money(x.totals.reversedReturnReferenceCents),output);
    el('p','Valores separados: abatimentos não são entrada de caixa; devolução estornada não reduz o saldo atual. O histórico exclui notas cuja soma não confere.',output);}
@@ -109,12 +110,17 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   if(!Object.hasOwn(scopes,kind)||deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};
   const ctx={authenticated:true,factionsAllowed:kind==='faccao',clientsAllowed:kind==='cliente',employeesAllowed:kind==='funcionario'};
   try{
-   if(kind==='faccao'){ctx.payments=deps.rows('factionPayments');if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};if(filters.eventMode===true&&typeof deps.inspectFactionEvents==='function'){ctx.manualGroups=null}else ctx.manualGroups=deps.manualGroups()}
+   if(kind==='faccao'){ctx.payments=deps.rows('factionPayments');if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};if(filters.eventMode===true&&typeof deps.inspectFactionEvents==='function'){
+     ctx.manualGroups=null;ctx.manualHub=null;
+     if(deps.can('hubFinanceiro')===true){ctx.manualGroups=deps.manualGroups();if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true)||deps.can('hubFinanceiro')!==true)return {state:'forbidden',rows:[],groups:[],issues:[]};ctx.manualHub=deps.rows('hubFinanceEntries');ctx.manualHubAllowed=true}
+    }else ctx.manualGroups=deps.manualGroups()}
    if(kind==='cliente'){ctx.notes=deps.notes();if(filters.eventMode===true){if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};if(typeof deps.noteSources!=='function'||typeof deps.inspectEvents!=='function')return {state:'unavailable',rows:[],groups:[],issues:[]};ctx.noteSources=deps.noteSources()}}
    if(kind==='funcionario')ctx.payroll=deps.rows('payroll');
    if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};
+   if(ctx.manualHubAllowed===true&&deps.can('hubFinanceiro')!==true)return {state:'forbidden',rows:[],groups:[],issues:[]};
    const out=kind==='cliente'&&filters.eventMode===true?deps.inspectEvents(ctx,{...filters,kind}):kind==='faccao'&&filters.eventMode===true&&typeof deps.inspectFactionEvents==='function'?deps.inspectFactionEvents(ctx,{...filters,kind}):deps.inspect(ctx,{...filters,kind,eventMode:false});
    if(deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return {state:'forbidden',rows:[],groups:[],issues:[]};
+   if(ctx.manualHubAllowed===true&&deps.can('hubFinanceiro')!==true)return {state:'forbidden',rows:[],groups:[],issues:[]};
    return out;
   }catch(_){return {state:'unavailable',rows:[],groups:[],issues:['consulta-indisponivel']}}
  }
@@ -153,7 +159,7 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   let body='<h1>HLGB Confecções — Histórico de acertos</h1><p><b>'+esc(labels[kind])+' · '+(layout==='summary'?'Resumo':'Detalhado')+'</b> | Período: '+esc(period)+'</p><p>Filtro de pessoa: '+esc(filters.ownerId||'Todas')+' · Busca: '+esc(filters.query||'Todas')+' · Situação: '+esc(eventMode?(filters.eventType||'all'):(filters.status||'all'))+'</p>';
   body+='<p class="note">Consulta local, não conciliada com banco. '+(kind==='cliente'&&!eventMode?'Datas de emissão, não de recebimento. ':'')+'Valores não confirmados não equivalem a zero.</p>';
   if(eventMode){
-   const rows=result.events;body+='<p>'+rows.length+' evento(s). '+(kind==='faccao'?'Abatimentos não são saída de caixa; avulsos e históricos incompletos não entram nesta consulta.':'Abatimentos não são entrada de caixa; devoluções estornadas são referência.')+'</p>';
+   const rows=result.events;body+='<p>'+rows.length+' evento(s). '+(kind==='faccao'?'Abatimentos não são saída de caixa. Avulsos exigem prova do grupo e vínculo único ao Hub; valores não comprovados ficam para revisão.':'Abatimentos não são entrada de caixa; devoluções estornadas são referência.')+'</p>';
    const list=layout==='summary'?group(rows,r=>JSON.stringify([r.ownerId,r.date,r.type])).map(a=>[a[0].name,a[0].ownerId,a[0].date,events[a[0].type],a.length,cash(sum(a,['amountCents']).amountCents)]):rows.map(r=>[r.name,r.ownerId,r.date,r.noteNumber,events[r.type],cash(r.amountCents),r.method||'',r.reversedAt||'',r.description||'',r.id]);
    body+=table(layout==='summary'?[kind==='faccao'?'Facção':'Cliente','ID','Data','Evento','Quantidade','Valor']:[kind==='faccao'?'Facção':'Cliente','ID','Data',kind==='faccao'?'Serviço':'Nota','Evento','Valor','Método','Estorno','Observação','Referência'],list);
    body+=table(['Tipo de evento','Total observado'],Object.entries(result.totals||{}).map(([k,v])=>[({factionPaidCents:'Pagamentos registrados',factionDiscountCents:'Abatimentos no acerto',paymentRecordedCents:'Recebimentos',materialOffsetCents:'Abatimentos',activeReturnCents:'Devoluções ativas',reversedReturnReferenceCents:'Devoluções estornadas'})[k]||k,cash(v)]));
