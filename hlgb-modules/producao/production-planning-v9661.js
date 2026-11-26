@@ -16,6 +16,41 @@
    return {...x,groups:x.groups.map(g=>({...g,models:[...new Set(g.lines.map(l=>pair(l.orderId,l.productId)))].map(k=>{const lines=g.lines.filter(l=>pair(l.orderId,l.productId)===k),o=safeOrders.find(z=>id(z.id)===lines[0].orderId);return {key:k,orderId:lines[0].orderId,orderNumber:id(o?.orderNumber||o?.id),productId:lines[0].productId,productName:lines[0].productName,pieces:lines.reduce((a,l)=>a+l.ordered,0),grade:lines.map(l=>({color:l.color,size:l.size,qty:l.ordered}))}})})),verifiedAvailable:null,canWrite:false};
   }catch(_){return {state:'unavailable',groups:[],reason:'Conferir fontes e baixas.'}}
  }
+ // Material discovery is independent of execution eligibility. Read-only ordered demand, never a balance.
+ function orderMaterialCompatibility(db,d,allowed){
+  const empty=state=>({state,models:[],groups:[],review:0,canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!['orders','products','materials'].every(k=>Array.isArray(db?.[k])))return empty('unavailable');
+  const index=rows=>{const m=new Map();for(const x of rows.filter(live)){const k=id(x.id);if(k)m.set(k,m.has(k)?null:x)}return m};
+  const orders=index(db.orders),products=index(db.products),materials=index(db.materials),models=[],groups=new Map();
+  const safe=new Set((d?.state==='discovery-only'?d.groups:[]).flatMap(g=>g.models.map(m=>m.key)));
+  let review=0;
+  for(const [oid,o] of orders){
+   if(!o){review++;continue}
+   if(/finalizad|cancelad|entregue|mercadoria pronta|nota emitida/.test(norm(o.status))||o.invoiceReady||o.noteReady||o.workflowSourceOrderId)continue;
+   if(!Array.isArray(o.grade)||!o.grade.length){review++;continue}
+   const byModel=new Map();
+   for(const x of o.grade){
+    const pid=id(x?.productId);if(!pid){review++;continue}
+    const p=products.get(pid),m=byModel.get(pid)||{key:pair(oid,pid),orderId:oid,orderNumber:id(o.orderNumber||oid),productId:pid,productName:id(p?.name)||pid,status:id(o.status)||'Não informado',pieces:0,grade:[],materialIds:[],review:!p};
+    const qty=typeof x.qty==='number'||typeof x.qty==='string'&&/^\d+$/.test(x.qty)?Number(x.qty):NaN;
+    if(!Number.isSafeInteger(qty)||qty<0||!id(x.color)||!id(x.size)){m.review=true}
+    else if(qty>0){if(m.grade.some(g=>g.color===id(x.color)&&g.size===id(x.size)))m.review=true;m.grade.push({color:id(x.color),size:id(x.size),qty});m.pieces+=qty}
+    byModel.set(pid,m);
+   }
+   for(const m of byModel.values()){
+    if(!m.pieces&&!m.review)continue;
+    const p=products.get(m.productId);
+    m.materialIds=[...new Set((Array.isArray(p?.materials)?p.materials:[]).filter(b=>{const mat=materials.get(id(b?.materialId));return mat&&['tecido','malha','renda','tule'].includes(norm(mat.cat||b.cat))}).map(b=>id(b.materialId)))];
+    m.planningEligible=!m.review&&safe.has(m.key);if(!m.materialIds.length||m.review)review++;
+    models.push(m);
+    for(const mid of m.materialIds){const g=groups.get(mid)||{materialId:mid,materialName:id(materials.get(mid).name)||mid,models:[]};g.models.push(m);groups.set(mid,g)}
+   }
+  }
+  const sort=(a,b)=>a.productName.localeCompare(b.productName,'pt-BR')||a.orderNumber.localeCompare(b.orderNumber,'pt-BR',{numeric:true});
+  models.sort(sort);for(const g of groups.values())g.models.sort(sort);
+  return {state:'local-compatibility',models,groups:[...groups.values()].sort((a,b)=>a.materialName.localeCompare(b.materialName,'pt-BR')),review,canWrite:false};
+ }
  // Arithmetic alternatives only. At most eight spreads, no excess and no geometry proof.
  function multiSpreadPlans(rows,maxLayers){
   if(!rows.length||rows.length>2000)return [];
@@ -466,5 +501,5 @@
    return {color:p.color,total:p.total,options};
   });
  }
- return {jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
