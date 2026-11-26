@@ -21,7 +21,7 @@ test('new reconciler loaded after faction operations, syntax valid',()=>{
  assert.ok(router.indexOf("'release-faction-material-refresh-v9522.js'")>router.indexOf("'release-faction-operations-v9520.js'"));
  assert.doesNotThrow(()=>new vm.Script(source));
 });
-function setup({checked=false,pending=false,lostResponse=false}= {}){
+function setup({checked=false,pending=false,lostResponse=false,wrongReadback=false}= {}){
  const c={id:1794313232479,productId:crystal.id,productName:crystal.name,destinationName:'Graziano',
  qty:192,materials:checked?[{name:'Romantic',unit:'kg',qty:32,checked:true}]:[],
  status:'Pendente',note:'não apagar',total:400,unitPrice:2.08,receivedAt:'',receivedBy:''};
@@ -47,6 +47,7 @@ function setup({checked=false,pending=false,lostResponse=false}= {}){
    assert.equal(body.p_data.note,'não apagar');
    assert.equal(body.p_data.total,400);
    remoteChecklist={...remoteChecklist,revision:2,data:body.p_data,updated_at:'2026-11-10T12:40:00Z'};
+   if(wrongReadback)remoteChecklist.data.note='alteração concorrente';
    if(lostResponse){lostResponse=false;throw Error('failed to fetch after commit')}
    return {applied:true,data:body.p_data,revision:2};
   }
@@ -113,4 +114,19 @@ test('lost HTTP acknowledgement does not duplicate cloud write; next read reconc
  assert.equal(result.alreadyCurrent,true);
  assert.equal(h.posts,1);
  assert.equal(h.db.materialChecklists[0].materials.length,4);
+});
+
+test('readback with altered non-material field cannot replace the local checklist',async()=>{const h=setup({wrongReadback:true});await assert.rejects(()=>h.ctx.hlgbFactionMaterialRefresh9522.reloadAndSave(1794313232479),/servidor ainda não confirmou/);assert.equal(h.posts,1);assert.equal(h.cacheWrites,0);assert.equal(h.db.materialChecklists[0].note,'não apagar');assert.equal(h.db.materialChecklists[0].materials.length,0)});
+
+test('Melanie real-shaped 172 pieces, six inputs, four colours, no changes during calculation',()=>{
+ const h=setup(),api=h.ctx.hlgbFactionMaterialRefresh9522,p=JSON.parse(JSON.stringify(melanie)),cats=['Tecido','Renda','Aviamento','Outro','Aviamento','Aviamento'];
+ p.materials=p.materials.map((m,i)=>({...m,cat:cats[i]}));
+ h.db.products[1]=p;h.db.materials=p.materials.map(m=>({id:m.materialId,name:m.name,unit:m.unit,cat:m.cat,...(m.name==='fita 002'?{purchaseUnit:'rolo',purchaseConversion:50}:{})}));
+ const c={id:1794313367933,productId:p.id,productName:p.name,destinationType:'F',destinationName:'Vanessa',qty:172,materials:[],status:'Pendente',receivedAt:'',receivedBy:'',gradeV9198:[['Preto',20,40],['Branco',10,20],['Rubi',20,20],['Teos',14,28]].flatMap(([color,a,b])=>[{productId:p.id,color,size:'P',qty:a},{productId:p.id,color,size:'M',qty:b}])};
+ const before=JSON.stringify({c,db:h.db}),review=api.analyze(c);
+ assert.equal(review.status,'stale');assert.equal(review.locked,false);assert.equal(review.oldCount,0);assert.equal(review.newCount,15);
+ const sum=name=>review.materials.filter(m=>m.name===name).reduce((n,m)=>n+m.qty,0);
+ assert.equal(sum('Romantic'),21.5);assert.equal(sum('Renda 18 Jacatronica'),6.536);assert.equal(sum('Alca Papiro .40 cm'),172);assert.equal(sum('Laco M'),344);assert.ok(Math.abs(sum('fita 002')-85.9656)<1e-9);assert.equal(sum('Alpinia'),172);
+ assert.deepEqual(JSON.parse(JSON.stringify(review.materials.filter(m=>m.name==='Alpinia').map(m=>[m.color,m.qty]))),[['Preto',60],['Branco',30],['Rubi',40],['Teos',42]]);
+ assert.equal(JSON.stringify({c,db:h.db}),before);assert.equal(h.posts,0);
 });

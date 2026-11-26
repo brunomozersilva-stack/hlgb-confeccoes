@@ -28,6 +28,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.match(faccoes,/Graziano/);
   assert.match(faccoes,/Vanessa/);
   assert.match(first,/Short Doll Melanie/);
+  const direct=page.locator('#factionChecklistTable9176 [data-hlgb-checklist-recover9728="1794313367933"]');await direct.waitFor();assert.equal(await direct.innerText(),'Recuperar materiais do checklist');await page.evaluate(()=>{renderFactionChecklists9198();renderFactionChecklists9198()});await direct.waitFor();assert.equal(await direct.count(),1);
   assert.match(first,/0 linha\(s\) no envio \/ 4 na ficha/);
   assert.match(first,/0 linha\(s\) no envio \/ 6 na ficha/);
   assert.equal(await page.evaluate(()=>window.__posts),0,'viewing old dispatch may not trigger write');
@@ -56,7 +57,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    printed:document.getElementById('legacyPrint').textContent
   }));
   assert.equal(c.posts,1);assert.equal(c.len,4);assert.equal(c.kg,32);assert.equal(c.revision,2);
-  await page.locator('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313367933"]').click();
+  await direct.click();
   await page.waitForSelector('#hlgbMaterialRefreshConfirm9522');
   assert.match(await page.locator('#modal').innerText(),/21,5/,'Melanie: 172 / 8 = 21.5 kg');
   // The modal attaches its save handler after rendering; don't click until it is bound.
@@ -67,7 +68,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    count:db.materialChecklists[1].materials.length,
    kg:db.materialChecklists[1].materials.find(m=>m.name==='Romantic').qty,
    payments:(db.factionPayments||[]).length}));
-  assert.equal(data.posts,2);assert.equal(data.count,6);assert.equal(data.kg,21.5);assert.equal(data.payments,0);
+  assert.equal(data.posts,2);assert.equal(data.count,6);await direct.waitFor({state:'detached'});assert.equal(data.kg,21.5);assert.equal(data.payments,0);
   await page.evaluate(()=>{db.materialChecklists[0].materials[0].checked=true;db.materialChecklists[0].materials[0].qty=99;renderDestinationChecklists()});
   await page.waitForSelector('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313232479"]');
   await page.locator('#hlgbMaterialRevisions9522 [data-material-revision9522="1794313232479"]').click();
