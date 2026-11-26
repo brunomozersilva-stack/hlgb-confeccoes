@@ -162,6 +162,30 @@
    h.totalKg=h.totalG/1000;h.usedKg=h.usedG/1000;h.wasteKg=h.wasteG/1000;h.unclassifiedKg=h.unclassifiedG/1000;h.wastePct=h.totalG>0?100*h.wasteG/h.totalG:null;h.reusableKg=null;h.savings=null}
   return {state:'local-observation',byProduct,canWrite:false};
  }
+ // Coverage is a local configuration review, not a confirmation of usable scraps.
+ function remnantCoverage9727(products,materials,allowed){
+  const empty=state=>({state,rows:[],counts:null,canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!Array.isArray(products)||!Array.isArray(materials))return empty('unavailable');
+  const valid=fabrics(materials),index=new Map(),rows=[],counts={unknown:0,yes:0,no:0,review:0};
+  for(const p of products.filter(live)){const k=id(p.id);if(!k)continue;index.set(k,index.has(k)?null:p)}
+  for(const [pid,p] of index){
+   if(p?.active===false)continue;
+   if(!p){counts.review++;rows.push({productId:pid,productName:pid,status:'review',destinations:0});continue}
+   const raw=p.fabricRemnantPolicyV9630,configured=remnant.state(p);let status=configured,destinations=0;
+   if(raw!=null){
+    try{
+     if(!Array.isArray(raw.eligible)||raw.eligible.length>50||raw.eligible.some(e=>!valid.has(id(e?.materialId))||!index.get(id(e?.productId))||index.get(id(e?.productId)).active===false))throw Error('policy');
+     const parsed=remnant.preview(pid,raw,products).policy;
+     if(parsed.state==='yes'&&!parsed.eligible.length)throw Error('no-target');
+     destinations=parsed.eligible.length;
+    }catch(_){status='review'}
+   }
+   if(!Object.hasOwn(counts,status))status='review';
+   counts[status]++;rows.push({productId:pid,productName:id(p.name)||pid,status,destinations});
+  }
+  return {...empty('local-observation'),rows,counts};
+ }
  function groupEvidence(group,db,history,allowed){
   const empty=state=>({state,models:[],hints:[],canWrite:false,geometryVerified:false,savings:null});
   if(allowed!==true)return empty('forbidden');
@@ -173,8 +197,17 @@
    if(remnant.state(p)!=='yes')continue;
    let policy;try{policy=remnant.preview(pid,p.fabricRemnantPolicyV9630,db.products).policy}catch(_){continue}
    for(const x of policy.eligible){const target=products.get(x.productId);if(x.materialId!==id(group.materialId)||!target||target.active===false)continue;
-    const candidates=group.models.filter(m=>id(m.productId)===x.productId),requested=candidates.reduce((sum,m)=>sum+m.grade.filter(g=>(!x.color||norm(g.color)===norm(x.color))&&(!x.size||norm(g.size)===norm(x.size))).reduce((n,g)=>n+g.qty,0),0);
-    hints.push({sourceId:pid,sourceName:id(p.name)||pid,targetId:x.productId,targetName:id(target.name)||x.productId,requested,minWidthMm:x.minWidthMm,minLengthMm:x.minLengthMm,color:x.color,size:x.size,physicalFit:null,reusableKg:null});
+    const candidates=group.models.filter(m=>id(m.productId)===x.productId),demand=[],seen=new Set();let validDemand=true;
+    for(const m of candidates){
+     if(!m.key||m.key!==pair(m.orderId,m.productId)||seen.has(m.key)||!Array.isArray(m.grade)||!m.grade.length){validDemand=false;break}seen.add(m.key);
+     const cells=new Set();let sum=0;
+     for(const g of m.grade){const k=JSON.stringify([g.color,g.size]);if(!id(g.color)||!id(g.size)||cells.has(k)||!Number.isSafeInteger(g.qty)||g.qty<=0){validDemand=false;break}cells.add(k);sum+=g.qty;
+      if((!x.color||norm(g.color)===norm(x.color))&&(!x.size||norm(g.size)===norm(x.size)))demand.push({orderId:m.orderId,orderNumber:m.orderNumber,color:g.color,size:g.size,qty:g.qty});
+     }
+     if(sum!==m.pieces){validDemand=false;break}
+    }
+    const total=demand.reduce((n,g)=>n+g.qty,0),requested=validDemand&&Number.isSafeInteger(total)?total:null;
+    hints.push({sourceId:pid,sourceName:id(p.name)||pid,targetId:x.productId,targetName:id(target.name)||x.productId,requested,demand:requested===null?[]:demand,minWidthMm:x.minWidthMm,minLengthMm:x.minLengthMm,color:x.color,size:x.size,physicalFit:null,reusableKg:null});
    }
   }
   return {...empty('local-observation'),models:models.sort((a,b)=>b.valid-a.valid||a.productName.localeCompare(b.productName,'pt-BR')),hints:hints.sort((a,b)=>Number(b.requested>0)-Number(a.requested>0)||b.requested-a.requested||a.targetName.localeCompare(b.targetName,'pt-BR'))};
@@ -340,5 +373,5 @@
   if(rows.some(x=>!Number.isFinite(x.needed)))return empty('unavailable');
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
- return {discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
