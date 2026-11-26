@@ -190,3 +190,20 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.deliveryCapacityPlan({...input,history:[...history,history[0]]},true).state,'invalid-history');assert.equal(JSON.stringify(input),before);
  console.log('PASS delivery capacity, holiday reduction, deadline allocation and cash-term scenarios');
 })();
+
+
+(function deliveryCashScenarios(){
+ const planData={state:'local-capacity-simulation',issues:[],weeklyTarget:800,orders:[{key:'a',client:'A',model:'Camisola',remaining:0,lastWorkDate:'2026-12-01',dueDate:'2026-12-04',paymentMode:'cash',amountCents:100000},{key:'b',client:'B',model:'Body',remaining:0,lastWorkDate:'2026-12-02',dueDate:'2026-12-03',paymentMode:'term',paymentDays:7,amountCents:200000},{key:'c',client:'C',remaining:10,lastWorkDate:'2026-12-02',dueDate:'2026-12-03',paymentMode:'cash',amountCents:50000}]};
+ const input={start:'2026-11-30',openingCents:50000,reserveCents:10000,delayDays:7,coverageConfirmed:true,entries:[{date:'2026-12-03',direction:'out',amountCents:90000,reference:'supplier'},{date:'2026-12-07',direction:'out',amountCents:30000,reference:'payroll'}],additional:[{key:'a',reference:'a-receipt',amountCents:100000,notAlreadyIncluded:true,earlyAccepted:true},{key:'b',reference:'b-receipt',amountCents:200000,notAlreadyIncluded:true,earlyAccepted:false}]};
+ const before=JSON.stringify([planData,input]),v=plan.deliveryCashScenario(planData,input,true);
+ assert.equal(v.state,'local-cash-scenario');assert.equal(v.additionalCount,2);assert.equal(v.baseline.firstGap,'2026-12-03');assert.equal(v.baseline.maximumGapCents,80000);assert.equal(v.planned.maximumGapCents,50000);assert.equal(v.early.maximumGapCents,0);assert.equal(v.stress.maximumGapCents,80000);
+ assert.equal(v.opportunities[0].earlyReceipt,'2026-12-01');assert.equal(v.opportunities[1].requiresCustomerAcceptance,true);assert.equal(v.canWrite,false);assert.equal(v.cashVerified,false);
+ assert.equal(plan.deliveryCashScenario(planData,{...input,coverageConfirmed:false},true).partial,true);
+ assert.equal(plan.deliveryCashScenario(planData,{...input,additional:[{...input.additional[0],reference:'supplier'}]},true).state,'invalid-additional-receipt');
+ assert.equal(plan.deliveryCashScenario(planData,{...input,additional:[{...input.additional[0],amountCents:100001}]},true).state,'invalid-additional-receipt');
+ assert.equal(plan.deliveryCashScenario(planData,{...input,additional:[{...input.additional[0],notAlreadyIncluded:false}]},true).state,'invalid-additional-receipt');
+ const blocked=plan.deliveryCashScenario(planData,{...input,additional:[{key:'c',reference:'c-receipt',amountCents:20000,notAlreadyIncluded:true}]},true);
+ assert.equal(blocked.additionalCount,0);assert.equal(blocked.partial,true);
+ assert.equal(plan.deliveryCashScenario(planData,input,false).state,'forbidden');assert.equal(JSON.stringify([planData,input]),before);
+ console.log('PASS delivery-linked cash scenarios, reserve, duplicate protection and accepted early delivery');
+})();

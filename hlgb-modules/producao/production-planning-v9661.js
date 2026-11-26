@@ -608,5 +608,48 @@
   let firstAvailable=null,needed=proposed;if(weeklyTarget!==null&&proposed>0)for(const d of daily){needed-=Math.min(needed,d.free);if(needed===0){firstAvailable=d.date;break}}
   return {...empty('local-capacity-simulation',issues),sampleCount:samples.length,average,conservative,weeklyGoal:manual,weeklyTarget,overdue,unallocated,late,orders:orders.map(({due,...o})=>o),weeks,daily,firstAvailable,newPieces:proposed,unplacedNewPieces:needed,model:'entregas-observadas-como-referencia',cashVerified:false};
  }
- return {deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Explicit scenario inputs only: never combine unverified order values with live receivables.
+ function deliveryCashScenario(plan,input,allowed){
+  const empty=(state,issues=[])=>({state,issues,weeks:[],opportunities:[],canWrite:false,canPromise:false,cashVerified:false});
+  if(allowed!==true)return empty('forbidden');
+  const D=86400000,dt=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?Date.parse(s+'T00:00:00Z'):null,iso=n=>new Date(n).toISOString().slice(0,10);
+  const money=n=>Number.isSafeInteger(n)&&Math.abs(n)<=100000000000;
+  const start=dt(input?.start),opening=input?.openingCents,reserve=input?.reserveCents,delay=input?.delayDays;
+  if(plan?.state!=='local-capacity-simulation'||!Array.isArray(plan.orders)||start===null||!money(opening)||!money(reserve)||reserve<0||!Number.isSafeInteger(delay)||delay<0||delay>91||
+    !Array.isArray(input?.entries)||input.entries.length>5000||!Array.isArray(input?.additional)||input.additional.length>5000)return empty('invalid-input');
+  const issues=[],entries=[],refs=new Set(),selected=new Set(),opportunities=[];
+  if(input.coverageConfirmed!==true)issues.push('saldo-e-compromissos-nao-conferidos');
+  if(plan.issues?.length)issues.push('carteira-ou-capacidade-com-lacunas');
+  if(plan.weeklyTarget===null)issues.push('capacidade-desconhecida');
+  for(const e of input.entries){const key=id(e?.reference),date=dt(e?.date);if(!key||refs.has(key)||date===null||date<start||!money(e.amountCents)||e.amountCents<=0||!['in','out'].includes(e.direction))return empty('invalid-commitment');refs.add(key);entries.push({date,direction:e.direction,amountCents:e.amountCents,reference:key,source:'manual'})}
+  const indexed=new Map();for(const o of plan.orders){if(indexed.has(o.key))return empty('invalid-plan');indexed.set(o.key,o)}
+  const candidates=[];
+  for(const a of input.additional){
+   const key=id(a?.key),o=indexed.get(key),ref=id(a?.reference);
+   if(!o||selected.has(key)||!ref||refs.has(ref)||a.notAlreadyIncluded!==true||!money(a.amountCents)||a.amountCents<=0||!money(o.amountCents)||a.amountCents>o.amountCents)return empty('invalid-additional-receipt');
+   selected.add(key);refs.add(ref);
+   const done=dt(o.lastWorkDate),due=dt(o.dueDate);
+   if(o.remaining!==0||done===null||due===null||!['cash','term'].includes(o.paymentMode)){issues.push('pedido-sem-conclusao-ou-condicao:'+key);continue}
+   const term=o.paymentMode==='cash'?0:o.paymentDays;
+   if(!Number.isSafeInteger(term)||term<0||term>365)return empty('invalid-plan');
+   const normal=Math.max(start,done,due)+term*D,early=Math.max(start,done)+term*D;
+   const canAdvance=a.earlyAccepted===true&&early<normal;
+   candidates.push({date:normal,earlyDate:canAdvance?early:normal,direction:'in',amountCents:a.amountCents,reference:ref,source:'additional'});
+   if(early<normal)opportunities.push({key,client:o.client,model:o.model,amountCents:a.amountCents,normalReceipt:iso(normal),earlyReceipt:iso(early),requiresCustomerAcceptance:!canAdvance});
+  }
+  function simulate(mode){
+   const days=Array.from({length:91},(_,i)=>({date:iso(start+i*D),incomingCents:0,outgoingCents:0}));
+   const all=mode==='baseline'?entries:[...entries,...candidates];
+   let outside=0;
+   for(const e of all){const date=(mode==='early'&&e.source==='additional'?e.earlyDate:e.date)+(mode==='stress'&&e.direction==='in'?delay*D:0),i=(date-start)/D;
+    if(i>=91){outside++;continue}const d=days[i];d[e.direction==='in'?'incomingCents':'outgoingCents']+=e.amountCents;}
+   let balance=opening,minimum=opening,firstGap=null,maximumGap=0;
+   for(const d of days){d.beforeReceiptsCents=balance-d.outgoingCents;balance=d.beforeReceiptsCents+d.incomingCents;d.closingCents=balance;const low=Math.min(d.beforeReceiptsCents,balance);minimum=Math.min(minimum,low);maximumGap=Math.max(maximumGap,reserve-low);if(low<reserve&&!firstGap)firstGap=d.date}
+   const weeks=Array.from({length:13},(_,i)=>{const w=days.slice(i*7,i*7+7);return {start:w[0].date,end:w[6].date,incomingCents:w.reduce((s,d)=>s+d.incomingCents,0),outgoingCents:w.reduce((s,d)=>s+d.outgoingCents,0),closingCents:w[6].closingCents,minimumCents:Math.min(...w.map(d=>Math.min(d.beforeReceiptsCents,d.closingCents)))}});
+   return {mode,weeks,firstGap,maximumGapCents:maximumGap,minimumCents:minimum,outside};
+  }
+  return {...empty('local-cash-scenario',issues),openingCents:opening,reserveCents:reserve,baseline:simulate('baseline'),planned:simulate('planned'),early:simulate('early'),stress:simulate('stress'),opportunities,additionalCount:candidates.length,partial:issues.length>0};
+ }
+ return {deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
