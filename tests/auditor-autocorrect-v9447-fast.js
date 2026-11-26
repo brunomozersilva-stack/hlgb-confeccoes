@@ -33,7 +33,14 @@ const window={
 const ctx={window,localStorage:{getItem:k=>storage[k]??null,setItem:(k,v)=>{storage[k]=String(v)}},navigator:{userAgent:'test'},console,setTimeout,clearTimeout,Date,JSON,Blob:class{},URL:{createObjectURL:()=>'',revokeObjectURL:()=>{}},structuredClone:v=>JSON.parse(JSON.stringify(v))};
 vm.createContext(ctx);vm.runInContext(code,ctx);
 (async()=>{
+ window.db={materialChecklists:[{id:'check-1',productId:'model-1',destinationType:'F',materials:[]},{id:'check-2',productId:'model-2',destinationType:'F',materials:[]},{id:'check-3',productId:'model-1',destinationType:'F',materials:[{qty:1}]},{id:'check-4',productId:'model-1',destinationType:'I',materials:[]}],products:[{id:'model-1',materials:[{qty:1}]}],materials:[]};
+ window.hlgbFactionMaterialRefresh9522={analyze:c=>({status:'stale',materials:[{qty:1}],locked:c.id==='check-1'})};
+ const before=JSON.stringify(window.db);
  const out=await window.hlgbAuditorAutoCorrect9447.run({reason:'test-fast',render:false,download:false});
+ const proof=out.report.factionChecklistEvidence9729;
+ ok(proof.observed===true&&proof.checked===3&&proof.emptyWithSheet===1&&proof.missingOrInvalid===1&&proof.locked===1,'empty checklist evidence with missing identity separated');
+ ok(proof.items[0].checklistId==='check-1'&&proof.items[0].expected===1&&proof.items[0].requiresManual===true,'trace and locked flag');
+ ok(proof.remoteConfirmed===false&&proof.canRepair===false&&JSON.stringify(window.db)===before,'read-only local evidence');
  ok(out?.version==='94.47','resultado não foi promovido para v94.47');
  ok(out.auditCompleted===true&&out.report.auditCompleted===true,'auditoria concluída deve ter prova explícita no relatório');
  ok(out.repairSkipped===true&&out.passes===0,'não deveria executar reparo com fila operacional zerada');
