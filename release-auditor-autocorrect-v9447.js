@@ -355,6 +355,36 @@ function destinationSelectorEvidence9713(){
  return {observed:true,classification:known.includes(x.classification)?x.classification:'unknown',compatible:count(x.compatible),services:count(x.services),at:sid(x.at||''),remoteConfirmed:false};
  }catch(_){return {observed:false}}
 }
+// Read-only inventory of checklists that must not be mistaken for a completed material list.
+function factionChecklistEvidence9729(){
+ const empty=state=>({state,observed:false,remoteConfirmed:false,canRepair:false,checked:null,emptyWithSheet:null,missingOrInvalid:null,items:[]});
+ try{
+  if(!authReady())return empty('not-authenticated');
+  const d=typeof db!=='undefined'?db:window.db,api=window.hlgbFactionMaterialRefresh9522;
+  if(!Array.isArray(d?.materialChecklists)||!Array.isArray(d?.products)||!Array.isArray(d?.materials)||typeof api?.analyze!=='function')return empty('unavailable');
+  const live=x=>x&&!x.deleted_at&&!x.deletedAt&&x.deleted!==true&&!x._deleted;
+  const checks=d.materialChecklists.filter(live),ids=new Map(),products=new Map(),items=[];
+  for(const c of checks){const k=sid(c.id);ids.set(k,(ids.get(k)||0)+1)}
+  for(const p of d.products.filter(live)){const k=sid(p.id);products.set(k,products.has(k)?null:p)}
+  let emptyWithSheet=0,missingOrInvalid=0,checked=0,locked=0;
+  for(const c of checks){
+   if(sid(c.destinationType)!=='F')continue;
+   checked++;
+   const cid=sid(c.id),pid=sid(c.productId),p=products.get(pid);
+   let issue='',lines=null,expected=null,requiresManual=false;
+   if(!cid||ids.get(cid)!==1||!pid||!p||p.active===false||!Array.isArray(c.materials)||!Array.isArray(p.materials)){issue='identity-or-sheet-unverified';missingOrInvalid++}
+   else{
+    lines=c.materials.length;
+    const result=api.analyze(c);
+    requiresManual=result?.locked===true;
+    if(!result||['unavailable','error'].includes(result.status)||!Array.isArray(result.materials)){issue='calculation-unverified';missingOrInvalid++}
+    else{expected=result.materials.length;if(lines===0&&expected>0){issue='empty-with-sheet';emptyWithSheet++}}
+   }
+   if(issue){if(requiresManual)locked++;if(items.length<50)items.push({checklistId:cid,productId:pid,issue,lines,expected,requiresManual})}
+  }
+  return {...empty('local-observation'),observed:true,checked,emptyWithSheet,missingOrInvalid,locked,items,truncated:emptyWithSheet+missingOrInvalid>items.length};
+ }catch(_){return empty('unavailable')}
+}
 function jointWorkspaceEvidence9714(){
  try{if(!authReady())return {observed:false};const x=window.hlgbJointWorkspaceEvidence9714;if(x?.observed!==true)return {observed:false};const count=v=>Number.isSafeInteger(v)&&v>=0?v:null;
  return {observed:true,materials:count(x.materials),pairs:count(x.pairs),products:count(x.products),orders:count(x.orders),ambiguous:count(x.ambiguous),adjustedRows:count(x.adjustedRows),duplicatePlannedPairs:count(x.duplicatePlannedPairs),blockedActivityPairs:count(x.blockedActivityPairs),at:sid(x.at||''),remoteConfirmed:false,geometryVerified:false};
@@ -399,7 +429,7 @@ async function financeLinkEvidence9720(audit){
  }catch(_){return {...base,state:'read-failed'}}
 }
 function makeReport(summary,audit,t){
- const report={kind:'hlgb_autocorrect_report',version:V,auditCompleted:summary.auditCompleted===true,generatedAt:nowIso(),appVersion:V,browser:sid(navigator?.userAgent||''),operationalCoverage:clone(t.coverage),cutUiEvidence9709:cutUiEvidence9709(),jointWorkspaceEvidence9714:jointWorkspaceEvidence9714(),destinationSelectorEvidence9713:destinationSelectorEvidence9713(),notesUiEvidence9710:notesUiEvidence9710(),knownGaps:knownGaps9474(t),run:clone(summary),fastConvergence:{repairSkipped:!!summary.repairSkipped,operationalQueue:clone(t.signal.operationalQueue),pendingBusiness:t.signal.pendingBusiness,pendingTechnicalRecent:t.signal.pendingTechnicalRecent,structureEvidence:clone(t.structureEvidence||{}),needsCode:clone(t.needsCode),businessBlocked:clone(t.businessBlocked),historicalBacklog:clone(t.historicalBacklog)},finalAudit:{summary:audit?.main?.summary||null,checks:unresolvedChecks(audit).map(compactFinding),metrics:metrics(),operations:clone(audit?.operations||{})},rules:{repairTrigger:'Somente sinal técnico vivo',historical:'Resumido, não reparado',business:'Bloqueado para decisão humana',neverInvent:['valores','quantidades','observações','vínculos sem fonte']}};
+ const report={kind:'hlgb_autocorrect_report',version:V,auditCompleted:summary.auditCompleted===true,generatedAt:nowIso(),appVersion:V,browser:sid(navigator?.userAgent||''),operationalCoverage:clone(t.coverage),cutUiEvidence9709:cutUiEvidence9709(),jointWorkspaceEvidence9714:jointWorkspaceEvidence9714(),factionChecklistEvidence9729:factionChecklistEvidence9729(),destinationSelectorEvidence9713:destinationSelectorEvidence9713(),notesUiEvidence9710:notesUiEvidence9710(),knownGaps:knownGaps9474(t),run:clone(summary),fastConvergence:{repairSkipped:!!summary.repairSkipped,operationalQueue:clone(t.signal.operationalQueue),pendingBusiness:t.signal.pendingBusiness,pendingTechnicalRecent:t.signal.pendingTechnicalRecent,structureEvidence:clone(t.structureEvidence||{}),needsCode:clone(t.needsCode),businessBlocked:clone(t.businessBlocked),historicalBacklog:clone(t.historicalBacklog)},finalAudit:{summary:audit?.main?.summary||null,checks:unresolvedChecks(audit).map(compactFinding),metrics:metrics(),operations:clone(audit?.operations||{})},rules:{repairTrigger:'Somente sinal técnico vivo',historical:'Resumido, não reparado',business:'Bloqueado para decisão humana',neverInvent:['valores','quantidades','observações','vínculos sem fonte']}};
  writeJson(REPORT_KEY,report);state.lastReport=clone(report);return report;
 }
 function downloadReport(report){try{const data=report||state.lastReport;if(!data)return false;const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hlgb-auditor-autocorretor-'+sid(data?.run?.runId||Date.now()).replace(/[^a-z0-9_-]/gi,'_')+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);return true}catch(e){state.lastError=sid(e?.message||e);return false}}
