@@ -157,5 +157,48 @@
   const extraCents=reviewed?Math.round(salary*approvedExtra*extraPercent/(divisor*60*100)):null;
   return {...empty('local-salary-preview'),baseCents:salary,counts,missingDays,issues:batch.issues.length,reviewed,deductionCents,extraCents,indicativeGrossCents:reviewed?salary-deductionCents+extraCents:null,partial:missingDays>0||batch.issues.length>0||counts.pending>0};
  }
- return {digitalTable,inspectDigital,salaryDigitalPreview,header,parse,inspect,preview,roster,coverageCandidate,batchPreview};
+
+ // Batch review never mutates payroll and never treats unreviewed amounts as zero.
+ function digitalSalaryRoster(batch,employees,allowed){
+  const empty=state=>({state,rows:[],issues:[],canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(batch?.state!=='local-digital-preview'||!Array.isArray(batch.rows)||!Array.isArray(employees)||employees.length>10000)return empty('unavailable');
+  const byId=new Map(),imported=new Set(batch.rows.map(r=>r.employeeId)),issues=[];
+  for(const e of employees){if(!e||e.deletedAt||e.deleted_at||e.deleted===true||e._deleted===true)continue;const k=id(e.id);if(k)byId.set(k,byId.has(k)?null:e)}
+  const rows=[];
+  for(const [k,e] of byId){if(!e){issues.push('duplicate-employee:'+k);continue}if(e.active===false&&!imported.has(k))continue;
+   const baseCents=cents(String(e.salary??'')),name=String(e.name||k).slice(0,160),company=String(e.companyName||'').slice(0,160);
+   const days=batch.rows.filter(r=>r.employeeId===k),signature=JSON.stringify([k,name,company,baseCents,e.active!==false,e.hireDate||'',e.terminationDate||'',batch.month,days]);
+   rows.push({employeeId:k,name,company,baseCents,imported:days.length>0,signature});
+  }
+  for(const k of imported)if(!byId.get(k))issues.push('imported-employee-unavailable:'+k);
+  return {...empty('local-digital-roster'),issues,rows:rows.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.employeeId.localeCompare(b.employeeId))};
+ }
+ function digitalSalaryBatch(batch,employees,settings,allowed){
+  const empty=state=>({state,rows:[],issues:[],selectedCount:0,reviewedCount:0,totals:null,officialNetCents:null,canWrite:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!Array.isArray(settings)||!settings.length||settings.length>200)return empty('invalid-input');
+  const source=digitalSalaryRoster(batch,employees,true);if(source.state!=='local-digital-roster')return empty(source.state);
+  const current=new Map(source.rows.map(r=>[r.employeeId,r])),people=new Map(employees.filter(e=>e&&!e.deletedAt&&!e.deleted_at&&!e.deleted&&!e._deleted).map(e=>[id(e.id),e])),seen=new Set(),rows=[];
+  let totals=null,reviewedCount=0;
+  for(const s of settings){
+   const k=id(s?.employeeId);if(!k||seen.has(k))return empty('invalid-input');seen.add(k);
+   const e=current.get(k),row={employeeId:k,name:e?.name||k,company:e?.company||'',state:'review',reason:null,preview:null};
+   if(!e||s.signature!==e.signature)row.reason='roster-or-report-changed';
+   else if(!e.imported)row.reason='missing-attendance';
+   else{
+    const p=salaryDigitalPreview(batch,people.get(k),s,true);
+    if(p.state!=='local-salary-preview')row.reason=p.state;
+    else {row.preview=p;if(!p.reviewed)row.reason='parameters-unreviewed';else{
+     row.state='observed';reviewedCount++;
+     if(!totals)totals={baseCents:0,deductionCents:0,extraCents:0,indicativeGrossCents:0};
+     for(const key of Object.keys(totals))totals[key]+=p[key];
+    }}
+   }
+   rows.push(row);
+  }
+  if(totals&&Object.values(totals).some(n=>!Number.isSafeInteger(n)))return empty('invalid-input');
+  return {...empty('local-digital-batch'),rows,issues:source.issues,selectedCount:settings.length,reviewedCount,totals,partial:reviewedCount!==settings.length||batch.issues.length>0||source.issues.length>0||rows.some(r=>r.preview?.partial)};
+ }
+ return {digitalSalaryRoster,digitalSalaryBatch,digitalTable,inspectDigital,salaryDigitalPreview,header,parse,inspect,preview,roster,coverageCandidate,batchPreview};
 })());
