@@ -75,6 +75,19 @@ const fs=require('node:fs');
   const malformed=await page.evaluate(async()=>{localStorage.setItem('hlgb_durable_wal_v1','{broken');const api=window.hlgbWalIdbGuard9536;const probe=await api.probe();return {probe,status:api.status(),ids:[...api.ids()]}});
   assert.equal(malformed.status.localReadFailed,true);assert.equal(malformed.probe.indexedDbOnly,null);assert.equal(malformed.ids.length,2);
   const restored=await page.evaluate(async()=>{localStorage.removeItem('hlgb_durable_wal_v1');const api=window.hlgbWalIdbGuard9536;await api.probe();return api.status()});assert.equal(restored.localReadFailed,false);assert.equal(restored.indexedDbOnly,2);
+  // Contradictory key/record identity is not an empty or safe queue.
+  const invalid=await page.evaluate(async()=>{
+   const request=indexedDB.open('hlgb_durable_wal');const base=await new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+   const change=(mode,fn)=>new Promise((resolve,reject)=>{const tx=base.transaction('entries',mode);fn(tx.objectStore('entries'));tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+   await change('readwrite',store=>store.put({key:'orders|conflicting',module:'cuts',id:'conflicting',opId:'bad-id',data:{id:'conflicting',qty:77}}));
+   const api=window.hlgbWalIdbGuard9536;let blocked=false,error='';const previous=window.__syncReads;
+   try{await window.hlgbRecordLoadBundle({preserveLocal:false,since:null})}catch(e){blocked=true;error=e.message}
+   const status=api.status(),ids=[...api.ids()];
+   const saved=await new Promise((resolve,reject)=>{const tx=base.transaction('entries','readonly'),req=tx.objectStore('entries').get('orders|conflicting');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)});
+   await change('readwrite',store=>store.delete('orders|conflicting'));base.close();await api.probe();
+   return {blocked,error,status,ids,saved,previous,after:window.__syncReads};
+  });
+  assert.equal(invalid.blocked,true);assert.match(invalid.error,/identidade inválida ou conflitante/);assert.equal(invalid.status.readFailed,true);assert.equal(invalid.previous,invalid.after);assert.equal(invalid.ids.length,2);assert.equal(invalid.saved.data.qty,77);assert.equal(invalid.saved.opId,'bad-id');
   // A confirmed cleanup done by OTHER code must be observed on next probe,
   // without the guard itself writing anything.
   await page.evaluate(async()=>{

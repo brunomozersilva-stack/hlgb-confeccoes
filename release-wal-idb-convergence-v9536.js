@@ -10,12 +10,15 @@ let ids=new Set(),rawKeys=new Set(),inflight=null;
 const sid=v=>String(v==null?'':v);
 function keyOf(entry){
  if(!entry||typeof entry!=='object')return null;
- let module=sid(entry.module),id=sid(entry.id||entry.entity_id);
+ let module=sid(entry.module),id=sid(entry.id??entry.entity_id);
  const key=sid(entry.key);
- if((!module||!id)&&key.includes('|')){
-  const pos=key.indexOf('|');module=module||key.slice(0,pos);id=id||key.slice(pos+1);
+ if(entry.id!=null&&entry.entity_id!=null&&sid(entry.id)!==sid(entry.entity_id))return null;
+ if(key.includes('|')){
+  const pos=key.indexOf('|'),km=key.slice(0,pos),ki=key.slice(pos+1);
+  if((module&&module!==km)||(id&&id!==ki))return null;
+  module=module||km;id=id||ki;
  }
- return module&&id&&/^[A-Za-z][A-Za-z0-9]*$/.test(module)?module+'::'+id:null;
+ return module&&id.trim()&&/^[A-Za-z][A-Za-z0-9]*$/.test(module)?module+'::'+id:null;
 }
 function scan(options={}){
  const requested=Number(options?.timeoutMs);
@@ -52,10 +55,10 @@ function scan(options={}){
      const cur=cursor.result;
      if(!cur)return;
      count++;
-     const identity=keyOf(cur.value);
-     if(identity)found.add(identity);
-     const k=sid(cur.value?.key||cur.key||'');
-     if(k)keys.add(k);
+     const identity=keyOf(cur.value),k=sid(cur.value?.key||cur.key||'');
+     if(!identity||!k||(cur.value?.key!=null&&sid(cur.key)!==sid(cur.value.key))){
+      readError=readError||new Error('Operação IndexedDB com identidade inválida ou conflitante; nenhuma carga remota liberada');
+     }else{found.add(identity);keys.add(k)}
      cur.continue();
     };
     cursor.onerror=()=>{readError=cursor.error||new Error('Falha ao ler diário IndexedDB')};
