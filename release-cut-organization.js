@@ -17,7 +17,7 @@ function cutIndex9709(){
 function cutMeta9709(c,idx){
  const o=idx.orders.get(sid(c.orderId)),ct=idx.cutters.get(sid(c.cutterId)),p=idx.products.get(sid(c.productId));
  const materialNames=(Array.isArray(p?.materials)?p.materials:[]).map(m=>[m?.name,m?.materialName,idx.materials.get(sid(m?.materialId||m?.id))?.name].filter(Boolean).join(' '));
- return {search:norm([c.id,c.orderId,o?.orderNumber,o?.number,o?.client,c.product,p?.name,p?.code,p?.sku,p?.reference,ct?.name,c.op,o?.priority,c.date,c.plannedCutDate,...materialNames].filter(v=>v!=null).join(' ')),priority:sid(o?.priority||'Padrão'),cutter:sid(c.cutterId||''),date:sid(c.plannedCutDate||c.date||'').slice(0,10),cutterName:ct?.name||'Sem cortador',completed:norm(c.status)==='finalizado'||norm(c.status).includes('desmembrado')||c.modelSplitParentV1===true||c.hiddenByModelSplitV1===true};
+ return {search:norm([c.id,c.orderId,'Pedido '+sid(o?.orderNumber||o?.number||c.orderId),o?.orderNumber,o?.number,o?.client,o?.clientName,c.product,p?.name,p?.code,p?.sku,p?.reference,ct?.name,c.op,o?.priority,c.date,c.plannedCutDate,...materialNames].filter(v=>v!=null).join(' ')),priority:sid(o?.priority||'Padrão'),cutter:sid(c.cutterId||''),date:sid(c.plannedCutDate||c.date||'').slice(0,10),cutterName:ct?.name||'Sem cortador',completed:norm(c.status)==='finalizado'||norm(c.status).includes('desmembrado')||c.modelSplitParentV1===true||c.hiddenByModelSplitV1===true};
 }
 function matchesCut9709(meta,filters){
  return (!filters.q||filters.q.split(/\s+/).every(t=>meta.search.includes(t)))&&
@@ -50,9 +50,10 @@ function apply(){
  const run=(row,model)=>{
   const id=cutIdentity9709(row),cut=idx.cuts.get(id);
   if(!id||!cut){if(id)stats.unresolved++;return} // headings, placeholders and unresolved identities remain untouched
-  if(!model&&row.dataset.hlgbSplitAggregateHidden==='1'){setFilterVisible9709(row,false);return}
+  if(!model&&row.dataset.hlgbSplitAggregateHidden==='1'){delete row.dataset.hlgbCutFilterHidden;delete row.dataset.hlgbCutFilterPrevious;row.style.display='none';return}
   const meta=cutMeta9709(cut,idx);stats[model?'modelRows':'legacyRows']++;
-  const visible=(model||!meta.completed)&&matchesCut9709(meta,filters);
+  const completed=meta.completed;
+  const visible=(model||!completed)&&matchesCut9709(meta,filters);
   setFilterVisible9709(row,visible);if(visible&&row.style.display!=='none')stats.shown++;
   if(!model&&!row.querySelector('.hlgbCutMeta')){
    const cell=row.children?.[2];if(cell){const el=document.createElement('div');el.className='sub hlgbCutMeta';el.textContent='📅 '+(meta.date||'Sem data')+' · ✂️ '+meta.cutterName;cell.appendChild(el)}
