@@ -5,7 +5,7 @@
 if(window.hlgbWalIdbGuard9536)return;
 const VERSION='95.36',NAME='hlgb_durable_wal',STORE='entries';
 const state={version:VERSION,probes:0,installed:0,lastProbeAt:'',lastError:'',readFailed:false,
-  indexedDbOnly:0,entryCount:0,protectedIncoming:0,loadBlocked:0,unsupported:false};
+  indexedDbOnly:0,entryCount:0,protectedIncoming:0,loadBlocked:0,unsupported:false,localReadFailed:false};
 let ids=new Set(),rawKeys=new Set(),inflight=null;
 const sid=v=>String(v==null?'':v);
 function keyOf(entry){
@@ -22,6 +22,7 @@ function scan(options={}){
  const timeoutMs=Number.isFinite(requested)&&requested>0?Math.min(45000,Math.max(8000,requested)):8000;
  return new Promise((resolve,reject)=>{
   if(typeof indexedDB==='undefined'){state.unsupported=true;resolve({ids:new Set(),keys:new Set(),count:0});return}
+  state.unsupported=false;
   let request,db=null,done=false,missing=false,watchdog;
   const finish=(error,value)=>{
    if(done)return;done=true;clearTimeout(watchdog);
@@ -76,9 +77,9 @@ async function probe(options={}){
    ids=result.ids;rawKeys=result.keys;state.entryCount=result.count;
    state.readFailed=false;state.lastError='';state.probes++;
    state.lastProbeAt=new Date().toISOString();
-   let localEntries={};
-   try{localEntries=JSON.parse(localStorage.getItem('hlgb_durable_wal_v1')||'null')?.entries||{}}catch(_){}
-   state.indexedDbOnly=[...rawKeys].filter(k=>!Object.prototype.hasOwnProperty.call(localEntries,k)).length;
+   let localEntries={};state.localReadFailed=false;
+   try{const raw=localStorage.getItem('hlgb_durable_wal_v1');if(raw!==null){const parsed=JSON.parse(raw);if(!parsed||!parsed.entries||typeof parsed.entries!=='object'||Array.isArray(parsed.entries))throw Error('WAL local inválida');localEntries=parsed.entries}}catch(_){state.localReadFailed=true}
+   state.indexedDbOnly=state.localReadFailed||state.unsupported?null:[...rawKeys].filter(k=>!Object.prototype.hasOwnProperty.call(localEntries,k)).length;
    return {count:state.entryCount,identities:ids.size,indexedDbOnly:state.indexedDbOnly};
   }catch(e){
    // Não transformar erro de leitura em "0 pendências". Mantenha o cache anterior.

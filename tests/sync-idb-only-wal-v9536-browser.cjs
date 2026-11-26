@@ -71,6 +71,10 @@ const fs=require('node:fs');
   });
   assert.equal(still.length,2);
   assert.equal(still.find(x=>x.key==='orders|safari-only')?.data?.qty,100);
+  // An unreadable local queue is not equivalent to an empty local queue.
+  const malformed=await page.evaluate(async()=>{localStorage.setItem('hlgb_durable_wal_v1','{broken');const api=window.hlgbWalIdbGuard9536;const probe=await api.probe();return {probe,status:api.status(),ids:[...api.ids()]}});
+  assert.equal(malformed.status.localReadFailed,true);assert.equal(malformed.probe.indexedDbOnly,null);assert.equal(malformed.ids.length,2);
+  const restored=await page.evaluate(async()=>{localStorage.removeItem('hlgb_durable_wal_v1');const api=window.hlgbWalIdbGuard9536;await api.probe();return api.status()});assert.equal(restored.localReadFailed,false);assert.equal(restored.indexedDbOnly,2);
   // A confirmed cleanup done by OTHER code must be observed on next probe,
   // without the guard itself writing anything.
   await page.evaluate(async()=>{

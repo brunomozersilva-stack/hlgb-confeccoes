@@ -46,12 +46,15 @@ function walPendingCount(){
  return keys.size;
 }
 function pendingCounts(){
- const guard=window.hlgbWalIdbGuard9536;
+ let observed=null;try{observed=window.hlgbWalIdbGuard9536?.status?.()||null}catch(_){}
+ const verified=!!observed&&Number.isSafeInteger(observed.probes)&&observed.probes>0&&observed.readFailed===false&&observed.unsupported!==true&&observed.localReadFailed!==true;
  return {records:recordPendingCount(),wal:walPendingCount(),
-  indexedDbOnly:Number(guard?.status?.()?.indexedDbOnly)||0,
-  indexedDbVerified:guard?.status?.()?.readFailed!==true};
+  indexedDbOnly:verified?Number(observed.indexedDbOnly)||0:null,
+  indexedDbVerified:verified};
 }
 function totalPending(){const p=pendingCounts();return p.records+p.wal}
+function pendingConfirmed(p){return p.indexedDbVerified===true&&p.records+p.wal===0}
+function pendingStatus(p){if(!p.indexedDbVerified)setStatus('⚠️ Confirmação incompleta · fila local ainda não verificada','warn');else if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');else setStatus('✅ Online · tudo confirmado na nuvem','ok')}
 function snapshotState(extra={}){const s={version:V,at:new Date().toISOString(),busy,lastFull,lastIncremental,lastReason,lastResult,realtime:realtimeState(),recordReady:ready(),online:navigator.onLine,pending:pendingCounts(),ioPolicy:{fullEveryMs:FULL_EVERY_MS,incrementalEveryMs:INCREMENTAL_EVERY_MS,maintenanceEveryMs:MAINTENANCE_EVERY_MS,minIncrementalMs:MIN_INCREMENTAL_MS,realtimeVerifyEveryMs:REALTIME_VERIFY_EVERY_MS,ordersFullVerifyMinMs:ORDERS_FULL_VERIFY_MIN_MS,overlapMs:OVERLAP_MS,skippedRealtime,flushOnlyRuns,lastCloudVerify,lastOrdersVerify},...extra};try{localStorage.setItem(STATE_KEY,JSON.stringify(s))}catch(e){}return s}
 function quarantineHistory(){const x=read(QUAR_KEY,[]);return Array.isArray(x)?x:[]}
 
@@ -119,7 +122,7 @@ async function fullSync(reason='manual',force=false){
  if(busy)return lastResult?.ok===true;
  if(!navigator.onLine||document.visibilityState==='hidden'||!loggedIn())return false;
  if(userEditing()&&!force){clearTimeout(retryTimer);retryTimer=setTimeout(()=>fullSync(reason+'-after-edit',false),1500);return false}
- const now=Date.now();if(!force&&now-lastFull<120000)return true;
+ const now=Date.now();if(!force&&now-lastFull<120000)return pendingConfirmed(pendingCounts());
  busy=true;lastReason=reason;snapshotState();
  try{
    setStatus('☁️ Conferindo alterações pendentes…');
@@ -133,7 +136,7 @@ async function fullSync(reason='manual',force=false){
       trouxe a nuvem preservando o local. */
    if(!needPrime){
      const load=loadBundleFn();if(typeof load!=='function')throw new Error('Leitura por registro indisponível');
-     out=await load({preserveLocal:remaining>0,since:null});markReady();saveLocal();
+     out=await load({preserveLocal:remaining>0||!pendingCounts().indexedDbVerified,since:null});markReady();saveLocal();
    }
    lastCloudVerify=Date.now();
    const cursor=resetCursorFromSnapshots();
@@ -141,8 +144,8 @@ async function fullSync(reason='manual',force=false){
    redrawCurrent();
    lastFull=Date.now();lastIncremental=lastFull;
    const p=pendingCounts();
-   lastResult={ok:p.records+p.wal===0,kind:'full',reason,at:new Date().toISOString(),cursor,rows:Array.isArray(out?.rows)?out.rows.length:null,flush,pending:p,realtime:realtimeState(),needPrime};
-   if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');else setStatus('✅ Online · tudo confirmado na nuvem','ok');
+   lastResult={ok:pendingConfirmed(p),kind:'full',reason,at:new Date().toISOString(),cursor,rows:Array.isArray(out?.rows)?out.rows.length:null,flush,pending:p,realtime:realtimeState(),needPrime};
+   pendingStatus(p);
    snapshotState();return lastResult.ok;
  }catch(e){
    lastResult={ok:false,kind:'full',reason,at:new Date().toISOString(),error:sid(e?.message||e),pending:pendingCounts()};
@@ -180,11 +183,11 @@ async function incrementalSync(force=false){
  // O desenho da tela (não a atualização dos dados em memória) aguarda a edição terminar.
  if(busy||!navigator.onLine||document.visibilityState==='hidden'||!loggedIn())return false;
  if(!ready()||!token())return fullSync('incremental-not-ready',true);
- const now=Date.now();if(!force&&now-lastIncremental<MIN_INCREMENTAL_MS)return true;
+ const now=Date.now();if(!force&&now-lastIncremental<MIN_INCREMENTAL_MS)return pendingConfirmed(pendingCounts());
  const hadPending=totalPending()>0;
  /* Realtime é a via principal, mas SUBSCRIBED sozinho não prova que nenhum evento
     foi perdido. A cada dois minutos fazemos uma confirmação curta no banco. */
- if(!force&&!hadPending&&realtimeState()==='SUBSCRIBED'&&now-lastCloudVerify<REALTIME_VERIFY_EVERY_MS){
+ if(!force&&!hadPending&&pendingConfirmed(pendingCounts())&&realtimeState()==='SUBSCRIBED'&&now-lastCloudVerify<REALTIME_VERIFY_EVERY_MS){
    skippedRealtime++;lastIncremental=now;lastReason='realtime-skip';snapshotState();return true;
  }
  busy=true;lastReason='incremental';snapshotState();
@@ -213,8 +216,8 @@ async function incrementalSync(force=false){
     }else redrawCurrent();
    }
    restartRealtimeIfNeeded(false);lastIncremental=Date.now();
-   const p=pendingCounts();lastResult={ok:p.records+p.wal===0,kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,changedRows:changes.length,changedModules:[...new Set(changes.map(x=>String(x?.module||'')))],flush,pending:p,realtime:realtimeState()};
-   if(p.records+p.wal)setStatus('⚠️ '+(p.records+p.wal)+' alteração(ões) aguardando confirmação','warn');
+   const p=pendingCounts();lastResult={ok:pendingConfirmed(p),kind:'incremental',at:new Date().toISOString(),since,rows:rows.length,changedRows:changes.length,changedModules:[...new Set(changes.map(x=>String(x?.module||'')))],flush,pending:p,realtime:realtimeState()};
+   pendingStatus(p);
    snapshotState();return lastResult.ok;
  }catch(e){console.warn('[HLGB sync '+V+'] incremental',e);lastResult={ok:false,kind:'incremental',at:new Date().toISOString(),error:sid(e?.message||e),pending:pendingCounts()};snapshotState();return false}
  finally{busy=false;snapshotState()}
