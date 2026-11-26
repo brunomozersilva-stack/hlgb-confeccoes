@@ -8,7 +8,7 @@
   if((filter.from&&day(filter.from)!==filter.from)||(filter.to&&day(filter.to)!==filter.to)||(filter.from&&filter.to&&filter.from>filter.to)||filter.status&&!['all','open','paid','compensated','review'].includes(filter.status))return {state:'invalid-filter',rows:[],groups:[],issues:[]};
   const rows=[],issues=[],keys=new Set();const add=r=>{if(!r.id||!r.ownerId||!r.date){issues.push('identidade-ou-data-incompleta');return}if(keys.has(r.id)){issues.push('duplicidade:'+r.id);return}keys.add(r.id);rows.push(r)};
   const row=(kind,id,ownerId,name,date,total,paid,credit,lines,document,status,extra={})=>({kind,id,ownerId,name,date,totalCents:total,paidCents:paid,creditCents:credit,balanceCents:valid(total)&&valid(paid)&&valid(credit)&&paid+credit<=total?total-paid-credit:null,lines,document,status,...extra});
-  const serviceLine=p=>({id:sid(p.id),description:sid(p.description||p.manualProductNameV9589||p.productName||'Serviço').slice(0,180),quantity:p.quantity!==null&&p.quantity!==undefined&&sid(p.quantity)!==''&&Number.isSafeInteger(Number(p.quantity))&&Number(p.quantity)>=0?Number(p.quantity):null,unitPriceCents:cents(p.unitPrice),serviceCents:cents(p.value),paidCents:cents(p.paidAmount),travetaCents:cents(p.travetaDiscountTotalV9577),note:sid(p.manualLineNoteV9566||'').slice(0,500)});
+  const serviceLine=p=>({id:sid(p.id),description:sid(p.description||p.manualProductNameV9589||p.productName||'Serviço').slice(0,180),quantity:p.quantity!==null&&p.quantity!==undefined&&sid(p.quantity)!==''&&Number.isSafeInteger(Number(p.quantity))&&Number(p.quantity)>=0?Number(p.quantity):null,unitPriceCents:cents(p.unitPrice),serviceCents:cents(p.value),paidCents:cents(p.paidAmount),travetaCents:cents(p.travetaDiscountTotalV9577),discountCents:p.discountAmount==null?0:cents(p.discountAmount),note:sid(p.manualLineNoteV9566||'').slice(0,500)});
   const proofLine=p=>JSON.stringify([sid(p.id),sid(p.factionMasterId),sid(p.manualGroupId),p.manual===true,cents(p.value),cents(p.paidAmount),day(p.paymentDate),norm(p.status)]);
   if(ctx.factionsAllowed===true){
    if(!Array.isArray(ctx.payments)||!Array.isArray(ctx.manualGroups))issues.push('faccoes-fonte-incompleta');
@@ -30,9 +30,15 @@
     }
     if(manual.size)issues.push('grupos-avulsos-sem-conciliacao:'+manual.size);
     for(const p of ctx.payments.filter(live)){
-     if(p.manual)continue;const id=sid(p.id),total=cents(p.value),paid=cents(p.paidAmount);
+     if(p.manual)continue;const id=sid(p.id),total=cents(p.value),paid=cents(p.paidAmount),credit=p.discountAmount==null?0:cents(p.discountAmount),status=norm(p.status);
      if(!id||counts.get(id)!==1||!valid(total)||!valid(paid)||paid>total){issues.push('pagamento-revisar:'+id);continue}
-     add(row('faccao','payment:'+id,sid(p.factionMasterId),sid(p.factionName),day(p.paymentDate||p.scheduledPaymentDate||p.serviceFinishedAt||p.date),total,paid,0,[id],!!p.receiptPdfV9566,sid(p.status),{dateBasis:p.paymentDate?'payment':p.scheduledPaymentDate?'scheduled':p.serviceFinishedAt?'service':'record',details:[serviceLine(p)]}));
+     const r=row('faccao','payment:'+id,sid(p.factionMasterId),sid(p.factionName),day(p.paymentDate||p.scheduledPaymentDate||p.serviceFinishedAt||p.date),total,paid,credit,[id],!!p.receiptPdfV9566,sid(p.status),{dateBasis:p.paymentDate?'payment':p.scheduledPaymentDate?'scheduled':p.serviceFinishedAt?'service':'record',details:[serviceLine(p)]});
+     // discountAmount is an actual settlement credit; traveta is already reflected in service pricing.
+     // Contradictory paid/partial/pending states are not allowed into observed totals.
+     if(!valid(credit)||r.balanceCents===null||!['pago','parcial','pendente'].includes(status)||status==='pago'&&(r.balanceCents!==0||!day(p.paymentDate))||status==='parcial'&&(r.balanceCents<=0||paid+credit<=0)||status==='pendente'&&(paid+credit!==0||r.balanceCents<=0)){
+      r.balanceCents=null;issues.push('pagamento-saldo-ou-status-inconsistente:'+id);
+     }
+     add(r);
     }
    }
   }

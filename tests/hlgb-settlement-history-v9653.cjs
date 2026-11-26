@@ -22,6 +22,15 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  ok(f({payroll:[{...payroll,paidValue:2000.001}]}).total===2,'fractional cents excluded');
  ok(f({}, {limit:1,export:true}).rows.length===3,'export includes all filtered rows');ok(f({}, {kind:'cliente',export:true}).rows.length===1,'export preserves scope');
 
+ const normal={id:'normal',factionMasterId:'F1',factionName:'Roseli',value:100,paidAmount:70,discountAmount:10,status:'Parcial',scheduledPaymentDate:'2026-11-25',travetaDiscountTotalV9577:5};
+ const partial=f({payments:[normal],manualGroups:[]},{kind:'faccao'}),nr=partial.rows[0];
+ ok(nr.balanceCents===2000&&nr.creditCents===1000&&nr.paidCents===7000,'partial settlement discount is credit not cash');
+ ok(nr.details[0].discountCents===1000&&nr.details[0].travetaCents===500,'separate discount from traveta already in price');
+ ok(partial.totals.balanceCents===2000&&nr.dateBasis==='scheduled','partial balance and date basis');
+ const closed={...normal,paidAmount:90,status:'Pago',paymentDate:'2026-11-26'};
+ ok(f({payments:[closed],manualGroups:[]},{kind:'faccao',status:'compensated'}).rows[0].balanceCents===0,'paid with discount is closed');
+ for(const bad of [{...closed,paidAmount:70},{...closed,discountAmount:20},{...closed,discountAmount:'invalid'},{...closed,paymentDate:''},{...normal,status:'Pendente'},{...normal,paidAmount:90}]){const review=f({payments:[bad],manualGroups:[]},{kind:'faccao',status:'review'});ok(review.total===1&&review.rows[0].balanceCents===null&&review.totals.reviewCount===1&&review.totals.paidCents===null,'inconsistent settlement kept for review but excluded from totals')}
+ ok(f({payments:[{...normal,paidAmount:0,discountAmount:undefined,status:'Pendente'}],manualGroups:[]},{kind:'faccao'}).rows[0].balanceCents===10000,'legacy absent discount is zero');
  const note={...n,paid:5000,credit:1000,balance:4000,number:'NF 100'},record={id:'1',clientId:'C1',paymentHistory:[{id:'a',date:'2026-11-21',value:30,method:'PIX'},{id:'b',date:'2026-11-22',value:20,method:'Abatimento matéria-prima',tradeSettlementId:'trade-1'}],acertoReturnsV9565:[{id:'r1',date:'2026-11-23',value:10,reason:'Devolução'},{id:'r2',date:'2026-11-22',value:5,reversedAt:'2026-11-23T12:00:00Z'}]},ctx={authenticated:true,clientsAllowed:true,notes:[note],noteSources:[{key:note.key,record}]},eventBefore=JSON.stringify(ctx);
  const events=api.noteEvents(ctx);ok(events.eventTotal===4&&events.totals.paymentRecordedCents===3000&&events.totals.materialOffsetCents===2000,'receipt and trade separate');
  ok(events.totals.activeReturnCents===1000&&events.totals.reversedReturnReferenceCents===500,'reversed return separate not credit');

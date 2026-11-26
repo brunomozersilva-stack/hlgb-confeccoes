@@ -59,7 +59,7 @@ function install(){
     if(kind==='cliente'&&row.id.startsWith('note:projection:')){if(typeof root.hlgbViewNote9411==='function')button('Consultar nota original',item,()=>launch('noteView'));if(typeof root.hlgbDownloadNotePdf9411==='function')button('Baixar PDF da nota original',item,()=>launch('notePdf'))}
     if(kind==='cliente'&&row.id.startsWith('note:order:')&&typeof root.viewOrderDetails==='function')button('Consultar pedido original',item,()=>launch('orderView'));
     const detail=el('details','',item);el('summary','Referências e detalhes do acerto',detail);el('p','Linhas '+row.lines.join(', '),detail);
-    for(const l of row.details||[]){el('h4',l.description+' · ID '+l.id,detail);el('p','Quantidade '+(l.quantity??'Não informada')+' · Valor unitário '+money(l.unitPriceCents)+' · Serviço '+money(l.serviceCents)+' · Pago '+money(l.paidCents)+' · Travetada descontada '+money(l.travetaCents),detail);if(l.note)el('p','Observação: '+l.note,detail)}
+    for(const l of row.details||[]){el('h4',l.description+' · ID '+l.id,detail);el('p','Quantidade '+(l.quantity??'Não informada')+' · Valor unitário '+money(l.unitPriceCents)+' · Serviço '+money(l.serviceCents)+' · Pago '+money(l.paidCents)+' · Travetada descontada '+money(l.travetaCents)+' · Abatimento no acerto '+money(l.discountCents),detail);if(l.note)el('p','Observação: '+l.note,detail)}
    }
    if(x.issues.length)el('p',x.issues.length+' lacuna(s) ou inconsistência(s) excluídas/sinalizadas na fonte. Revisar na origem. Os valores não são um total conciliado.',output);
    if(offset)button('Anterior',output,()=>{offset=Math.max(0,offset-30);draw()});
@@ -167,7 +167,7 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
     body+='<section><h2>'+esc(r.name)+' · '+esc(r.date)+' · '+esc(r.id)+'</h2><p>'+esc(dates[r.dateBasis]||r.dateBasis)+' · '+esc(r.status)+' · ID '+esc(r.ownerId)+(r.number?' · Nota '+esc(r.number):'')+(r.document?' · Comprovante registrado':'')+'</p>';
     body+=table(['Lançado','Pago informado','Crédito','Saldo'],[values(r)]);
     if(r.netOfAdjustments)body+='<p>Ajustes já incorporados no grupo; não descontar novamente.</p>';
-    if(r.details?.length)body+=table(['Modelo / serviço','Quantidade','Unitário','Serviço','Pago','Travetada descontada','Observação','ID'],r.details.map(x=>[x.description,x.quantity??'Não informada',cash(x.unitPriceCents),cash(x.serviceCents),cash(x.paidCents),cash(x.travetaCents),x.note,x.id]));
+    if(r.details?.length)body+=table(['Modelo / serviço','Quantidade','Unitário','Serviço','Pago','Travetada descontada','Abatimento no acerto','Observação','ID'],r.details.map(x=>[x.description,x.quantity??'Não informada',cash(x.unitPriceCents),cash(x.serviceCents),cash(x.paidCents),cash(x.travetaCents),cash(x.discountCents),x.note,x.id]));
     body+='<p>Referências: '+esc(r.lines.join(', '))+'</p></section>';
    }
    body+='<h2>Total observado do filtro completo</h2>'+table(['Lançado','Pago informado','Crédito','Saldo'],[values(sum(good,keys))]);
