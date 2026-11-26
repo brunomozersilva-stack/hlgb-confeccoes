@@ -12,14 +12,15 @@
  const fmt=x=>x==null?'Não confirmado':Number(x).toLocaleString('pt-BR',{maximumFractionDigits:3});
  const cutAllowed=()=>['corte','pedidos','produtos','materiais','producao'].every(can);
  const remAllowed=()=>can('produtos')&&can('materiais');
- function clear(){root.hlgbJointWorkspaceEvidence9714={observed:false};for(const x of document.querySelectorAll('[data-planning9661]'))x.remove()}
+ const jointPage='hlgbJointCutPage9732',jointNav='hlgbJointCutNav9732';
+ function clear(){root.hlgbJointWorkspaceEvidence9714={observed:false};for(const x of document.querySelectorAll('[data-planning9661]'))x.remove();document.getElementById(jointNav)?.remove();document.getElementById(jointPage)?.remove()}
+ function ensureJointPage(){const cut=document.getElementById('corte');if(!cut?.parentNode)return null;let p=document.getElementById(jointPage);if(!p){p=el('section','',cut.parentNode);p.id=jointPage;p.className='page';el('h1','Corte Conjunto',p)}return p}
+ function openJoint(){if(!cutAllowed()||!user())return;const p=ensureJointPage();if(!p)return;for(const x of document.querySelectorAll('.page'))x.classList.remove('active');p.classList.add('active');for(const x of document.querySelectorAll('#nav button'))x.classList.remove('active');const nav=document.getElementById(jointNav);if(nav){nav.classList.add('active');try{if(typeof openParentNavGroup==='function')openParentNavGroup(nav)}catch(_){}}mountCut();const host=document.getElementById('hlgbJointCut9661');if(host){host.setAttribute('tabindex','-1');host.focus?.({preventScroll:true});host.scrollIntoView?.({block:'start',behavior:'auto'})}}
  function hostFor(page,id,allowed){const area=document.getElementById(page),old=document.getElementById(id),actor=user();if(!allowed()||!actor||!area?.classList.contains('active')){old?.remove();return null}if(old&&old.dataset.planningActor!==actor)old.remove();else if(old)return null;if(!root.HLGBProductionPlanning9661)return null;const host=el('section','',area);host.id=id;host.className='panel';host.dataset.planning9661='1';host.dataset.planningActor=actor;return {host,active:()=>!document.hidden&&host.isConnected&&allowed()&&area.classList.contains('active')&&user()===actor}}
 
  function mountCut(){
-  const context=hostFor('corte','hlgbJointCut9661',cutAllowed);if(!context)return;const {host,active}=context,api=root.HLGBProductionPlanning9661;
+  const context=hostFor(jointPage,'hlgbJointCut9661',cutAllowed);if(!context)return;const {host,active}=context,api=root.HLGBProductionPlanning9661;
   host.dataset.jointWorkspace9714='1';host.style.cssText='min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere';
-  const area=document.getElementById('corte'),summary=document.getElementById('cutSummaryCards');
-  if(summary?.parentNode===area&&summary.nextElementSibling!==host)area.insertBefore(host,summary.nextElementSibling||null);
   const heading=el('header','',host);heading.style.cssText='border-bottom:1px solid #ddd;padding:6px 0 14px;margin-bottom:14px';
   el('h2','Corte Conjunto — planejamento por matéria-prima',heading);
   el('p','Planeje modelos que utilizam o mesmo material, confira grades e compare enfestos. Não cria corte nem baixa estoque.',heading);
@@ -264,20 +265,27 @@
   sourceOptions();
  }
  function mountCutShortcut(){
-  const area=document.getElementById('corte'),id='hlgbJointCutShortcut9673',actor=user();let bar=document.getElementById(id);
-  if(!actor||!can('corte')||!area?.classList.contains('active')){bar?.remove();return}
-  if(bar&&bar.dataset.planningActor!==actor){bar.remove();bar=null}
-  if(!bar){
-   bar=el('div','',area);bar.id=id;bar.className='panel';bar.dataset.planning9661='1';bar.dataset.planningActor=actor;
-   const top=document.getElementById('cutSummaryCards');if(top?.parentNode===area)area.insertBefore(bar,top);else if(area.firstChild!==bar)area.insertBefore(bar,area.firstChild);
-   button('Corte Conjunto',bar,()=>{if(!bar.isConnected||!area.classList.contains('active')||user()!==actor||!cutAllowed())return;mountCut();const target=document.getElementById('hlgbJointCut9661');if(!target||target.dataset.planningActor!==actor)return;target.setAttribute('tabindex','-1');target.focus?.({preventScroll:true});target.scrollIntoView?.({block:'start',behavior:'auto'})});
-   el('p','',bar);
+  const area=document.getElementById('corte'),id='hlgbJointCutShortcut9673',actor=user();let bar=document.getElementById(id),nav=document.getElementById(jointNav);
+  if(!actor||!can('corte')||!area){bar?.remove();nav?.remove();return}
+  const p=ensureJointPage(),allowed=cutAllowed()&&!!p&&!!root.HLGBProductionPlanning9661;
+  const menu=document.getElementById('nav'),group=menu&&[...menu.querySelectorAll('.nav-group')].find(x=>/Produção/i.test(x.querySelector('.nav-group-title span')?.textContent||'')),sub=group?.querySelector('.nav-submenu');
+  if(sub){
+   bar?.remove();
+   if(!nav){nav=el('button','Corte Conjunto',sub);nav.type='button';nav.id=jointNav;nav.onclick=openJoint;const ordinary=[...sub.querySelectorAll('button')].find(b=>b.getAttribute('onclick')?.includes("page('corte',"));if(ordinary)sub.insertBefore(nav,ordinary.nextElementSibling)}
+   nav.hidden=!cutAllowed();nav.disabled=!allowed;
+   if(!allowed)nav.classList.remove('active');
+   return;
   }
-  const allowed=cutAllowed(),target=document.getElementById('hlgbJointCut9661'),ready=allowed&&!!target&&target.dataset.planningActor===actor;
-  const note=allowed?(ready?'Selecione pedidos e modelos que compartilham matéria-prima.':'Planejamento ainda indisponível. Confira o carregamento dos módulos.'):'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
-  bar.children[0].disabled=!ready;if(bar.children[1].textContent!==note)bar.children[1].textContent=note;
+  if(bar&&bar.dataset.planningActor!==actor){bar.remove();bar=null}
+  if(!area.classList.contains('active')&&!p?.classList.contains('active')){bar?.remove();return}
+  if(!bar){bar=el('div','',area);bar.id=id;bar.dataset.planning9661='1';bar.dataset.planningActor=actor;
+   if(area.firstChild!==bar)area.insertBefore(bar,area.firstChild);
+   button('Corte Conjunto',bar,openJoint);el('p','',bar)}
+  bar.children[0].disabled=!allowed;
+  const note=allowed?'Abrir planejamento em uma tela separada.':'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
+  if(bar.children[1].textContent!==note)bar.children[1].textContent=note;
  }
- function refresh(){if(document.hidden)return;mountCut();mountRemnants();mountCutShortcut();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
+ function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
  document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',()=>{
  root.hlgbJointWorkspaceEvidence9714={observed:false};
  const actor=user();
