@@ -1,0 +1,23 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/producao/joint-lot-record-contract-v9758.cjs');
+(async()=>{
+ const mk=(id,productId,orderId,qty)=>({id,productId,orderId,status:'Finalizado',revision:2,pieces:qty,actualCutGrade:[{productId,color:'Preto',size:'M',qty}]});
+ const snapshot={cuts:[mk('c1','p1','o1',30),mk('c2','p2','o2',40)],orders:[{id:'o1',revision:1,client:'Cliente A'},{id:'o2',revision:2,client:'Cliente B'}],products:[{id:'p1',revision:1,materials:[{materialId:'m1'}]},{id:'p2',revision:1,materials:[{materialId:'m1'}]}],materials:[{id:'m1',revision:1,cat:'Malha'}],lots:[]};
+ const input={lotId:'l1',operationId:'op1',date:'2026-11-26',physicalJointConfirmed:true,cutIds:['c1','c2'],materialId:'m1',physical:{lot:'R-1',color:'Preto',widthMm:1600},weight:{totalKg:10,usedKg:9,wasteKg:.5},people:{cutter1:'A',cutter2:'B',infester:'C'}};
+ const before=JSON.stringify([snapshot,input]),p=(i={},s={},allowed=true)=>api.prepare({...input,...i},{...snapshot,...s},allowed),ok=p();
+ assert.equal(ok.state,'prepared-only');assert.equal(ok.record.pieces,70);assert.equal(ok.record.weightG.unclassified,500);assert.equal(ok.record.cutRefs.length,2);assert.equal(ok.canWrite,false);assert.ok(ok.record.cutRefs.every(x=>!Object.hasOwn(x,'weightG')));
+ assert.equal(p({}, {},false).reason,'permission');assert.equal(p({physicalJointConfirmed:false}).reason,'physical-confirmation');assert.equal(p({cutIds:['c1','c1']}).reason,'identity');assert.equal(p({date:'2026-02-30'}).reason,'identity');
+ assert.equal(p({weight:{totalKg:10,usedKg:9,wasteKg:2}}).reason,'weight');assert.equal(p({weight:{totalKg:10.0001,usedKg:9,wasteKg:1}}).reason,'weight');
+ assert.equal(p({physical:{lot:'R1',color:'Rubi',widthMm:1600}}).reason,'grade-identity');assert.equal(p({}, {cuts:[snapshot.cuts[0],{...snapshot.cuts[1],pieces:41}]}).reason,'grade-total');
+ assert.equal(p({}, {cuts:[snapshot.cuts[0],{...snapshot.cuts[1],revision:null}]}).reason,'revision');assert.equal(p({}, {cuts:[snapshot.cuts[0],{...snapshot.cuts[1],status:'Planejado'}]}).reason,'cut-not-proven');
+ assert.equal(p({}, {lots:[{id:'old',operationId:'oldop',cutRefs:[{cutId:'c1'}]}]}).reason,'cut-already-linked');assert.equal(p({}, {lots:[{id:'l1',operationId:'op1',cutRefs:[{cutId:'other'}]}]}).reason,'lot-or-operation-exists');
+ assert.equal(p({}, {lots:[{id:'invalid'}]}).reason,'lot-source-invalid');assert.equal(p({}, {cuts:[...snapshot.cuts,snapshot.cuts[0]]}).reason,'cut-not-proven');
+ assert.equal(p({}, {products:[snapshot.products[0],{...snapshot.products[1],materials:[]}]}).reason,'material-not-shared');assert.equal(JSON.stringify([snapshot,input]),before);
+ const row={module:'jointCutLots',entity_id:'l1',deleted_at:null,revision:1,data:ok.record};let calls=0,readable=false;
+ const session=api.createSession({atomicLotValidation:true,ready:async()=>true,commit:async()=>{calls++;throw Error('lost response')},read:async()=>readable?row:null});
+ assert.equal((await session.save(ok)).state,'uncertain');assert.equal((await session.save(ok)).state,'reconcile-first');assert.equal(calls,1);assert.equal((await session.reconcile()).state,'uncertain');readable=true;assert.equal((await session.reconcile()).state,'confirmed');
+ assert.equal((await api.createSession({}).save(ok)).state,'blocked');
+ assert.equal((await api.createSession({atomicLotValidation:true,ready:async()=>true,commit:async()=>({applied:true,...row}),read:async()=>({...row,revision:2})}).save(ok)).state,'uncertain');
+ assert.equal((await api.createSession({atomicLotValidation:true,ready:async()=>true,commit:async()=>({applied:true,...row}),read:async()=>row}).save(ok)).state,'confirmed');
+ console.log('PASS joint lot: identity, actual grade, unique link, collective weight, revisions, permission and uncertain ACK');
+})().catch(e=>{console.error(e);process.exitCode=1});
