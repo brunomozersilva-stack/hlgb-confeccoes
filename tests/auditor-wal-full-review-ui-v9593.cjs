@@ -39,6 +39,7 @@ const summary={passes:1,stopReason:'verificar',needsCode:[{id:'sync:indexeddb-wa
  const api=win.hlgbAuditorAutoCorrect9448;
  assert.equal(api.cutMaterialsEvidence9711().observed,false);
  win.hlgbCutOrganization={materialsStatus9711:()=>({observed:true,inline:2,fallback:1,ambiguous:1,private:'NO_EXPORT'})};
+ assert.equal(api.separationDockEvidence9715().observed,false);win.hlgbCutOrganization.separationDockStatus9715=()=>({observed:true,moved:true,modelOpened:false,private:'NO_EXPORT'});const dock=api.separationDockEvidence9715();assert.equal(dock.moved,true);assert.equal(dock.modelOpened,false);assert.equal(dock.remoteConfirmed,false);assert(!JSON.stringify(dock).includes('NO_EXPORT'));
  const materials=api.cutMaterialsEvidence9711();assert.equal(materials.inline,2);assert.equal(materials.fallback,1);assert.equal(materials.remoteConfirmed,false);assert(!JSON.stringify(materials).includes('NO_EXPORT'));
  assert.equal(win.hlgbAuditorAutoCorrect9448.render(summary),true);
  assert(cardHtml.includes('hlgbWalReview9593'),'manual review is visible near safe export');

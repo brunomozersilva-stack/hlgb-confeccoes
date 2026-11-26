@@ -34,4 +34,27 @@
  await p.locator('#hlgbCutLayout9712').click();await p.waitForFunction(()=>!!document.querySelector('.hlgb-cut-unified9712')&&document.getElementById('hlgbCutLayout9712').dataset.original==='0');
  await p.evaluate(()=>{const tr=document.createElement('tr');tr.innerHTML='<td>Sem identidade</td>';document.querySelector('#cutTable tbody').appendChild(tr);window.hlgbCutOrganization.apply()});
  assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0,'unknown rows restore original layout');
- await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!document.getElementById('hlgbCutSeparation9643')&&!document.querySelector('[data-hlgb-inline-materials9711]'));await p.close();console.log('PASS',width)}}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});
+ // Preserve the exact original panel and controls; the operation never clones or writes.
+ await p.evaluate(()=>{
+  const orders=document.createElement('section');orders.id='pedidos';orders.className='page';
+  orders.innerHTML='<div id="beforeSep"></div><div class="panel" id="originalSep"><h2>Separação de material</h2><button onclick="openMultiOrderPurchase()">Compra</button><select id="separationOrder"><option value="">Selecione</option><option value="1">Pedido 12</option></select><div id="separationList">Lista existente</div><div id="separationTable"><input id="sepQty938_10" value="60"><button id="sepBtn938_10">Baixar parcial</button></div></div><div id="afterSep"></div>';
+  document.body.appendChild(orders);window.__originalSep=document.getElementById('originalSep');window.__sepClicks=0;document.getElementById('sepBtn938_10').onclick=()=>window.__sepClicks++;
+  window.__sepBusy=[];window.hlgbSeparationDirect9321={status:()=>({installed:true,busy:window.__sepBusy})};window.renderSeparation=()=>{};window.selectSeparationOrder=id=>{document.getElementById('separationOrder').value=id;window.__order=id};
+  window.hlgbCutOrganization.dockSeparation9715();
+ });
+ assert.equal(await p.locator('#pedidos #originalSep').count(),0);
+ assert.equal(await p.locator('#corte #hlgbSeparationOperation9715 #originalSep').count(),1);
+ assert.equal(await p.evaluate(()=>window.__originalSep===document.getElementById('originalSep')),true);
+ assert.equal(await p.locator('#separationOrder').count(),1);
+ await p.evaluate(()=>{window.__row=window.HLGB_CUT_SEPARATION_CORE_9647.workspace.inspect(db,true,new Set()).rows.find(x=>x.productId==='10')});
+ await p.evaluate(()=>{if(!window.__row)throw Error('model fixture missing');window.hlgbCutOrganization.openModelSeparation9715(window.__row)});
+ await p.waitForFunction(()=>document.activeElement?.id==='sepQty938_10');
+ assert.equal(await p.locator('#sepQty938_10').inputValue(),'60');assert.equal(await p.evaluate(()=>window.__sepClicks),0);
+ await p.locator('#sepBtn938_10').click();assert.equal(await p.evaluate(()=>window.__sepClicks),1);
+ // Rapid selection of a second model within the same order must not restore stale focus.
+ await p.evaluate(()=>{const input=document.createElement('input');input.id='sepQty938_11';input.value='50';document.getElementById('separationTable').appendChild(input);const rows=window.HLGB_CUT_SEPARATION_CORE_9647.workspace.inspect(db,true,new Set()).rows;const a=rows.find(x=>x.orderId==='1'&&x.productId==='10'),b=rows.find(x=>x.orderId==='1'&&x.productId==='11');if(!a||!b)throw Error('model fixtures missing');window.hlgbCutOrganization.openModelSeparation9715(a);window.hlgbCutOrganization.openModelSeparation9715(b)});
+ await p.waitForTimeout(200);assert.equal(await p.evaluate(()=>document.activeElement?.id),'sepQty938_11');assert.equal(await p.locator('#sepQty938_11').inputValue(),'50');assert.equal(await p.evaluate(()=>window.__sepClicks),1);
+ await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!!document.querySelector('#pedidos #originalSep')&&!document.getElementById('hlgbSeparationOperation9715'));
+ assert.equal(await p.evaluate(()=>window.__originalSep===document.getElementById('originalSep')),true);
+ assert.equal(await p.locator('#beforeSep + #originalSep + #afterSep').count(),1);
+  await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!document.getElementById('hlgbCutSeparation9643')&&!document.querySelector('[data-hlgb-inline-materials9711]'));await p.close();console.log('PASS',width)}}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});
