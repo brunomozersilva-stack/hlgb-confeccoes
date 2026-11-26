@@ -130,3 +130,16 @@ test('Melanie real-shaped 172 pieces, six inputs, four colours, no changes durin
  assert.deepEqual(JSON.parse(JSON.stringify(review.materials.filter(m=>m.name==='Alpinia').map(m=>[m.color,m.qty]))),[['Preto',60],['Branco',30],['Rubi',40],['Teos',42]]);
  assert.equal(JSON.stringify({c,db:h.db}),before);assert.equal(h.posts,0);
 });
+
+test('assignment preflight preserves production and rejects missing, duplicate and malformed technical sheets',()=>{
+ const h=setup(),api=h.ctx.hlgbFactionMaterialRefresh9522,pre=api.test.assignmentMaterials9730;
+ h.db.production=[{id:123,productId:melanie.id,planned:172}];
+ const before=JSON.stringify(h.db);
+ assert.equal(pre(123,172,'F').ok,true);assert.equal(pre(123,172,'F').count,6);assert.equal(pre(123,100,'L').ok,true);
+ assert.equal(pre(123,173,'F').ok,false);assert.equal(pre(123,1.5,'F').ok,false);assert.equal(pre(999,172,'F').ok,false);
+ assert.equal(JSON.stringify(h.db),before);
+ h.db.products.push({...melanie});assert.equal(pre(123,172,'F').ok,false);h.db.products.pop();
+ h.db.products[1].materials=[{...melanie.materials[0],qty:-1}];assert.equal(pre(123,172,'F').ok,false);
+ h.db.products[1].materials=[];assert.equal(pre(123,172,'F').ok,true);assert.equal(pre(123,172,'F').configured,0);
+ delete h.db.products[1].materials;assert.equal(pre(123,172,'F').ok,false);assert.equal(h.posts,0);
+});

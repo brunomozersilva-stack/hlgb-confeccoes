@@ -110,6 +110,39 @@ function buildMaterials(productRow,pieces,destinationType='F',checklist=null){
  }
  return out;
 }
+// Read-only preflight before the legacy assignment handler changes production.
+function assignmentMaterials9730(productionId,pieces,destinationType){
+ const fail=reason=>({ok:false,reason});
+ const matches=rows('production').filter(x=>sid(x?.id)===sid(productionId)&&!x.deletedAt&&!x.deleted_at&&!x.deleted&&!x._deleted);
+ if(!productionId||matches.length!==1)return fail('Produção não identificada de forma única.');
+ const p=matches[0],amount=Number(pieces);
+ if(!Number.isSafeInteger(amount)||amount<=0||amount>Number(p.planned))return fail('Quantidade a atribuir inválida.');
+ if(!['F','L'].includes(destinationType))return fail('Destino inválido.');
+ let pid=sid(p.productId);
+ if(!pid&&typeof hlgb916ProductForProduction==='function'){
+  try{pid=sid(hlgb916ProductForProduction(p)?.id)}catch(_){}
+ }
+ const found=rows('products').filter(x=>sid(x?.id)===pid&&!x.deletedAt&&!x.deleted_at&&!x.deleted&&!x._deleted);
+ if(!pid||found.length!==1||found[0].active===false||!Array.isArray(found[0].materials))return fail('Ficha técnica não identificada ou ainda não carregada. Confira o modelo antes de atribuir.');
+ try{
+  const materials=buildMaterials(found[0],amount,destinationType,{...p,productId:pid,qty:amount});
+  if(!Array.isArray(materials))return fail('Não foi possível calcular os materiais.');
+  // A ficha expressamente vazia ou os materiais ocultados pelo cadastro são
+  // permitidos, mas não se confundem com erro de cálculo ou ficha ausente.
+  return {ok:true,productId:pid,count:materials.length,configured:found[0].materials.length,materials};
+ }catch(e){return fail(sid(e?.message||e))}
+}
+function guardAssignment9730(e){
+ const button=e.target?.closest?.('.modalSave'),modal=document.getElementById('modal');
+ if(!button||!modal?.contains?.(button))return;
+ const id=document.getElementById('assignProductionId'),amount=document.getElementById('assignQty'),dest=document.getElementById('assignDestination');
+ if(!id||!amount||!dest||![id,amount,dest].every(x=>modal.contains(x)))return;
+ // Keep existing destination/quantity validation and the original save authority.
+ const type=sid(dest.value).split(':')[0];if(!['F','L'].includes(type))return;
+ const result=assignmentMaterials9730(id.value,amount.value,type);
+ if(result.ok)return;
+ e.preventDefault();e.stopImmediatePropagation();alert('Atribuição não realizada: '+result.reason);
+}
 function compare(oldRows,newRows){
  const old=Array.isArray(oldRows)?oldRows:[],next=Array.isArray(newRows)?newRows:[];
  const signature=list=>list.map(m=>({key:materialKey(m),name:norm(m.name),unit:norm(m.unit),qty:Number((Number(m.qty)||0).toFixed(6))})).sort((a,b)=>a.key.localeCompare(b.key));
@@ -452,7 +485,7 @@ function install(){
  };
  const oldCreate=window.hlgb916CreateMaterialChecklist;
  if(typeof oldCreate==='function')window.hlgb916CreateMaterialChecklist=function(prod,dest,unit,service){
-  const record=oldCreate.apply(this,arguments),p=product(record.productId);
+  const record=oldCreate.apply(this,arguments);if(!record)return record;const p=product(record.productId);
   if(p&&Array.isArray(p.materials)){
    try{record.materials=buildMaterials(p,record.qty,record.destinationType,record);
     record.materialsSourceV9522='product_technical_sheet';}
@@ -460,13 +493,14 @@ function install(){
   }
   return record;
  };
+ document.addEventListener('click',guardAssignment9730,true);
  // Atualiza o aviso ao voltar à aba dos envios após editar fichas ou sincronizar outra sessão.
  try{window.addEventListener('focus',()=>setTimeout(ensurePanel,120))}catch(e){}
  try{document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(ensurePanel,120)})}catch(e){}
  state.installed=true;setTimeout(ensurePanel,100);
 }
 window.hlgbFactionMaterialRefresh9522={version:V,state,install,analyze,buildMaterials,compare,openReview,reloadAndSave,ensurePanel,
- test:{materialKey,isRelevantPending,comparisonRows,comparisonTable,gradeRowsForChecklist,rollDetails}};
+ test:{materialKey,isRelevantPending,comparisonRows,comparisonTable,gradeRowsForChecklist,rollDetails,assignmentMaterials9730}};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 try{window.hlgbAfterLogin?.(()=>setTimeout(install,200),0)}catch(e){}
 setTimeout(install,1500);
