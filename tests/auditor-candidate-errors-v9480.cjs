@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const source=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
-const audit={main:{checks:[]},operations:{pending:{unique:0,records:0,wal:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
+const audit={main:{checks:[{code:'fixture:ready',status:'pass'}],summary:{total:1,pass:1,warn:0,fail:0,result:'OK'}},operations:{pending:{unique:0,records:0,wal:0},delivery:{status:'pass'},savingUi:{status:'pass'},runtime:{status:'pass'}}};
 async function runScenario({rejectCandidates=false,failIDB=false}){
  let recipes=0;
  const win={__HLGB_AUTH_READY:true,HLGB_AUDITOR_AUTOCORRECT_9446:'94.46',HLGB_RELEASE_VERSION:'94.80',
