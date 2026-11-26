@@ -174,6 +174,7 @@ function downloadWalReview9593(result=state.lastWalReview9593){
   explanation:'Comparação de conteúdo não constitui ACK de opId. Nenhuma operação removida.',
   total:result.total,checked:result.checked,matched:result.matched,different:result.different,
   missing:result.missing,unverified:result.unverified,removed:0,status:result.status,
+  remoteDurationMs:Number.isFinite(result?.remoteDurationMs)?result.remoteDurationMs:null,parallelism:result?.parallelism??null,
   items:(result.items||[]).map(x=>({module:x.module,id:x.id,opId:x.opId,status:x.status,
    revision:x.revision,remoteDeleted:x.remoteDeleted,
    differentFields:Array.isArray(x.differentFields)?x.differentFields:[]})),

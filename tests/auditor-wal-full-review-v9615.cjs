@@ -54,7 +54,16 @@ test('explicit WAL control checks ALL operations (up to 60) and never mutates st
  assert.ok(!['indexedDB','localStorage','cloudRecordSave','hlgbRecordSaveWithRetry','readwrite','.prune(','fetch('].some(x=>snippet.includes(x)),'WAL UI must stay read-only');
 });
 test('invalid local identity is counted and reported without writes',()=>{
- assert.match(file,/row.status='invalid-local-operation';result.unverified\+\+;result.checked\+\+;result.items.push\(row\);progress\(\);continue/);
+ const begin=file.indexOf('async function walRemoteReadOnlyProof9482('),end=file.indexOf('\nfunction metrics()',begin);
+ assert.ok(begin>=0&&end>begin);
+ let reads=0;const progress=[];
+ const context={walRowsReadOnly9482:async()=>({status:'ok',rows:[{module:'orders',id:'1',opId:''},{module:'orders',id:'2',opId:'op-2'}]}),sid:v=>String(v??''),authReady:()=>true,navigator:{onLine:true},window:{cloudRequest:async(q,o)=>{assert.equal(o.method,'GET');reads++;return []}},setTimeout,clearTimeout,Date,Promise};
+ vm.createContext(context);vm.runInContext(file.slice(begin,end)+';globalThis.proof=walRemoteReadOnlyProof9482;',context);
+ return context.proof(60,p=>progress.push(p.done)).then(out=>{
+  assert.equal(reads,1);assert.equal(out.checked,2);assert.equal(out.unverified,1);assert.equal(out.missing,1);
+  assert.equal(out.items[0].status,'invalid-local-operation');assert.equal(out.items[1].status,'missing');
+  assert.equal(out.removed,0);assert.equal(out.status,'partially-unverified');assert.deepEqual(progress,[1,2]);
+ });
 });
 test('full audit entry remains user-initiated; 8-item regular audit unchanged',()=>{
  assert.match(file,/const fallback=await walRemoteReadOnlyProof9482\(8\)/);
