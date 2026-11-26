@@ -96,7 +96,7 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.match(await page.locator('#modal').innerText(),/Histórico de notas do cadastro/);
   assert.match(await page.locator('#modal').innerText(),/97001/);
   assert.doesNotMatch(await page.locator('#modal').innerText(),/97002/);
-  await page.evaluate(()=>window.closeModal());await page.locator('[data-hlgb-client-account9759]').click();await page.locator('#ca9759-payment').fill('25');await page.locator('#ca9759-preview').click();assert.match(await page.locator('#ca9759-result').innerText(),/Nenhum valor foi gravado|Confira valores/);assert.equal(await page.evaluate(()=>window.__writes),3);
+  await page.evaluate(()=>window.closeModal());await page.locator('[data-hlgb-client-account9759]').click();await page.locator('#ca9759-payment').fill('25');await page.locator('#ca9759-preview').click();assert.match(await page.locator('#ca9759-result').innerText(),/Nenhum valor foi gravado/);assert.match(await page.locator('#ca9759-result').innerText(),/Saldo projetado/);assert.equal(await page.evaluate(()=>window.__writes),3);
   await page.evaluate(()=>{window.closeModal();window.db.orders[0].received=40;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
   assert.equal(await page.locator('#legacyPaid').isVisible(),true,'reopened note returns to active list');
   assert.equal(await page.locator('[data-hlgb-paid-legacy9710]').count(),0);

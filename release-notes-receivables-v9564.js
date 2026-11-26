@@ -370,7 +370,7 @@ function clientAccountPreview9759(rows,input,allowed){
  const key=sid(input.clientKey);if(!key.startsWith('id:')||key.length<=3)return blocked('client-identity');
  const seen=new Set();let notesBalance=0;const notes=[];
  for(const n of rows){
-  if(!n||!['order','projection'].includes(n.type)||n.key!==n.type+':'+sid(n.id)||!sid(n.id)||seen.has(n.key)||n.mismatch||/cancelad|excluid|estornad/.test(norm(n.sourceStatus))||!['total','paid','credit','balance'].every(k=>Number.isSafeInteger(n[k])&&n[k]>=0)||n.total-n.paid-n.credit!==n.balance||n.paid>0&&n.paymentEvidence!==true)return blocked('note-review');
+  if(!n||n.clientKey!==key||!['order','projection'].includes(n.type)||n.key!==n.type+':'+sid(n.id)||!sid(n.id)||seen.has(n.key)||n.mismatch||/cancelad|excluid|estornad/.test(norm(n.sourceStatus))||!['total','paid','credit','balance'].every(k=>Number.isSafeInteger(n[k])&&n[k]>=0)||n.total-n.paid-n.credit!==n.balance||n.paid>0&&n.paymentEvidence!==true)return blocked('note-review');
   seen.add(n.key);notesBalance+=n.balance;if(!Number.isSafeInteger(notesBalance))return blocked('amount-limit');
   if(n.balance>0)notes.push(n);
  }
@@ -398,14 +398,14 @@ function openAccountPreview9759(id){
  '<div style="overflow:auto;max-height:250px">'+result.rows.filter(n=>n.balance>0).map(n=>'<label style="display:block"><input type="checkbox" data-ca9759-note="'+esc(n.key)+'" checked> '+esc(n.number)+' · '+esc(dateFmt(n.issued))+' · '+brl(n.balance)+'</label>').join('')+'</div>'+
  '<button type="button" class="primary" id="ca9759-preview">Simular pagamento global</button><div id="ca9759-result" aria-live="polite"></div><button type="button" class="secondary modalSave">Fechar</button>';
  window.openModal('Conta corrente — '+esc(client.name)+' (prévia)',html,()=>window.closeModal?.());
- const host=document.getElementById('modalContent'),btn=host?.querySelector('#ca9759-preview');if(!btn)return false;
+ const host=document.getElementById('modalContent')||document.getElementById('modal'),btn=host?.querySelector('#ca9759-preview');if(!btn)return false;
  const signature=JSON.stringify(result.rows);
  btn.onclick=()=>{
   if(!historyAuthorized9710())return;
   const latest=clientNotes9710(id),out=host.querySelector('#ca9759-result');if(!out)return;
   if(!latest.available||latest.ambiguous||JSON.stringify(latest.rows)!==signature){out.textContent='As notas mudaram. Reabra a consulta antes de simular.';return}
   const val=k=>host.querySelector('#ca9759-'+k)?.value;
-  const p=clientAccountPreview9759(latest.rows,{clientKey:'id:'+sid(id),openingCents:signedMoney9759(val('opening')),paymentCents:signedMoney9759(val('payment')),date:val('date'),reason:val('reason'),independentOpening:host.querySelector('#ca9759-independent')?.checked===true,noteKeys:Array.from(host.querySelectorAll('[data-ca9759-note]:checked')).map(x=>x.dataset.ca9759Note).sort((a,b)=>{const x=latest.rows.find(n=>n.key===a),y=latest.rows.find(n=>n.key===b);return (x.issued||'9999-12-31').localeCompare(y.issued||'9999-12-31')||a.localeCompare(b)})},true);
+  const p=clientAccountPreview9759(latest.rows.map(n=>({...n,clientKey:'id:'+sid(id)})),{clientKey:'id:'+sid(id),openingCents:signedMoney9759(val('opening')),paymentCents:signedMoney9759(val('payment')),date:val('date'),reason:val('reason'),independentOpening:host.querySelector('#ca9759-independent')?.checked===true,noteKeys:Array.from(host.querySelectorAll('[data-ca9759-note]:checked')).map(x=>x.dataset.ca9759Note).sort((a,b)=>{const x=latest.rows.find(n=>n.key===a),y=latest.rows.find(n=>n.key===b);return (x.issued||'9999-12-31').localeCompare(y.issued||'9999-12-31')||a.localeCompare(b)})},true);
   if(p.state!=='preview-only'){out.textContent='Confira valores, saldo inicial independente e divergências das notas antes de simular.';return}
   out.innerHTML='<p><b>Saldo das notas: '+brl(p.notesBalance)+' · Saldo anterior: '+brl(p.before)+' · Pagamento: '+brl(p.payment)+' · Saldo projetado: '+brl(p.after)+'</b></p><p>Abatimento do saldo inicial: '+brl(p.openingApplied)+' · Pagamento sem alocação: '+brl(p.unallocatedPayment)+' (crédito ainda não registrado).</p><div style="overflow:auto"><table><thead><tr><th>Nota</th><th>Antes</th><th>Abatimento</th><th>Depois</th></tr></thead><tbody>'+p.allocations.map(a=>'<tr><td>'+esc(a.number)+'</td><td>'+brl(a.before)+'</td><td>'+brl(a.amount)+'</td><td>'+brl(a.after)+'</td></tr>').join('')+'</tbody></table></div><p>Prazo médio simulado: '+(p.weightedDays===null?'sem datas comprováveis':p.weightedDays.toFixed(1)+' dias sobre '+brl(p.datedAmount))+' · Não é histórico de recebimentos.</p><p>Nenhum valor foi gravado.</p>';
  };
