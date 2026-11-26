@@ -560,5 +560,53 @@
    return {color:p.color,total:p.total,options};
   });
  }
- return {gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Delivery throughput is an observed proxy, not verified manufacturing capacity.
+ function deliveryCapacityPlan(input,allowed){
+  const empty=(state,issues=[])=>({state,issues,weeks:[],orders:[],daily:[],canWrite:false,canPromise:false,cashVerified:false});
+  if(allowed!==true)return empty('forbidden');
+  const D=86400000,dt=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?Date.parse(s+'T00:00:00Z'):null,iso=n=>new Date(n).toISOString().slice(0,10);
+  const monday=n=>n-((new Date(n).getUTCDay()+6)%7)*D,qty=n=>Number.isSafeInteger(n)&&n>=0&&n<=10000000;
+  const start=dt(input?.start),horizon=input?.weeks,manual=input?.weeklyGoal,buffer=input?.bufferPercent;
+  if(start===null||!Number.isSafeInteger(horizon)||horizon<1||horizon>13||manual!==null&&!qty(manual)||!Number.isSafeInteger(buffer)||buffer<0||buffer>90||
+   !Array.isArray(input?.history)||input.history.length>52||!Array.isArray(input?.orders)||input.orders.length>5000||!Array.isArray(input?.closedDates)||input.closedDates.length>366)return empty('invalid-input');
+  const issues=[],hist=new Map(),curWeek=monday(start);
+  for(const x of input.history){const t=dt(x?.week);if(t===null||monday(t)!==t||t+6*D>=curWeek||!qty(x?.pieces)||hist.has(t))return empty('invalid-history');if(x.confirmed!==true)continue;hist.set(t,x.pieces)}
+  const samples=[...hist].sort((a,b)=>b[0]-a[0]).slice(0,12).map(x=>x[1]),sorted=samples.slice().sort((a,b)=>a-b);
+  const average=samples.length?Math.round(samples.reduce((a,b)=>a+b,0)/samples.length):null;
+  const conservative=samples.length>=4?sorted[Math.floor((sorted.length-1)*.25)]:null;
+  const basis=manual===null?conservative:conservative===null?manual:Math.min(manual,conservative);
+  const weeklyTarget=basis===null?null:Math.floor(basis*(100-buffer)/100);
+  if(conservative===null)issues.push('historico-insuficiente');
+  if(input.coverageConfirmed!==true)issues.push('carteira-nao-conferida');
+  const closed=new Set();for(const x of input.closedDates){const t=dt(x);if(t===null)return empty('invalid-calendar');closed.add(t)}
+  const end=curWeek+horizon*7*D-D,orders=[],keys=new Set();
+  for(const x of input.orders){const key=id(x?.key),due=dt(x?.dueDate);
+   if(!key||keys.has(key)||!qty(x?.pieces)||!x.pieces||due===null||!id(x.client)){issues.push('pedido-invalido-ou-duplicado');continue}keys.add(key);
+   const term=x.paymentMode,days=x.paymentDays,amount=Number.isSafeInteger(x.amountCents)&&x.amountCents>=0?x.amountCents:null;
+   const paymentMode=term==='cash'?'cash':term==='term'&&Number.isSafeInteger(days)&&days>0&&days<=365?'term':'unknown';
+   const receipt=paymentMode==='cash'?due:paymentMode==='term'?due+days*D:null;
+   orders.push({key,client:id(x.client),model:id(x.model),dueDate:iso(due),due,pieces:x.pieces,remaining:x.pieces,paymentMode,paymentDays:paymentMode==='term'?days:null,amountCents:amount,receiptDate:receipt===null?null:iso(receipt),allocations:[],lastWorkDate:null,latePieces:0});
+  }
+  orders.sort((a,b)=>a.due-b.due||a.key.localeCompare(b.key));
+  const daily=[],weeks=[],dailyBase=weeklyTarget===null?null:Math.floor(weeklyTarget/5),extra=weeklyTarget===null?0:weeklyTarget%5;
+  for(let w=0;w<horizon;w++){
+   const t=curWeek+w*7*D,days=[];
+   for(let i=0;i<7;i++){const d=t+i*D,capacity=d<start||i>=5||closed.has(d)?0:dailyBase===null?null:dailyBase+(i<extra?1:0);
+    const row={date:iso(d),capacity,allocated:0,free:capacity,assignments:[]};
+    if(capacity!==null){let left=capacity;for(const o of orders){if(!left)break;if(o.remaining===0)continue;const take=Math.min(left,o.remaining);o.remaining-=take;left-=take;row.allocated+=take;o.lastWorkDate=row.date;if(d>o.due)o.latePieces+=take;o.allocations.push({date:row.date,pieces:take});row.assignments.push({key:o.key,client:o.client,model:o.model,pieces:take})}row.free=left}
+    daily.push(row);days.push(row);
+   }
+   const due=orders.filter(o=>o.due>=t&&o.due<t+7*D),receipts=orders.filter(o=>o.receiptDate&&dt(o.receiptDate)>=t&&dt(o.receiptDate)<t+7*D);
+   const amount=(rows,mode)=>rows.filter(o=>o.paymentMode===mode&&o.amountCents!==null).reduce((s,o)=>s+o.amountCents,0);
+   weeks.push({start:iso(t),end:iso(t+6*D),capacity:weeklyTarget===null?null:days.reduce((s,d)=>s+d.capacity,0),committed:due.reduce((s,o)=>s+o.pieces,0),allocated:days.reduce((s,d)=>s+d.allocated,0),free:weeklyTarget===null?null:days.reduce((s,d)=>s+d.free,0),due:due.map(o=>o.key),cashAtDeliveryCents:amount(receipts,'cash'),termReceiptsCents:amount(receipts,'term'),unknownPaymentPieces:due.filter(o=>o.paymentMode==='unknown'||o.amountCents===null).reduce((s,o)=>s+o.pieces,0)});
+  }
+  const overdue=orders.filter(o=>o.due<start).reduce((s,o)=>s+o.pieces,0),unallocated=orders.reduce((s,o)=>s+o.remaining,0);
+  const late=orders.reduce((s,o)=>s+o.latePieces+(o.due<=end?o.remaining:0),0);
+  const proposed=input?.newPieces??0;if(!qty(proposed))return empty('invalid-proposal');
+  // Earliest hypothetical capacity after preserving the entire existing queue.
+  let firstAvailable=null,needed=proposed;if(weeklyTarget!==null&&proposed>0)for(const d of daily){needed-=Math.min(needed,d.free);if(needed===0){firstAvailable=d.date;break}}
+  return {...empty('local-capacity-simulation',issues),sampleCount:samples.length,average,conservative,weeklyGoal:manual,weeklyTarget,overdue,unallocated,late,orders:orders.map(({due,...o})=>o),weeks,daily,firstAvailable,newPieces:proposed,unplacedNewPieces:needed,model:'entregas-observadas-como-referencia',cashVerified:false};
+ }
+ return {deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
