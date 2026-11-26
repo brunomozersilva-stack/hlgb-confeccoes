@@ -112,11 +112,11 @@
   if(ctx?.authenticated!==true||ctx.factionsAllowed!==true)return empty('forbidden');
   if(!Array.isArray(ctx.payments)||ctx.payments.length>50000)return empty('unavailable');
   if((filter.from&&day(filter.from)!==filter.from)||(filter.to&&day(filter.to)!==filter.to)||(filter.from&&filter.to&&filter.from>filter.to)||filter.eventType&&!['all','faction-paid','faction-discount'].includes(filter.eventType))return empty('invalid-filter');
-  const counts=new Map(),owners=new Map(),events=[],issues=[];
+  const counts=new Map(),owners=new Map(),events=[],issues=[],manualRows=new Map();
   for(const p of ctx.payments.filter(live)){const id=sid(p.id);counts.set(id,(counts.get(id)||0)+1)}
   for(const p of ctx.payments.filter(live)){
    const id=sid(p.id),ownerId=sid(p.factionMasterId),name=sid(p.factionName),paid=cents(p.paidAmount??0),credit=cents(p.discountAmount??0),total=cents(p.value);
-   if(p.manual===true){if(norm(p.status)!=='pendente'||paid>0||credit>0)issues.push('avulso-fora-da-consulta-por-evento:'+sid(p.manualGroupId||id));continue}
+   if(p.manual===true){const gid=sid(p.manualGroupId);if(!gid){issues.push('avulso-sem-grupo:'+id);continue}const list=manualRows.get(gid)||[];list.push(p);manualRows.set(gid,list);continue}
    if(!id||counts.get(id)!==1||!ownerId||!name||![paid,credit,total].every(valid)||paid+credit>total){issues.push('pagamento-revisar:'+id);continue}
    owners.set(ownerId,{ownerId,name});
    const history=p.paymentHistory??[],local=[],keys=new Set();let paidSum=0,creditSum=0,invalid=!Array.isArray(history);
@@ -129,6 +129,36 @@
    }
    if(invalid||!Number.isSafeInteger(paidSum)||!Number.isSafeInteger(creditSum)||paidSum!==paid||creditSum!==credit||!['pago','parcial','pendente'].includes(norm(p.status))||(norm(p.status)==='pago'&&paid+credit!==total)||(norm(p.status)==='pendente'&&paid+credit!==0)||(norm(p.status)==='parcial'&&(paid+credit<=0||paid+credit>=total))){issues.push('eventos-sem-conciliacao:'+id);continue}
    events.push(...local);
+  }
+  // Avulsos are one financial outflow per group, not one outflow per product.
+  // Require permission, original rows, a single dated transition per active line and a matching local Hub entry.
+  const groupMap=new Map(),hubBySource=new Map(),hubIds=new Map();
+  const hubAvailable=ctx.manualHubAllowed===true&&Array.isArray(ctx.manualGroups)&&Array.isArray(ctx.manualHub)&&ctx.manualGroups.length<=50000&&ctx.manualHub.length<=100000;
+  if(hubAvailable){
+   for(const g of ctx.manualGroups){const k=sid(g?.id);if(k)groupMap.set(k,groupMap.has(k)?null:g)}
+   for(const h of ctx.manualHub){if(!h)continue;const id=sid(h.id),k=sid(h.sourceId);hubIds.set(id,(hubIds.get(id)||0)+1);if(h.sourceType==='faction_manual_payment'&&k){const a=hubBySource.get(k)||[];a.push(h);hubBySource.set(k,a)}}
+  }
+  const hubId=gid=>{let n=0;for(const ch of gid)n=(n*31+ch.charCodeAt(0))%9999999999999;return String(300000000000000+n)};
+  for(const [gid,rows] of manualRows){
+   if(rows.every(p=>norm(p.status)==='pendente'&&cents(p.paidAmount??0)===0))continue;
+   const fail=()=>issues.push('avulso-sem-prova-de-movimento:'+gid);
+   if(!hubAvailable){fail();continue}
+   const g=groupMap.get(gid),hubs=hubBySource.get(gid)||[],h=hubs[0];
+   const ownerId=sid(rows[0].factionMasterId),name=sid(rows[0].factionName),date=day(rows[0].paymentDate),method=sid(rows[0].paymentMethod);
+   const total=cents(g?.total),ids=new Set(rows.map(p=>sid(p.id))),fromGroup=Array.isArray(g?.rows)?g.rows.filter(live):[];
+   const proof=p=>JSON.stringify([sid(p.id),sid(p.manualGroupId),sid(p.factionMasterId),norm(p.factionName),norm(p.status),cents(p.value),cents(p.paidAmount),day(p.paymentDate),sid(p.paymentMethod),p.paymentHistory]);
+   if(!g||norm(g.status)!=='pago'||g.dateEvidence!=='consistent'||day(g.paidDate)!==date||!ownerId||!name||!date||!method||!valid(total)||total<=0||ids.size!==rows.length||fromGroup.length!==rows.length||new Set(fromGroup.map(p=>sid(p.id))).size!==rows.length||fromGroup.some(p=>!rows.some(x=>proof(p)===proof(x)))||rows.some(p=>!sid(p.id)||counts.get(sid(p.id))!==1||sid(p.factionMasterId)!==ownerId||norm(p.factionName)!==norm(name)||norm(p.status)!=='pago'||day(p.paymentDate)!==date||sid(p.paymentMethod)!==method||!valid(cents(p.paidAmount))||!valid(cents(p.value)))){fail();continue}
+   let sum=0,validTransitions=true;
+   for(const p of rows){
+    const history=p.paymentHistory,amount=cents(p.paidAmount);
+    if(!Array.isArray(history)||history.length!==1){validTransitions=false;break}
+    const e=history[0];
+    if(sid(e?.id)!=='manual-paid-'+gid||e.source!=='manual-payment-v9588'||day(e.date)!==date||sid(e.method)!==method||cents(e.amount)!==amount){validTransitions=false;break}
+    sum+=amount;
+   }
+   if(!validTransitions||!Number.isSafeInteger(sum)||sum!==total||hubs.length!==1||!live(h)||sid(h.id)!==hubId(gid)||hubIds.get(sid(h.id))!==1||norm(h.status)!=='realizado'||norm(h.flow)!=='saida'||day(h.date)!==date||sid(h.paymentMethod)!==method||norm(h.person)!==norm(name)||cents(h.value)!==total){fail();continue}
+   owners.set(ownerId,{ownerId,name});
+   events.push({kind:'faccao',id:JSON.stringify(['manual-group',gid,'faction-paid']),ownerId,name,paymentId:gid,noteKey:'group:'+gid,noteNumber:('Acerto avulso · '+rows.map(p=>sid(p.description||p.productName||p.id)).join(', ')).slice(0,800),date,type:'faction-paid',amountCents:total,method,description:'Total líquido do grupo vinculado a uma única saída local do Hub; ajustes já incorporados.',origin:'manual-group'});
   }
   const q=norm(filter.query),filtered=events.filter(x=>(!filter.ownerId||x.ownerId===sid(filter.ownerId))&&(!filter.from||x.date>=filter.from)&&(!filter.to||x.date<=filter.to)&&(!filter.eventType||filter.eventType==='all'||x.type===filter.eventType)&&(!q||norm([x.name,x.ownerId,x.noteKey,x.noteNumber,x.id,x.method,x.description].join(' ')).includes(q))).sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id));
   const totals={factionPaidCents:null,factionDiscountCents:null};
