@@ -26,6 +26,19 @@
  assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);await singleGrade.click();await splitGrade.click();assert.deepEqual(await p.evaluate(()=>window.__gradeOpens),[['single','9'],['split','19']]);
  await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);
  assert.equal(await p.locator('#legacy9712 > td').first().getAttribute('data-cut-label9712'),'Pedido');
+ assert.equal(await p.locator('[data-hlgb-cut-summary9761]').count(),2);
+ assert.match(await p.locator('#legacy9712 [data-hlgb-cut-summary9761]').innerText(),/Camisola.*Pedido #12.*Cliente A/s);
+ await p.evaluate(()=>{const row=document.getElementById('legacy9712');const d=document.createElement('div');d.className='cut-schedule-inline';d.innerHTML='<input id="scheduleFixture9761" value="2026-11-26"><button type="button">Salvar programação</button>';row.children[2].appendChild(d);window.__scheduleNode=d;window.hlgbCutOrganization.apply()});
+ assert.equal(await p.locator('#scheduleFixture9761').isVisible(),false);
+ await p.locator('#legacy9712 [data-hlgb-schedule-toggle9761]').click();
+ assert.equal(await p.locator('#scheduleFixture9761').isVisible(),true);
+ await p.locator('#scheduleFixture9761').fill('2026-11-27');
+ await p.evaluate(()=>{document.activeElement.blur();window.hlgbCutOrganization.apply()});
+ assert.equal(await p.locator('#scheduleFixture9761').inputValue(),'2026-11-27');
+ assert.equal(await p.evaluate(()=>window.__scheduleNode===document.querySelector('#legacy9712 .cut-schedule-inline')),true);
+ await p.locator('#legacy9712 [data-hlgb-schedule-toggle9761]').click();
+ assert.equal(await p.locator('#scheduleFixture9761').isVisible(),false);
+ assert.equal(await singleGrade.isVisible(),true);
  await p.locator('#hlgbCutSort9712').selectOption('value');
  const order=await p.evaluate(()=>[getComputedStyle(document.querySelector('[data-hlgb-cut-model-id="19"]')).order,getComputedStyle(document.getElementById('legacy9712')).order]);assert.deepEqual(order,['1','2']);
  await p.locator('#hlgbCutClient9712').fill('Cliente B');
@@ -39,7 +52,7 @@
  assert.equal(await singleGrade.isVisible(),true);assert.equal(await splitGrade.isVisible(),true);
  await p.evaluate(()=>{const card=document.querySelector('[data-hlgb-cut-model-id="19"]');const canonical=document.createElement('button');canonical.className='secondary hlgbAdjustSplitGradeBtn';canonical.textContent='Ajustar grade';canonical.onclick=()=>window.hlgbOpenSplitGradeAdjust('19');const collapsed=document.createElement('details');collapsed.appendChild(canonical);card.appendChild(collapsed);window.__originalGradeButton=canonical;window.hlgbCutOrganization.apply()});assert.equal(await splitGrade.count(),1,'canonical control replaces only our fallback');assert.equal(await splitGrade.isVisible(),true,'canonical control is moved out of collapsed details');assert.equal(await p.evaluate(()=>window.__originalGradeButton===document.querySelector('[data-hlgb-cut-model-id="19"] .hlgbAdjustSplitGradeBtn')),true);
  await p.evaluate(()=>{const tr=document.createElement('tr');tr.innerHTML='<td>Sem identidade</td>';document.querySelector('#cutTable tbody').appendChild(tr);window.hlgbCutOrganization.apply()});
- assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0,'unknown rows restore original layout');
+ assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0,'unknown rows restore original layout');assert.equal(await p.locator('[data-hlgb-cut-summary9761]').count(),0);assert.equal(await p.locator('#scheduleFixture9761').isVisible(),true);
  // Merchandise projection uses explicit model coverage, not status or payment.
  await p.evaluate(()=>{
   const host=document.getElementById('openCutOrdersTable');host.innerHTML='<table><tr><th>Pedido</th><th>Ações</th></tr><tr id="merch1"><td>12</td><td><button onclick="editOpenMerchandise(1)">Editar</button></td></tr></table>';
