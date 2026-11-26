@@ -57,4 +57,12 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  for(const bad of [{...normalEvent,paymentHistory:[]},{...normalEvent,paymentHistory:[...normalEvent.paymentHistory,normalEvent.paymentHistory[0]]},{...normalEvent,paidAmount:90},{...normalEvent,manual:true},{...normalEvent,factionMasterId:''}]){const x=api.factionEvents({...fc,payments:[bad]});ok(x.eventTotal===0&&x.issues.length,'missing or inconsistent evidence excluded')}
  ok(api.factionEvents({...fc,payments:[normalEvent,normalEvent]}).eventTotal===0,'duplicate payment ID');
  ok(api.factionEvents({...fc,factionsAllowed:false}).state==='forbidden'&&JSON.stringify(fc)===fb,'scope and immutability');
+ const gid='group-test',hId=(()=>{let n=0;for(const ch of gid)n=(n*31+ch.charCodeAt(0))%9999999999999;return 300000000000000+n})();
+ const m=(id,amount,value)=>({id,manual:true,manualGroupId:gid,factionMasterId:'F1',factionName:'Roseli',status:'Pago',value,paidAmount:amount,discountAmount:5,paymentDate:'2026-11-25',paymentMethod:'Pix',paymentHistory:[{id:'manual-paid-'+gid,date:'2026-11-25',amount,method:'Pix',source:'manual-payment-v9588'}]});
+ const ma=m('m1',20,30),mb=m('m2',40,40),mg={id:gid,status:'Pago',dateEvidence:'consistent',paidDate:'2026-11-25',total:60,rows:[ma,mb]},hub={id:hId,sourceId:gid,sourceType:'faction_manual_payment',flow:'Saída',status:'Realizado',value:60,date:'2026-11-25',paymentMethod:'Pix',person:'Roseli'};
+ const ac={...fc,payments:[normalEvent,ma,mb],manualHubAllowed:true,manualGroups:[mg],manualHub:[hub]},acBefore=JSON.stringify(ac);
+ const av=api.factionEvents(ac);ok(av.eventTotal===4&&av.totals.factionPaidCents===13000&&av.totals.factionDiscountCents===1000,'one group outflow, do not count traveta twice');
+ ok(api.factionEvents(ac,{from:'2026-11-25',to:'2026-11-25'}).totals.factionPaidCents===6000,'actual manual date');
+ for(const bad of [{manualHubAllowed:false},{manualHub:[]},{manualHub:[hub,hub]},{manualHub:[{...hub,value:70}]},{manualHub:[{...hub,person:'Vanessa'}]},{manualHub:[{...hub,id:1}]},{manualGroups:[mg,mg]},{manualGroups:[{...mg,dateEvidence:'review'}]},{payments:[normalEvent,ma,{...mb,paymentHistory:[]}]}]){const r=api.factionEvents({...ac,...bad});ok(r.eventTotal===3&&r.totals.factionPaidCents===7000&&r.issues.some(x=>x.includes('avulso-sem-prova')),'unproven manual group excluded')}
+ ok(JSON.stringify(ac)===acBefore,'manual evidence read-only');
 })(api,(v,m)=>assert.ok(v,m));console.log('PASS settlement history');
