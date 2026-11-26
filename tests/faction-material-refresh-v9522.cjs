@@ -21,7 +21,7 @@ test('new reconciler loaded after faction operations, syntax valid',()=>{
  assert.ok(router.indexOf("'release-faction-material-refresh-v9522.js'")>router.indexOf("'release-faction-operations-v9520.js'"));
  assert.doesNotThrow(()=>new vm.Script(source));
 });
-function setup({checked=false,pending=false,lostResponse=false}= {}){
+function setup({checked=false,pending=false,lostResponse=false,wrongReadback=false}= {}){
  const c={id:1794313232479,productId:crystal.id,productName:crystal.name,destinationName:'Graziano',
  qty:192,materials:checked?[{name:'Romantic',unit:'kg',qty:32,checked:true}]:[],
  status:'Pendente',note:'não apagar',total:400,unitPrice:2.08,receivedAt:'',receivedBy:''};
@@ -47,6 +47,7 @@ function setup({checked=false,pending=false,lostResponse=false}= {}){
    assert.equal(body.p_data.note,'não apagar');
    assert.equal(body.p_data.total,400);
    remoteChecklist={...remoteChecklist,revision:2,data:body.p_data,updated_at:'2026-11-10T12:40:00Z'};
+   if(wrongReadback)remoteChecklist.data.note='alteração concorrente';
    if(lostResponse){lostResponse=false;throw Error('failed to fetch after commit')}
    return {applied:true,data:body.p_data,revision:2};
   }
@@ -114,3 +115,5 @@ test('lost HTTP acknowledgement does not duplicate cloud write; next read reconc
  assert.equal(h.posts,1);
  assert.equal(h.db.materialChecklists[0].materials.length,4);
 });
+
+test('readback with altered non-material field cannot replace the local checklist',async()=>{const h=setup({wrongReadback:true});await assert.rejects(()=>h.ctx.hlgbFactionMaterialRefresh9522.reloadAndSave(1794313232479),/servidor ainda não confirmou/);assert.equal(h.posts,1);assert.equal(h.cacheWrites,0);assert.equal(h.db.materialChecklists[0].note,'não apagar');assert.equal(h.db.materialChecklists[0].materials.length,0)});

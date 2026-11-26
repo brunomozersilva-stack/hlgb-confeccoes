@@ -163,6 +163,22 @@ function htmlRows(materials){
  '<td>'+fmt(m.qty)+'</td><td>'+esc(m.unit)+'</td><td>'+(m.rolls==null?'-':fmt(m.rolls))+'</td></tr>').join('')+
  '</tbody></table></div>';
 }
+function decorateChecklistActions9728(table,checks){
+ if(typeof table?.querySelectorAll!=='function')return;
+ const map=new Map(checks.map(x=>[sid(x.c.id),x.check]));
+ for(const btn of table.querySelectorAll('button[onclick]')){
+  const m=sid(btn.getAttribute('onclick')).match(/^\s*(?:return\s+)?openMaterialChecklist\(\s*(['"]?)([^'")\s]+)\1\s*\)\s*;?\s*$/);if(!m)continue;
+  const id=m[2],review=map.get(id),host=btn.parentElement;if(!host)continue;
+  const old=[...host.querySelectorAll('[data-hlgb-checklist-recover9728]')].find(x=>x.dataset.hlgbChecklistRecover9728===id);
+  const stale=review&&['stale','detail-needed','error','unavailable'].includes(review.status);
+  if(!stale){old?.remove();continue}
+  const label=review.status==='error'||review.status==='unavailable'?'Revisar ficha técnica':review.locked?'Conferir diferenças de materiais':review.oldCount===0&&review.newCount>0?'Recuperar materiais do checklist':'Atualizar materiais do checklist';
+  const action=old||document.createElement('button');
+  if(!old){action.type='button';action.className='secondary';action.dataset.hlgbChecklistRecover9728=id;action.style.cssText='margin:4px 0;white-space:normal;max-width:100%;overflow-wrap:anywhere';host.appendChild(action)}
+  action.textContent=label;action.onclick=()=>{if(!action.isConnected)return;openReview(id)};
+  action.title=review.reason||'Conferir a ficha atual antes de salvar; não cria outro envio.';
+ }
+}
 function ensurePanel(){
  const targets=[
   {table:'destinationChecklistTable',panel:'hlgbMaterialRevisions9522',factionOnly:false},
@@ -177,10 +193,10 @@ function ensurePanel(){
    panel.className='panel';panel.style.cssText='margin:10px 0;border:1px solid #e9dce4;background:#fffafd';
    table.insertAdjacentElement('afterend',panel);
   }
-  const stale=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F')
-    .map(c=>({c,check:analyze(c)})).filter(x=>['stale','detail-needed'].includes(x.check.status));
-  const unavailable=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F')
-    .filter(c=>analyze(c).status==='unavailable').length;
+  const checked=rows(M).filter(c=>!target.factionOnly||c.destinationType==='F').map(c=>({c,check:analyze(c)}));
+  decorateChecklistActions9728(table,checked);
+  const stale=checked.filter(x=>['stale','detail-needed'].includes(x.check.status));
+  const unavailable=checked.filter(x=>['unavailable','error'].includes(x.check.status)).length;
   // A divergência fica abaixo da lista normal de envios; não ocupa o topo.
   if(panel.previousElementSibling!==table)table.insertAdjacentElement('afterend',panel);
   const wasOpen=panel.querySelector('details')?.open||false;
@@ -261,7 +277,7 @@ function syncSnapshot(module,rec){
 }
 async function reloadAndSave(id){
  if(state.busy)return false;
- const c=lookup(id),local=analyze(c);
+ const current=lookup(id),c=current?clone(current):null,local=analyze(c);
  if(!c||!['stale','detail-needed'].includes(local.status))return false;
  if(local.locked)throw new Error('O envio já tem conferência/recebimento. É necessária conciliação manual; nenhuma baixa foi alterada.');
  if(window.__HLGB_AUTH_READY!==true||navigator.onLine===false||typeof cloudRequest!=='function')
@@ -272,6 +288,7 @@ async function reloadAndSave(id){
   if(typeof cloudEnsureFreshSession==='function')await cloudEnsureFreshSession(false);
   const [remoteCheck,remoteProd]=await Promise.all([getRemote(M,id),getRemote('products',c.productId)]);
   const check=remoteCheck.data,prod=remoteProd.data;
+  if(!check||sid(check.id)!==sid(id)||!prod||sid(prod.id)!==sid(c.productId))throw Error('Identidade do checklist ou produto não confirmada.');
   const protectedKeys=['productId','orderId','productionId','cutId','destinationType','destinationId','destinationName','status'];
   if(protectedKeys.some(k=>sid(check[k]??'')!==sid(c[k]??''))||Number(check.qty)!==Number(c.qty))
    throw new Error('O envio mudou na nuvem. Reabra a página antes de prosseguir.');
@@ -299,6 +316,8 @@ async function reloadAndSave(id){
   if(Number(productAtCommit.revision)!==Number(remoteProd.revision)||
      JSON.stringify(productAtCommit.data?.materials||[])!==JSON.stringify(prod.materials||[]))
    throw new Error('Ficha técnica alterada na nuvem durante a conferência. Reabra para calcular os materiais atuais.');
+  await assertNoPending(c);
+  const fresh=lookup(id);if(window.__HLGB_AUTH_READY!==true||!fresh||JSON.stringify(fresh)!==JSON.stringify(c))throw Error('O envio mudou durante a conferência. Reabra antes de salvar.');
   const payload={...check,materials:latest,materialsSourceV9532:'per_color_confirmed',
    materialSheetRevisionV9522:Number(remoteProd.revision),
    materialsRefreshedAtV9522:new Date().toISOString(),materialsSourceV9522:'product_technical_sheet',
@@ -308,7 +327,8 @@ async function reloadAndSave(id){
   const applied=Array.isArray(out)?out[0]:out;
   if(applied?.applied!==true)throw new Error('Conflito de revisão. Nenhum material local foi substituído.');
   const confirmed=await getRemote(M,id),proof=compare(confirmed.data.materials,latest);
-  if(proof.different||proof.detailDifferent||Number(confirmed.revision)<=Number(remoteCheck.revision)||
+  const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
+  if(JSON.stringify(stable(confirmed.data))!==JSON.stringify(stable(payload))||proof.different||proof.detailDifferent||Number(confirmed.revision)<=Number(remoteCheck.revision)||
    sid(confirmed.data.materialsSourceV9522)!=='product_technical_sheet'||
    sid(confirmed.data.materialsSourceV9532)!=='per_color_confirmed')
     throw new Error('O servidor ainda não confirmou os materiais. Confira antes de repetir.');
@@ -395,6 +415,7 @@ function openReview(id){
    button.disabled=true;button.textContent='☁️ Conferindo e salvando…';
    try{
     const result=await reloadAndSave(id);
+    if(!result)throw Error('Nenhuma alteração confirmada. Reabra o checklist.');
     closeModal();alert(result?.alreadyCurrent?'Materiais já estão atualizados.':
       '✅ Checklist separado por cor e confirmado na nuvem: '+result.count+' linha(s). Confira antes de separar.');
     window.__hlgbMaterialOriginalOpen9522?.(id);
@@ -422,9 +443,9 @@ function install(){
  const oldPrint=window.printMaterialChecklist;
  if(typeof oldPrint==='function')window.printMaterialChecklist=function(id){
   const item=lookup(id),c=item?analyze(item):null;
-  if(c?.status==='stale'){
+  if(c&&['stale','error','unavailable'].includes(c.status)){
    state.guardedPrints++;
-   alert('Este checklist está desatualizado em relação à ficha técnica. Confira os materiais antes de imprimir.');
+   alert(c.status==='stale'?'Este checklist está desatualizado em relação à ficha técnica. Confira os materiais antes de imprimir.':c.reason||'Ficha técnica não comprovada. Confira antes de imprimir.');
    return openReview(id);
   }
   return oldPrint.apply(this,arguments);
