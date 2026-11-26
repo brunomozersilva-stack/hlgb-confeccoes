@@ -135,25 +135,12 @@ function addChecklistDraft9644(card,row,el){
 
 }
 
-function renderSeparationWorkspace9643(){
- const root=document.getElementById('corte'),table=document.getElementById('cutTable');if(!root||!table)return;
- let host=document.getElementById('hlgbCutSeparation9643');
- if(!separationAllowed9643()){clearCutDrafts9644();host?.remove();return}
- bindDraftOwner9644();
- if(!root.classList.contains('active')){host?.remove();return}
- if(!host){host=document.createElement('section');host.id='hlgbCutSeparation9643';host.className='panel';table.closest('.panel')?.insertAdjacentElement('beforebegin',host)}
- const el=(tag,text,parent=host)=>{const x=document.createElement(tag);x.textContent=text;parent.appendChild(x);return x};
- if(host.contains(document.activeElement)&&document.activeElement?.matches?.('input,textarea,select'))return;
- const previousQuery=host.querySelector('input[type=search]')?.value||'';
- host.replaceChildren();el('h2','Materiais e separação por modelo');el('p','Consulta dos pedidos e do progresso local. Conferência e baixa continuam na rotina existente.');
- let result;try{result=inspectWorkspace9643()}catch(_){result={state:'unavailable',rows:[],issues:[]}}
- if(result.state!=='local-observation'){el('p','Dados necessários ainda não disponíveis.');return}
- const field=el('input','');field.type='search';field.value=previousQuery;field.placeholder='Buscar pedido ou modelo';field.setAttribute('aria-label','Buscar pedido ou modelo em separação');
- const list=el('div','');const fmt=x=>Number(x).toLocaleString('pt-BR',{maximumFractionDigits:3});
- function draw(){
-  list.replaceChildren();const q=norm(field.value);const visible=result.rows.filter(x=>!q||norm(x.orderNumber+' '+x.productName).includes(q));
-  el('p',visible.length+' modelo(s) observados.',list);
-  for(const row of visible.slice(0,100)){const card=el('article','',list);card.className='panel';el('h3','Pedido #'+row.orderNumber+' · '+row.productName,card);el('p',row.ordered+' peças pedidas · Separadas (local): '+(row.separatedObserved===null?'Revisar histórico':row.separatedObserved),card);
+let materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};
+function removeInlineMaterials9711(root){root?.querySelectorAll?.('[data-hlgb-inline-materials9711]').forEach(x=>x.remove())}
+function materialCard9711(parent,row,inline=false){
+ const el=(tag,text,host=parent)=>{const x=document.createElement(tag);x.textContent=text;host.appendChild(x);return x};
+ const fmt=x=>Number(x).toLocaleString('pt-BR',{maximumFractionDigits:3});
+ const card=el('article','',parent);card.className='panel';el('h3','Pedido #'+row.orderNumber+' · '+row.productName,card);el('p',row.ordered+' peças pedidas · Separadas (local): '+(row.separatedObserved===null?'Revisar histórico':row.separatedObserved),card);
    const detail=el('details','',card);el('summary','Checklist de material — consulta',detail);
    for(const m of row.materials)el('p',m.name+' · '+fmt(m.amount)+' '+m.unit+' necessários (estimativa)',detail);
    if(row.issues.length)el('p','Revisão necessária: '+row.issues.join(', '),detail);
@@ -162,10 +149,63 @@ function renderSeparationWorkspace9643(){
    const print=el('button','Folha de corte do modelo',actions);print.type='button';print.className='secondary';print.disabled=!row.cutId;print.onclick=()=>{if(!separationAllowed9643()||!row.cutId)return;const fresh=inspectWorkspace9643().rows.find(x=>x.orderId===row.orderId&&x.productId===row.productId&&x.cutId===row.cutId);if(!fresh||typeof window.printCuttingSheet!=='function'){alert('Corte precisa de revisão antes de imprimir.');return}window.printCuttingSheet(row.orderId,row.cutId)};
    if(!row.cutId)el('p','Folha individual disponível quando houver corte identificado; impressão antiga permanece em Pedidos.',card);
    addChecklistDraft9644(card,row,el);
-  }
-  if(visible.length>100)el('p','Mostrando 100 resultados; refine a busca para consultar os demais.',list);
+ if(inline){card.className='hlgb-inline-material-card9711';card.style.cssText='min-width:0;padding:8px 0';}
+ return card;
+}
+function renderSeparationWorkspace9643(){
+ const root=document.getElementById('corte'),table=document.getElementById('cutTable');if(!root||!table)return;
+ let host=document.getElementById('hlgbCutSeparation9643');
+ if(!separationAllowed9643()){clearCutDrafts9644();removeInlineMaterials9711(root);host?.remove();materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};return}
+ bindDraftOwner9644();
+ if(!root.classList.contains('active')){removeInlineMaterials9711(root);host?.remove();return}
+ const focused=document.activeElement;
+ if(focused?.matches?.('input,textarea,select')&&(host?.contains(focused)||focused.closest?.('[data-hlgb-inline-materials9711]')))return;
+ if(!host){host=document.createElement('section');host.id='hlgbCutSeparation9643';host.className='panel';table.closest('.panel')?.insertAdjacentElement('beforebegin',host)}
+ const el=(tag,text,parent=host)=>{const x=document.createElement(tag);x.textContent=text;parent.appendChild(x);return x};
+ const previousQuery=host.querySelector('input[type=search]')?.value||'';
+ let result;try{result=inspectWorkspace9643()}catch(_){result={state:'unavailable',rows:[],issues:[]}}
+ if(result.state!=='local-observation'){removeInlineMaterials9711(root);host.replaceChildren();host.hidden=false;el('h2','Materiais e separação por modelo');el('p','Dados necessários ainda não disponíveis.');materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};return}
+ const targets=new Map(),idx=cutIndex9709();
+ for(const card of Array.from(root.querySelectorAll('[data-hlgb-cut-model-id]'))){
+  const id=cutIdentity9709(card);if(!id)continue;targets.set(id,targets.has(id)?null:card)
  }
- field.addEventListener('input',draw);draw();
+ // Legacy rows can also host material details when the exact model and cut are established.
+ for(const tr of Array.from(table.querySelectorAll('tbody tr'))){
+  if(tr.dataset.hlgbSplitAggregateHidden==='1')continue;
+  const id=cutIdentity9709(tr);if(!id||targets.has(id))continue;
+  const cut=idx.cuts.get(id);if(!cut||!cut.productId||cutMeta9709(cut,idx).completed)continue;
+  targets.set(id,tr.lastElementChild||null);
+ }
+ const attached=new Set(),fallback=[];let ambiguous=0;
+ for(const row of result.rows){
+  const id=sid(row.cutId),cut=idx.cuts.get(id),target=targets.get(id);
+  if(!id||!cut||!target||sid(cut.orderId)!==sid(row.orderId)||sid(cut.productId)!==sid(row.productId)||attached.has(target)){
+   fallback.push(row);if(id&&!target)ambiguous++;continue
+  }
+  attached.add(target);
+  let detail=target.querySelector(':scope > [data-hlgb-inline-materials9711]');
+  const sig=cutChecklist9644.signature(row);
+  if(detail&&detail.__hlgbMaterialSignature9711===sig)continue;
+  const wasOpen=detail?.open===true;
+  detail?.remove();detail=document.createElement('details');detail.dataset.hlgbInlineMaterials9711='1';detail.__hlgbMaterialSignature9711=sig;detail.open=wasOpen;detail.style.cssText='margin-top:8px;min-width:0;max-width:100%';
+  const summary=document.createElement('summary');summary.textContent='📦 Separação de materiais · '+row.materials.length+' item(ns)';detail.appendChild(summary);target.appendChild(detail);
+  materialCard9711(detail,row,true);
+ }
+ for(const d of Array.from(root.querySelectorAll('[data-hlgb-inline-materials9711]')))if(!attached.has(d.parentElement))d.remove();
+ host.replaceChildren();host.hidden=fallback.length===0;
+ if(fallback.length){
+  el('h2','Materiais e separação por modelo');el('p','Modelos ainda sem ficha de corte vinculada. Conferência e baixa continuam na rotina existente.');
+  const field=el('input','');field.type='search';field.value=previousQuery;field.placeholder='Buscar pedido ou modelo';field.setAttribute('aria-label','Buscar pedido ou modelo em separação');
+  const list=el('div','');
+  function draw(){
+   list.replaceChildren();const q=norm(field.value),visible=fallback.filter(x=>!q||norm(x.orderNumber+' '+x.productName).includes(q));
+   el('p',visible.length+' modelo(s) observados.',list);
+   for(const row of visible.slice(0,100))materialCard9711(list,row);
+   if(visible.length>100)el('p','Mostrando 100 resultados; refine a busca para consultar os demais.',list);
+  }
+  field.addEventListener('input',draw);draw();
+ }
+ materialsEvidence9711={observed:true,inline:attached.size,fallback:fallback.length,ambiguous,at:new Date().toISOString()};
 }
 
 function clearFilters(){['hlgbCutSearch','hlgbCutPriority','hlgbCutCutter','hlgbCutDate'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});apply()}
@@ -178,11 +218,11 @@ function applyExtraState(){
   secondaryPanels().forEach(p=>{if(!p.dataset.hlgbCutOriginalDisplay)p.dataset.hlgbCutOriginalDisplay=p.style.display||'';p.style.display=open?p.dataset.hlgbCutOriginalDisplay:'none'});
 }
 function toggleExtra(){let open=false;try{open=localStorage.getItem('hlgb_cut_extra_open_v1')==='1';localStorage.setItem('hlgb_cut_extra_open_v1',open?'0':'1')}catch(e){}applyExtraState()}
-window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,status:()=>({...filterEvidence9709})};
+window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,materialsStatus9711:()=>({...materialsEvidence9711})};
 const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{apply();applyExtraState();renderSeparationWorkspace9643()},0);return r};w.__hlgbOrgV1=true;w.__original=old;window.renderCuts=w}
 function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
-window.addEventListener?.('hlgb:logout',()=>{filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();document.getElementById('hlgbCutSeparation9643')?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();
