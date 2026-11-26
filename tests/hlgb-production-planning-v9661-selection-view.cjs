@@ -47,3 +47,28 @@ f.data.orders[0].grade[0].qty=31;f.search('');assert.match(f.host().textContent,
 f.click(f.host(),'Limpar toda a cesta');assert.match(f.host().textContent,/0 combinações pedido\/modelo/);f.click(f.host(),'Selecionar todos deste grupo');assert.match(f.host().textContent,/71 peças únicas/);
 f.user('other');f.fire(f.docEvents,'click');assert.match(f.host().textContent,/0 combinações pedido\/modelo/);f.permission.corte=false;f.fire(f.docEvents,'click');assert.equal(f.host(),null);assert.equal(f.shortcut(),null);
 console.log('PASS unique basket, filter, material totals, explicit purchase handoff, permission, stale selection and session');
+
+
+(function completeCompatibilityView(){
+ const x=fixture();
+ x.data.products[0].name='Camisola Juliana';x.data.products[1].name='Camisola Leticia';x.data.materials[0].name='Romantic';
+ x.data.orders[0].status='Pedido em produção';x.data.orders[0].grade[0].color='Cronos';x.data.orders[0].grade[1].color='Rubi';
+ x.data.cuts=[{id:1,orderId:1,productId:10,status:'Planejado'},{id:2,orderId:1,productId:11,status:'Finalizado'}];
+ const before=JSON.stringify(x.data),walk=n=>[n,...n.children.flatMap(walk)];
+ x.click(x.shortcut(),'Corte Conjunto');
+ const nodes=()=>walk(x.host());
+ const findSelect=label=>nodes().find(e=>e.tagName==='select'&&e.attributes['aria-label']===label);
+ const focus=findSelect('Todos os modelos em pedidos'),mat=findSelect('Matéria-prima da consulta completa');
+ assert.equal(focus.children.length,3);focus.value=JSON.stringify(['1','10']);focus.fire('change');
+ mat.value='1';mat.fire('change');
+ assert.match(x.host().textContent,/Romantic · 2 pedido/);
+ assert.match(x.host().textContent,/Camisola Juliana.*Corte: Planejado/);
+ assert.match(x.host().textContent,/Camisola Leticia.*Corte: Finalizado.*cor diferente/);
+ const panel=nodes().find(e=>e.tagName==='details'&&e.children[0]?.textContent==='Todos os modelos em pedidos — compatibilidade por matéria-prima');
+ const checks=walk(panel).filter(e=>e.tagName==='input'&&e.type==='checkbox');assert.equal(checks.length,2);
+ for(const e of checks){e.checked=true;e.fire('change')}
+ assert.match(panel.textContent,/Cronos · 30 pç · 1 modelo\(s\)\/pedido\(s\)/);
+ assert.match(panel.textContent,/Rubi · 40 pç · 1 modelo\(s\)\/pedido\(s\)/);
+ assert.equal(x.counts().writes,0);assert.equal(JSON.stringify(x.data),before);
+ console.log('PASS full material selector and separate-color simulation');
+})();
