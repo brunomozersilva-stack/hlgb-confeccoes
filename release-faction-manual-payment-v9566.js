@@ -1284,8 +1284,14 @@ function receiptGroups(){
  }
  for(const group of groups.values()){
   group.status=groupState(group.rows);
-  group.paidDate=group.status==='Pago'?sid(group.rows[0]?.paymentDate):'';
-  group.date=group.paidDate||sid(group.rows[0]?.scheduledPaymentDate);
+  const active=activeGroupRowsV9590(group.rows),first=active[0];
+  // A cancelled line is retained for audit but must not decide the active payee or date.
+  if(first){group.factionName=first.factionName;group.serviceMode=first.serviceModeV9577||'faccao';}
+  const dates=new Set(active.map(x=>sid(group.status==='Pago'?x.paymentDate:x.scheduledPaymentDate)));
+  const date=dates.size===1?[...dates][0]:'';
+  group.dateEvidence=active.length&&validDate(date)?'consistent':active.length?'review':'cancelled';
+  group.paidDate=group.status==='Pago'&&group.dateEvidence==='consistent'?date:'';
+  group.date=active.length?(group.dateEvidence==='consistent'?date:''):sid(group.rows[0]?.scheduledPaymentDate);
   group.nominal=Math.round(group.total*100)/100;
   group.applications=groupApplicationsV9590(group.rows);
   group.corrections=groupCorrectionsV9590(group.rows);
