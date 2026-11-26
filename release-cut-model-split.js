@@ -134,12 +134,15 @@ async function finishChild(id){
   }catch(e){alert('Não foi possível finalizar este modelo.\n\n'+String(e?.message||e));return false}
  });
 }
-function gradeMini(c){
- const grade=(isFinal(c)&&Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:c.originalGrade)||[];
+function gradeMini(c,o,ambiguous){
+ const done=isFinal(c),grade=(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:c.originalGrade)||[];
  const sizes=[...new Set(grade.map(g=>g.size).filter(Boolean))],colors=[...new Set(grade.map(g=>g.color||'-'))];
- if(!sizes.length)return '';
  const rows=colors.map(color=>'<tr><td>'+escSafe(color)+'</td>'+sizes.map(sz=>'<td>'+q(grade.filter(g=>String(g.color||'-')===String(color)&&String(g.size||'')===String(sz)).reduce((a,g)=>a+q(g.qty),0))+'</td>').join('')+'</tr>').join('');
- return '<details style="margin-top:6px"><summary>'+(isFinal(c)?'📐 Ver grade realmente cortada':'Ver grade prevista deste modelo')+'</summary><div style="overflow:auto"><table><thead><tr><th>Cor</th>'+sizes.map(sz=>'<th>'+escSafe(sz)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+ const print=typeof printCuttingSheet==='function'?'<button type="button" class="secondary" onclick="printCuttingSheet(\''+escSafe(o.id)+'\',\''+escSafe(c.id)+'\')">Imprimir ficha</button>':'';
+ const edit=done?'':'<button type="button" class="secondary hlgbAdjustSplitGradeBtn" '+(ambiguous?'disabled title="Corte duplicado: conferência necessária" ':'')+'onclick="hlgbOpenSplitGradeAdjust(\''+escSafe(c.id)+'\')">Ajustar grade</button>';
+ return '<details data-hlgb-grade-group9711="1" style="margin-top:6px;min-width:0"><summary>📐 Grade'+(done?' cortada':' do modelo')+'</summary>'+
+ (sizes.length?'<div style="overflow:auto"><table><thead><tr><th>Cor</th>'+sizes.map(sz=>'<th>'+escSafe(sz)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="sub">Grade não disponível para conferência.</div>')+
+ '<div class="toolbar">'+print+edit+'</div></details>';
 }
 // v95.19: somente visual; nenhum status é alterado ou removido do banco de dados.
 let showCompletedModels9519=false;
@@ -199,11 +202,11 @@ function renderSplitPanel(){
    }
   for(const c of children){
    const done=isFinal(c),ct=cutter(c.cutterId),ambiguous=competingModelCuts(c).length>1;
-   html+='<div class="panel" data-hlgb-cut-model-id="'+escSafe(c.id)+'" style="margin:8px 0;background:#fff"><div style="display:grid;grid-template-columns:minmax(180px,1.4fr) 100px minmax(260px,1.4fr) minmax(260px,1.6fr);gap:10px;align-items:center"><div><b>'+escSafe(c.product||product(c.productId)?.name||'Produto')+'</b><div class="sub">Pedido #'+escSafe(orderNo(o))+' · '+(done?'✅ Finalizado':'A cortar')+(ct?' · '+escSafe(ct.name):'')+'</div>'+gradeMini(c)+'</div><div>'+q(c.pieces).toLocaleString('pt-BR')+' pç</div><div class="cut-schedule-inline"><input id="hlgbSplitDate_'+escSafe(c.id)+'" type="date" value="'+escSafe(c.plannedCutDate||'')+'" '+(done?'disabled':'')+'><select id="hlgbSplitCutter_'+escSafe(c.id)+'" '+(done?'disabled':'')+'>'+cutterOptions(c.cutterId)+'</select><select id="hlgbSplitType_'+escSafe(c.id)+'" '+(done?'disabled':'')+'>'+cutTypeOptions(c.cutType||'')+'</select>'+(done?'':'<button class="secondary" onclick="hlgbSaveSplitCutSchedule(\''+escSafe(c.id)+'\')">Salvar</button>')+'</div><div class="toolbar">'+(typeof printCuttingSheet==='function'?'<button class="secondary" onclick="printCuttingSheet(\''+escSafe(o.id)+'\',\''+escSafe(c.id)+'\')">🖨️ Imprimir grade</button>':'')+(done?'':'<button type="button" class="secondary hlgbAdjustSplitGradeBtn" '+(ambiguous?'disabled title="Corte duplicado: conferência necessária" ':'')+'onclick="hlgbOpenSplitGradeAdjust(\''+escSafe(c.id)+'\')">✏️ Ajustar grade</button>')+'<button class="secondary" onclick="viewOrderDetails(\''+escSafe(o.id)+'\')">Pedido original</button>'+(typeof editCut==='function'&&!done&&!ambiguous?'<button class="secondary" onclick="editCut(\''+escSafe(c.id)+'\')">Detalhes</button>':'')+(window.openHlgbCutMaterialSheet?'<button class="secondary" onclick="openHlgbCutMaterialSheet(\''+escSafe(c.id)+'\')">⚖️ Materiais</button>':'')+(done?'<button type="button" class="primary" onclick="hlgbPostCutMaterialsPreview9519(\''+escSafe(c.id)+'\')">📦 Conferir materiais da grade cortada</button> <span class="badge ok">Finalizado</span>':'<button class="primary" onclick="hlgbFinishSplitCut(\''+escSafe(c.id)+'\')">✅ Finalizar modelo</button>')+'</div></div></div>';
+   html+='<div class="panel" data-hlgb-cut-model-id="'+escSafe(c.id)+'" style="margin:8px 0;background:#fff"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px;align-items:start"><div><b>'+escSafe(c.product||product(c.productId)?.name||'Produto')+'</b><div class="sub">Pedido #'+escSafe(orderNo(o))+' · '+(done?'✅ Finalizado':'A cortar')+(ct?' · '+escSafe(ct.name):'')+'</div>'+gradeMini(c,o,ambiguous)+'</div><div>'+q(c.pieces).toLocaleString('pt-BR')+' pç</div><div class="cut-schedule-inline"><input id="hlgbSplitDate_'+escSafe(c.id)+'" type="date" value="'+escSafe(c.plannedCutDate||'')+'" '+(done?'disabled':'')+'><select id="hlgbSplitCutter_'+escSafe(c.id)+'" '+(done?'disabled':'')+'>'+cutterOptions(c.cutterId)+'</select><select id="hlgbSplitType_'+escSafe(c.id)+'" '+(done?'disabled':'')+'>'+cutTypeOptions(c.cutType||'')+'</select>'+(done?'':'<button class="secondary" onclick="hlgbSaveSplitCutSchedule(\''+escSafe(c.id)+'\')">Salvar</button>')+'</div><div class="toolbar">'+'<button class="secondary" onclick="viewOrderDetails(\''+escSafe(o.id)+'\')">Pedido original</button>'+(typeof editCut==='function'&&!done&&!ambiguous?'<button class="secondary" onclick="editCut(\''+escSafe(c.id)+'\')">Detalhes</button>':'')+(window.openHlgbCutMaterialSheet?'<button class="secondary" onclick="openHlgbCutMaterialSheet(\''+escSafe(c.id)+'\')">⚖️ Materiais</button>':'')+(done?'<button type="button" class="primary" onclick="hlgbPostCutMaterialsPreview9519(\''+escSafe(c.id)+'\')">📦 Conferir materiais da grade cortada</button> <span class="badge ok">Finalizado</span>':'<button class="primary" onclick="hlgbFinishSplitCut(\''+escSafe(c.id)+'\')">✅ Finalizar modelo</button>')+'</div></div></div>';
   }
   html+='</div>';
  }
- panel.innerHTML=html;hideAggregateRows();window.hlgbCutOrganization?.apply?.();
+ panel.innerHTML=html;hideAggregateRows();window.hlgbCutOrganization?.apply?.();window.hlgbCutOrganization?.renderMaterials?.();
 }
 function hideAggregateRows(){
  const root=document.getElementById('cutTable');if(!root)return;
