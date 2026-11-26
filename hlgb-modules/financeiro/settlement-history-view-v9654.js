@@ -138,14 +138,14 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
  }
  function printable(result,kind,layout,filters={}){
   if(!Object.hasOwn(scopes,kind)||!['summary','detail'].includes(layout))throw Error('invalid-report');
-  const eventMode=kind==='cliente'&&filters.eventMode===true;
+  const eventMode=kind!=='funcionario'&&filters.eventMode===true;
   // Reuse export completeness and scope checks; never print a single paginated subset.
-  if(eventMode)eventCsv(result);else csv(result,kind);
+  if(eventMode)eventCsv(result,kind);else csv(result,kind);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const cash=n=>Number.isSafeInteger(n)&&n>=0?(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Não confirmado';
   const labels={faccao:'Facções',cliente:'Clientes',funcionario:'Funcionários'};
   const dates={payment:'Pagamento registrado',scheduled:'Programação',service:'Serviço',record:'Registro',issue:'Emissão da nota'};
-  const events={'payment-recorded':'Recebimento registrado','material-offset':'Abatimento de matéria-prima','return-active':'Devolução ativa','return-reversed':'Devolução estornada (referência)'};
+  const events={'faction-paid':'Pagamento registrado','faction-discount':'Abatimento no acerto','payment-recorded':'Recebimento registrado','material-offset':'Abatimento de matéria-prima','return-active':'Devolução ativa','return-reversed':'Devolução estornada (referência)'};
   const table=(headers,rows)=>'<table><thead><tr>'+headers.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
   const sum=(rows,keys)=>{const out=Object.fromEntries(keys.map(k=>[k,null]));for(const r of rows)for(const k of keys){if(!Number.isSafeInteger(r[k])||r[k]<0)continue;const n=(out[k]??0)+r[k];if(!Number.isSafeInteger(n))throw Error('overflow');out[k]=n}return out};
   const group=(rows,key)=>{const m=new Map();for(const r of rows){const k=key(r),a=m.get(k)||[];a.push(r);m.set(k,a)}return [...m.values()]};
@@ -153,10 +153,10 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   let body='<h1>HLGB Confecções — Histórico de acertos</h1><p><b>'+esc(labels[kind])+' · '+(layout==='summary'?'Resumo':'Detalhado')+'</b> | Período: '+esc(period)+'</p><p>Filtro de pessoa: '+esc(filters.ownerId||'Todas')+' · Busca: '+esc(filters.query||'Todas')+' · Situação: '+esc(eventMode?(filters.eventType||'all'):(filters.status||'all'))+'</p>';
   body+='<p class="note">Consulta local, não conciliada com banco. '+(kind==='cliente'&&!eventMode?'Datas de emissão, não de recebimento. ':'')+'Valores não confirmados não equivalem a zero.</p>';
   if(eventMode){
-   const rows=result.events;body+='<p>'+rows.length+' evento(s). Abatimentos não são entrada de caixa; devoluções estornadas são referência.</p>';
+   const rows=result.events;body+='<p>'+rows.length+' evento(s). '+(kind==='faccao'?'Abatimentos não são saída de caixa; avulsos e históricos incompletos não entram nesta consulta.':'Abatimentos não são entrada de caixa; devoluções estornadas são referência.')+'</p>';
    const list=layout==='summary'?group(rows,r=>JSON.stringify([r.ownerId,r.date,r.type])).map(a=>[a[0].name,a[0].ownerId,a[0].date,events[a[0].type],a.length,cash(sum(a,['amountCents']).amountCents)]):rows.map(r=>[r.name,r.ownerId,r.date,r.noteNumber,events[r.type],cash(r.amountCents),r.method||'',r.reversedAt||'',r.description||'',r.id]);
-   body+=table(layout==='summary'?['Cliente','ID','Data','Evento','Quantidade','Valor']:['Cliente','ID','Data','Nota','Evento','Valor','Método','Estorno','Observação','Referência'],list);
-   body+=table(['Tipo de evento','Total observado'],Object.entries(result.totals||{}).map(([k,v])=>[({paymentRecordedCents:'Recebimentos',materialOffsetCents:'Abatimentos',activeReturnCents:'Devoluções ativas',reversedReturnReferenceCents:'Devoluções estornadas'})[k]||k,cash(v)]));
+   body+=table(layout==='summary'?[kind==='faccao'?'Facção':'Cliente','ID','Data','Evento','Quantidade','Valor']:[kind==='faccao'?'Facção':'Cliente','ID','Data',kind==='faccao'?'Serviço':'Nota','Evento','Valor','Método','Estorno','Observação','Referência'],list);
+   body+=table(['Tipo de evento','Total observado'],Object.entries(result.totals||{}).map(([k,v])=>[({factionPaidCents:'Pagamentos registrados',factionDiscountCents:'Abatimentos no acerto',paymentRecordedCents:'Recebimentos',materialOffsetCents:'Abatimentos',activeReturnCents:'Devoluções ativas',reversedReturnReferenceCents:'Devoluções estornadas'})[k]||k,cash(v)]));
   }else{
    const rows=result.rows,keys=['totalCents','paidCents','creditCents','balanceCents'];
    const values=r=>keys.map(k=>cash(r[k]));
