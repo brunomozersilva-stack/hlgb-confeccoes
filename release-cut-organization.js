@@ -42,8 +42,8 @@ function ensureToolbar(){
 }
 function syncCutters(){
   const sel=document.getElementById('hlgbCutCutter');if(!sel)return;const cur=sel.value;
-  sel.innerHTML='<option value="">Todos</option>'+arr('cutters').filter(c=>c.active!==false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>'<option value="'+sid(c.id)+'">'+String(c.name||'Cortador').replace(/</g,'&lt;')+'</option>').join('');
-  if([...sel.options].some(o=>o.value===cur))sel.value=cur;
+  const options='<option value="">Todos</option>'+arr('cutters').filter(c=>c.active!==false).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR')).map(c=>'<option value="'+sid(c.id)+'">'+String(c.name||'Cortador').replace(/</g,'&lt;')+'</option>').join('');
+  if(sel.__hlgbCutOptions9712!==options){sel.innerHTML=options;sel.__hlgbCutOptions9712=options;if([...sel.options].some(o=>o.value===cur))sel.value=cur;}
 }
 function setFilterVisible9709(row,visible){
  // Only restore visibility owned by this filter. Never unhide a split aggregate.
@@ -97,7 +97,7 @@ function applyUnifiedLayout9712(root,panel,entries,sort){
  const modelNodes=Array.from(panel.querySelectorAll('[data-hlgb-cut-model-id]'));
  if((!table&&root.querySelector('tr'))||(table&&table.tBodies.length!==1)||legacy.length!==all.length||models.length!==modelNodes.length||new Set(entries.map(x=>x.id)).size!==entries.length){reset();return 'review-original'}
  let toggle=document.getElementById('hlgbCutLayout9712');
- if(!toggle){toggle=document.createElement('button');toggle.type='button';toggle.id='hlgbCutLayout9712';toggle.className='secondary';toggle.onclick=()=>{toggle.dataset.original=toggle.dataset.original==='1'?'0':'1';apply()};document.getElementById('hlgbCutFilters')?.appendChild(toggle)}
+ if(!toggle){toggle=document.createElement('button');toggle.type='button';toggle.id='hlgbCutLayout9712';toggle.className='secondary';toggle.onclick=event=>{event?.preventDefault?.();toggle.dataset.original=toggle.dataset.original==='1'?'0':'1';apply()};document.getElementById('hlgbCutFilters')?.appendChild(toggle)}
  toggle.textContent=toggle.dataset.original==='1'?'Lista unificada':'Visualização original';
  if(toggle.dataset.original==='1'){reset();return 'original-requested'}
  if(!document.getElementById('hlgbCutUnifiedCss9712')){
