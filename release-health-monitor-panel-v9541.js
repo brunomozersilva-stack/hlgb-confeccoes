@@ -10,7 +10,8 @@ const V='95.47',REPO='brunomozersilva-stack/hlgb-confeccoes';
 const ROOT='https://api.github.com/repos/'+REPO;
 const WORKFLOW='HLGB Hourly Health Monitor v95.38';
 const MAX_AGE=5*60*1000;
-let latest=null,fetchedAt=0,busy=null,error='';
+let latest=null,fetchedAt=0,busy=null,error='',accessEvidence=null,retryAfterAt=0;
+const ACCESS_BACKOFF=60000;
 const sid=x=>String(x==null?'':x);
 const date=x=>{try{return x?new Date(x).toLocaleString('pt-BR'):'Não informado'}catch(_){return 'Não informado'}};
 const runUrl=x=>Number.isSafeInteger(Number(x?.id))&&Number(x.id)>0?
@@ -22,6 +23,18 @@ function statusOf(run){
  if(run.conclusion==='failure')return {label:'Falhou',className:'bad'};
  return {label:'Inconclusivo ('+sid(run.conclusion||run.status)+')',className:'warn'};
 }
+function accessFailure(response,path){
+ const status=Number(response.status),now=Date.now(),header=k=>response.headers?.get?.(k)??null;
+ const remaining=header('x-ratelimit-remaining'),reset=header('x-ratelimit-reset'),retry=header('retry-after');
+ const retrySeconds=retry!==null&&/^\d+$/.test(retry)?Number(retry):null;
+ const retryDate=retry!==null&&retrySeconds===null?Date.parse(retry):NaN;
+ const resetAt=reset!==null&&/^\d+$/.test(reset)?Number(reset)*1000:0;
+ const rateLimited=status===429||(status===403&&(remaining==='0'||retry!==null));
+ const delay=rateLimited?Math.max(ACCESS_BACKOFF,retrySeconds===null?0:retrySeconds*1000,Number.isFinite(retryDate)?retryDate-now:0,remaining==='0'?resetAt-now:0):ACCESS_BACKOFF;
+ const evidence={httpStatus:status,classification:rateLimited?'rate-limit':status===403?'access-denied-unclassified':status===401?'authentication-required':status===404?'not-found-or-private':'http-error',endpoint:path.split('?')[0],rateLimitRemaining:remaining!==null&&/^\d+$/.test(remaining)?Number(remaining):null,retryAt:new Date(now+Math.min(delay,86400000)).toISOString()};
+ const message=rateLimited?'Limite de consultas do GitHub comprovado (HTTP '+status+').':status===403?'GitHub recusou o acesso (HTTP 403); causa não comprovada.':'GitHub não respondeu à consulta (HTTP '+status+').';
+ const e=Error(message);e.accessEvidence=evidence;return e;
+}
 async function getJSON(path){
  const ctl=typeof AbortController==='function'?new AbortController():null;
  const timer=setTimeout(()=>ctl?.abort(),11000);
@@ -31,8 +44,7 @@ async function getJSON(path){
    headers:{Accept:'application/vnd.github+json'},
    ...(ctl?{signal:ctl.signal}:{})
   });
-  if(!response.ok)throw Error(response.status===403?'Limite temporário de consultas do GitHub (HTTP 403).':
-   'GitHub não respondeu à consulta (HTTP '+response.status+').');
+  if(!response.ok)throw accessFailure(response,path);
   return await response.json();
  }finally{clearTimeout(timer)}
 }
@@ -86,6 +98,7 @@ function parse(head,all,scheduled){
 }
 async function collect(force){
  if(busy)return busy;
+ if(Date.now()<retryAfterAt){if(latest)return latest;throw Error(error||'Consulta temporariamente suspensa.');}
  if(!force&&latest&&Date.now()-fetchedAt<MAX_AGE)return latest;
  busy=(async()=>{
   try{
@@ -97,17 +110,26 @@ async function collect(force){
    const list=Array.isArray(all?.workflow_runs)?all.workflow_runs:[];
    const monitorExists=list.some(x=>x.name===WORKFLOW);
    // Fallback exclusivamente se muitas CI builds esconderam a execução horária.
-   const scheduled=monitorExists?null:await getJSON('/actions/runs?branch=main&event=schedule&per_page=40');
+   let scheduled=null,partial=null;
+   if(!monitorExists){try{scheduled=await getJSON('/actions/runs?branch=main&event=schedule&per_page=40')}catch(e){partial=e}}
    latest=parse(head,all,scheduled);
-   fetchedAt=Date.now();error='';return latest;
+   latest.monitorLookupIncomplete=!!partial;
+   fetchedAt=Date.now();error='';accessEvidence=null;retryAfterAt=0;
+   if(partial)recordFailure(partial);
+   return latest;
   }catch(e){
-   error=sid(e?.message||e).slice(0,180);
+   recordFailure(e);
    if(latest)return latest;
    throw e;
   }finally{busy=null;paint()}
  })();
  paint();
  return busy;
+}
+function recordFailure(e){
+ error=sid(e?.message||e).slice(0,180);
+ accessEvidence=e?.accessEvidence||{httpStatus:null,classification:'network-or-invalid-response',endpoint:null,rateLimitRemaining:null,retryAt:new Date(Date.now()+ACCESS_BACKOFF).toISOString()};
+ retryAfterAt=Date.parse(accessEvidence.retryAt)||Date.now()+ACCESS_BACKOFF;
 }
 function E(tag,cls,text){
  const el=document.createElement(tag);
@@ -226,7 +248,7 @@ function prepareVisibleDownloads9545(){
  const data=report()||{
   kind:'hlgb-hourly-health-access-diagnostic',version:V,
   generatedAt:new Date().toISOString(),repository:REPO,status:'not_verified',
-  error:error||'A consulta ao GitHub falhou; não há resultados confirmados.',
+  error:error||'A consulta ao GitHub falhou; não há resultados confirmados.',accessEvidence,
   note:'Diagnóstico de falha, não um relatório aprovado; nenhuma prova de sincronização foi realizada.'
  };
  if(latest&&error)data.refreshError=error;
@@ -265,7 +287,7 @@ function paint(){
  const result=panel.querySelector('#hlgbHealthSummary9541');
  const d=panel.querySelector('#hlgbHealthDownload9541'),c=panel.querySelector('#hlgbHealthCopy9541');
  const refresh=panel.querySelector('#hlgbHealthRefresh9541');
- if(refresh)refresh.disabled=!!busy;
+ if(refresh){refresh.disabled=!!busy;refresh.title=Date.now()<retryAfterAt?'Nova consulta disponível após '+date(new Date(retryAfterAt).toISOString()):'';}
  // O botão permanece disponível até quando a API falha: o usuário pode
  // baixar um diagnóstico da falha e enviá-lo ao suporte.
  if(d)d.disabled=!latest&&!error;
@@ -286,7 +308,7 @@ function paint(){
  row.append(E('strong','','Última verificação horária: '),badge(s.label,s.className));
  if(l)row.append(E('span','sub',' · '+date(l.createdAt)));
  result.append(row);
- if(!l)result.append(E('div','sub','Nenhuma execução horária localizada na janela consultada.'));
+ if(!l)result.append(E('div','sub',latest.monitorLookupIncomplete?'Consulta complementar do monitor incompleta; não é possível confirmar ausência de execução.':'Nenhuma execução horária localizada na janela consultada.'));
  else if(!l.currentCommit)result.append(E('div','hlgb-health-warn',
   'A última execução do bot verificou um commit anterior; a versão atual ainda não foi auditada por ele.'));
  if(error)result.append(E('div','hlgb-health-warn','GitHub indisponível agora. Exibindo a última consulta: '+error));
@@ -340,7 +362,7 @@ function humanSummary(data){
  if(l)lines.push('Execução do monitor: '+l.link);
  return lines.filter(Boolean).join('\n');
 }
-function report(){return latest?{...JSON.parse(JSON.stringify(latest)),refreshError:error||null,stale:!!error||Date.now()-fetchedAt>=MAX_AGE}:null}
+function report(){return latest?{...JSON.parse(JSON.stringify(latest)),refreshError:error||null,accessEvidence,stale:!!error||Date.now()-fetchedAt>=MAX_AGE}:null}
 function downloadLocalFile(filename,content,type){
  // Sempre usa um blob local com atributo download; nunca navega a uma URL do GitHub.
  const blob=new Blob([content],{type});
@@ -367,7 +389,7 @@ function saveJSON(){
  const data=report()||{
   kind:'hlgb-hourly-health-access-diagnostic',version:V,
   generatedAt:new Date().toISOString(),repository:REPO,
-  status:'not_verified',error:error||'O bot ainda não retornou uma verificação nesta sessão.',
+  status:'not_verified',error:error||'O bot ainda não retornou uma verificação nesta sessão.',accessEvidence,
   noOperationalDataChanged:true,
   note:'A ausência de dados não significa que os testes passaram. Consulte o GitHub Actions.'
  };
@@ -426,6 +448,6 @@ function openStandalone(){
 }
 window.hlgbHourlyHealthPanel9541={
  version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,parse,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
- status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,latest:report()})
+ status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,accessEvidence,retryAfterAt,latest:report()})
 };
 })();
