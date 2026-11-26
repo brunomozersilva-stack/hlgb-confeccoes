@@ -54,6 +54,45 @@
   const focusModel=select('Escolher corte / modelo',[['','Todos os candidatos']]);
   const material=select('Matéria-prima',[['','Todas']]),orderBy=select('Ordenar grupos',[['','Ordem original'],['pieces','Mais peças'],['pairs','Mais modelos/pedidos'],['colors','Mais cores em comum'],['name','Nome do material']]);
   const commonLabel=el('label','',filters),common=el('input','',commonLabel);common.type='checkbox';el('span',' Mostrar somente grupos com pelo menos uma cor de grade em comum',commonLabel);
+  const allPanel=el('details','',host);allPanel.className='panel';allPanel.open=true;el('summary','Todos os modelos em pedidos — compatibilidade por matéria-prima',allPanel);
+  el('p','Escolha um modelo ou material para consultar os pares, mesmo com cores diferentes. Esta consulta inclui registros que ainda exigem revisão; não autoriza corte nem compra.',allPanel);
+  const allFocus=el('select','',allPanel),allMat=el('select','',allPanel),allOut=el('div','',allPanel);
+  for(const [s,label] of [[allFocus,'Todos os modelos em pedidos'],[allMat,'Matéria-prima da consulta completa']]){s.setAttribute('aria-label',label);s.style.cssText='display:block;width:100%;max-width:100%;margin:6px 0'}
+  let allIndex=null,allSelection=new Set();
+  function fillAll(s,items,first){const old=s.value;s.replaceChildren();const a=el('option',first,s);a.value='';for(const [v,t] of items){const o=el('option',t,s);o.value=v}s.value=items.some(([v])=>v===old)?old:''}
+  function drawAll(d){
+   if(!active())return;
+   allIndex=api.orderMaterialCompatibility(data(),d,true);
+   fillAll(allFocus,allIndex.models.map(m=>[m.key,'#'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' pç']),'Todos os modelos ('+allIndex.models.length+')');
+   refreshAllMaterials();renderAll();
+  }
+  function refreshAllMaterials(){
+   const g=allIndex?.groups||[];fillAll(allMat,g.filter(x=>!allFocus.value||x.models.some(m=>m.key===allFocus.value)).map(x=>[x.materialId,x.materialName+' · '+x.models.length+' pedido(s)/modelo(s)']),'Escolher matéria-prima');
+   if(allFocus.value&&!allMat.value){const matches=g.filter(x=>x.models.some(m=>m.key===allFocus.value));if(matches.length===1)allMat.value=matches[0].materialId}
+  }
+  function renderAll(){
+   allOut.replaceChildren();if(!active()||!allIndex)return;
+   if(allIndex.state!=='local-compatibility'){el('p','Consulta completa indisponível.',allOut);return}
+   el('p',allIndex.models.length+' pedido(s)/modelo(s) · '+allIndex.groups.length+' materiais · '+allIndex.review+' registros a conferir.',allOut);
+   const focus=allIndex.models.find(m=>m.key===allFocus.value),g=allIndex.groups.find(x=>x.materialId===allMat.value);
+   if(focus&&!focus.materialIds.length)el('p',focus.productName+' — material cortável não identificado no cadastro.',allOut);
+   if(!g){if(focus)for(const x of allIndex.groups.filter(x=>x.models.some(m=>m.key===focus.key)))el('p',x.materialName+' · '+Math.max(0,x.models.length-1)+' outro(s) pedido(s)/modelo(s)',allOut);return}
+   el('strong',g.materialName+' · '+g.models.length+' pedido(s)/modelo(s) com a mesma matéria-prima',allOut);
+   const simulation=el('div','',allOut),list=el('div','',allOut);let shown=0;
+   function simulate(){
+    simulation.replaceChildren();const models=g.models.filter(m=>allSelection.has(m.key)&&!m.review&&m.pieces>0);
+    if(models.length<2){el('p','Marque dois ou mais modelos para comparar as grades pedidas.',simulation);return}
+    const cap=maxLayers.value===''?null:Number(maxLayers.value);
+    const plans=api.gradeSuggestions({...g,models},cap);
+    if(!plans.length){el('p','Não foi possível simular estas grades. Confira as quantidades e o limite de folhas.',simulation);return}
+    for(const p of plans){el('p',p.color+' · '+p.total+' pç · '+p.modelCount+' modelo(s)/pedido(s) · '+p.layers+' folhas na opção exata'+(p.modelCount<2?' — enfesto separado por cor':''),simulation);const detail=el('details','',simulation);el('summary','Grade por modelo e tamanho',detail);for(const row of p.base)el('p',row.productName+' · '+row.size+' · '+row.qty+' pç · '+row.perLayer+' por folha',detail)}
+    el('p','Simulação sobre quantidades pedidas, não saldo disponível. Cores diferentes permanecem em enfestos separados; encaixe físico não verificado.',simulation);
+   }
+   function append(){for(const m of g.models.slice(shown,shown+25)){const label=el('label','',list);label.style.cssText='display:block;padding:6px 0;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=allSelection.has(m.key);c.disabled=m.review||!m.pieces;c.addEventListener('change',()=>{if(c.checked)allSelection.add(m.key);else allSelection.delete(m.key);simulate()});const shared=focus?m.grade.some(a=>focus.grade.some(b=>norm(a.color)===norm(b.color))):null;el('span',' #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' pç · '+[...new Set(m.grade.map(x=>x.color))].join(', ')+' · '+m.status+(m.planningEligible?' · disponível na consulta de planejamento':' · conferir situação antes de cortar')+(focus&&m.key!==focus.key?(shared?' · cor em comum':' · cor diferente / enfesto separado'):'')+(m.review?' · grade/cadastro a revisar':''),label)}shown+=25;more.hidden=shown>=g.models.length}
+   const more=button('Mais modelos deste material',allOut,append);append();simulate();
+   button('Limpar seleção da consulta completa',allOut,()=>{allSelection.clear();renderAll()});
+  }
+  allFocus.addEventListener('change',()=>{allSelection.clear();allMat.value='';refreshAllMaterials();renderAll()});allMat.addEventListener('change',()=>{allSelection.clear();renderAll()});
   const flow=el('p','2. Selecionar modelos → 3. Comparar grades e enfestos → 4. Revisar a cesta e planejar compras',host);flow.style.cssText='font-weight:600;margin:12px 0';
   const basket=el('section','',host);maxLayers.min='1';maxLayers.max='10000';maxLayers.step='1';basket.className='panel';el('h3','4. Cesta única de planejamento',basket);
   el('p','A mesma combinação pedido/modelo aparece uma única vez na cesta, mesmo que utilize vários materiais. A seleção permanece ao mudar o filtro ou página.',basket);
@@ -180,7 +219,7 @@
    }
   }
   function draw(){
-   out.replaceChildren();visible=[];if(!active())return;const x=fresh();
+   out.replaceChildren();visible=[];if(!active())return;const x=fresh();drawAll(x);
    if(x.state!=='discovery-only'){overview9714(x);root.hlgbJointWorkspaceEvidence9714={observed:false};drawBasket(x);el('p','Consulta indisponível. Confira pedidos, materiais, produção e baixas.',out);return}
    const overview=overview9714(x),byMaterial=new Map(overview.groups.map(g=>[g.materialId,g]));
    root.hlgbJointWorkspaceEvidence9714={observed:overview.state==='local-observation'||overview.state==='partial',materials:overview.materials,pairs:overview.pairs,products:overview.products,orders:overview.orders,ambiguous:overview.ambiguous,adjustedRows:Number.isSafeInteger(x.adjustedRows)?x.adjustedRows:null,duplicatePlannedPairs:Number.isSafeInteger(x.duplicatePlannedPairs)?x.duplicatePlannedPairs:null,blockedActivityPairs:Number.isSafeInteger(x.blockedActivityPairs)?x.blockedActivityPairs:null,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};
