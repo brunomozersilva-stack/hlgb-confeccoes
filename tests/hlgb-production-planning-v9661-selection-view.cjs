@@ -69,6 +69,11 @@ console.log('PASS unique basket, filter, material totals, explicit purchase hand
  for(const e of checks){e.checked=true;e.fire('change')}
  assert.match(panel.textContent,/Cronos · 30 pç · 1 modelo\(s\)\/pedido\(s\)/);
  assert.match(panel.textContent,/Rubi · 40 pç · 1 modelo\(s\)\/pedido\(s\)/);
+ const target=walk(panel).find(e=>e.tagName==='input'&&e.type==='number');assert.ok(target);
+ target.value='8';target.fire('input');
+ assert.match(panel.textContent,/Camisola Juliana — grade precisa de ajuste/);
+ assert.match(panel.textContent,/pedido 30 · 24 no enfesto \+ 6 complementares OU 32/);
+ assert.match(panel.textContent,/Camisola Leticia — grade exata/);
  assert.equal(x.counts().writes,0);assert.equal(JSON.stringify(x.data),before);
  console.log('PASS full material selector and separate-color simulation');
 })();
