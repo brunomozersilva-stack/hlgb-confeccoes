@@ -41,3 +41,21 @@ assert.match(gradeCtx.renderGrade(cut,{id:'o1'},true),/disabled title="Corte dup
 assert.doesNotMatch(gradeCtx.renderGrade({...cut,status:'Finalizado'},{id:'o1'},false),/hlgbOpenSplitGradeAdjust/);
 assert.match(split,/gradeMini\(c,o,ambiguous\)/);
 console.log('PASS single grade group preserves view, print, adjustment and ambiguity guard');
+
+// The split editor must preserve a pending draft and never invent ACK content.
+async function splitGradeSave9723(mode){
+ const clone=x=>JSON.parse(JSON.stringify(x)),cut={id:'c1',modelSplitChildV1:true,status:'Planejado',productId:'p1',pieces:30,originalGrade:[{productId:'p1',color:'Preto',size:'P',qty:10},{productId:'p1',color:'Preto',size:'M',qty:20}]};
+ const db={cuts:[clone(cut)],products:[{id:'p1',name:'Modelo'}]},fields={hlgbAdjCell_0:{value:'6'},hlgbAdjCell_1:{value:'14'},hlgbAdjNote:{value:'Faltou material'}},btn={isConnected:true,disabled:false};
+ let remote={module:'cuts',entity_id:'c1',revision:1,deleted_at:null,data:clone(cut)},reads=0,writes=0,save,closed=0,alerts=[];
+ const w={__HLGB_AUTH_READY:true,renderCuts(){},cloudRequest:async(path,opts)=>{assert.equal(opts.method,'GET');reads++;if(mode==='lost-read'&&reads===2)throw Error('offline');return [clone(remote)]}};
+ const ctx={window:w,db,console:{warn(){}},setTimeout(){},document:{getElementById:id=>fields[id]||null,querySelector:()=>btn},openModal:(title,html,fn)=>{save=fn},closeModal:()=>{closed++;btn.isConnected=false},renderCuts(){},localSaveOnly(){},alert:m=>alerts.push(m),hlgbRecordSaveWithRetry:async(module,id,next)=>{writes++;assert.equal(module,'cuts');assert.equal(id,'c1');assert.equal(db.cuts[0].pieces,30);if(mode==='reject')return {applied:true};remote={...remote,revision:2,data:clone(next)};if(mode==='timeout')throw Error('timeout');return {applied:true}}};
+ vm.createContext(ctx);vm.runInContext(src,ctx);await w.hlgbOpenSplitGradeAdjust('c1');
+ if(mode==='stale')remote.data.pieces=99;
+ if(mode==='invalid')fields.hlgbAdjCell_0.value='1.5';
+ const first=await save();
+ if(['ok','timeout'].includes(mode)){assert.equal(first,true);assert.equal(writes,1);assert.equal(closed,1)}
+ else if(mode==='lost-read'){assert.equal(first,false);assert.equal(db.cuts[0].pieces,30);assert.equal(closed,0);assert.equal(await save(),true);assert.equal(writes,1)}
+ else {assert.equal(first,false);assert.equal(db.cuts[0].pieces,30);assert.equal(closed,0);assert.equal(writes,mode==='reject'?1:0);if(mode==='reject'){assert.equal(await save(),false);assert.equal(writes,1)}return}
+ assert.equal(db.cuts[0].pieces,20);assert.equal(db.cuts[0].plannedGradeBeforeAdjustmentV9243.reduce((n,x)=>n+x.qty,0),30);assert.equal(db.cuts[0].actualCutGrade.reduce((n,x)=>n+x.qty,0),20);
+}
+(async()=>{for(const mode of ['ok','timeout','lost-read','reject','stale','invalid'])await splitGradeSave9723(mode);console.log('PASS split grade save proof, original planned grade and retry protection')})().catch(e=>{console.error(e);process.exitCode=1});
