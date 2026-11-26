@@ -24,6 +24,7 @@ const kind=process.env.HLGB_BROWSER||'chromium';
      labels:[],users:[]
     };
     window.__testRouteMode=mode;
+    window.__routeWalIds=[];window.hlgbWalIdbGuard9536={probe:async()=>({}),ids:()=>new Set(window.__routeWalIds),status:()=>({probes:1,readFailed:false,unsupported:false})};
     window.__sentRouteRows=[];
     window.__remoteRoute=null;
     window.__alerts=[];
@@ -138,6 +139,17 @@ const kind=process.env.HLGB_BROWSER||'chromium';
    assert.equal(await edit.evaluate(()=>window.__sentRouteRows.length),1,'Automatic refresh never writes');
    console.log('PASS '+kind+' — existing route edit, bulk refresh, automatic new stop, no duplicate, no production writes');
   }finally{await edit.close()}
+  const reloaded=await fixture();
+  try{
+   await reloaded.evaluate(()=>{window.__routeWalIds=['routePlans::route-before-reload'];window.addRouteStop9249()});
+   await reloaded.locator('.ops-route-loc').first().selectOption('1');
+   await reloaded.evaluate(()=>window.modalSave());
+   assert.match(await reloaded.locator('#opsRouteCloudStatus9534').textContent(),/gravação local pendente/);
+   assert.equal(await reloaded.evaluate(()=>window.__sentRouteRows.length),0);
+   await reloaded.evaluate(()=>{window.__routeWalIds=[]});
+   await reloaded.evaluate(()=>window.modalSave());
+   assert.equal(await reloaded.evaluate(()=>window.__sentRouteRows.length),1);
+  }finally{await reloaded.close()}
   const timeout=await fixture('commit_timeout');
   try{
    await timeout.evaluate(()=>window.addRouteStop9249());
