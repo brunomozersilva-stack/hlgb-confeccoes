@@ -50,7 +50,7 @@ async function openAdjust(id){
   saving=true;if(btn)btn.disabled=true;
   try{
    const input=draft(),id=sid(c.id),current=cuts().filter(x=>sid(x?.id)===id);
-   if(current.length!==1||!editable9723(current[0])||!equal9723(current[0],c))throw Error('O corte mudou. Confira antes de ajustar.');
+   if(current.length!==1||!editable9723(current[0])||(!equal9723(current[0],c)&&!(attempt&&equal9723(current[0],attempt.next))))throw Error('O corte mudou. Confira antes de ajustar.');
    if(attempt){
     if(!equal9723(input,attempt.input))throw Error('Existe uma tentativa anterior; restaure os campos enviados antes de conferir.');
    }else{
