@@ -254,3 +254,19 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.factionLeadTimes(db,iso(24),false).state,'forbidden');assert.equal(JSON.stringify(db),before);
  console.log('PASS faction lead times, lot bands, return reconciliation and open-lot alerts');
 })();
+
+
+(function factionQueueScenario(){
+ const db={products:[{id:'m',name:'Camisola'}],productionLocations:[{id:'f',name:'Facção A'},{id:'g',name:'Facção B'}],factions:[{id:'l1',productId:'m',productionLocationId:'f',productionId:'p1',status:'Em produção',sentAt:'2026-11-20',sent:300,returned:100,dueDate:'2026-12-01',deliveryHistory:[{id:'r1',date:'2026-11-23',qty:100}]},{id:'l2',productId:'m',productionLocationId:'f',status:'Em produção',sentAt:'2026-11-20',sent:200,returned:0,dueDate:'2026-12-04'},{id:'other',productId:'m',productionLocationId:'g',status:'Em produção',sentAt:'2026-11-20',sent:500,returned:0}],production:[{id:'p1',productId:'m',productionLocationId:'f',stage:'Em produção',planned:300,done:100},{id:'p2',productId:'m',productionLocationId:'f',stage:'Aguardando atribuição',planned:60,done:0}]};
+ const input={teamId:'f',start:'2026-11-30',weeklyCapacity:500,bufferPercent:0,weeks:2,newPieces:100,additionalCommitted:60,closedDates:['2026-12-02'],coverageConfirmed:true,capacityConfirmed:true};
+ const before=JSON.stringify([db,input]),v=plan.factionQueueScenario(db,input,true);
+ assert.equal(v.state,'local-queue-scenario');assert.equal(v.observedPieces,400);assert.equal(v.pendingPieces,60);assert.equal(v.additionalCommitted,60);assert.equal(v.partial,true);
+ assert.deepEqual(v.weeks.map(w=>[w.capacity,w.existing,w.newPieces,w.free]),[[400,400,0,0],[500,60,100,340]]);
+ assert.equal(v.firstFree,'2026-12-07');assert.equal(v.newCompletion,'2026-12-08');assert.equal(v.newUnallocated,0);assert.equal(v.existingRemaining,0);assert.equal(v.latePieces,0);
+ assert.ok(!v.lots.some(l=>l.key==='p1'));assert.equal(v.canPromise,false);assert.equal(v.canWrite,false);assert.equal(v.capacityVerified,false);
+ const bad=plan.factionQueueScenario({...db,factions:db.factions.map(f=>f.id==='l1'?{...f,returned:150}:f)},input,true);assert.equal(bad.observedPieces,200);assert.ok(bad.issues.some(i=>i.reason==='retorno-nao-conciliado'));
+ assert.equal(plan.factionQueueScenario(db,{...input,weeklyCapacity:0},true).newCompletion,null);
+ assert.equal(plan.factionQueueScenario(db,{...input,teamId:'unknown'},true).state,'invalid-location');
+ assert.equal(plan.factionQueueScenario(db,input,false).state,'forbidden');assert.equal(JSON.stringify([db,input]),before);
+ console.log('PASS faction queue, linked production dedupe, additional commitments and new-lot availability');
+})();

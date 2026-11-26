@@ -276,6 +276,40 @@ function mountPlanner(){
     if(v.state!=='historical-reference'){el('p',v.state==='insufficient-history'?'Ainda não há quatro lotes concluídos comparáveis ('+v.sampleCount+' observados). Não estimar prazo automaticamente.':'Consulte o histórico e confira modelo, local, data e quantidade.',leadReport);return}
     el('p','Referência: '+v.referenceDays+' dias corridos · retorno em '+v.referenceDate+' · '+v.sampleCount+' lotes comparáveis. Não é promessa de entrega; confira fila e capacidade atuais.',leadReport);
    });
+
+   const queue=el('details','',stages);el('summary','Fila atual e capacidade disponível por facção',queue);
+   el('p','Simule novos lotes somente depois dos compromissos existentes. A capacidade semanal é informada e conferida; a velocidade histórica não prova disponibilidade. Atribuições sem lote vinculado aparecem separadamente para evitar duplicidades.',queue);
+   const qteam=el('select','',queue);qteam.setAttribute('aria-label','Local ou facção para simular fila');qteam.style.maxWidth='100%';
+   const option=(value,label)=>{const o=el('option',label,qteam);o.value=value};option('','Escolher local/facção');
+   const qcap=field('Capacidade semanal em 5 dias (peças)','number','',queue),qextra=field('Outros compromissos conciliados, ainda não incluídos nos lotes (peças)','number','0',queue),qnew=field('Quantidade do novo lote (peças)','number','',queue);
+   const qlabel=el('label','Conferi a fila completa e os compromissos adicionais sem duplicar peças',queue),qcover=el('input','',qlabel);qcover.type='checkbox';
+   const capLabel=el('label','Conferi a capacidade disponível da facção para o período',queue),qverified=el('input','',capLabel);qverified.type='checkbox';
+   const qout=el('div','',queue);
+   function refreshQueueLocations(){
+    if(!active())return;const source=typeof db!=='undefined'?db:window.db,previous=qteam.value;qteam.replaceChildren();option('','Escolher local/facção');
+    const seen=new Set();for(const l of source?.productionLocations||[]){const key=sid(l?.id);if(!key||seen.has(key)||l.deletedAt||l.deleted_at||l.deleted===true||l._deleted)continue;seen.add(key);option(key,sid(l.name||key))}qteam.value=seen.has(previous)?previous:'';
+   }
+   function invalidateQueue(){qout.replaceChildren()}
+   qteam.onchange=()=>{qcover.checked=false;qverified.checked=false;invalidateQueue()};qcap.oninput=()=>{qverified.checked=false;invalidateQueue()};qextra.oninput=()=>{qcover.checked=false;invalidateQueue()};qnew.oninput=invalidateQueue;qcover.onchange=qverified.onchange=invalidateQueue;
+   btn('Atualizar lista de locais',queue,()=>{refreshQueueLocations();qcover.checked=false;qverified.checked=false;invalidateQueue()});
+   btn('Simular fila e novo lote',queue,()=>{
+    qout.replaceChildren();if(!active())return;
+    const source=typeof db!=='undefined'?db:window.db;
+    const n=x=>/^\d+$/.test(String(x).trim())?Number(x):NaN;
+    const v=api.factionQueueScenario(source,{teamId:qteam.value,start:start.value,weeklyCapacity:n(qcap.value),additionalCommitted:n(qextra.value),newPieces:n(qnew.value),bufferPercent:Number(buffer.value),weeks:Number(horizon.value),closedDates:closed.value.split(',').map(x=>x.trim()).filter(Boolean),coverageConfirmed:qcover.checked,capacityConfirmed:qverified.checked},active());
+    if(v.state!=='local-queue-scenario'){el('p','Confira local, datas, horizonte, capacidade e quantidade inteira de peças.',qout);return}
+    el('h4',v.teamName+' · fila observada '+fmt(v.observedPieces)+' pç',qout);
+    el('p','Atribuições sem lote '+fmt(v.pendingPieces)+' pç (não somadas automaticamente) · outros compromissos '+fmt(v.additionalCommitted)+' · meta semanal com reserva '+fmt(v.weeklyTarget)+' pç.',qout);
+    if(v.partial)el('p','Cenário parcial: '+v.issues.length+' registros/condições a conferir. Não use para prometer data.',qout);
+    el('p','Primeiro dia com capacidade hipotética livre: '+(v.firstFree||'sem disponibilidade no horizonte')+' · conclusão hipotética do novo lote: '+(v.newCompletion||'não concluído no horizonte')+' · saldo do novo lote '+fmt(v.newUnallocated)+' pç.',qout);
+    el('p','Compromissos existentes não alocados '+fmt(v.existingRemaining)+' pç · peças fora de prazo na simulação '+fmt(v.latePieces)+'.',qout);
+    const wrap=el('div','',qout);wrap.style.cssText='overflow:auto;max-width:100%';const table=el('table','',wrap),head=el('tr','',el('thead','',table));for(const h of ['Semana','Capacidade','Compromissos','Novo lote','Livre'])el('th',h,head);
+    const body=el('tbody','',table);for(const w of v.weeks){const tr=el('tr','',body);for(const x of [w.start,fmt(w.capacity),fmt(w.existing),fmt(w.newPieces),fmt(w.free)])el('td',x,tr)}
+    const detail=el('details','',qout);el('summary','Lotes existentes e prazos',detail);for(const l of v.lots)el('p',l.productName+' · '+l.remaining+' pç · prazo '+(l.dueDate||'não informado')+' · conclusão simulada '+(l.lastWorkDate||'não alocado')+(l.unallocated?' · '+l.unallocated+' pç não alocadas':''),detail);
+    const pending=el('details','',qout);el('summary','Atribuições que precisam ser conciliadas',pending);for(const l of v.pendingCandidates)el('p','Produção '+l.key+' · modelo '+l.pid+' · '+l.remaining+' pç · '+(l.dueDate||'sem prazo'),pending);
+    const issues=el('details','',qout);el('summary','Ocorrências a conferir',issues);for(const i of v.issues)el('p',i.recordId+' · '+i.reason,issues);
+    el('p','Nenhuma reserva, transferência ou alteração foi gravada. Não inclui complexidade, transporte ou confirmação de disponibilidade real.',qout);
+   });refreshQueueLocations();
    const stageOut=el('div','',stages),lines=s=>s.split(/\r?\n/).filter(x=>x.trim()).map(x=>x.split(';').map(v=>v.trim())),num=v=>/^\d+$/.test(String(v).trim())?Number(v):NaN;
    for(const r of stageRows){for(const f of [r.capacity,r.wip,r.hist,r.teams].filter(Boolean))f.oninput=()=>{if(f===r.wip)r.confirmed.checked=false;stageOut.replaceChildren()};r.confirmed.onchange=()=>stageOut.replaceChildren()}
    target.oninput=()=>stageOut.replaceChildren();

@@ -798,5 +798,77 @@
   const t=Date.parse(day+'T00:00:00Z')+h.conservativeDays*86400000;
   return {...empty('historical-reference'),band,sampleCount:h.count,referenceDays:h.conservativeDays,referenceDate:new Date(t).toISOString().slice(0,10),confidence:h.confidence,queueVerified:false};
  }
- return {factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Current workload and hypothetical free capacity; no reassignment or delivery promise.
+ function factionQueueScenario(db,input,allowed){
+  const empty=(state,issues=[])=>({state,issues,lots:[],weeks:[],canWrite:false,canPromise:false,capacityVerified:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!['factions','production','productionLocations','products'].every(k=>Array.isArray(db?.[k])))return empty('unavailable');
+  const D=86400000,dt=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?Date.parse(s+'T00:00:00Z'):null,iso=n=>new Date(n).toISOString().slice(0,10);
+  const start=dt(input?.start),team=id(input?.teamId),goal=input?.weeklyCapacity,buffer=input?.bufferPercent,horizon=input?.weeks,newPieces=input?.newPieces,extra=input?.additionalCommitted;
+  const qty=n=>Number.isSafeInteger(n)&&n>=0&&n<=10000000;
+  if(start===null||!team||!qty(goal)||!qty(extra)||!qty(newPieces)||!Number.isSafeInteger(buffer)||buffer<0||buffer>90||!Number.isSafeInteger(horizon)||horizon<1||horizon>13||!Array.isArray(input.closedDates)||input.closedDates.length>366)return empty('invalid-input');
+  const index=rows=>{const m=new Map();for(const r of rows.filter(live)){const k=id(r.id);if(k)m.set(k,m.has(k)?null:r)}return m};
+  const loc=index(db.productionLocations),products=index(db.products),factions=index(db.factions),production=index(db.production);
+  if(!loc.get(team))return empty('invalid-location');
+  const matches=r=>[id(r.productionLocationId),id(r.factionId)].includes(team),issues=[],lots=[],linked=new Map(),eventCounts=new Map(),closed=new Set();
+  for(const d of input.closedDates){const t=dt(d);if(t===null)return empty('invalid-calendar');closed.add(t)}
+  const warn=(key,reason)=>issues.push({recordId:key,reason});
+  for(const f of db.factions.filter(live)){
+   const pid=id(f.productionId);if(pid){const list=linked.get(pid)||[];list.push(f);linked.set(pid,list)}
+   for(const h of Array.isArray(f.deliveryHistory)?f.deliveryHistory:[]){const k=id(h?.id);if(k)eventCounts.set(k,(eventCounts.get(k)||0)+1)}
+  }
+  function add(source,key,pid,remaining,dueDate){
+   if(!remaining)return;
+   const date=dt(dueDate);
+   if(date===null)warn(key,'prazo-nao-confirmado');
+   lots.push({source,key,productId:pid,productName:id(products.get(pid)?.name)||pid||'Não identificado',remaining,dueDate:date===null?null:iso(date),due:date,unallocated:remaining,latePieces:0,lastWorkDate:null});
+  }
+  for(const f of db.factions.filter(live)){
+   if(!matches(f))continue;const key=id(f.id),status=norm(f.status),pid=id(f.productId);
+   if(status==='finalizado')continue;
+   if(status!=='em producao'||f.transferHistory?.length||!key||factions.get(key)!==f||!products.get(pid)||!qty(f.sent)||!qty(f.returned)||f.returned>f.sent){warn(key,'lote-externo-a-conferir');continue}
+   const hist=f.deliveryHistory??[],sent=dt(f.sentAt);
+   if(sent===null||sent>start||!Array.isArray(hist)||hist.some(h=>!id(h?.id)||eventCounts.get(id(h.id))!==1||!qty(h.qty)||!h.qty||dt(h.date)===null||dt(h.date)<sent||dt(h.date)>start)||hist.reduce((s,h)=>s+h.qty,0)!==f.returned){warn(key,'retorno-nao-conciliado');continue}
+   add('external',key,pid,f.sent-f.returned,f.dueDate);
+  }
+  const pendingCandidates=[];
+  for(const p of db.production.filter(live)){
+   if(!matches(p))continue;const key=id(p.id),pid=id(p.productId),stage=norm(p.stage),links=linked.get(key)||[];
+   if(['finalizado','pronto'].includes(stage))continue;
+   if(!key||production.get(key)!==p||!products.get(pid)||!qty(p.planned)||!qty(p.done)||p.done>p.planned||p.transferHistory?.length||!['em producao','aguardando atribuicao'].includes(stage)){warn(key,'atribuicao-a-conferir');continue}
+   if(links.length){
+    const f=links.length===1?links[0]:null;
+    if(!f||!matches(f)||norm(f.status)!=='em producao'||!qty(f.sent)||!qty(f.returned)||f.sent-f.returned!==p.planned-p.done)warn(key,'vinculo-externo-divergente');
+    continue; // never add a production shadow of an external lot
+   }
+   if(p.sentToFactionAt){warn(key,'envio-sem-lote-vinculado');continue}
+   pendingCandidates.push({key,pid,remaining:p.planned-p.done,dueDate:p.factionDueDate||null});
+  }
+  // Multiple unmatched assignments may represent the same future workload; user reviews separately.
+  const pendingPieces=pendingCandidates.reduce((s,p)=>s+p.remaining,0);
+  if(pendingPieces>0)warn(team,'atribuicoes-sem-lote-exigem-conciliacao');
+  if(input.coverageConfirmed!==true)warn(team,'carteira-nao-conferida');
+  if(input.capacityConfirmed!==true)warn(team,'capacidade-nao-conferida');
+  const observedPieces=lots.reduce((s,l)=>s+l.remaining,0);
+  if(extra)lots.push({source:'manual',key:'additional-reviewed',productId:'',productName:'Outros compromissos informados',remaining:extra,dueDate:null,due:null,unallocated:extra,latePieces:0,lastWorkDate:null});
+  // Due-date order; undated commitments still precede the hypothetical new lot.
+  lots.sort((a,b)=>(a.due??Infinity)-(b.due??Infinity)||a.key.localeCompare(b.key));
+  const weeklyTarget=Math.floor(goal*(100-buffer)/100),dailyBase=Math.floor(weeklyTarget/5),rem=weeklyTarget%5,weeks=[];
+  let needed=newPieces,firstFree=null,newCompletion=null;
+  for(let w=0;w<horizon;w++){
+   const from=start+w*7*D,row={start:iso(from),end:iso(from+6*D),capacity:0,existing:0,newPieces:0,free:0};
+   for(let i=0;i<7;i++){const t=from+i*D,weekday=new Date(t).getUTCDay();if(weekday===0||weekday===6||closed.has(t))continue;
+    let left=dailyBase+(weekday<=rem?1:0);row.capacity+=left;
+    for(const l of lots){if(!left)break;const take=Math.min(left,l.unallocated);if(!take)continue;l.unallocated-=take;left-=take;row.existing+=take;l.lastWorkDate=iso(t);if(l.due!==null&&t>l.due)l.latePieces+=take}
+    if(left&&firstFree===null)firstFree=iso(t);
+    const take=Math.min(left,needed);if(take){needed-=take;left-=take;row.newPieces+=take;if(!needed)newCompletion=iso(t)}
+    row.free+=left;
+   }
+   weeks.push(row);
+  }
+  const existingRemaining=lots.reduce((s,l)=>s+l.unallocated,0),latePieces=lots.reduce((s,l)=>s+l.latePieces+(l.due!==null&&l.due<start+horizon*7*D?l.unallocated:0),0);
+  return {...empty('local-queue-scenario',issues),teamId:team,teamName:id(loc.get(team).name)||team,observedPieces,pendingPieces,pendingCandidates,additionalCommitted:extra,weeklyTarget,existingRemaining,latePieces,firstFree,newCompletion,newPieces,newUnallocated:needed,weeks,lots:lots.map(({due,...l})=>l),partial:issues.length>0};
+ }
+ return {factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
