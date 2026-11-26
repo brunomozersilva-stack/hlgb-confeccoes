@@ -141,7 +141,7 @@
     },
     {
       "path": "hlgb-modules/producao/cut-separation-core-v9647.js",
-      "sha": "fc292cc2aadae3ef641bb987ebb9d37f89f43afa",
+      "sha": "123c6223bd63b9e4fe0b81946ba0fcd9bf15a8f1",
       "origin": 318
     },
     {
@@ -151,7 +151,7 @@
     },
     {
       "path": "tests/cut-separation-workspace-v9643.cjs",
-      "sha": "3f050cb2829ee4b007587559ff65bb055bb0cc05",
+      "sha": "c5132c2066b46eee8716c4715e25bff4f38a453b",
       "origin": 318
     },
     {
@@ -630,5 +630,22 @@
     "controller": "release-cut-organization.js",
     "test": "tests/cut-separation-workspace-v9643-browser.cjs",
     "previousTestBlob": "d21a589017625b42dcc1feeea7689ada03947258"
+  },
+  "followupCut9756": {
+    "pr": 413,
+    "merge": "a56cd5d8f50287057e6008cfae5e2b637d82aeef",
+    "reason": "Verified split-parent exclusion and regression tests, approved 28/28; update only the two intentionally modified fingerprints, preserve original provenance.",
+    "files": [
+      {
+        "path": "hlgb-modules/producao/cut-separation-core-v9647.js",
+        "previousSha": "fc292cc2aadae3ef641bb987ebb9d37f89f43afa",
+        "sha": "123c6223bd63b9e4fe0b81946ba0fcd9bf15a8f1"
+      },
+      {
+        "path": "tests/cut-separation-workspace-v9643.cjs",
+        "previousSha": "3f050cb2829ee4b007587559ff65bb055bb0cc05",
+        "sha": "c5132c2066b46eee8716c4715e25bff4f38a453b"
+      }
+    ]
   }
 }
