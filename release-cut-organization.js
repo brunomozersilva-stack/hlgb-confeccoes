@@ -65,7 +65,7 @@ function ensureGradeAction9722(row,cut,model){
  // Existing canonical button keeps its original handler and placement.
  const canonical=buttons.find(b=>!b.hasAttribute('data-hlgb-grade-action9722')&&!b.closest('details'))||buttons.find(b=>!b.hasAttribute('data-hlgb-grade-action9722'));
  const duplicate=split&&typeof window.hlgbCutModelSplit?.competingModelCuts==='function'&&window.hlgbCutModelSplit.competingModelCuts(cut).length>1;
- const host=model?(row.querySelector('[data-hlgb-grade-group9711] > .toolbar')||Array.from(row.querySelectorAll('.toolbar')).find(n=>!n.closest('details'))||row):row.lastElementChild;
+ const host=model?(row.querySelector('[data-hlgb-grade-group9711] > .toolbar')||Array.from(row.querySelectorAll('.toolbar')).find(n=>!n.closest('details'))||row):Array.from(row.children).filter(c=>!c.hasAttribute('data-hlgb-cut-summary9761')).at(-1);
  if(canonical){
   // Move an existing editor out of a collapsed details element, preserving its handler.
   if(canonical.closest('details')&&host&&!host.closest('details'))host.appendChild(canonical);
@@ -146,7 +146,7 @@ function compactCut9761(entry,isLegacy){
   const values=document.createElement('div');values.className='sub';values.textContent=(meta.completed?'Finalizado':'A cortar')+' · '+(meta.valueCents===null?'Valor a conferir':(meta.valueCents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}));summary.appendChild(values);
   if(schedule){const b=document.createElement('button');b.type='button';b.className='secondary';b.dataset.hlgbScheduleToggle9761='1';b.onclick=()=>{if(!row.isConnected)return;const expanded=row.dataset.hlgbCutSchedule9761==='open';if(expanded)expandedSchedule9761.delete(id);else expandedSchedule9761.add(id);update()};summary.appendChild(b)}
  }
- function update(){const focused=schedule?.contains(document.activeElement),open=expandedSchedule9761.has(id)||focused;row.dataset.hlgbCutSchedule9761=open?'open':'closed';const b=summary.querySelector('[data-hlgb-schedule-toggle9761]');if(b){b.textContent=open?'Recolher programação':'Programação';b.setAttribute('aria-expanded',String(open))}}
+ function update(){const focused=row.querySelector('.cut-schedule-inline')?.contains(document.activeElement),open=expandedSchedule9761.has(id)||focused;row.dataset.hlgbCutSchedule9761=open?'open':'closed';const b=summary.querySelector('[data-hlgb-schedule-toggle9761]');if(b){b.textContent=open?'Recolher programação':'Programação';b.setAttribute('aria-expanded',String(open))}}
  update();
 }
 function applyUnifiedLayout9712(root,panel,entries,sort){
@@ -332,7 +332,7 @@ function renderSeparationWorkspace9643(){
   if(tr.dataset.hlgbSplitAggregateHidden==='1')continue;
   const id=cutIdentity9709(tr);if(!id||splitIds.has(id))continue;
   const cut=idx.cuts.get(id);if(!cut||!cut.productId||cutMeta9709(cut,idx).completed)continue;
-  targets.set(id,targets.has(id)?null:tr.lastElementChild||null);
+  targets.set(id,targets.has(id)?null:Array.from(tr.children).filter(c=>!c.hasAttribute('data-hlgb-cut-summary9761')).at(-1)||null);
  }
  const attached=new Set(),fallback=[];let ambiguous=0;
  for(const row of result.rows){
