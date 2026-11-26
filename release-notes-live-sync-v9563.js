@@ -114,6 +114,7 @@ function repaint(){
   if(panel&&panel.innerHTML!==html){panel.innerHTML=html;changed++}
  }
  receivables?.organizeLegacyNotes9710?.();
+ if(changed||document.getElementById('orderNotesTable')||document.getElementById('allOrderNotesTable'))receivables?.observeProjectionArchive9710?.(paid.length);
  return {invoices:invoices.length,activeProjection:open.length,paidProjection:paid.length,updatedPanels:changed};
 }
 function patchRenderer(){
