@@ -32,5 +32,20 @@ vm.createContext(ctx);vm.runInContext(source,ctx);
  assert.equal(out.report.finalAudit.summary.fail,2);
  assert.equal(out.report.run.businessBlocked.length,2);
  assert.equal(out.needsCode.length,0);
+ assert.equal(out.financeLinkEvidence9720.state,'unavailable');
+ const queries=[];
+ win.cloudRequest=async(path,opts)=>{
+  assert.equal(opts.method,'GET');queries.push(path);
+  if(path.includes('module=eq.finance&'))return [
+   {module:'finance',entity_id:'A',revision:2,deleted_at:null,data:{id:'A',projectionInvoiceId:'P1',status:'Pago',private:'NEVER_EXPORT'}},
+   {module:'finance',entity_id:'B',revision:3,deleted_at:null,data:{id:'B',projectionInvoiceId:'P2',status:'Pago'}}];
+  return [{module:'projectionInvoices',entity_id:'P1',revision:8,deleted_at:'2026-10-24T11:44:11Z',data:{id:'P1',private:'NEVER_EXPORT'}}];
+ };
+ const proof=await win.hlgbAuditorAutoCorrect9447.financeLinkEvidence9720(audit);
+ assert.equal(queries.length,2);assert.equal(proof.checked,1);assert.equal(proof.unverified,1);assert.equal(proof.canRepair,false);
+ assert.equal(proof.items[0].state,'projection-logically-deleted');assert.equal(proof.items[1].state,'projection-not-returned');
+ assert(!JSON.stringify(proof).includes('NEVER_EXPORT'));assert.equal(saveCalls,0);
+ win.cloudRequest=async()=>[{module:'finance',entity_id:'WRONG',revision:1,deleted_at:null}];
+ assert.equal((await win.hlgbAuditorAutoCorrect9447.financeLinkEvidence9720(audit)).state,'read-failed');
  console.log('PASS v94.81: finance/projection orphans are visible, safely blocked and never auto-repaired');
 })().catch(err=>{console.error(err);process.exitCode=1});
