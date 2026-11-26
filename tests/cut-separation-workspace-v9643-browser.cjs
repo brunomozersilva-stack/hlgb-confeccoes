@@ -11,4 +11,27 @@
  assert.equal(await p.locator('[data-hlgb-inline-materials9711]').count(),0,'ambiguous visible identity falls back');
  assert.equal(await p.locator('#hlgbCutSeparation9643 article').count(),2);
  assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__before),true);
+ await p.evaluate(()=>{
+ document.querySelectorAll('[data-hlgb-cut-model-id]').forEach(n=>n.remove());
+ const root=document.getElementById('cutTable');root.innerHTML='<table><tr><th>Pedido</th><th>Cliente</th><th>Ações</th></tr><tr id="legacy9712"><td>12</td><td>Cliente A</td><td><button onclick="editCut(9)">Editar</button></td></tr></table>';
+ const panel=document.createElement('div');panel.id='hlgbCutSplitPanel';panel.className='panel';panel.innerHTML='<div class="toolbar"><h2>Cortes por modelo</h2></div><div data-hlgb-cut-order-group="1"><h3>Pedido 13</h3><article data-hlgb-cut-model-id="19">Outro modelo</article></div>';root.insertAdjacentElement('beforebegin',panel);
+ db.orders[0].client='Cliente A';db.orders.push({id:2,orderNumber:13,client:'Cliente B',status:'Aguardando corte'});
+ db.products[0].price=10;db.products[1].price=50;
+ db.cuts.push({id:19,orderId:2,productId:11,status:'Planejado',pieces:100,plannedCutDate:'2026-11-25'});
+ window.hlgbCutOrganization.apply();
+ });
+ assert.equal(await p.locator('.hlgb-cut-unified9712').count(),1);
+ assert.equal(await p.locator('#legacy9712 > td').first().getAttribute('data-cut-label9712'),'Pedido');
+ await p.locator('#hlgbCutSort9712').selectOption('value');
+ const order=await p.evaluate(()=>[getComputedStyle(document.querySelector('[data-hlgb-cut-model-id="19"]')).order,getComputedStyle(document.getElementById('legacy9712')).order]);assert.deepEqual(order,['1','2']);
+ await p.locator('#hlgbCutClient9712').fill('Cliente B');
+ assert.equal(await p.locator('#legacy9712').isVisible(),false);assert.equal(await p.locator('[data-hlgb-cut-model-id="19"]').isVisible(),true);
+ await p.locator('#hlgbCutClient9712').fill('');
+ await p.locator('#hlgbCutMin9712').fill('2000');
+ assert.equal(await p.locator('#legacy9712').isVisible(),false);
+ await p.locator('#hlgbCutMin9712').fill('');
+ await p.locator('#hlgbCutLayout9712').click();assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0);
+ await p.locator('#hlgbCutLayout9712').click();assert.equal(await p.locator('.hlgb-cut-unified9712').count(),1);
+ await p.evaluate(()=>{const tr=document.createElement('tr');tr.innerHTML='<td>Sem identidade</td>';document.querySelector('#cutTable tbody').appendChild(tr);window.hlgbCutOrganization.apply()});
+ assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0,'unknown rows restore original layout');
  await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!document.getElementById('hlgbCutSeparation9643')&&!document.querySelector('[data-hlgb-inline-materials9711]'));await p.close();console.log('PASS',width)}}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});
