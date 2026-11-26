@@ -165,16 +165,16 @@ function renderSeparationWorkspace9643(){
  const previousQuery=host.querySelector('input[type=search]')?.value||'';
  let result;try{result=inspectWorkspace9643()}catch(_){result={state:'unavailable',rows:[],issues:[]}}
  if(result.state!=='local-observation'){removeInlineMaterials9711(root);host.replaceChildren();host.hidden=false;el('h2','Materiais e separação por modelo');el('p','Dados necessários ainda não disponíveis.');materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};return}
- const targets=new Map(),idx=cutIndex9709();
+ const targets=new Map(),splitIds=new Set(),idx=cutIndex9709(),owner=bindDraftOwner9644();
  for(const card of Array.from(root.querySelectorAll('[data-hlgb-cut-model-id]'))){
-  const id=cutIdentity9709(card);if(!id)continue;targets.set(id,targets.has(id)?null:card)
+  const id=cutIdentity9709(card);if(!id)continue;splitIds.add(id);targets.set(id,targets.has(id)?null:card)
  }
  // Legacy rows can also host material details when the exact model and cut are established.
  for(const tr of Array.from(table.querySelectorAll('tbody tr'))){
   if(tr.dataset.hlgbSplitAggregateHidden==='1')continue;
-  const id=cutIdentity9709(tr);if(!id||targets.has(id))continue;
+  const id=cutIdentity9709(tr);if(!id||splitIds.has(id))continue;
   const cut=idx.cuts.get(id);if(!cut||!cut.productId||cutMeta9709(cut,idx).completed)continue;
-  targets.set(id,tr.lastElementChild||null);
+  targets.set(id,targets.has(id)?null:tr.lastElementChild||null);
  }
  const attached=new Set(),fallback=[];let ambiguous=0;
  for(const row of result.rows){
@@ -185,9 +185,9 @@ function renderSeparationWorkspace9643(){
   attached.add(target);
   let detail=target.querySelector(':scope > [data-hlgb-inline-materials9711]');
   const sig=cutChecklist9644.signature(row);
-  if(detail&&detail.__hlgbMaterialSignature9711===sig)continue;
+  if(detail&&detail.__hlgbMaterialSignature9711===sig&&detail.__hlgbMaterialOwner9711===owner)continue;
   const wasOpen=detail?.open===true;
-  detail?.remove();detail=document.createElement('details');detail.dataset.hlgbInlineMaterials9711='1';detail.__hlgbMaterialSignature9711=sig;detail.open=wasOpen;detail.style.cssText='margin-top:8px;min-width:0;max-width:100%';
+  detail?.remove();detail=document.createElement('details');detail.dataset.hlgbInlineMaterials9711='1';detail.__hlgbMaterialSignature9711=sig;detail.__hlgbMaterialOwner9711=owner;detail.open=wasOpen;detail.style.cssText='margin-top:8px;min-width:0;max-width:100%';
   const summary=document.createElement('summary');summary.textContent='📦 Separação de materiais · '+row.materials.length+' item(ns)';detail.appendChild(summary);target.appendChild(detail);
   materialCard9711(detail,row,true);
  }
