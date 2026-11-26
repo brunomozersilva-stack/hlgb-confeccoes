@@ -271,7 +271,7 @@
   const menu=document.getElementById('nav'),group=menu&&[...menu.querySelectorAll('.nav-group')].find(x=>/Produção/i.test(x.querySelector('.nav-group-title span')?.textContent||'')),sub=group?.querySelector('.nav-submenu');
   if(sub){
    bar?.remove();
-   if(!nav){nav=el('button','Corte Conjunto',sub);nav.type='button';nav.id=jointNav;nav.onclick=openJoint}
+   if(!nav){nav=el('button','Corte Conjunto',sub);nav.type='button';nav.id=jointNav;nav.onclick=openJoint;const ordinary=[...sub.querySelectorAll('button')].find(b=>b.getAttribute('onclick')?.includes("page('corte',"));if(ordinary)sub.insertBefore(nav,ordinary.nextElementSibling)}
    nav.hidden=!cutAllowed();nav.disabled=!allowed;
    if(!allowed)nav.classList.remove('active');
    return;
