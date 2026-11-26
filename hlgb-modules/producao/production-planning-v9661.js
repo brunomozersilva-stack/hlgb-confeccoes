@@ -3,7 +3,7 @@
  const id=x=>typeof x==='string'||Number.isSafeInteger(x)?String(x).trim():'',live=x=>x&&!x.deletedAt&&!x.deleted_at&&x.deleted!==true&&!x._deleted;
  const norm=x=>id(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
  const pair=(o,p)=>JSON.stringify([id(o),id(p)]);
- const eligibleStatus=o=>/separacao|aguardando material|aguardando corte|pedido criado|pedido para corte|^corte$|^planejado$|^aberto$/.test(norm(o.status))&&!/finalizad|cancelad|entregue|mercadoria pronta|nota emitida|em producao/.test(norm(o.status))&&!o.invoiceReady&&!o.noteReady&&!o.workflowSourceOrderId&&!norm(o.cutStatus).includes('finalizado');
+ const eligibleStatus=o=> !/finalizad|cancelad|entregue|mercadoria pronta|nota emitida/.test(norm(o.status))&&!o.invoiceReady&&!o.noteReady&&!o.workflowSourceOrderId&&!norm(o.cutStatus).includes('finalizado')&&(/separacao|aguardando material|aguardando corte|pedido criado|pedido para corte|^corte$|^planejado$|^aberto$/.test(norm(o.status))||/^pedido em producao$|^em producao$/.test(norm(o.status)));
  function discover(db,authority,allowed){
   if(allowed!==true)return {state:'forbidden',groups:[]};
   if(!db||!Array.isArray(db.orders)||typeof joint?.discover!=='function')return {state:'unavailable',groups:[]};
@@ -27,7 +27,7 @@
   let review=0;
   for(const [oid,o] of orders){
    if(!o){review++;continue}
-   if(/finalizad|cancelad|entregue|mercadoria pronta|nota emitida/.test(norm(o.status))||o.invoiceReady||o.noteReady||o.workflowSourceOrderId)continue;
+   if(/^(?:pedido )?finalizad[oa]$|cancelad|entregue|mercadoria pronta|nota emitida/.test(norm(o.status))||o.invoiceReady||o.noteReady||o.workflowSourceOrderId)continue;
    if(!Array.isArray(o.grade)||!o.grade.length){review++;continue}
    const byModel=new Map();
    for(const x of o.grade){
