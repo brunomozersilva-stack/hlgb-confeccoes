@@ -48,6 +48,9 @@
    const seen=new Set(),lines=[];
    for(const x of g.lines){const k=JSON.stringify([x.orderId,x.productId,x.color,x.size]);if(seen.has(k))continue;seen.add(k);
     if(activity.has(JSON.stringify([x.orderId,x.productId]))||activity.has(JSON.stringify([x.orderId,'*'])))continue;
+    // An order can already be in production while a different model is still planned.
+    // In that state require a unique, exact model placeholder; never infer remaining demand.
+    if(/^pedido em producao$|^em producao$/.test(norm(orders.get(x.orderId)?.status))&&plannedPairs.get(JSON.stringify([x.orderId,x.productId]))!==1)continue;
     lines.push({orderId:x.orderId,productId:x.productId,productName:x.productName,color:x.color,size:x.size,ordered:x.ordered});
    }
    if(!lines.length)continue;
