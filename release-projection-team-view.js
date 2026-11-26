@@ -374,7 +374,7 @@ function mountPlanner(){
    const journal=el('details','',stages);el('summary','Diário de previsões — registro e conferência',journal);
    el('p','Arquivo portátil de previsões originais e revisões. Não é armazenamento em nuvem: exporte depois de registrar e importe novamente em outra sessão. Não é prova de data de criação nem de autoria. Nenhum dado comercial será gravado.',journal);
    const jfile=el('input','',journal);jfile.type='file';jfile.accept='.json,application/json';
-   const jpick=el('div','',journal),jout=el('div','',journal),jstatus=el('p','Nenhum diário carregado.',journal);let entries=[],openLots=[],chosen=new Set(),offset=0;
+   const jpick=el('div','',journal),jout=el('div','',journal),jstatus=el('p','Nenhum diário carregado.',journal);let entries=[],openLots=[],chosen=new Set(),journalOffset=0;
    const journalSource=()=>typeof db!=='undefined'?db:window.db;
    function showJournal(v){
     jout.replaceChildren();if(!active())return;
@@ -387,15 +387,15 @@ function mountPlanner(){
    function drawLots(){
     jpick.replaceChildren();if(!active())return;
     el('p',openLots.length+' lotes abertos conciliados · '+chosen.size+' selecionados',jpick);
-    for(const o of openLots.slice(offset,offset+20)){
+    for(const o of openLots.slice(journalOffset,journalOffset+20)){
      const label=el('label',o.teamName+' · '+o.productName+' · '+o.remaining+' pç pendentes · '+o.sampleCount+' lotes históricos',jpick);label.style.display='block';
      const c=el('input','',label);c.type='checkbox';c.checked=chosen.has(o.recordId);c.onchange=()=>{if(c.checked)chosen.add(o.recordId);else chosen.delete(o.recordId)};
     }
-    if(offset>0)btn('Anterior',jpick,()=>{offset-=20;drawLots()});if(offset+20<openLots.length)btn('Mais lotes',jpick,()=>{offset+=20;drawLots()});
+    if(journalOffset>0)btn('Anterior',jpick,()=>{journalOffset-=20;drawLots()});if(journalOffset+20<openLots.length)btn('Mais lotes',jpick,()=>{journalOffset+=20;drawLots()});
    }
    btn('Consultar lotes abertos e atualizar resultados',journal,()=>{
     if(!active())return;const src=journalSource(),day=today(),h=api.factionLeadTimes(src,day,active());
-    openLots=h.state==='local-leadtime-observation'?h.open:[];chosen.clear();offset=0;drawLots();showJournal(api.forecastJournal(src,{asOf:day,mode:'inspect',entries},active()));
+    openLots=h.state==='local-leadtime-observation'?h.open:[];chosen.clear();journalOffset=0;drawLots();showJournal(api.forecastJournal(src,{asOf:day,mode:'inspect',entries},active()));
    });
    btn('Registrar referência dos lotes selecionados no diário',journal,()=>{
     if(!active())return;const v=api.forecastJournal(journalSource(),{asOf:today(),mode:'capture',entries,lotIds:[...chosen]},active());
