@@ -374,9 +374,31 @@
   return {state:'local-estimate',rows,models,issues,partial:issues.length>0,stockVerified:false,canWrite:false};
  }
  // A printable DRAFT only. One arithmetic option, no history/write or confirmed execution.
- function jointPrintDraft(group,maxLayers,mode,allowed){
+ // Select one existing mathematical option per colour; no arbitrary quantities.
+ function selectedGradePlan(group,cap,choices={},allowed){
+  if(allowed!==true||!choices||typeof choices!=='object'||Array.isArray(choices))throw Error('invalid-scenario');
+  const plans=gradeSuggestions(group,cap);if(!plans.length)throw Error('invalid-grade');
+  if(Object.keys(choices).some(c=>!plans.some(p=>p.color===c)))throw Error('unknown-color');
+  return plans.map(p=>{
+   const options=[{id:'exact',name:'Grade exata',spreads:[{layers:p.layers,rows:p.base}]}];
+   if(p.alternative)options.push({id:'limit',name:'Limite de folhas',spreads:[{layers:p.alternative.layers,rows:p.alternative.rows.filter(r=>r.planned>0)}]});
+   for(const [i,v] of p.multiSpreads.entries())options.push({id:'multi-'+i,name:'Múltiplos enfestos '+(i+1),spreads:v.spreads});
+   const selected=options.find(o=>o.id===(Object.prototype.hasOwnProperty.call(choices,p.color)?choices[p.color]:'exact'));if(!selected)throw Error('unknown-option');
+   const count=new Map(),key=r=>JSON.stringify([r.key,r.size]);
+   for(const spread of selected.spreads)for(const r of spread.rows){if(r.planned!==spread.layers*r.perLayer||r.planned<0)throw Error('invalid-plan');count.set(key(r),(count.get(key(r))||0)+r.planned)}
+   const remaining=p.base.map(r=>({...r,remainder:r.qty-(count.get(key(r))||0)}));if(remaining.some(r=>r.remainder<0))throw Error('overcut');
+   return {color:p.color,total:p.total,options:options.map(({id,name})=>({id,name})),selected:selected.id,name:selected.name,spreads:selected.spreads,remaining:remaining.filter(r=>r.remainder>0),geometryVerified:false};
+  });
+ }
+ function scenarioSummary(group,cap,choices,allowed){
+  const plans=selectedGradePlan(group,cap,choices,allowed);
+  const total=plans.reduce((n,p)=>n+p.total,0),remaining=plans.reduce((n,p)=>n+p.remaining.reduce((v,r)=>v+r.remainder,0),0);
+  const combinedPieces=plans.reduce((n,p)=>n+p.spreads.filter(s=>new Set(s.rows.map(r=>r.key)).size>=2).reduce((v,s)=>v+s.rows.reduce((w,r)=>w+r.planned,0),0),0);
+  return {total,remaining,combinedPieces,spreads:plans.reduce((n,p)=>n+p.spreads.length,0),plans,geometryVerified:false,canWrite:false};
+ }
+ function jointPrintDraft(group,maxLayers,mode,allowed,choices={}){
   if(allowed!==true||!['combined','individual','packet'].includes(mode)||!id(group?.materialId)||!Array.isArray(group?.models)||group.models.length<2||group.models.length>1000)throw Error('invalid-print-selection');
-  const plans=gradeSuggestions(group,maxLayers);
+  const plans=selectedGradePlan(group,maxLayers,choices,allowed);
   if(!plans.length||plans.reduce((n,p)=>n+p.total,0)!==group.models.reduce((n,m)=>n+m.pieces,0))throw Error('invalid-print-grade');
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const ref='Identificação do lote: __________________';
@@ -384,12 +406,37 @@
   const head=title=>'<h1>HLGB · '+title+'</h1><p class="warning">RASCUNHO DE SIMULAÇÃO — não autoriza corte, não comprova saldo nem encaixe físico.</p><p>'+ref+' · Data: ____/____/______</p>';
   const signatures='<div class="sign">Cortador 1: ____________________ &nbsp; Cortador 2: ____________________ &nbsp; Infestador / conferência: ____________________</div>';
   const material=esc(group.materialName||group.materialId);
-  const rowsFor=m=>plans.flatMap(p=>p.base.filter(r=>!m||r.key===m.key).map(r=>[r.orderNumber,r.productName,p.color,r.size,p.layers,r.perLayer,r.planned,'']));
-  const columns=['Pedido','Modelo','Cor','Tam.','Folhas','Pç/folha','Previsto','Realizado'];
-  const combined='<section class="sheet" data-joint-sheet="combined">'+head('FOLHA CONJUNTA DE CORTE')+'<p>Matéria-prima candidata: <b>'+material+'</b> · '+group.models.length+' pedido(s)/modelo(s) · '+plans.reduce((n,p)=>n+p.total,0)+' peças previstas · opção matemática exata</p><p>☐ Interno &nbsp; ☐ Externo &nbsp; Lote: __________ Largura útil: ________</p><h2>Grade por modelo e enfesto</h2>'+table(columns,rowsFor(null))+'<h2>Conferência e pesagem coletiva</h2>'+table(['Material','Cor / lote','Total kg','Usado kg','Refugo kg','Sobra kg','Aprov. %'],[[group.materialName||group.materialId,'','','','','',''],['Outro:','','','','','','']])+'<p>☐ Material conferido &nbsp; ☐ Grade conferida &nbsp; ☐ Encaixe físico conferido &nbsp; ☐ Separação conferida</p><p>Peças extras / aproveitamento de sobras: ____________________________</p><p>Observações / divergências: _________________________________________</p>'+signatures+'</section>';
+  const rowsFor=m=>plans.flatMap(p=>[...p.spreads.flatMap((s,i)=>s.rows.filter(r=>!m||r.key===m.key).map(r=>[r.orderNumber,r.productName,p.color,r.size,i+1,s.layers,r.perLayer,r.planned,''])),...p.remaining.filter(r=>!m||r.key===m.key).map(r=>[r.orderNumber,r.productName,p.color,r.size,'Complementar','—','—',r.remainder,''])]);
+  const columns=['Pedido','Modelo','Cor','Tam.','Enfesto','Folhas','Pç/folha','Previsto','Realizado'];
+  const combined='<section class="sheet" data-joint-sheet="combined">'+head('FOLHA CONJUNTA DE CORTE')+'<p>Matéria-prima candidata: <b>'+material+'</b> · '+group.models.length+' pedido(s)/modelo(s) · '+plans.reduce((n,p)=>n+p.total,0)+' peças previstas · opções: '+esc(plans.map(p=>p.color+' — '+p.name).join('; '))+'</p><p>☐ Interno &nbsp; ☐ Externo &nbsp; Lote: __________ Largura útil: ________</p><h2>Grade por modelo e enfesto</h2>'+table(columns,rowsFor(null))+'<h2>Conferência e pesagem coletiva</h2>'+table(['Material','Cor / lote','Total kg','Usado kg','Refugo kg','Sobra kg','Aprov. %'],[[group.materialName||group.materialId,'','','','','',''],['Outro:','','','','','','']])+'<p>☐ Material conferido &nbsp; ☐ Grade conferida &nbsp; ☐ Encaixe físico conferido &nbsp; ☐ Separação conferida</p><p>Peças extras / aproveitamento de sobras: ____________________________</p><p>Observações / divergências: _________________________________________</p>'+signatures+'</section>';
   const individuals=group.models.map(m=>'<section class="sheet" data-joint-sheet="individual">'+head('FICHA INDIVIDUAL — APÓS SEPARAÇÃO (RAScunho)'.toUpperCase())+'<p>Pedido #'+esc(m.orderNumber)+' · <b>'+esc(m.productName)+'</b> · '+esc(m.pieces)+' peças previstas</p><p>Material candidato: '+material+' · Destino / facção: ________________________</p>'+table(columns,rowsFor(m))+'<p>Conferência da quantidade realmente separada: _________ pç</p><p>☐ Grade conferida &nbsp; ☐ Materiais conferidos &nbsp; ☐ Destino conferido</p><p>Observações / divergências: _________________________________________</p><p>Pesagem coletiva consta na ficha conjunta; não repetir como consumo individual.</p>'+signatures+'</section>').join('');
   const pages=mode==='combined'?combined:mode==='individual'?individuals:combined+individuals;
   return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB — rascunho de corte conjunto</title><style>@page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{font:11px/1.3 Arial,sans-serif;color:#111;margin:0}h1{font-size:17px;margin:0 0 8px}h2{font-size:13px;margin:10px 0 4px}p{margin:5px 0}.warning{font-weight:bold;border:1px solid #555;padding:5px}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #777;padding:4px;overflow-wrap:anywhere}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}.sign{margin-top:20px;break-inside:avoid}.sheet+.sheet{break-before:page;page-break-before:always}@media screen{body{max-width:190mm;margin:12px auto}.sheet+.sheet{border-top:2px dashed #888;margin-top:20px;padding-top:15px}}</style></head><body>'+pages+'</body></html>';
  }
- return {jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ function unpairedModels(d,allowed){
+  if(allowed!==true||d?.state!=='discovery-only')return [];
+  const paired=new Set(d.groups.flatMap(g=>g.models.map(m=>m.key))),out=new Map();
+  for(const g of d.singleMaterialGroups||[])for(const l of g.lines||[]){
+   const key=pair(l.orderId,l.productId);if(paired.has(key))continue;
+   const m=out.get(key)||{key,orderId:l.orderId,productId:l.productId,productName:l.productName,materials:[],reason:'no-observed-partner'};
+   if(!m.materials.some(x=>x.id===g.materialId))m.materials.push({id:g.materialId,name:g.materialName});out.set(key,m);
+  }
+  for(const l of d.reviewLines||[]){
+   if(!l.orderId)continue;const key=pair(l.orderId,l.productId);if(paired.has(key))continue;
+   const m=out.get(key)||{key,orderId:l.orderId,productId:l.productId,productName:'',materials:[],reason:'review'};
+   m.reason='review';m.reviewReason=l.reason;out.set(key,m);
+  }
+  return [...out.values()].sort((a,b)=>a.productName.localeCompare(b.productName,'pt-BR')||a.orderId.localeCompare(b.orderId,'pt-BR',{numeric:true}));
+ }
+ function compareGradeOptions(group,cap,allowed){
+  if(allowed!==true)return [];
+  return gradeSuggestions(group,cap).map(p=>{
+   const summarize=(name,spreads,remaining)=>({name,spreads:spreads.length,combinedPieces:spreads.filter(s=>new Set(s.rows.filter(r=>r.planned>0).map(r=>r.key)).size>=2).reduce((n,s)=>n+s.rows.reduce((v,r)=>v+r.planned,0),0),remaining,peak:Math.max(0,...spreads.map(s=>s.rows.reduce((n,r)=>n+r.perLayer,0))),geometryVerified:false});
+   const options=[summarize('Grade exata',[{rows:p.base}],0)];
+   if(p.alternative){const rows=p.alternative.rows;options.push(summarize('Limite de folhas',[{rows}],rows.reduce((n,r)=>n+r.remainder,0)))}
+   for(const [i,v] of p.multiSpreads.entries())options.push(summarize('Múltiplos enfestos '+(i+1),v.spreads,v.remaining));
+   return {color:p.color,total:p.total,options};
+  });
+ }
+ return {selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
