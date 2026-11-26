@@ -74,9 +74,26 @@
   // Historical observation does not establish complete weeks; a missing record is null, not zero.
   const historical=recordedHistory(accepted,comparison.history,target,asOf,issues.length);
   const weeklyCash=rows=>rows.map(x=>({start:x.start,end:x.end,incomingCents:x.incomingCents,outgoingCents:x.outgoingCents,closingCents:null,shortfall:null}));
-  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',pendingEvidence:{state:pendingState,excludedCount:pendingOmitted,blockedPayrollMonths:blockedMonths.size,allPayrollBlocked,remoteConfirmed:false},observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
+  return {state:'local-observation-only',reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',pendingEvidence:{state:pendingState,excludedCount:pendingOmitted,blockedPayrollMonths:blockedMonths.size,allPayrollBlocked,remoteConfirmed:false},observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,weeklyActions:weeklyActions(historical,projection,asOf,target,issues.length),cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
  }
 
+ // Descriptive priorities, not an automated diagnosis or payment instruction.
+ function weeklyActions(history,projection,asOf,target,omitted){
+  const actions=[],add=(code,evidence,suggestion)=>actions.push({code,evidence,suggestion,confidence:'partial-local'});
+  if(omitted)add('review-source-quality',{count:omitted},'Conferir os registros excluídos antes de tomar decisões com estes valores.');
+  if(history.overdue.in.count)add('review-overdue-in',{count:history.overdue.in.count,amountCents:history.overdue.in.amountCents},'Conferir recebimentos vencidos e atualizar datas somente quando confirmadas.');
+  if(history.overdue.out.count)add('review-overdue-out',{count:history.overdue.out.count,amountCents:history.overdue.out.amountCents},'Conferir pagamentos vencidos e separar os já pagos dos ainda devidos.');
+  const unusual=history.categories.filter(g=>g.observedComparison.signal==='above-recorded-range').sort((a,b)=>b.observedComparison.differenceCents-a.observedComparison.differenceCents||a.category.localeCompare(b.category,'pt-BR'));
+  for(const g of unusual.slice(0,3)){
+   const c=g.observedComparison;
+   add('review-above-range',{category:g.category,targetWeek:target,observedTotalCents:c.observedTotalCents,medianCents:c.medianRecordedCents,maxCents:c.maxRecordedCents,differenceCents:c.differenceCents,recordedWeeks:c.recordedWeeks,totalWeeks:c.totalWeeks},'Conferir compras extraordinárias, volume de pedidos e vencimentos; comparar antes de ajustar o planejamento.');
+  }
+  const days=projection.base.days.slice(0,7),due=days.filter(d=>d.outgoingCents>0).sort((a,b)=>b.outgoingCents-a.outgoingCents||a.date.localeCompare(b.date)),total=due.reduce((n,d)=>n+d.outgoingCents,0);
+  if(due.length&&Number.isSafeInteger(total)&&total>0&&due[0].outgoingCents>=total/2)add('review-concentration',{date:due[0].date,amountCents:due[0].outgoingCents,sevenDayTotalCents:total,sharePercent:Math.round(100*due[0].outgoingCents/total)},'Conferir concentração de vencimentos e disponibilidade real de caixa antes de comprometer novos gastos.');
+  const missing=history.weeks.length-history.observedWeeks;
+  if(missing)add('review-coverage',{missingWeeks:missing,totalWeeks:history.weeks.length},'Conferir semanas sem registros; ausência de lançamento não comprova gasto zero.');
+  return {state:'partial-local',asOf,targetWeek:target,actions,aboveRangeCount:unusual.length,officialDiagnosis:null,canPublish:false};
+ }
  function commitmentReview(projection){
   const horizons=[7,14,30,91];
   function scenario(days){
