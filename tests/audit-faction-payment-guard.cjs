@@ -74,3 +74,9 @@ db.factions.push({id:5,name:'Entrega antiga',sent:100,done:30});
 db.factionPayments.push({id:51,factionServiceId:5,quantity:31,source:'faction_delivery_v9223',status:'Pendente'});
 assert.equal(window.payFactionPayment(51),false,'explicit delivery source protected even without legacy flag');
 console.log('PASS partial delivery guard, exact duplicate and canceled history');
+
+db.factions.push({id:6,name:'Sem flag legado',sent:100,done:80,paymentSeparated:true,status:'Finalizado'});
+db.factionPayments.push({id:61,factionServiceId:6,quantity:40,source:'faction_delivery_v9223',status:'Pendente'});
+window.syncFactionPayments();
+assert.equal(db.factionPayments.at(-1).quantity,40,'explicit delivery without flag cannot be rewritten by legacy sync');
+assert.equal(window.separateFactionForPayment(6),false);
