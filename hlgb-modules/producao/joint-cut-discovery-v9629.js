@@ -8,7 +8,7 @@
   const blockedPairs=[...pairs].map(p=>{const [orderId,productId]=p.split('|');return {orderId,productId}});
   // Never infer cloud/WAL verification from a local copy. This adapter cannot emit approved suggestions.
   const plan=core.plan(db,{lines:[],blockedPairs,snapshotVerified:false,writeoffsVerified:false});
-  const activity=new Set();let uncertain=false,plannedRows=0;
+  const activity=new Set(),plannedPairs=new Map();let uncertain=false,plannedRows=0,adjustedRows=0,duplicatePlannedPairs=0;
   const cuts=db.cuts.filter(x=>x&&!deleted(x)),orders=new Map();
   for(const o of db.orders.filter(x=>x&&!deleted(x))){const k=id(o.id);orders.set(k,orders.has(k)?null:o)}
   const norm=x=>id(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
@@ -16,7 +16,7 @@
   // The commercial app automatically creates Planejado placeholders. A split child
   // also initializes actualCutGrade with the original grade, before any cut exists.
   // Only recognize the documented planned shapes; unknown or physical evidence blocks.
-  const physical=x=>!!(x.finishedAt||x.finishedAtTime||x.finalizedAt||x.completedAt||x.cutFinishedAt||x.cutWeightV9579||x.cutAdjustmentNote||x.workflowSourceOrderId||x.productionLocationId||x.factionId||x.actualCutPieces||x.cutConfirmed===true||x.completed===true||x.finalized===true||x.cutFinalized===true||x.actualCutAt||x.actualCutDate||x.cutDateActual||x.startedAt||x.cutStartedAt);
+  const physical=x=>!!(x.finishedAt||x.finishedAtTime||x.finalizedAt||x.completedAt||x.cutFinishedAt||x.cutWeightV9579||x.cutAdjustmentNote||x.cutGradeAdjustmentNote||x.cutGradeAdjustedAt||x.gradeAdjustedAt||x.plannedGradeBeforeAdjustmentV9243?.length||x.materialUsageRecordedAt||x.workflowSourceOrderId||x.productionLocationId||x.factionId||x.actualCutPieces||x.cutConfirmed===true||x.completed===true||x.finalized===true||x.cutFinalized===true||x.actualCutAt||x.actualCutDate||x.cutDateActual||x.startedAt||x.cutStartedAt);
   function planned(x){
    const o=orders.get(id(x.orderId));if(!o||norm(x.status)!=='planejado'||physical(x)||x.hiddenByModelSplitV1||x.modelSplitParentV1)return false;
    const pid=id(x.productId),grade=Array.isArray(o.grade)?o.grade:[],wanted=grade.filter(g=>!pid||id(g.productId)===pid);
@@ -30,7 +30,18 @@
    const o=orders.get(id(x.orderId)),ids=[...new Set((Array.isArray(o?.grade)?o.grade:[]).map(g=>id(g.productId)).filter(Boolean))];
    return ids.length>=2&&ids.every(pid=>cuts.filter(c=>c.modelSplitChildV1===true&&id(c.orderId)===id(x.orderId)&&id(c.modelSplitFromParentCutId)===id(x.id)&&id(c.productId)===pid).length===1);
   }
-  for(const x of cuts){if(!id(x.orderId)){uncertain=true;continue}if(planned(x)||splitParent(x)){plannedRows++;continue}activity.add(JSON.stringify([id(x.orderId),id(x.productId)||'*']));}
+  for(const x of cuts){
+   if(!id(x.orderId)){uncertain=true;continue}
+   const key=JSON.stringify([id(x.orderId),id(x.productId)||'*']);
+   if(planned(x)){plannedRows++;plannedPairs.set(key,(plannedPairs.get(key)||0)+1);continue}
+   if(splitParent(x)){plannedRows++;continue}
+   if(x.cutGradeAdjustedAt||x.gradeAdjustedAt||x.plannedGradeBeforeAdjustmentV9243?.length||x.cutGradeAdjustmentNote)adjustedRows++;
+   activity.add(key);
+  }
+  // Even two identical planned rows may be a duplicate order/cut, not extra demand.
+  for(const [key,count] of plannedPairs)if(count>1){activity.add(key);duplicatePlannedPairs++}
+  // A live aggregate and an individual placeholder for the same order are ambiguous.
+  for(const key of plannedPairs.keys()){const [oid,pid]=JSON.parse(key);if(pid!=='*'&&plannedPairs.has(JSON.stringify([oid,'*']))){activity.add(JSON.stringify([oid,'*']));}}
   for(const x of db.production){if(!x||deleted(x))continue;if(!id(x.orderId)){uncertain=true;continue}activity.add(JSON.stringify([id(x.orderId),id(x.productId)||'*']));}
   const groups=[];
   for(const g of plan.discovery){
@@ -42,7 +53,7 @@
    if(new Set(lines.map(x=>x.productId)).size<2&&new Set(lines.map(x=>x.orderId)).size<2)continue;
    groups.push({materialId:g.materialId,materialName:g.materialName,lines,orderedPieces:lines.reduce((a,x)=>a+x.ordered,0)});
   }
-  return {state:'discovery-only',groups,excludedCount:plan.excluded.length,plannedRows,blockedActivityPairs:activity.size,unlinkedActivity:uncertain,verifiedAvailable:null,reason:'Quantidades pedidas, não saldo disponível. Conferir nuvem, WAL, lotes e grade antes de cortar.'};
+  return {state:'discovery-only',groups,excludedCount:plan.excluded.length,plannedRows,adjustedRows,duplicatePlannedPairs,blockedActivityPairs:activity.size,unlinkedActivity:uncertain,verifiedAvailable:null,reason:'Quantidades pedidas, não saldo disponível. Conferir nuvem, WAL, lotes e grade antes de cortar.'};
  }
  return {discover};
 });
