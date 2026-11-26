@@ -137,7 +137,7 @@
    out.replaceChildren();visible=[];if(!active())return;const x=fresh();
    if(x.state!=='discovery-only'){overview9714(x);root.hlgbJointWorkspaceEvidence9714={observed:false};drawBasket(x);el('p','Consulta indisponível. Confira pedidos, materiais, produção e baixas.',out);return}
    const overview=overview9714(x),byMaterial=new Map(overview.groups.map(g=>[g.materialId,g]));
-   root.hlgbJointWorkspaceEvidence9714={observed:overview.state==='local-observation'||overview.state==='partial',materials:overview.materials,pairs:overview.pairs,products:overview.products,orders:overview.orders,ambiguous:overview.ambiguous,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};
+   root.hlgbJointWorkspaceEvidence9714={observed:overview.state==='local-observation'||overview.state==='partial',materials:overview.materials,pairs:overview.pairs,products:overview.products,orders:overview.orders,ambiguous:overview.ambiguous,adjustedRows:Number.isSafeInteger(x.adjustedRows)?x.adjustedRows:null,duplicatePlannedPairs:Number.isSafeInteger(x.duplicatePlannedPairs)?x.duplicatePlannedPairs:null,blockedActivityPairs:Number.isSafeInteger(x.blockedActivityPairs)?x.blockedActivityPairs:null,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};
    const optionsSignature=JSON.stringify(x.groups.map(g=>[g.materialId,g.materialName]));
    if(material.__options9714!==optionsSignature){
     const oldMaterial=material.value;material.replaceChildren();const all=el('option','Todas',material);all.value='';
@@ -154,6 +154,7 @@
    el('p',groups.length+' grupos de matéria-prima observados. Quantidades podem aparecer em mais de uma matéria-prima; a cesta elimina a duplicidade.',out);
    if(!groups.length)el('p','Nenhum grupo encontrado com os filtros atuais. Altere o material ou retire o filtro de cor em comum.',out);
    el('p',(x.plannedRows||0)+' registros planejados reconhecidos · '+(x.blockedActivityPairs||0)+' vínculos com atividade/estado a conferir.',out);
+   if(x.adjustedRows||x.duplicatePlannedPairs)el('p',fmt(x.adjustedRows||0)+' cortes com ajuste de grade e '+fmt(x.duplicatePlannedPairs||0)+' vínculos planejados duplicados retirados da sugestão para conferência.',out);
    if(x.unlinkedActivity)el('p','Há atividade sem pedido vinculado; disponibilidade exige revisão.',out);
    let history=null,materialHistory=null;
    for(const g of groups.slice(offset,offset+15)){
