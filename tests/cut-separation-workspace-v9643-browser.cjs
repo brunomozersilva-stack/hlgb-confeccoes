@@ -17,10 +17,14 @@
  const panel=document.createElement('div');panel.id='hlgbCutSplitPanel';panel.className='panel';panel.innerHTML='<div class="toolbar"><h2>Cortes por modelo</h2></div><div data-hlgb-cut-order-group="1"><h3>Pedido 13</h3><article data-hlgb-cut-model-id="19">Outro modelo</article></div>';root.insertAdjacentElement('beforebegin',panel);
  db.orders[0].client='Cliente A';db.orders.push({id:2,orderNumber:13,client:'Cliente B',status:'Aguardando corte'});
  db.products[0].price=10;db.products[1].price=50;
- db.cuts.push({id:19,orderId:2,productId:11,status:'Planejado',pieces:100,plannedCutDate:'2026-11-25'});
+ db.cuts.push({id:19,orderId:2,productId:11,status:'Planejado',modelSplitChildV1:true,pieces:100,plannedCutDate:'2026-11-25'});
+ window.__gradeOpens=[];window.hlgbAdjustCutGrade9191=id=>window.__gradeOpens.push(['single',id]);window.hlgbOpenSplitGradeAdjust=id=>window.__gradeOpens.push(['split',id]);
  window.hlgbCutOrganization.apply();
  });
  assert.equal(await p.locator('.hlgb-cut-unified9712').count(),1);
+ const singleGrade=p.locator('#legacy9712').getByRole('button',{name:'Ajustar grade',exact:true}),splitGrade=p.locator('[data-hlgb-cut-model-id="19"]').getByRole('button',{name:'Ajustar grade',exact:true});
+ assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);await singleGrade.click();await splitGrade.click();assert.deepEqual(await p.evaluate(()=>window.__gradeOpens),[['single','9'],['split','19']]);
+ await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);
  assert.equal(await p.locator('#legacy9712 > td').first().getAttribute('data-cut-label9712'),'Pedido');
  await p.locator('#hlgbCutSort9712').selectOption('value');
  const order=await p.evaluate(()=>[getComputedStyle(document.querySelector('[data-hlgb-cut-model-id="19"]')).order,getComputedStyle(document.getElementById('legacy9712')).order]);assert.deepEqual(order,['1','2']);
@@ -32,6 +36,8 @@
  await p.locator('#hlgbCutMin9712').fill('');
  await p.locator('#hlgbCutLayout9712').click();await p.waitForFunction(()=>!document.querySelector('.hlgb-cut-unified9712')&&document.getElementById('hlgbCutLayout9712').dataset.original==='1');
  await p.locator('#hlgbCutLayout9712').click();await p.waitForFunction(()=>!!document.querySelector('.hlgb-cut-unified9712')&&document.getElementById('hlgbCutLayout9712').dataset.original==='0');
+ assert.equal(await singleGrade.isVisible(),true);assert.equal(await splitGrade.isVisible(),true);
+ await p.evaluate(()=>{const card=document.querySelector('[data-hlgb-cut-model-id="19"]');const canonical=document.createElement('button');canonical.className='secondary hlgbAdjustSplitGradeBtn';canonical.textContent='Ajustar grade';canonical.onclick=()=>window.hlgbOpenSplitGradeAdjust('19');card.appendChild(canonical);window.hlgbCutOrganization.apply()});assert.equal(await splitGrade.count(),1,'canonical control replaces only our fallback');
  await p.evaluate(()=>{const tr=document.createElement('tr');tr.innerHTML='<td>Sem identidade</td>';document.querySelector('#cutTable tbody').appendChild(tr);window.hlgbCutOrganization.apply()});
  assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0,'unknown rows restore original layout');
  // Preserve the exact original panel and controls; the operation never clones or writes.

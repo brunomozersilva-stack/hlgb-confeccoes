@@ -6,9 +6,9 @@ const sid=v=>String(v??''),norm=v=>sid(v).normalize('NFD').replace(/[\u0300-\u03
 function arr(n){try{return Array.isArray(db?.[n])?db[n]:[]}catch(e){return []}}
 function cutIdentity9709(row){
  const explicit=sid(row?.dataset?.hlgbCutModelId||'');if(explicit)return explicit;
- const buttons=Array.from(row?.querySelectorAll?.('button[onclick]')||[]);
- for(const b of buttons){const m=sid(b.getAttribute('onclick')).match(/(?:^|\b)editCut\(\s*(['"]?)([^'")\s]+)\1\s*\)/);if(m)return m[2]}
- return '';
+ const buttons=Array.from(row?.querySelectorAll?.('button[onclick]')||[]),ids=new Set();
+ for(const b of buttons){const m=sid(b.getAttribute('onclick')).match(/^\s*(?:return\s+)?(?:editCut|hlgbEditCut9189|finishCut|viewCutGradeComparison)\(\s*(['"]?)([^'")\s]+)\1\s*\)\s*;?\s*$/);if(m)ids.add(m[2])}
+ return ids.size===1?[...ids][0]:'';
 }
 function cutIndex9709(){
  const index=n=>{const map=new Map();for(const x of arr(n)){if(!x||x.id==null)continue;const id=sid(x.id);map.set(id,map.has(id)?null:x)}return map};
@@ -50,6 +50,38 @@ function setFilterVisible9709(row,visible){
  if(!visible){if(row.dataset.hlgbCutFilterHidden!=='1'){row.dataset.hlgbCutFilterPrevious=row.style.display||'';row.dataset.hlgbCutFilterHidden='1'}row.style.display='none'}
  else if(row.dataset.hlgbCutFilterHidden==='1'){row.style.display=row.dataset.hlgbCutFilterPrevious||'';delete row.dataset.hlgbCutFilterHidden;delete row.dataset.hlgbCutFilterPrevious}
 }
+// v97.22: the unified list owns visibility of the grade action, not saving.
+function ensureGradeAction9722(row,cut,model){
+ if(typeof document.createElement!=='function'||!row?.querySelectorAll||!cut)return;
+ const id=sid(cut.id),status=norm(cut.status);
+ if(!id||status==='finalizado'||status.includes('cancel')||status.includes('desmembrado')||cut.modelSplitParentV1===true||cut.hiddenByModelSplitV1===true)return;
+ if(!model&&row.dataset.hlgbSplitAggregateHidden==='1')return;
+ const split=cut.modelSplitChildV1===true;
+ if(model&&!split)return; // a synthetic or unresolved card is not an editable child
+ const handler=split?'hlgbOpenSplitGradeAdjust':'hlgbAdjustCutGrade9191';
+ if(typeof window[handler]!=='function')return;
+ const selector='.hlgb9191-grade-btn,.hlgbAdjustSplitGradeBtn,[data-hlgb-grade-action9722]';
+ const buttons=Array.from(row.querySelectorAll(selector));
+ // Existing canonical button keeps its original handler and placement.
+ const canonical=buttons.find(b=>!b.hasAttribute('data-hlgb-grade-action9722')&&!b.closest('details'));
+ const duplicate=split&&typeof window.hlgbCutModelSplit?.competingModelCuts==='function'&&window.hlgbCutModelSplit.competingModelCuts(cut).length>1;
+ if(canonical){buttons.filter(b=>b!==canonical&&b.hasAttribute('data-hlgb-grade-action9722')).forEach(b=>b.remove());return}
+ let button=buttons.find(b=>b.hasAttribute('data-hlgb-grade-action9722'));
+ if(!button){
+  // Do not clone legacy controls. Use one visible button in the main actions area.
+  const host=model?(row.querySelector('[data-hlgb-grade-group9711] > .toolbar')||row.querySelector('.toolbar')||row):row.lastElementChild;
+  if(!host)return;
+  button=document.createElement('button');button.type='button';button.className='secondary '+(split?'hlgbAdjustSplitGradeBtn':'hlgb9191-grade-btn');button.dataset.hlgbGradeAction9722=id;button.textContent='Ajustar grade';host.appendChild(button);
+ }
+ button.disabled=!!duplicate;button.title=duplicate?'Corte duplicado: conferência necessária':'Registrar a quantidade realmente cortada';
+ button.onclick=()=>{
+  const matches=arr('cuts').filter(x=>sid(x?.id)===id),fresh=matches[0],state=norm(fresh?.status);
+  if(matches.length!==1||cutIdentity9709(row)!==id||!row.isConnected||state==='finalizado'||state.includes('cancel')||state.includes('desmembrado')||fresh.modelSplitParentV1===true||fresh.hiddenByModelSplitV1===true||!!fresh.modelSplitChildV1!==split){alert('Corte mudou. Atualize a lista antes de ajustar a grade.');return}
+  if(split&&typeof window.hlgbCutModelSplit?.competingModelCuts==='function'&&window.hlgbCutModelSplit.competingModelCuts(fresh).length>1){alert('Corte duplicado: conferência necessária.');return}
+  if(typeof window[handler]!=='function'){alert('Editor de grade indisponível. Atualize a página.');return}
+  window[handler](id);
+ };
+}
 function apply(){
  ensureToolbar();syncCutters();
  const root=document.getElementById('cutTable'),panel=document.getElementById('hlgbCutSplitPanel');if(!root)return;
@@ -64,6 +96,7 @@ function apply(){
   if(!id||!cut){if(id)stats.unresolved++;return} // headings, placeholders and unresolved identities remain untouched
   if(!model&&row.dataset.hlgbSplitAggregateHidden==='1'){delete row.dataset.hlgbCutFilterHidden;delete row.dataset.hlgbCutFilterPrevious;row.style.display='none';return}
   const meta=cutMeta9709(cut,idx);stats[model?'modelRows':'legacyRows']++;
+  ensureGradeAction9722(row,cut,model);
   const completed=meta.completed;
   const visible=(model||!completed)&&!invalid&&matchesCut9709(meta,filters);entries.push({row,meta,id});if(meta.valueCents===null)stats.unknownValue++;
   setFilterVisible9709(row,visible);if(visible&&row.style.display!=='none'){stats.shown++;stats.visiblePieces+=meta.pieces||0;if(meta.valueCents===null)stats.visibleUnknownValue++;else stats.visibleValueCents+=meta.valueCents;}
