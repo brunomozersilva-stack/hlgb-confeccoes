@@ -39,7 +39,7 @@ function projectionView(inv){
  client:sid(inv.client||inv.clientName||'Sem cliente'),
  clientKey:inv.clientId!=null&&sid(inv.clientId)?'id:'+sid(inv.clientId):'name:'+norm(inv.client||inv.clientName||'Sem cliente'),
  issued:date(inv.issueDate||inv.date),due:date(inv.dueDate),
- total,paid,credit,balance,terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
+ total,paid,credit,balance,paymentEvidence:history.length>0||inv.paid!=null||finance?.paid!=null,terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
  mismatch:inv.remaining!=null&&Math.abs(cent(inv.remaining)-balance)>1};
 }
 function orderView(o){
@@ -50,7 +50,7 @@ function orderView(o){
  client:sid(o.client||'Sem cliente'),
  clientKey:o.clientId!=null&&sid(o.clientId)?'id:'+sid(o.clientId):'name:'+norm(o.client||'Sem cliente'),
  issued:date(o.invoiceDate||o.date),due:date(o.dueDate),total,paid,credit,balance:Math.max(0,total-paid-credit),
- terms:sid(o.paymentTerms||'-'),source:'Pedido com nota pronta',
+ paymentEvidence:history.length>0||o.received!=null,terms:sid(o.paymentTerms||'-'),source:'Pedido com nota pronta',
  mismatch:o.remaining!=null&&Math.abs(cent(o.remaining)-Math.max(0,total-paid-credit))>1};
 }
 function allNotes(){
@@ -69,6 +69,30 @@ function allNotes(){
      (o.invoiceReady===true||o.noteReady===true||existing.has(sid(o.id)))&&
      !/cancelad|excluid/.test(norm(o.status)))invoices.push(orderView(o));
  return [...new Map(invoices.map(x=>[x.key,x])).values()];
+}
+/* v97.10: archive only visual evidence; never move or modify the ledger. */
+function settledForArchive9710(n){
+ return !!n&&n.paymentEvidence===true&&Number.isSafeInteger(n.total)&&n.total>0&&
+ Number.isSafeInteger(n.paid)&&n.paid===n.total&&n.balance===0&&n.credit===0&&!n.mismatch;
+}
+function clientNotes9710(clientId,rows=allNotes()){
+ const id=sid(clientId),clients=list('clients').filter(x=>x&&!x.deleted_at&&!x.deletedAt&&x.deleted!==true);
+ const exact=clients.filter(x=>sid(x.id)===id);if(exact.length!==1)return {rows:[],ambiguous:0,available:false};
+ const name=norm(exact[0].name),unique=!!name&&clients.filter(x=>norm(x.name)===name).length===1;
+ return {rows:rows.filter(n=>n.clientKey==='id:'+id||(unique&&n.clientKey==='name:'+name)),
+ ambiguous:unique?0:rows.filter(n=>n.clientKey==='name:'+name).length,available:true};
+}
+function pendingProtection9710(){
+ try{
+  const guard=window.hlgbWalIdbGuard9536,fn=window.hlgbRecordPendingIdentitySet9535,status=guard?.status?.();
+  if(!status||status.readFailed!==false||!(Number(status.probes)>0)||typeof guard.ids!=='function'||typeof fn!=='function')return null;
+  return new Set([...guard.ids(),...fn()].map(sid));
+ }catch(_){return null}
+}
+function archiveAllowed9710(n,pending){
+ if(!settledForArchive9710(n)||!pending)return false;
+ const module=n.type==='projection'?'projectionInvoices':'orders',id=sid(n.id);
+ return !pending.has(module+'::'+id)&&!pending.has(module+'|'+id);
 }
 function category(n,now=today()){
  if(n.balance<=1)return n.credit>0?'compensated':'paid';
@@ -309,7 +333,7 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,readOnly:true};
+window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
