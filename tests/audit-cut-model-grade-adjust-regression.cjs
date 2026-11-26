@@ -24,3 +24,20 @@ for(const scenario of ['canonical','missing','failed']){
  assert.equal(typeof w.hlgbOpenSplitGradeAdjust,'function');
 }
 console.log('PASS 3D canonical boot avoids competing grade injection, one bounded legacy fallback');
+
+// Execute the exact grade group renderer: read, print, edit and protection remain available.
+const split=fs.readFileSync(path.join(__dirname,'..','release-cut-model-split.js'),'utf8');
+const begin=split.indexOf('function gradeMini(c,o,ambiguous)'),end=split.indexOf('// v95.19',begin);
+assert(begin>=0&&end>begin);
+const cut={id:'c1',status:'Planejado',originalGrade:[{color:'Preto',size:'P',qty:10}],actualCutGrade:[{color:'Preto',size:'P',qty:8}]};
+const gradeCtx={isFinal:c=>c.status==='Finalizado',q:Number,escSafe:String,printCuttingSheet(){}};
+vm.createContext(gradeCtx);vm.runInContext(split.slice(begin,end)+';globalThis.renderGrade=gradeMini',gradeCtx);
+const html=gradeCtx.renderGrade(cut,{id:'o1'},false);
+assert.equal((html.match(/data-hlgb-grade-group9711/g)||[]).length,1);
+assert.equal((html.match(/hlgbOpenSplitGradeAdjust/g)||[]).length,1);
+assert.equal((html.match(/printCuttingSheet/g)||[]).length,1);
+assert.match(html,/<td>8<\/td>/);
+assert.match(gradeCtx.renderGrade(cut,{id:'o1'},true),/disabled title="Corte duplicado/);
+assert.doesNotMatch(gradeCtx.renderGrade({...cut,status:'Finalizado'},{id:'o1'},false),/hlgbOpenSplitGradeAdjust/);
+assert.match(split,/gradeMini\(c,o,ambiguous\)/);
+console.log('PASS single grade group preserves view, print, adjustment and ambiguity guard');

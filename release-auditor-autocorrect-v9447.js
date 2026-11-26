@@ -340,7 +340,7 @@ function cutUiEvidence9709(){
  // Consume only previously observed counts; never run another render or infer remote ACK.
  const read=(api,fields)=>{try{const x=api?.status?.();if(x?.observed!==true)return {observed:false};const result={observed:true,at:sid(x.at||''),source:'local-observation',remoteConfirmed:false};for(const k of fields)result[k]=Number.isSafeInteger(x[k])&&x[k]>=0?x[k]:null;return result}catch(_){return {observed:false}}};
  if(!authReady())return {search:{observed:false},destination:{observed:false}};
- return {search:read(window.hlgbCutOrganization,['legacyRows','modelRows','shown','unresolved']),destination:read(window.hlgbCutStepQueues9528,['waiting','missingProduction'])};
+ return {search:read(window.hlgbCutOrganization,['legacyRows','modelRows','shown','unresolved','unknownValue','visiblePieces','visibleUnknownValue']),destination:read(window.hlgbCutStepQueues9528,['waiting','missingProduction'])};
 }
 function notesUiEvidence9710(){
  try{if(!authReady())return {observed:false};const x=window.hlgbNotesReceivables9564?.archiveStatus9710?.();
