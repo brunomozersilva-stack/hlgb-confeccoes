@@ -159,6 +159,32 @@
    for(const g of groups.slice(offset,offset+15)){
     const card=el('article','',out);card.className='panel';card.dataset.jointMaterial9714=g.materialId;card.style.cssText='min-width:0;max-width:100%;border:1px solid #ddd;border-radius:12px;padding:14px;box-sizing:border-box';el('h3',g.materialName+' · ID '+g.materialId,card);el('p',fmt(g.orderedPieces)+' peças pedidas em '+g.models.length+' modelos/pedidos candidatos.',card);const coverage=byMaterial.get(g.materialId);el('p',coverage?.sharedColors.length?'Cores de grade em comum: '+coverage.sharedColors.join(', '):'Não há cor de grade compartilhada por dois candidatos. Não comprova cor física do tecido.',card);
     const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
+    const compatible=api.gradeMatches9726(g,active()),matchPanel=el('details','',card);matchPanel.open=true;
+    el('summary','Grades proporcionais da mesma cor e material',matchPanel);
+    el('p','Sugestões por proporção de tamanhos, não por encaixe físico. Selecionar adiciona os modelos completos (todas as cores) à cesta sem duplicar os pedidos.',matchPanel);
+    if(compatible.state!=='local-observation')el('p','Grades precisam de conferência.',matchPanel);
+    else if(!compatible.matches.length)el('p','Nenhuma proporção de grade idêntica neste grupo. As outras simulações permanecem disponíveis.',matchPanel);
+    else{
+     let matchOffset=0;const list=el('div','',matchPanel),notice=el('p','',matchPanel);
+     const appendMatches=()=>{for(const m of compatible.matches.slice(matchOffset,matchOffset+10)){
+      const area=el('div','',list);area.style.cssText='padding:8px;border-bottom:1px solid #ddd;overflow-wrap:anywhere';
+      el('strong',m.color+' · '+m.ratio.map(r=>r.size+' '+r.perBlock).join(' / ')+' · '+fmt(m.colorPieces)+' peças nesta cor',area);
+      el('p',m.models.length+' pedidos/modelos · '+m.distinctProducts+' produtos distintos · divisor comum '+fmt(m.commonFactor),area);
+      for(const item of m.models)el('p','Pedido #'+item.orderNumber+' · '+item.productName+' · '+fmt(item.colorPieces)+' peças nesta cor',area);
+      button('Selecionar modelos desta sugestão',area,()=>{
+       notice.textContent='';if(!active())return;
+       const now=fresh(),current=now.groups?.find(x=>x.materialId===g.materialId);
+       if(now.state!=='discovery-only'||!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){notice.textContent='Grades ou baixas mudaram. Atualize a consulta.';return}
+       const keys=new Set(m.models.map(x=>x.key)),models=current.models.filter(x=>keys.has(x.key));
+       if(models.length!==keys.size){notice.textContent='Seleção não comprovada.';return}
+       const proposed=new Map(selected);
+       for(const x of models)if(!proposed.has(x.key))proposed.set(x.key,{key:x.key,signature:api.modelSignature(x)});
+       if(proposed.size>1000||api.planSelection(now,[...proposed.values()]).state!=='local-preview'){notice.textContent='Cesta alterada, ambígua ou acima do limite. Confira a seleção.';return}
+       addGroup({...current,models},true);notice.textContent='Modelos adicionados à cesta para simulação, sem alterar o corte.';
+      });
+     }matchOffset+=10;moreMatches.hidden=matchOffset>=compatible.matches.length};
+     const moreMatches=button('Mais sugestões de grades proporcionais',matchPanel,appendMatches);appendMatches();
+    }
     drawGradeSuggestions(g,card);
     const evidence=el('details','',card);el('summary','Histórico de pesagens e oportunidades de sobra',evidence);
     let loaded=false;evidence.addEventListener('toggle',()=>{if(!evidence.open||loaded||!active())return;
