@@ -106,5 +106,36 @@
   const limit=Number.isSafeInteger(filter.limit)?Math.min(200,Math.max(1,filter.limit)):50,offset=Number.isSafeInteger(filter.offset)?Math.max(0,filter.offset):0;
   return {state:'local-events',events:filter.export===true?filtered:filtered.slice(offset,offset+limit),eventTotal:filtered.length,owners:[...owners.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.ownerId.localeCompare(b.ownerId)),issues:[...new Set(issues)],totals,canWrite:false,officialTotals:false};
  }
- return {inspect,noteEvents};
+ // Dated movements, never infer a cash event from a scalar or the last settlement date.
+ function factionEvents(ctx,filter={}){
+  const empty=state=>({state,events:[],eventTotal:0,owners:[],issues:[],totals:null,canWrite:false});
+  if(ctx?.authenticated!==true||ctx.factionsAllowed!==true)return empty('forbidden');
+  if(!Array.isArray(ctx.payments)||ctx.payments.length>50000)return empty('unavailable');
+  if((filter.from&&day(filter.from)!==filter.from)||(filter.to&&day(filter.to)!==filter.to)||(filter.from&&filter.to&&filter.from>filter.to)||filter.eventType&&!['all','faction-paid','faction-discount'].includes(filter.eventType))return empty('invalid-filter');
+  const counts=new Map(),owners=new Map(),events=[],issues=[];
+  for(const p of ctx.payments.filter(live)){const id=sid(p.id);counts.set(id,(counts.get(id)||0)+1)}
+  for(const p of ctx.payments.filter(live)){
+   const id=sid(p.id),ownerId=sid(p.factionMasterId),name=sid(p.factionName),paid=cents(p.paidAmount??0),credit=cents(p.discountAmount??0),total=cents(p.value);
+   if(p.manual===true){if(norm(p.status)!=='pendente'||paid>0||credit>0)issues.push('avulso-fora-da-consulta-por-evento:'+sid(p.manualGroupId||id));continue}
+   if(!id||counts.get(id)!==1||!ownerId||!name||![paid,credit,total].every(valid)||paid+credit>total){issues.push('pagamento-revisar:'+id);continue}
+   owners.set(ownerId,{ownerId,name});
+   const history=p.paymentHistory??[],local=[],keys=new Set();let paidSum=0,creditSum=0,invalid=!Array.isArray(history);
+   if(invalid){issues.push('historico-invalido:'+id);continue}
+   for(const h of history){
+    const eventId=sid(h?.id),date=day(h?.date),a=cents(h?.paid??0),b=cents(h?.discount??0);
+    if(!eventId||!date||keys.has(eventId)||!valid(a)||!valid(b)||a+b<=0){invalid=true;continue}
+    keys.add(eventId);paidSum+=a;creditSum+=b;
+    for(const [type,amount] of [['faction-paid',a],['faction-discount',b]])if(amount>0)local.push({kind:'faccao',id:JSON.stringify([id,eventId,type]),ownerId,name,paymentId:id,noteKey:'payment:'+id,noteNumber:sid(p.description||p.productName||id),date,type,amountCents:amount,method:sid(h.method).slice(0,120),description:sid(h.observation).slice(0,500)});
+   }
+   if(invalid||!Number.isSafeInteger(paidSum)||!Number.isSafeInteger(creditSum)||paidSum!==paid||creditSum!==credit||!['pago','parcial','pendente'].includes(norm(p.status))||(norm(p.status)==='pago'&&paid+credit!==total)||(norm(p.status)==='pendente'&&paid+credit!==0)||(norm(p.status)==='parcial'&&(paid+credit<=0||paid+credit>=total))){issues.push('eventos-sem-conciliacao:'+id);continue}
+   events.push(...local);
+  }
+  const q=norm(filter.query),filtered=events.filter(x=>(!filter.ownerId||x.ownerId===sid(filter.ownerId))&&(!filter.from||x.date>=filter.from)&&(!filter.to||x.date<=filter.to)&&(!filter.eventType||filter.eventType==='all'||x.type===filter.eventType)&&(!q||norm([x.name,x.ownerId,x.noteKey,x.noteNumber,x.id,x.method,x.description].join(' ')).includes(q))).sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id));
+  const totals={factionPaidCents:null,factionDiscountCents:null};
+  for(const r of filtered){const k=r.type==='faction-paid'?'factionPaidCents':'factionDiscountCents';totals[k]=(totals[k]??0)+r.amountCents;if(!Number.isSafeInteger(totals[k]))return empty('unavailable')}
+  if(filter.export===true&&filtered.length>5000)return empty('export-limit');
+  const limit=Number.isSafeInteger(filter.limit)?Math.min(200,Math.max(1,filter.limit)):50,offset=Number.isSafeInteger(filter.offset)?Math.max(0,filter.offset):0;
+  return {state:'local-events',events:filter.export===true?filtered:filtered.slice(offset,offset+limit),eventTotal:filtered.length,owners:[...owners.values()].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.ownerId.localeCompare(b.ownerId)),issues:[...new Set(issues)],totals,canWrite:false,officialTotals:false};
+ }
+ return {inspect,noteEvents,factionEvents};
 })());
