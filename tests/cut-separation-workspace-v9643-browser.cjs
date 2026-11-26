@@ -30,8 +30,8 @@
  await p.locator('#hlgbCutMin9712').fill('2000');
  assert.equal(await p.locator('#legacy9712').isVisible(),false);
  await p.locator('#hlgbCutMin9712').fill('');
- await p.locator('#hlgbCutLayout9712').click();assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0);
- await p.locator('#hlgbCutLayout9712').click();assert.equal(await p.locator('.hlgb-cut-unified9712').count(),1);
+ await p.locator('#hlgbCutLayout9712').click();await p.waitForFunction(()=>!document.querySelector('.hlgb-cut-unified9712')&&document.getElementById('hlgbCutLayout9712').dataset.original==='1');
+ await p.locator('#hlgbCutLayout9712').click();await p.waitForFunction(()=>!!document.querySelector('.hlgb-cut-unified9712')&&document.getElementById('hlgbCutLayout9712').dataset.original==='0');
  await p.evaluate(()=>{const tr=document.createElement('tr');tr.innerHTML='<td>Sem identidade</td>';document.querySelector('#cutTable tbody').appendChild(tr);window.hlgbCutOrganization.apply()});
  assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0,'unknown rows restore original layout');
  await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!document.getElementById('hlgbCutSeparation9643')&&!document.querySelector('[data-hlgb-inline-materials9711]'));await p.close();console.log('PASS',width)}}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});
