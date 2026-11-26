@@ -270,3 +270,19 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.factionQueueScenario(db,input,false).state,'forbidden');assert.equal(JSON.stringify([db,input]),before);
  console.log('PASS faction queue, linked production dedupe, additional commitments and new-lot availability');
 })();
+
+
+(function factionDistribution(){
+ const make=(team,i,q,days)=>({id:team+'-'+i,productId:'m',productionLocationId:team,status:'Finalizado',sentAt:'2026-11-01',finishedAt:'2026-11-'+String(days+1).padStart(2,'0'),sent:q,returned:q,deliveryHistory:[{id:'evt-'+team+'-'+i,date:'2026-11-'+String(days+1).padStart(2,'0'),qty:q}]});
+ const db={products:[{id:'m',name:'Camisola'},{id:'n',name:'Body'}],productionLocations:[{id:'a',name:'A'},{id:'b',name:'B'},{id:'c',name:'C'}],factions:[...([200,220,250,300].map((q,i)=>make('a',i,q,4))),...([150,180,200,250].map((q,i)=>make('b',i,q,5))),make('c',0,200,3)],production:[]};
+ const t=teamId=>({teamId,weeklyCapacity:500,additionalCommitted:0,compatibilityConfirmed:true,coverageConfirmed:true,capacityConfirmed:true});
+ const input={productId:'m',pieces:450,start:'2026-11-30',asOf:'2026-11-26',dueDate:'2026-12-07',finishBufferDays:1,bufferPercent:0,weeks:2,closedDates:[],teams:[t('a'),t('b'),t('c')]};
+ const before=JSON.stringify([db,input]),v=plan.distributeFactionOrder(db,input,true);
+ assert.equal(v.state,'local-distribution-scenario');assert.equal(v.allocated,450);assert.equal(v.unallocated,0);assert.equal(v.referenceDelivery,'2026-12-06');assert.deepEqual(v.allocations.map(a=>[a.teamId,a.pieces]),[['a',300],['b',150]]);assert.equal(v.teams[2].reason,'sem-faixa-historica-e-capacidade-compativeis');assert.equal(v.canPromise,false);assert.equal(v.canWrite,false);
+ const smaller=plan.distributeFactionOrder(db,{...input,pieces:340},true);assert.equal(smaller.allocated,300);assert.equal(smaller.unallocated,40);
+ const deadline=plan.distributeFactionOrder(db,{...input,dueDate:'2026-12-05'},true);assert.equal(deadline.allocated,300);
+ const unchecked=plan.distributeFactionOrder(db,{...input,teams:[{...t('a'),compatibilityConfirmed:false},t('b')]},true);assert.equal(unchecked.allocated,250);assert.equal(unchecked.teams[0].reason,'modelo-nao-confirmado');
+ const pending={...db,production:[{id:'p',productId:'m',productionLocationId:'a',stage:'Aguardando atribuição',planned:50,done:0}]};const uncertain=plan.distributeFactionOrder(pending,input,true);assert.equal(uncertain.allocated,250);assert.equal(uncertain.teams[0].reason,'fila-ou-capacidade-a-conferir');
+ assert.equal(plan.distributeFactionOrder(db,{...input,productId:'n'},true).allocated,0);assert.equal(plan.distributeFactionOrder(db,{...input,teams:[t('a'),t('a')]},true).state,'invalid-input');assert.equal(plan.distributeFactionOrder(db,input,false).state,'forbidden');assert.equal(JSON.stringify([db,input]),before);
+ console.log('PASS multi-faction distribution with historical ranges, exact feasible quantities and queue safeguards');
+})();
