@@ -30,7 +30,7 @@ async function scenario(confirm,guardState={probes:1,readFailed:false,unsupporte
  sandbox.window=sandbox;vm.createContext(sandbox);vm.runInContext(source,sandbox);
  const ok=await sandbox.hlgbSyncRecovery9301.fullSync(confirm?'confirmed':'unconfirmed',true);
  const wal=JSON.parse(storage.get('hlgb_durable_wal_v1')||'{"entries":{}}');
- return {ok,loadCalls,flushCalls,wal,messages,pending:sandbox.hlgbSyncRecovery9301.pending()};
+ return {ok,loadCalls,flushCalls,wal,messages,pending:sandbox.hlgbSyncRecovery9301.pending(),sandbox};
 }
 (async()=>{
  const confirmed=await scenario(true);
@@ -47,5 +47,17 @@ async function scenario(confirm,guardState={probes:1,readFailed:false,unsupporte
  for(const [label,guard] of [['missing',null],['not-yet-probed',{probes:0,readFailed:false}],['read-failed',{probes:1,readFailed:true}],['unsupported',{probes:1,readFailed:false,unsupported:true}],['local-malformed',{probes:1,readFailed:false,localReadFailed:true}]]){
   const x=await scenario(true,guard);assert.equal(x.ok,false,label);assert.equal(x.pending.indexedDbVerified,false,label);assert.equal(x.pending.indexedDbOnly,null,label);assert.ok(x.messages.some(m=>m.includes('Confirmação incompleta')),label);assert.ok(!x.messages.some(m=>m.includes('tudo confirmado')),label);
  }
+ // A confirmed earlier cycle must never stand in for a currently running one.
+ const api=confirmed.sandbox.hlgbSyncRecovery9301;
+ let release,entered;
+ const started=new Promise(resolve=>{entered=resolve});
+ confirmed.sandbox.hlgbRecordLoadBundle=async()=>{entered();await new Promise(resolve=>{release=resolve});throw Error('simulated connection loss')};
+ const run=api.fullSync('second-full',true);
+ await started;
+ assert.equal(await api.fullSync('parallel-full',true),false,'busy run is not a confirmation');
+ assert.equal(await api.incrementalSync(true),false,'busy incremental is not a confirmation');
+ release();
+ assert.equal(await run,false);
+ assert.equal(await api.fullSync('throttled-after-failure',false),false,'throttle cannot reuse obsolete success');
  console.log('OK v93.48: WAL só sai após confirmação; pendência não confirmada permanece protegida e Realtime segue principal.');
 })().catch(err=>{console.error(err);process.exit(1)});
