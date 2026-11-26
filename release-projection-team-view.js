@@ -177,6 +177,43 @@ function mountPlanner(){
    el('p','* Datas de recebimento simuladas a partir das entregas prometidas, não caixa líquido. Não inclui contas a pagar, saldo bancário, atrasos, parcelas ou valores já pagos.',output);
    const details=el('details','',output);el('summary','Entregas por cliente, pedido e data',details);
    for(const o of p.orders)el('p',o.dueDate+' · '+o.client+' · '+o.model+' · '+o.pieces+' pç · '+(o.paymentMode==='cash'?'À vista':o.paymentMode==='term'?'Prazo '+o.paymentDays+' dias':'Condição não conferida')+' · previsão de conclusão '+(o.lastWorkDate||'sem alocação')+(o.remaining?' · '+o.remaining+' pç pendentes':''),details);
+
+   const cash=el('details','',output);el('summary','Simular necessidades de caixa e antecipação de entregas',cash);
+   el('p','Simulação manual: informe o saldo disponível e os compromissos ainda abertos, sem repetir títulos. Não substitui a conciliação financeira; não muda prazos nem efetua pagamentos.',cash);
+   const balance=field('Saldo inicial (R$)','number','',cash),reserve=field('Reserva mínima desejada (R$)','number','0',cash),delay=field('Atraso de recebimentos para cenário de risco (dias)','number','7',cash);
+   const label=el('label','Compromissos abertos: uma linha por título — data;entrada/saida;valor em R$;referência única',cash),ledger=el('textarea','',label);ledger.rows=5;ledger.style.cssText='display:block;width:100%;box-sizing:border-box';ledger.placeholder='2026-12-04;saida;2500,00;fornecedor-01';
+   const checkedLabel=el('label','Conferi saldo, recebimentos, pagamentos e cobertura dos compromissos informados.',cash),checked=el('input','',checkedLabel);checked.type='checkbox';
+   const additions=el('details','',cash);el('summary','Recebimentos adicionais de pedidos ainda não incluídos acima',additions);
+   el('p','Selecione somente saldo ainda a receber, não registrado entre os compromissos. A antecipação exige aceite do cliente. O prazo parte da conclusão/entrega simulada.',additions);
+   const list=el('div','',additions),pick=new Map(),eligible=p.orders.filter(o=>o.remaining===0&&o.lastWorkDate&&o.paymentMode!=='unknown'&&o.amountCents>0);let offset=0;
+   const cashOut=el('div','',cash);
+   function invalidateCash(){cashOut.replaceChildren()}
+   function drawCashOrders(){
+    list.replaceChildren();if(!active())return;
+    for(const o of eligible.slice(offset,offset+20)){const row=el('div','',list),l=el('label',o.client+' · '+o.model+' · entrega '+o.dueDate,row),c=el('input','',l);c.type='checkbox';
+     const v=pick.get(o.key)||{include:false,amount:'',reference:'',early:false};pick.set(o.key,v);c.checked=v.include;
+     const amount=field('Saldo adicional a receber (R$)','number',v.amount,row),ref=field('Referência única do recebimento','text',v.reference,row),a=el('label','Cliente aceita entrega e recebimento antecipados',row),early=el('input','',a);early.type='checkbox';early.checked=v.early;
+     c.onchange=()=>{v.include=c.checked;invalidateCash()};amount.oninput=()=>{v.amount=amount.value;invalidateCash()};ref.oninput=()=>{v.reference=ref.value;invalidateCash()};early.onchange=()=>{v.early=early.checked;invalidateCash()};
+    }
+    if(offset>0)btn('Pedidos anteriores',list,()=>{offset-=20;drawCashOrders()});if(offset+20<eligible.length)btn('Mais pedidos',list,()=>{offset+=20;drawCashOrders()});
+   }
+   drawCashOrders();
+   for(const f of [balance,reserve,delay,ledger])f.oninput=()=>{checked.checked=false;invalidateCash()};checked.onchange=invalidateCash;
+   const cents=s=>{const v=String(s).trim().replace(',','.');return /^-?\d+(?:\.\d{1,2})?$/.test(v)?Math.round(Number(v)*100):NaN};
+   btn('Comparar caixa e oportunidades',cash,()=>{
+    cashOut.replaceChildren();if(!active())return;
+    const entries=ledger.value.split(/\r?\n/).filter(x=>x.trim()).map(line=>{const a=line.split(';').map(x=>x.trim());return {date:a[0],direction:a.length===4?({entrada:'in',saida:'out'})[a[1]]:'invalid',amountCents:cents(a[2]),reference:a[3]}});
+    const additional=[...pick].filter(([,v])=>v.include).map(([key,v])=>({key,reference:v.reference.trim(),amountCents:cents(v.amount),notAlreadyIncluded:true,earlyAccepted:v.early}));
+    const v=api.deliveryCashScenario(p,{start:start.value,openingCents:cents(balance.value),reserveCents:cents(reserve.value),delayDays:Number(delay.value),entries,additional,coverageConfirmed:checked.checked},active());
+    if(v.state!=='local-cash-scenario'){el('p','Confira saldo, datas, referências únicas, valores e pedidos escolhidos. Recebimento adicional não pode superar o valor do pedido.',cashOut);return}
+    const f=n=>money(n/100);
+    el('p',v.partial?'Cenário parcial: '+v.issues.join(', '):'Cenário informado e revisado, ainda sem conciliação automática.',cashOut);
+    for(const [title,s] of [['Somente compromissos informados',v.baseline],['Com entregas planejadas',v.planned],['Com antecipações aceitas',v.early],['Com atraso de recebimentos',v.stress]]){el('h4',title,cashOut);el('p','Primeiro dia abaixo da reserva: '+(s.firstGap||'nenhum nos 91 dias')+' · necessidade máxima '+f(s.maximumGapCents)+' · menor saldo '+f(s.minimumCents)+(s.outside?' · '+s.outside+' movimentos fora do período':''),cashOut)}
+    for(const o of v.opportunities)el('p',o.client+' · '+o.model+' · '+f(o.amountCents)+' · '+o.normalReceipt+' → '+o.earlyReceipt+(o.requiresCustomerAcceptance?' · confirmar aceite antes de antecipar':' · aceite informado'),cashOut);
+    const wrap=el('div','',cashOut);wrap.style.cssText='overflow:auto;max-width:100%';const table=el('table','',wrap),head=el('tr','',el('thead','',table));for(const h of ['Semana','Entradas planejadas','Saídas','Saldo planejado','Saldo antecipado','Saldo com atraso'])el('th',h,head);
+    const body=el('tbody','',table);v.planned.weeks.forEach((w,i)=>{const tr=el('tr','',body);for(const x of [w.start,f(w.incomingCents),f(w.outgoingCents),f(w.closingCents),f(v.early.weeks[i].closingCents),f(v.stress.weeks[i].closingCents)])el('td',x,tr)});
+    el('p','Não usar como confirmação de caixa disponível. Nenhum pedido, título ou data foi modificado.',cashOut);
+   });
    const days=el('details','',output);el('summary','Distribuição diária de produção (simulada)',days);for(const d of p.daily.filter(d=>d.assignments.length)){el('strong',d.date+' · '+d.allocated+' pç',days);for(const a of d.assignments)el('p',a.client+' · '+a.model+' · '+a.pieces+' pç',days)}
   }catch(_){el('p','Fonte da projeção indisponível. Nenhum prazo ou valor foi confirmado.',output)}
  });
