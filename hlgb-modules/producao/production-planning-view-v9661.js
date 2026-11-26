@@ -24,6 +24,28 @@
   const heading=el('header','',host);heading.style.cssText='border-bottom:1px solid #ddd;padding:6px 0 14px;margin-bottom:14px';
   el('h2','Corte Conjunto — planejamento por matéria-prima',heading);
   el('p','Planeje modelos que utilizam o mesmo material, confira grades e compare enfestos. Não cria corte nem baixa estoque.',heading);
+  const historyPanel=el('details','',host);historyPanel.className='panel';el('summary','Histórico de cortes com grade real de vários modelos',historyPanel);
+  const historyBody=el('div','',historyPanel);
+  function drawJointHistory(){
+   historyBody.replaceChildren();if(!active())return;
+   const h=api.jointHistory9757(data(),active());
+   el('p','Consulta somente de registros finalizados com grade efetivamente cortada de vários modelos. Não transforma simulações em cortes realizados; pesagem pertence ao corte inteiro.',historyBody);
+   if(h.state!=='local-observation'){el('p','Fontes indisponíveis.',historyBody);return}
+   el('p',h.rows.length+' corte(s) com grade real identificada · '+h.review+' registro(s) precisam de conferência. Cobertura local, não prova de sincronização.',historyBody);
+   const fieldSearch=field('Buscar modelo, pedido, material ou corte no histórico',historyBody,'search'),result=el('div','',historyBody);let offset=0;
+   const drawRows=()=>{result.replaceChildren();const q=norm(fieldSearch.value).trim().split(/\s+/).filter(Boolean);const rows=h.rows.filter(r=>q.every(t=>norm([r.cutId,r.date,...r.models.flatMap(m=>[m.productName,m.orderNumber,m.client]),...r.materials.map(m=>m.name)].join(' ')).includes(t)));
+    for(const r of rows.slice(0,offset+20)){const d=el('details','',result);el('summary','Corte '+r.cutId+' · '+(r.date||'Data não registrada')+' · '+r.pieces+' peças · '+r.models.map(m=>m.productName).join(' / '),d);
+     el('p','Responsáveis: '+(r.people.join(' / ')||'Não registrados'),d);
+     el('p',r.weights?'Pesagem coletiva: '+r.weights.totalKg+' kg total · '+r.weights.usedKg+' kg usado · '+r.weights.wasteKg+' kg refugo · '+r.weights.unclassifiedKg+' kg sem classificação · '+r.weights.usedPct.toFixed(1)+'% peso usado':'Pesagem completa não registrada ou inconsistente.',d);
+     if(r.weights?.note)el('p',r.weights.note,d);
+     for(const m of r.materials)el('p',m.name+' · '+(m.weight===null?'Não registrado':m.weight+' '+m.unit),d);
+     for(const m of r.models){el('h4',m.productName+' · Pedido #'+m.orderNumber+' · '+m.pieces+' pç',d);el('p',m.client||'Cliente não registrado',d);el('p',m.grade.map(g=>g.color+' '+g.size+': '+g.qty).join(' · '),d)}
+    }
+    if(!rows.length)el('p','Nenhum corte com grade real de vários modelos encontrado neste filtro.',result);
+    if(offset+20<rows.length)button('Mais cortes do histórico',result,()=>{offset+=20;drawRows()});
+   };fieldSearch.addEventListener('input',()=>{offset=0;drawRows()});drawRows();
+  }
+  historyPanel.addEventListener('toggle',()=>{if(historyPanel.open)drawJointHistory()});
   const stats=el('div','',host);stats.dataset.jointOverview9714='1';stats.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr));gap:10px;margin:12px 0';
   const filters=el('section','',host);filters.className='panel';el('h3','1. Encontrar matéria-prima e modelos',filters);
   const filterGrid=el('div','',filters);filterGrid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:10px';

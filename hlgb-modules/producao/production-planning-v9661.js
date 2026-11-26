@@ -139,10 +139,38 @@
  }
  function weights(cuts,productId){
   if(!Array.isArray(cuts))return [];
-  const rows=cuts.filter(x=>live(x)&&id(x.productId)===id(productId)&&!x.hiddenByModelSplitV1&&x.cutWeightV9579),counts=new Map();for(const x of rows)counts.set(id(x.id),(counts.get(id(x.id))||0)+1);
+  const rows=cuts.filter(x=>live(x)&&id(x.productId)===id(productId)&&cutProductIds9757(x).length<=1&&!x.modelSplitParentV1&&!x.hiddenByModelSplitV1&&x.cutWeightV9579),counts=new Map();for(const x of rows)counts.set(id(x.id),(counts.get(id(x.id))||0)+1);
   return rows.filter(x=>id(x.id)&&counts.get(id(x.id))===1).map(x=>({cutId:id(x.id),orderId:id(x.orderId),...remnant.inspectWeight(x.cutWeightV9579)}));
  }
 
+ // Shared physical records are not individual material-consumption samples.
+ function cutProductIds9757(c){
+  return [...new Set([id(c?.productId),...['actualCutGrade','cutGrade','originalGrade'].flatMap(k=>(Array.isArray(c?.[k])?c[k]:[]).map(g=>id(g?.productId||g?.product_id)))].filter(Boolean))];
+ }
+ function jointHistory9757(db,allowed){
+  const empty=state=>({state,rows:[],review:0,canWrite:false,completeCloud:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!['cuts','products','orders','cutters'].every(k=>Array.isArray(db?.[k])))return empty('unavailable');
+  const index=rows=>{const m=new Map();for(const x of rows.filter(live)){const k=id(x.id);if(k)m.set(k,m.has(k)?null:x)}return m};
+  const cuts=index(db.cuts),products=index(db.products),orders=index(db.orders),people=index(db.cutters),out=empty('local-observation');
+  for(const c of db.cuts.filter(live)){
+   if(c.modelSplitParentV1||c.hiddenByModelSplitV1||!['finalizado','cortado','concluido'].includes(norm(c.status))||cutProductIds9757(c).length<2)continue;
+   const cid=id(c.id),grade=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:null;
+   if(!cid||cuts.get(cid)!==c||!grade){out.review++;continue}
+   const models=new Map(),cells=new Set();let valid=true,total=0;
+   for(const g of grade){
+    const pid=id(g?.productId||g?.product_id),color=id(g?.color),size=id(g?.size),qty=g?.qty,oid=id(g?.orderId||c.orderId),key=pair(oid,pid),cell=JSON.stringify([key,color,size]);
+    if(!pid||!products.get(pid)||!oid||!orders.get(oid)||!color||!size||!Number.isSafeInteger(qty)||qty<0||cells.has(cell)){valid=false;break}
+    cells.add(cell);if(qty===0)continue;const m=models.get(key)||{productId:pid,productName:id(products.get(pid).name)||pid,orderId:oid,orderNumber:id(orders.get(oid).orderNumber||orders.get(oid).number||oid),client:id(orders.get(oid).client),pieces:0,grade:[]};m.pieces+=qty;total+=qty;m.grade.push({color,size,qty});models.set(key,m);
+   }
+   if(!valid||!Number.isSafeInteger(total)||new Set([...models.values()].map(m=>m.productId)).size<2||!Number.isSafeInteger(c.pieces)||c.pieces!==total){out.review++;continue}
+   const w=c.cutWeightV9579,measurement=remnant.inspectWeight(w),weights=measurement.state==='arithmetic-only'&&w.totalKg>0?{totalKg:w.totalKg,usedKg:w.usedKg,wasteKg:w.wasteKg,unclassifiedKg:measurement.unclassifiedKg,usedPct:100*w.usedKg/w.totalKg,note:id(w.note)}:null;
+   const materials=(Array.isArray(c.materialUsage)?c.materialUsage:[]).map(m=>({materialId:id(m?.materialId),name:id(m?.name||m?.materialId),weight:typeof m?.weight==='number'&&Number.isFinite(m.weight)&&m.weight>=0?m.weight:null,unit:id(m?.unit)}));
+   out.rows.push({cutId:cid,date:id(c.finishedAt||c.date),models:[...models.values()],pieces:total,weights,materials,people:[...new Set([id(c.cutterName||people.get(id(c.cutterId))?.name),id(c.cutter2Name||people.get(id(c.cutter2Id||c.secondCutterId))?.name),id(c.infesterName||c.infestadorName||c.infestador)].filter(Boolean))],source:'actual-multi-model-grade',geometryVerified:false});
+  }
+  out.rows.sort((a,b)=>b.date.localeCompare(a.date)||a.cutId.localeCompare(b.cutId,'pt-BR',{numeric:true}));
+  return out;
+ }
  // Historical observations are whole-cut weight records, NOT material-level marker efficiency.
  function cutEvidence(db,allowed){
   const empty=state=>({state,byProduct:new Map(),canWrite:false});
@@ -152,7 +180,7 @@
   for(const p of db.products.filter(live)){const k=id(p.id);if(k)products.set(k,products.has(k)?null:p)}
   for(const c of db.cuts.filter(live)){const k=id(c.id);if(k)counts.set(k,(counts.get(k)||0)+1)}
   for(const c of db.cuts.filter(live)){
-   const pid=id(c.productId),p=products.get(pid);if(!p||p.active===false||c.hiddenByModelSplitV1||c.modelSplitParentV1||!c.cutWeightV9579)continue;
+   const pid=id(c.productId),p=products.get(pid);if(!p||p.active===false||c.hiddenByModelSplitV1||c.modelSplitParentV1||cutProductIds9757(c).length>1||!c.cutWeightV9579)continue;
    const h=byProduct.get(pid)||{productId:pid,valid:0,review:0,totalG:0,usedG:0,wasteG:0,unclassifiedG:0};byProduct.set(pid,h);
    const w=c.cutWeightV9579,inspection=remnant.inspectWeight(w);
    if(!id(c.id)||counts.get(id(c.id))!==1||!['finalizado','cortado','concluido'].includes(norm(c.status))||inspection.state!=='arithmetic-only'||w.totalKg<=0||Math.round(w.totalKg*1000)<=0){h.review++;continue}
@@ -222,7 +250,7 @@
   for(const p of db.products.filter(live)){const k=id(p.id);if(k)products.set(k,products.has(k)?null:p)}
   for(const c of db.cuts.filter(live)){const k=id(c.id);if(k)counts.set(k,(counts.get(k)||0)+1)}
   for(const c of db.cuts.filter(live)){
-   const pid=id(c.productId),p=products.get(pid);if(!p||p.active===false||c.hiddenByModelSplitV1||c.modelSplitParentV1||!Array.isArray(c.materialUsage))continue;
+   const pid=id(c.productId),p=products.get(pid);if(!p||p.active===false||c.hiddenByModelSplitV1||c.modelSplitParentV1||cutProductIds9757(c).length>1||!Array.isArray(c.materialUsage))continue;
    const mids=new Map();for(const u of c.materialUsage){const mid=id(u?.materialId);if(valid.has(mid)){if(!mids.has(mid))mids.set(mid,[]);mids.get(mid).push(u)}}
    for(const [mid,rows] of mids){
     const k=pair(pid,mid),h=byPair.get(k)||{productId:pid,materialId:mid,cuts:0,review:0,totalGrams:0,pieces:0};byPair.set(k,h);
@@ -438,5 +466,5 @@
    return {color:p.color,total:p.total,options};
   });
  }
- return {selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
