@@ -147,3 +147,25 @@ test('carregamento segue após plugin avulso e não acessa APIs externas',()=>{
   /\bsupabase\b/i,/https?:\/\//,/localStorage|indexedDB/])
   assert.equal(re.test(acertoSource),false,'consolidação não deve escrever ou enviar dados '+re);
 });
+
+test('identidade repetida exclui ambas as cópias do total normal',()=>{
+ const data={masters:[],manualGroups:[],payments:[
+  {id:'dup',status:'Pendente',factionName:'Roseli',value:80},
+  {id:'dup',status:'Pendente',factionName:'Roseli',value:90},
+  {id:'safe',status:'Pendente',factionName:'Roseli',value:20},
+  {id:'removed',status:'Pendente',factionName:'Roseli',value:500,deleted_at:'2026-11-20'}
+ ]},before=JSON.stringify(data),out=acerto.consolidate(data);
+ assert.equal(out.groups[0].totalCents,2000);assert.deepEqual(out.groups[0].paymentIds,['safe']);
+ assert.ok(out.warnings.some(x=>x.includes('duplicado')));assert.equal(JSON.stringify(data),before);
+});
+test('grupo duplicado, linhas desatualizadas ou pessoas diferentes não entram no total',()=>{
+ const a={id:'a',manual:true,manualGroupId:'mg',factionName:'Roseli',status:'Pendente',value:20};
+ const b={...a,id:'b',value:25};
+ const group={id:'mg',status:'Pendente',total:45,rows:[a,b]};
+ for(const data of [
+  {payments:[a,b],manualGroups:[group,group]},
+  {payments:[a,{...b,value:30}],manualGroups:[group]},
+  {payments:[a,{...b,factionName:'Vanessa'}],manualGroups:[{...group,rows:[a,{...b,factionName:'Vanessa'}]}]}
+ ]){const before=JSON.stringify(data),out=acerto.consolidate(data);assert.equal(out.groups.length,0);assert.ok(out.warnings.length);assert.equal(JSON.stringify(data),before)}
+ const valid=acerto.consolidate({payments:[a,b],manualGroups:[group]});assert.equal(valid.groups[0].totalCents,4500);
+});
