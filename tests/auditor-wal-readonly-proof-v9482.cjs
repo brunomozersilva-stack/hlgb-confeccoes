@@ -44,10 +44,10 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
   structuredClone,setTimeout:()=>1,clearTimeout:()=>{},queueMicrotask};
  vm.createContext(context);vm.runInContext(source,context);
  const out=await win.hlgbAuditorAutoCorrect9447.run({render:false,download:false});
- const writesBeforeReview=writes.length,progress=[];
+ const writesBeforeReview=writes.length,progress=[];let snapshotCount=0,snapshotIds=[];
  const full=reviewAll?await win.hlgbAuditorAutoCorrect9447.verifyWalReadOnly9593(60,
-  p=>progress.push({done:p.done,total:p.total})):null;
- return {out,full,progress,fullReviewWrites:writes.length-writesBeforeReview,transactionModes,requests,writes,peak};
+  p=>progress.push({done:p.done,total:p.total}),rows=>{snapshotCount++;snapshotIds=rows.map(x=>x.opId)}):null;
+ return {out,full,progress,fullReviewWrites:writes.length-writesBeforeReview,transactionModes,requests,writes,peak,snapshotCount,snapshotIds};
 }
 (async()=>{
  const equal=await scenario({...sample.data,updatedAt:'2026-11-04T11:00:00Z'});
@@ -103,6 +103,7 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  assert.equal(complete.out.walProof.checked,8,'routine audit remains limited');
  assert.equal(complete.out.walProof.unverified,14,'routine audit must show unverified remainder');
  assert.equal(complete.full.total,22);
+ assert.equal(complete.snapshotCount,1);assert.deepEqual(Array.from(complete.snapshotIds),all22.map(x=>x.opId));
  assert.equal(complete.full.checked,22,'explicit review checks all WAL operations');
  assert.equal(complete.out.walProof.parallelism,1,'routine audit stays serial');
  assert.equal(complete.full.parallelism,3);assert.equal(complete.peak,3,'bounded concurrent GETs');

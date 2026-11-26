@@ -127,10 +127,11 @@ function walRowsReadOnly9482(){
    req.onerror=()=>finish({status:'error',rows:[]});
    req.onsuccess=()=>{
     db=req.result;
+    if(done){try{db.close()}catch(_){}return}
     if(!db.objectStoreNames.contains('entries'))return finish({status:'no-store',rows:[]});
     try{
      const tx=db.transaction('entries','readonly'),get=tx.objectStore('entries').getAll();
-     get.onsuccess=()=>finish({status:'ok',rows:Array.isArray(get.result)?get.result:[]});
+     get.onsuccess=()=>finish(Array.isArray(get.result)?{status:'ok',rows:get.result}:{status:'error',rows:[]});
      get.onerror=()=>finish({status:'error',rows:[]});
      tx.onabort=()=>finish({status:'error',rows:[]});
     }catch(_){finish({status:'error',rows:[]})}
@@ -138,8 +139,9 @@ function walRowsReadOnly9482(){
   }catch(_){finish({status:'error',rows:[]})}
  });
 }
-async function walRemoteReadOnlyProof9482(max=8,notify){
+async function walRemoteReadOnlyProof9482(max=8,notify,localEvidence){
  const idb=await walRowsReadOnly9482();
+ if(idb.status==='ok'&&typeof localEvidence==='function')localEvidence(idb.rows);
  const result={mode:'read-only',attempted:false,status:idb.status,checked:0,matched:0,different:0,missing:0,unverified:0,removed:0,items:[],errors:[],
   total:idb.rows?.length??null,checkedLimit:Math.min(60,Math.max(1,Number(max)||8))};
  const onProgress=typeof notify==='function'?notify:null;
@@ -474,7 +476,7 @@ async function run(opts={}){
 async function activate(reason='post-auth'){if(!authReady())return false;stamp();const p=await prepare(reason);return !!p.ok}
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(()=>activate('authenticated-event'),0));
 window.hlgbAuditorAutoCorrect9447={version:V,state,run,prepare,triage,liveSignal,ensureBase,render,downloadReport,
- verifyWalReadOnly9593:(max=30,onProgress)=>walRemoteReadOnlyProof9482(max,onProgress),
+ verifyWalReadOnly9593:(max=30,onProgress,localEvidence)=>walRemoteReadOnlyProof9482(max,onProgress,localEvidence),
  exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),lastTriage:clone(state.lastTriage)})};
 stamp();if(authReady())setTimeout(()=>activate('loaded-after-auth'),0);console.info('[HLGB] v'+V+' Auditor pronto · convergência rápida · histórico e negócio fora do ciclo técnico');
 })();

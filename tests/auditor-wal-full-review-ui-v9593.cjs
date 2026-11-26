@@ -18,7 +18,8 @@ const doc={querySelector:()=>null,getElementById:id=>id==='hlgbAuditorResult'?{p
  id==='hlgbAuditorAutoCorrect9448Card'?card:null,createElement:()=>card};
 const win={__HLGB_AUTH_READY:true,__HLGB_TEST__:true,HLGB_RELEASE_VERSION:'94.48',
  addEventListener(){},hlgbAuditorAutoCorrect9447:{
-  async verifyWalReadOnly9593(limit,onProgress){
+  async verifyWalReadOnly9593(limit,onProgress,localEvidence){
+   localEvidence([{module:'routePlans',id:'route-1',opId:'op-1',data:{id:'route-1',private:'DO_NOT_EXPORT'}}]);
    called++;receivedMax=limit;onProgress({done:22,total:22});
    return {mode:'read-only',attempted:true,total:22,checked:22,matched:2,different:3,missing:17,unverified:0,
     removed:0,status:'not-confirmed',items:[{module:'routePlans',id:'route-1',opId:'op-1',status:'missing'}],errors:[]};
@@ -44,7 +45,7 @@ const summary={passes:1,stopReason:'verificar',needsCode:[{id:'sync:indexeddb-wa
  assert.equal(button.disabled,false);
  assert.match(status.textContent,/Conferidas 22 de 22/);
  assert.match(status.textContent,/Removidas: 0/);
- assert(detailHtml.includes('route-1'));
+ assert(detailHtml.includes('route-1'));assert(detailHtml.includes('Pendências por módulo'));assert(detailHtml.includes('evidência parcial'));assert(!detailHtml.includes('DO_NOT_EXPORT'));
  assert(detailHtml.includes('hlgbWalReviewDownload9593'));
  assert.equal(win.hlgbAuditorAutoCorrect9448.state.lastWalReview9593.checked,22);
  assert.equal(writes.length,0,'manual comparison does not write localStorage');
