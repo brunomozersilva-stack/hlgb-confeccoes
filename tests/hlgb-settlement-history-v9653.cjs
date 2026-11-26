@@ -48,4 +48,13 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  ok(api.noteEvents({...ctx,noteSources:[{key:note.key,record:{...record,clientId:'other'}}]}).eventTotal===0,'source owner mismatch');
  ok(api.noteEvents({...ctx,noteSources:[{key:note.key,record:{...record,id:'other'}}]}).eventTotal===0,'source identity mismatch');
  ok(JSON.stringify(ctx)===eventBefore,'events immutable');
+ const normalEvent={id:'f1',factionMasterId:'F1',factionName:'Roseli',description:'Camisola',value:100,paidAmount:70,discountAmount:10,status:'Parcial',scheduledPaymentDate:'2026-11-30',paymentHistory:[{id:'a',date:'2026-11-21',paid:30,discount:0},{id:'b',date:'2026-11-24',paid:40,discount:10}]};
+ const fc={authenticated:true,factionsAllowed:true,payments:[normalEvent]},fb=JSON.stringify(fc);
+ const fe=api.factionEvents(fc);ok(fe.eventTotal===3&&fe.totals.factionPaidCents===7000&&fe.totals.factionDiscountCents===1000,'separate cash and discount');
+ ok(api.factionEvents(fc,{from:'2026-11-24',to:'2026-11-24'}).totals.factionPaidCents===4000,'actual event date');
+ ok(api.factionEvents(fc,{eventType:'faction-discount'}).eventTotal===1,'discount filter');
+ ok(api.factionEvents(fc,{from:'2026-11-30'}).eventTotal===0,'no invented scheduled event');
+ for(const bad of [{...normalEvent,paymentHistory:[]},{...normalEvent,paymentHistory:[...normalEvent.paymentHistory,normalEvent.paymentHistory[0]]},{...normalEvent,paidAmount:90},{...normalEvent,manual:true},{...normalEvent,factionMasterId:''}]){const x=api.factionEvents({...fc,payments:[bad]});ok(x.eventTotal===0&&x.issues.length,'missing or inconsistent evidence excluded')}
+ ok(api.factionEvents({...fc,payments:[normalEvent,normalEvent]}).eventTotal===0,'duplicate payment ID');
+ ok(api.factionEvents({...fc,factionsAllowed:false}).state==='forbidden'&&JSON.stringify(fc)===fb,'scope and immutability');
 })(api,(v,m)=>assert.ok(v,m));console.log('PASS settlement history');
