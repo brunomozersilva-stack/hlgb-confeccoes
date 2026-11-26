@@ -161,8 +161,9 @@ function refreshSelector9713(ctx){
  // Preserve chosen service; if absent from refreshed catalogue do not substitute another.
  const option=(value,label)=>{const e=document.createElement('option');e.value=value;e.textContent=label;return e};
  service.replaceChildren(option('','Selecione'),...names.map(n=>option(n,n)));
- service.value=known?names.find(n=>norm(n)===norm(chosen)):'';
- if(!service.value){dest.replaceChildren(option('','Selecione'));return report('service-required',0,names.length)}
+ service.value=names.includes(chosen)?chosen:known?names.find(n=>norm(n)===norm(chosen)):'';
+ // Unrestricted internal locations are valid even if the service is not yet selected.
+ if(chosen&&!known){dest.replaceChildren(option('','Selecione'));return report('service-required',0,names.length)}
  let eligible;try{eligible=window.hlgb916EligibleDestinations(service.value)}catch(_){return report('catalog-unavailable',null,names.length)}
  if(!Array.isArray(eligible))return report('catalog-unavailable',null,names.length);
  const keyed=new Map();for(const d of eligible){if(!d||!['F','L'].includes(d.type)||!sid(d.id)||!Number.isSafeInteger(Number(d.id))||Number(d.id)<=0)continue;const k=d.type+':'+d.id;keyed.set(k,keyed.has(k)?null:d)}
@@ -170,7 +171,7 @@ function refreshSelector9713(ctx){
  dest.replaceChildren(option('','Selecione'),...options.map(([k,d])=>option(k,(d.type==='F'?'Facção':'Local')+' — '+sid(d.name))));
  dest.value=options.some(([k])=>k===oldDest)?oldDest:'';
  try{window.updateCutAssignmentPreview?.()}catch(_){}
- return report(options.length?'compatible':'no-compatible',options.length,names.length);
+ return report(options.length?'compatible':service.value?'no-compatible':'service-required',options.length,names.length);
 }
 function decorateSelector9713(){
  const ctx=assignmentModal9713();if(!ctx)return false;
