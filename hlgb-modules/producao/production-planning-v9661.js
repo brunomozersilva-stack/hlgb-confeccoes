@@ -753,5 +753,50 @@
   const rows=[...groups.values()].map(({byWeek,...g})=>{const samples=[...byWeek].sort((a,b)=>a[0].localeCompare(b[0])).map(([week,pieces])=>({week,pieces})),total=samples.reduce((n,s)=>n+s.pieces,0);return {...g,samples,total,observedWeeks:samples.length,averageActiveWeek:Math.round(total/samples.length),capacityVerified:false}});
   return {...empty('local-observation'),rows:rows.sort((a,b)=>a.source.localeCompare(b.source)||b.total-a.total),weeks:[...weeks.values()].sort((a,b)=>a.week.localeCompare(b.week)||a.source.localeCompare(b.source)),issues,eventCount:events.length};
  }
- return {observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Lead time is elapsed calendar time for completed, reconciled lots, not labour time.
+ function factionLeadTimes(db,asOf,allowed){
+  const empty=state=>({state,rows:[],open:[],issues:[],canWrite:false,canPromise:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!['factions','products','productionLocations'].every(k=>Array.isArray(db?.[k])))return empty('unavailable');
+  const D=86400000,dt=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?Date.parse(s+'T00:00:00Z'):null,iso=n=>new Date(n).toISOString().slice(0,10);
+  const end=dt(asOf);if(end===null)return empty('invalid-date');
+  const index=rows=>{const m=new Map();for(const r of rows.filter(live)){const k=id(r.id);if(k)m.set(k,m.has(k)?null:r)}return m};
+  const factions=index(db.factions),products=index(db.products),locations=index(db.productionLocations),events=new Map(),groups=new Map(),open=[],issues=[];
+  const good=n=>Number.isSafeInteger(n)&&n>=0&&n<=10000000,band=n=>n<=100?'1–100':n<=300?'101–300':n<=600?'301–600':n<=1000?'601–1.000':'Mais de 1.000';
+  const report=(key,reason)=>issues.push({recordId:key,reason});
+  for(const f of db.factions.filter(live))for(const h of Array.isArray(f.deliveryHistory)?f.deliveryHistory:[]){const k=id(h?.id);if(k)events.set(k,(events.get(k)||0)+1)}
+  for(const f of db.factions.filter(live)){
+   const key=id(f.id),pid=id(f.productId),team=id(f.productionLocationId||f.factionId),sent=dt(f.sentAt),status=norm(f.status),history=f.deliveryHistory??[];
+   if(!['finalizado','em producao'].includes(status))continue;
+   if(!key||factions.get(key)!==f||!products.get(pid)||!locations.get(team)||sent===null||sent>end||!good(f.sent)||!f.sent||!good(f.returned)||f.returned>f.sent||f.transferHistory?.length||!Array.isArray(history)){report(key,'identity-date-or-transfer');continue}
+   const valid=history.every(h=>id(h?.id)&&events.get(id(h.id))===1&&dt(h.date)!==null&&dt(h.date)>=sent&&dt(h.date)<=end&&good(h.qty)&&h.qty>0);
+   const total=history.reduce((n,h)=>n+(good(h?.qty)?h.qty:NaN),0);
+   if(!valid||total!==f.returned){report(key,'return-history-conflict');continue}
+   const common={productId:pid,productName:id(products.get(pid).name)||pid,teamId:team,teamName:id(locations.get(team).name)||team,band:band(f.sent)},gkey=JSON.stringify([pid,team,common.band]);
+   if(status==='finalizado'){
+    const finished=dt(f.finishedAt);
+    if(!history.length||total!==f.sent||finished===null||finished<sent||finished>end||Math.max(...history.map(h=>dt(h.date)))!==finished){report(key,'completion-not-reconciled');continue}
+    if(finished<end-84*D)continue;
+    const first=Math.min(...history.map(h=>dt(h.date))),g=groups.get(gkey)||{...common,samples:[]};g.samples.push({recordId:key,pieces:f.sent,sentAt:iso(sent),finishedAt:iso(finished),firstReturnDays:(first-sent)/D,elapsedDays:(finished-sent)/D});groups.set(gkey,g);
+   }else if(total<f.sent){open.push({...common,recordId:key,sentAt:iso(sent),sentPieces:f.sent,returnedPieces:total,remaining:f.sent-total,elapsedDays:(end-sent)/D,dueDate:dt(f.dueDate)!==null?f.dueDate:null,groupKey:gkey})}
+  }
+  const rows=[...groups].map(([key,g])=>{const days=g.samples.map(s=>s.elapsedDays).sort((a,b)=>a-b),count=days.length,median=count%2?days[(count-1)/2]:(days[count/2-1]+days[count/2])/2;
+   return {key,...g,count,averageDays:Math.round(days.reduce((a,b)=>a+b,0)/count*10)/10,medianDays:median,conservativeDays:count>=4?days[Math.ceil(count*.75)-1]:null,maxDays:days.at(-1),confidence:count>=8?'more-observations':count>=4?'limited':'insufficient'};
+  }).sort((a,b)=>b.count-a.count||a.productName.localeCompare(b.productName,'pt-BR'));
+  const byKey=new Map(rows.map(r=>[r.key,r]));
+  return {...empty('local-leadtime-observation'),rows,issues,open:open.map(({groupKey,...o})=>{const h=byKey.get(groupKey),days=h?.conservativeDays??null,reference=days===null?null:dt(o.sentAt)+days*D;return {...o,sampleCount:h?.count??0,referenceDays:days,referenceDate:reference===null?null:iso(reference),pastReference:reference===null?null:reference<end,lateAgainstDue:o.dueDate===null?null:dt(o.dueDate)<end,remainingForecast:null}}).sort((a,b)=>b.elapsedDays-a.elapsedDays)};
+ }
+ function factionLeadTimePreview(history,input,allowed){
+  const empty=state=>({state,referenceDays:null,referenceDate:null,canWrite:false,canPromise:false});
+  if(allowed!==true)return empty('forbidden');
+  const q=input?.pieces,day=input?.sentAt;
+  if(history?.state!=='local-leadtime-observation'||!Number.isSafeInteger(q)||q<1||q>10000000||typeof day!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(Date.parse(day+'T00:00:00Z'))||new Date(day+'T00:00:00Z').toISOString().slice(0,10)!==day)return empty('invalid-input');
+  const band=q<=100?'1–100':q<=300?'101–300':q<=600?'301–600':q<=1000?'601–1.000':'Mais de 1.000';
+  const h=history.rows.find(r=>r.productId===id(input.productId)&&r.teamId===id(input.teamId)&&r.band===band);
+  if(!h||h.conservativeDays===null)return {...empty('insufficient-history'),band,sampleCount:h?.count??0};
+  const t=Date.parse(day+'T00:00:00Z')+h.conservativeDays*86400000;
+  return {...empty('historical-reference'),band,sampleCount:h.count,referenceDays:h.conservativeDays,referenceDate:new Date(t).toISOString().slice(0,10),confidence:h.confidence,queueVerified:false};
+ }
+ return {factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
