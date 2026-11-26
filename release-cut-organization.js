@@ -197,7 +197,7 @@ function dockSeparation9715(){
  const sel=document.getElementById('separationOrder'),list=document.getElementById('separationList'),table=document.getElementById('separationTable'),panel=sel?.closest?.('.panel');
  const canonical=window.hlgbSeparationDirect9321;
  let ready=false;try{ready=canonical?.status?.()?.installed===true&&typeof window.selectSeparationOrder==='function'&&typeof window.renderSeparation==='function'}catch(_){}
- if(!ready||!panel||!list||!table||!panel.contains(list)||!panel.contains(table)||!panel.querySelector?.('button[onclick*="openMultiOrderPurchase"]')){
+ if(!ready||!panel||!list||!table||['separationOrder','separationList','separationTable'].some(id=>document.querySelectorAll('[id="'+id+'"]').length!==1)||!panel.contains(list)||!panel.contains(table)||!panel.querySelector?.('button[onclick*="openMultiOrderPurchase"]')){
   restoreSeparationDock9715();return null;
  }
  if(separationDock9715){if(separationDock9715.panel===panel&&separationDock9715.host.isConnected&&separationDock9715.host.contains(panel))return separationDock9715;restoreSeparationDock9715()}
@@ -213,6 +213,8 @@ function dockSeparation9715(){
 function openModelSeparation9715(row){
  if(!separationAllowed9643())return false;
  let exact;try{const matches=inspectWorkspace9643().rows.filter(x=>x.orderId===row.orderId&&x.productId===row.productId&&x.cutId===row.cutId);if(matches.length!==1||cutChecklist9644.signature(matches[0])!==cutChecklist9644.signature(row))return false;exact=matches[0]}catch(_){return false}
+ const busy=window.hlgbSeparationDirect9321?.status?.()?.busy;
+ if(Array.isArray(busy)&&busy.length){alert('Há uma separação sendo confirmada. Aguarde antes de trocar de modelo ou pedido.');return false}
  const dock=dockSeparation9715();
  if(!dock){if(typeof page==='function'&&typeof selectSeparationOrder==='function'){page('pedidos',null);selectSeparationOrder(exact.orderId);return true}return false}
  const sel=document.getElementById('separationOrder');if(!sel||!dock.panel.contains(sel))return false;

@@ -34,7 +34,12 @@ function cutMaterialsEvidence9711(){
  return {observed:true,inline:count(x.inline),fallback:count(x.fallback),ambiguous:count(x.ambiguous),at:sid(x.at||''),source:'local-observation',remoteConfirmed:false};
  }catch(_){return {observed:false}}
 }
-function upgradeReport(raw,out,diag,prep){const src=clone(raw||{})||{};const report={...src,kind:'hlgb_autocorrect_report',version:V,appVersion:sid(window.HLGB_RELEASE_VERSION||V),generatedAt:nowIso(),run:clone(out),productionResidual:clone(diag),cutMaterialsEvidence9711:cutMaterialsEvidence9711(),dependencyPreparation:clone(prep)};try{localStorage.setItem(REPORT_KEY,JSON.stringify(report))}catch(e){}state.lastReport=clone(report);return report}
+function separationDockEvidence9715(){
+ try{if(!authReady())return {observed:false};const x=window.hlgbCutOrganization?.separationDockStatus9715?.();if(x?.observed!==true)return {observed:false};
+ return {observed:true,moved:x.moved===true,modelOpened:x.modelOpened===true,at:sid(x.at||''),source:'local-observation',remoteConfirmed:false};
+ }catch(_){return {observed:false}}
+}
+function upgradeReport(raw,out,diag,prep){const src=clone(raw||{})||{};const report={...src,kind:'hlgb_autocorrect_report',version:V,appVersion:sid(window.HLGB_RELEASE_VERSION||V),generatedAt:nowIso(),run:clone(out),productionResidual:clone(diag),cutMaterialsEvidence9711:cutMaterialsEvidence9711(),separationDockEvidence9715:separationDockEvidence9715(),dependencyPreparation:clone(prep)};try{localStorage.setItem(REPORT_KEY,JSON.stringify(report))}catch(e){}state.lastReport=clone(report);return report}
 function downloadReport(report){try{const data=report||state.lastReport;if(!data)return false;const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='hlgb-auditor-autocorretor-'+sid(data?.run?.runId||Date.now()).replace(/[^a-z0-9_-]/gi,'_')+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);return true}catch(e){state.lastError=sid(e?.message||e);return false}}
 const esc=v=>sid(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 /* v94.83: diagnósticos observados, nunca declarar testes operacionais executados só
@@ -300,7 +305,7 @@ async function run(opts={}){
 async function activate(reason='post-auth'){if(!authReady())return false;stamp();const p=await prepare(reason);return !!p.ok}
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(()=>activate('authenticated-event'),0));
 window.hlgbAuditorAutoCorrect9448={version:V,state,run,prepare,ensureBase,ensureResidual,render,downloadReport,exportWalPayload:exportWalPayload9494,readWalIndexedDb:readWalIndexedDb9494,
- reviewWalAll9593,downloadWalReview9593,summarizeRouteDuplicates9595,summarizeWalModules9708,cutMaterialsEvidence9711,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
+ reviewWalAll9593,downloadWalReview9593,summarizeRouteDuplicates9595,summarizeWalModules9708,cutMaterialsEvidence9711,separationDockEvidence9715,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
 stamp();if(authReady())setTimeout(()=>activate('loaded-after-auth'),0);console.info('[HLGB] v'+V+' Auditor pronto · prova residual de Produção antes da classificação');
 /* Optional v95.56 learning assistant. Loaded after login; a failure here must
    never delay or interrupt the existing Auditor or any business operation. */
