@@ -142,3 +142,16 @@ test('assignment modal refreshes loaded catalogs without writing or selecting a 
  db.production.find(p=>p.id===5).factionId=200;button.onclick();assert.equal(api.selectorStatus9713().classification,'stale-production');
  ctx.__HLGB_AUTH_READY=false;assert.equal(api.decorateSelector9713(),false);
 });
+
+test('history mode and title survive direct legacy filter and refresh; no duplicate render',()=>{
+ const {ctx,db}=fixture();const api=ctx.hlgbCutStepQueues9528;
+ const title={textContent:''},caption={textContent:''},toolbar={appendChild(x){button=x}},box={};let button=null;
+ const panel={querySelector(s){return s==='h2'?title:s==='.toolbar .sub'?caption:s==='#hlgbStepQueueShowAssigned9528'?button:s==='.toolbar'?toolbar:null}};
+ ctx.document.getElementById=id=>id==='cutTracking9173'?panel:null;ctx.document.createElement=()=>({setAttribute(k,v){this[k]=v}});
+ ctx.filterCutTracking9173();assert.match(title.textContent,/aguardando destino/);assert.match(caption.textContent,/2 registro/);const originalButton=button;
+ button.onclick();assert.equal(api.showAssigned(),true);assert.match(title.textContent,/histórico/);assert.equal(button['aria-pressed'],'true');assert(ctx.lastVisible.includes(1));assert.equal(button,originalButton);
+ // The legacy renderer has rebuilt the toolbar, then calls its global filter directly.
+ button=null;title.textContent='Onde estão os cortes finalizados';ctx.filterCutTracking9173();assert.match(title.textContent,/histórico/);assert.equal(button['aria-pressed'],'true');
+ const before=JSON.stringify(db);button.onclick();assert.equal(api.showAssigned(),false);assert.deepEqual(Array.from(ctx.lastVisible),[5,7]);assert.equal(JSON.stringify(db),before);
+ db.cuts.push({id:'hidden-parent',orderId:37,status:'Finalizado',pieces:50,hiddenByModelSplitV1:true});assert(!api.trackingSources().some(r=>r.c.id==='hidden-parent'));
+});
