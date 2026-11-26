@@ -391,7 +391,9 @@ async function otherPendingRoutes9718(draftId){
  for(const [key,kind] of [['hlgb_durable_wal_v1','wal'],['hlgb_records_pending_v91','pending']]){
   const raw=localStorage.getItem(key);if(raw===null)continue;
   const value=JSON.parse(raw);if(!value||typeof value!=='object')throw Error('Fila local inválida. Não crie outra rota antes de verificar.');
-  const rows=kind==='wal'?Object.values(value.entries||{}).filter(x=>x?.module==='routePlans'):value.modules?.routePlans||[];
+  const container=kind==='wal'?value.entries:value.modules;
+  if(!container||typeof container!=='object'||Array.isArray(container))throw Error('Fila local inválida. Não crie outra rota antes de verificar.');
+  const rows=kind==='wal'?Object.values(container).filter(x=>x?.module==='routePlans'):container.routePlans||[];
   if(!Array.isArray(rows))throw Error('Fila de rotas inválida.');
   for(const x of rows){const id=sid(x?.id||x?.entity_id);if(!id)throw Error('Pendência de rota sem identificação.');ids.add(id)}
  }

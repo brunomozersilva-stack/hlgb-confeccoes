@@ -7,7 +7,8 @@ const kind=process.env.HLGB_BROWSER||'chromium';
  try{
   async function fixture(mode='confirmed'){
    const page=await browser.newPage();
-   await page.setContent('<!doctype html><html lang="pt-BR"><body><main id="appShell"></main><div id="modal"><div id="modalContent"></div></div></body></html>');
+   await page.route('http://hlgb-route.test/**',route=>route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><html lang="pt-BR"><body><main id="appShell"></main><div id="modal"><div id="modalContent"></div></div></body></html>'}));
+   await page.goto('http://hlgb-route.test/');
    await page.evaluate(mode=>{
     window.db={
      routePlans:[],
@@ -146,7 +147,9 @@ const kind=process.env.HLGB_BROWSER||'chromium';
    await reloaded.evaluate(()=>window.modalSave());
    assert.match(await reloaded.locator('#opsRouteCloudStatus9534').textContent(),/gravação local pendente/);
    assert.equal(await reloaded.evaluate(()=>window.__sentRouteRows.length),0);
-   await reloaded.evaluate(()=>{window.__routeWalIds=[]});
+   await reloaded.evaluate(()=>{window.__routeWalIds=[];localStorage.setItem('hlgb_durable_wal_v1','{invalid')});
+   await reloaded.evaluate(()=>window.modalSave());assert.equal(await reloaded.evaluate(()=>window.__sentRouteRows.length),0);
+   await reloaded.evaluate(()=>localStorage.removeItem('hlgb_durable_wal_v1'));
    await reloaded.evaluate(()=>window.modalSave());
    assert.equal(await reloaded.evaluate(()=>window.__sentRouteRows.length),1);
   }finally{await reloaded.close()}
