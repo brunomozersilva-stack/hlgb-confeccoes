@@ -86,6 +86,16 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(await page.locator('#hlgbFareAmount9490').inputValue(),'19.80');
   const afterFailure=await page.evaluate(()=>window.db.payroll.find(x=>x.id==='p-z').transportOverride);
   assert.equal(afterFailure,null,'a failed ACK must not modify employee payroll');
+  // A success flag alone, mismatched identity or stale data cannot prove a saved fare.
+  for(const mode of ['missing-data','wrong-id','stale-value']){
+   const result=await page.evaluate(async mode=>{
+    const original=window.hlgbRecordSaveWithRetry;
+    const row=window.db.payroll.find(x=>x.id==='p-z'),before=JSON.stringify(row);
+    window.hlgbRecordSaveWithRetry=async(_module,_id,data)=>mode==='missing-data'?{applied:true}:mode==='wrong-id'?{applied:true,data:{...data,id:'p-a'}}:{applied:true,data:{...data,transportOverride:row.transportOverride}};
+    try{await window.hlgbPayrollSaveStability9296.saveEmployeeFare('2','2026-11','88.00');return {rejected:false}}catch(e){return {rejected:true,unchanged:JSON.stringify(window.db.payroll.find(x=>x.id==='p-z'))===before,message:e.message}}finally{window.hlgbRecordSaveWithRetry=original}
+   },mode);
+   assert.equal(result.rejected,true,mode);assert.equal(result.unchanged,true,mode);assert.match(result.message,/não confirmou|sem confirmar/);
+  }
   // Completed payments cannot silently have their amount rewritten.
   await page.evaluate(()=>{window.db.payroll.find(x=>x.id==='p-z').paid=true});
   await assert.rejects(()=>page.evaluate(()=>window.hlgbPayrollSaveStability9296.saveEmployeeFare('2','2026-11','18.00')),/PAGO/);
