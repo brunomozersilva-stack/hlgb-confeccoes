@@ -377,15 +377,18 @@ window.routeLocationChanged9249=function(select){
  const refresh=stop.querySelector('button[data-route-refresh9684]');if(refresh){refresh.disabled=false;if(loc.type==='Facção'&&!sameSaved)void window.routeRefreshAssigned9683(refresh);else{const notice=stop.querySelector('.ops-route-refresh-status');if(notice)notice.textContent=''}}
 };
 
-function openRouteEditor(r){
+// Keep an uncertain new-route attempt recoverable within this authenticated page.
+let unresolvedNewRoute9704=null;
+function openRouteEditor(r,resume=null){
  r=r?clone(r):null;
- window.__opsRouteStops9249=clone(r?.stops||[]);
+ const initial=r||resume;
+ window.__opsRouteStops9249=clone(initial?.stops||[]);
  // Uma única identidade para a rota durante a vida deste editor.
  // Repetir clique ou aguardar POST lento NUNCA cria um segundo ID.
- const draftId=sid(r?.id||('route-'+Date.now()+'-'+Math.floor(Math.random()*10000)));
- const createdAt=r?.createdAt||new Date().toISOString();
- let saveBusy=false,lastAttempt=null;
- const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(r?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(r?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(r?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(r?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button><button type="button" class="secondary" onclick="routeRefreshAll9684(this)">Atualizar todas as facções</button><div id="opsRouteRefreshAllStatus9684" class="sub" role="status" aria-live="polite"></div>'+
+ const draftId=sid(initial?.id||('route-'+Date.now()+'-'+Math.floor(Math.random()*10000)));
+ const createdAt=initial?.createdAt||new Date().toISOString();
+ let saveBusy=false,lastAttempt=resume?clone(resume):null;
+ const body='<div class="grid"><div class="field"><label>Data</label><input id="opsRouteDate" type="date" value="'+escSafe(initial?.date||today())+'"></div><div class="field"><label>Responsável / motorista</label><input id="opsRouteDriver" value="'+escSafe(initial?.driver||'')+'"></div><div class="field"><label>Status</label><select id="opsRouteStatus"><option>Planejada</option><option>Em rota</option><option>Concluída</option></select></div></div><div class="field"><label>Anotações gerais</label><textarea id="opsRouteGeneral" rows="3">'+escSafe(initial?.notes||'')+'</textarea></div><div id="opsRouteStops">'+(initial?.stops||[]).map(routeStopHtml).join('')+'</div><button type="button" class="secondary" onclick="addRouteStop9249()">+ Adicionar parada</button><button type="button" class="secondary" onclick="routeRefreshAll9684(this)">Atualizar todas as facções</button><div id="opsRouteRefreshAllStatus9684" class="sub" role="status" aria-live="polite"></div>'+
  '<div class="toolbar" style="margin-top:12px"><button type="button" class="secondary" id="opsRouteVerify9534">🔍 Verificar gravação na nuvem</button><button class="primary modalSave">Salvar rota</button></div>'+
  '<div id="opsRouteCloudStatus9534" role="status" aria-live="polite" class="sub" style="margin-top:10px">A rota só será considerada salva depois da confirmação da nuvem.</div>';
  async function finalizeIfConfirmed(attempt,reason){
@@ -399,7 +402,7 @@ function openRouteEditor(r){
    if(routeFingerprint9534(current)!==routeFingerprint9534(attempt)){
     routeStatus9534('A gravação anterior está na nuvem, mas você fez novas alterações depois dela. Estas alterações ainda não foram confirmadas.');return false
    }
-   upsertLocal('routePlans',proof.data);closeModal();renderRoutes();
+   upsertLocal('routePlans',proof.data);if(unresolvedNewRoute9704?.row?.id===draftId)unresolvedNewRoute9704=null;closeModal();renderRoutes();
    if(reason==='timeout')alert('✅ Rota confirmada na nuvem após a demora da resposta.');
    return true;
   }
@@ -423,7 +426,14 @@ function openRouteEditor(r){
     if(proof.status!=='confirmed'){routeStatus9534('A rota na nuvem mudou ou está indisponível. Edição preservada; nenhuma gravação enviada. Confira a versão atual antes de salvar.');return}
     if(!document.getElementById('opsRouteStops')||!saveButton?.isConnected||routeFingerprint9534(routeCollect9534(r,draftId,createdAt))!==routeFingerprint9534(row)){routeStatus9534('O formulário mudou durante a conferência. Confira e salve novamente.');return}
    }
+   if(!r&&lastAttempt){
+    const prior=await routeRemoteProof9534(lastAttempt);
+    if(prior.status==='confirmed'){await finalizeIfConfirmed(lastAttempt,'retry');return}
+    if(prior.status!=='missing'||routeFingerprint9534(lastAttempt)!==routeFingerprint9534(row)){routeStatus9534('Tentativa anterior ainda não reconciliada. Verifique a gravação antes de alterar ou reenviar a rota.');return}
+    if(!saveButton?.isConnected||routeFingerprint9534(routeCollect9534(r,draftId,createdAt))!==routeFingerprint9534(row)){routeStatus9534('O formulário mudou durante a conferência. Confira novamente.');return}
+   }
    lastAttempt=clone(row);writeStarted=true;
+   if(!r)unresolvedNewRoute9704={row:clone(row),busy:true};
    await saveRow('routePlans',row);
    await finalizeIfConfirmed(row,'post');
   }catch(e){
@@ -437,10 +447,11 @@ function openRouteEditor(r){
    }
   }finally{
    saveBusy=false;
+   if(unresolvedNewRoute9704?.row?.id===draftId)unresolvedNewRoute9704.busy=false;
    if(saveButton?.isConnected)saveButton.disabled=false;
   }
  });
- const st=document.getElementById('opsRouteStatus');if(st&&r?.status)st.value=r.status;
+ const st=document.getElementById('opsRouteStatus');if(st&&initial?.status)st.value=initial.status;
  const verifyButton=document.getElementById('opsRouteVerify9534');
  if(verifyButton)verifyButton.onclick=async()=>{
   if(saveBusy)return;
@@ -449,9 +460,14 @@ function openRouteEditor(r){
   try{await finalizeIfConfirmed(lastAttempt,'timeout')}
   finally{saveBusy=false;if(verifyButton.isConnected)verifyButton.disabled=false}
  };
- document.querySelectorAll('#opsRouteStops .ops-route-stop').forEach((stop,i)=>{stop.__routeSaved9683=clone(r?.stops?.[i]||null);window.routeLocationChanged9249?.(stop.querySelector('.ops-route-loc'))});
+ document.querySelectorAll('#opsRouteStops .ops-route-stop').forEach((stop,i)=>{stop.__routeSaved9683=clone(initial?.stops?.[i]||null);window.routeLocationChanged9249?.(stop.querySelector('.ops-route-loc'))});
 }
-window.newRoute9249=()=>openRouteEditor(null);
+window.newRoute9249=()=>{
+ if(unresolvedNewRoute9704?.busy){routeStatus9534('Aguarde a confirmação da tentativa de gravação em andamento.');return}
+ const resume=unresolvedNewRoute9704?.row||null;openRouteEditor(null,resume);
+ if(resume)routeStatus9534('Rota pendente recuperada com o mesmo identificador. Verifique a gravação antes de criar outra rota.');
+};
+window.addEventListener?.('hlgb:logout',()=>{unresolvedNewRoute9704=null});
 window.editRoute9249=id=>{const r=arr('routePlans').find(x=>sid(x.id)===sid(id));if(r)openRouteEditor(r)};
 window.addRouteStop9249=function(){
  const host=document.getElementById('opsRouteStops');
