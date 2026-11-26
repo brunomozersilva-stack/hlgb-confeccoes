@@ -72,7 +72,7 @@
   function addGroup(g,on){if(!active())return;const add=g.models.filter(m=>!selected.has(m.key));if(on&&selected.size+add.length>1000){el('p','Limite de 1000 combinações por cesta. Separe o planejamento.',basketOut);return}for(const m of g.models){if(on){if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key)}sync()}
   function overview9714(x){
    const o=api.workspaceOverview9714(x,active());stats.replaceChildren();
-   const values=[['Matérias-primas',o.state==='unavailable'?'—':o.materials],['Pedidos únicos',o.orders],['Modelos únicos',o.products],['Peças pedidas únicas',o.pieces]];
+   const values=[['Matérias-primas',o.state==='unavailable'?null:o.materials],['Pedidos únicos',o.orders],['Modelos únicos',o.products],['Peças pedidas únicas',o.pieces]];
    for(const [label,value] of values){const item=el('div','',stats);item.className='card';item.style.cssText='min-width:0;padding:12px;border:1px solid #ddd;border-radius:10px';el('small',label,item);const n=el('strong',value==null?'Não confirmado':fmt(value),item);n.style.cssText='display:block;font-size:1.4rem;margin-top:5px'}
    if(o.ambiguous)el('p',o.ambiguous+' combinação(ões) divergentes não incluídas nos totais.',stats);
    return o;
@@ -87,7 +87,6 @@
    const tbody=el('tbody','',table);for(const color of colors){const tr=el('tr','',tbody);el('th',color,tr);let total=0;for(const size of sizes){const v=grid.get(JSON.stringify([color,size]))||0;total+=v;el('td',fmt(v),tr)}el('td',fmt(total),tr)}
    const foot=el('tfoot','',table),tr=el('tr','',foot);el('th','Total',tr);let grand=0;for(const size of sizes){const v=colors.reduce((n,color)=>n+(grid.get(JSON.stringify([color,size]))||0),0);grand+=v;el('td',fmt(v),tr)}el('td',fmt(grand),tr);
   }
-  let lastOverview9714=null;
   function drawGradeSuggestions(g,card){
    const details=el('details','',card);details.open=true;el('summary','Sugestão automática de grade para encaixe',details);
    const limit=maxLayers.value===''?null:Number(maxLayers.value);if(limit!==null&&(!Number.isSafeInteger(limit)||limit<1||limit>10000)){el('p','Informe um limite inteiro de 1 a 10.000 folhas.',details);return}
@@ -104,9 +103,9 @@
    }
    el('p','Grade sugerida apenas por divisão das quantidades pedidas. Conferir saldo, lotes, largura, direção, limites do enfesto e moldes Audaces. Não comprova encaixe, consumo ou economia.',details);
   }
-  function drawEvidence(g,card,history,materialHistory){
+  function drawEvidence(g,card,history,materialHistory,existing){
    const d=api.groupEvidence(g,data(),history,active());if(d.state!=='local-observation')return;
-   const box=el('details','',card);el('summary','Histórico de pesagens e oportunidades de sobra',box);
+   const box=existing||el('details','',card);if(!existing)el('summary','Histórico de pesagens e oportunidades de sobra',box);
    el('p','Pesagens locais do corte inteiro por modelo, sem atribuição ao tecido deste grupo. Descarte registrado não equivale à economia possível; saldo não classificado não é sobra reutilizável.',box);
    for(const m of d.models){const item=el('div','',box);el('strong',m.productName,item);el('p',m.valid?m.valid+' cortes com pesagem válida · '+fmt(m.totalKg)+' kg pesados · '+fmt(m.wasteKg)+' kg de descarte · '+fmt(m.wastePct)+'% descarte registrado · '+fmt(m.unclassifiedKg)+' kg não classificados':'Sem pesagem finalizada válida para análise.',item);if(m.review)el('p',m.review+' registros a conferir (não incluídos nos totais).',item)}
    const measured=api.materialEstimate(g,materialHistory,active());
@@ -137,11 +136,14 @@
   function draw(){
    out.replaceChildren();visible=[];if(!active())return;const x=fresh();
    if(x.state!=='discovery-only'){overview9714(x);root.hlgbJointWorkspaceEvidence9714={observed:false};drawBasket(x);el('p','Consulta indisponível. Confira pedidos, materiais, produção e baixas.',out);return}
-   const overview=overview9714(x),byMaterial=new Map(overview.groups.map(g=>[g.materialId,g]));lastOverview9714=overview;
+   const overview=overview9714(x),byMaterial=new Map(overview.groups.map(g=>[g.materialId,g]));
    root.hlgbJointWorkspaceEvidence9714={observed:overview.state==='local-observation'||overview.state==='partial',materials:overview.materials,pairs:overview.pairs,products:overview.products,orders:overview.orders,ambiguous:overview.ambiguous,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};
-   const oldMaterial=material.value;material.replaceChildren();const all=el('option','Todas',material);all.value='';
-   for(const g of x.groups){const o=el('option',g.materialName,material);o.value=g.materialId}
-   material.value=x.groups.some(g=>g.materialId===oldMaterial)?oldMaterial:'';
+   const optionsSignature=JSON.stringify(x.groups.map(g=>[g.materialId,g.materialName]));
+   if(material.__options9714!==optionsSignature){
+    const oldMaterial=material.value;material.replaceChildren();const all=el('option','Todas',material);all.value='';
+    for(const g of x.groups){const o=el('option',g.materialName,material);o.value=g.materialId}
+    material.value=x.groups.some(g=>g.materialId===oldMaterial)?oldMaterial:'';material.__options9714=optionsSignature;
+   }
    const q=norm(search.value).replace(/#/g,'').trim(),tokens=q.split(/\s+/).filter(Boolean);
    const groups=x.groups.filter(g=>{
     const text=norm([g.materialName,...g.models.flatMap(m=>['Pedido '+m.orderNumber,m.productName])].join(' '));
@@ -153,12 +155,20 @@
    if(!groups.length)el('p','Nenhum grupo encontrado com os filtros atuais. Altere o material ou retire o filtro de cor em comum.',out);
    el('p',(x.plannedRows||0)+' registros planejados reconhecidos · '+(x.blockedActivityPairs||0)+' vínculos com atividade/estado a conferir.',out);
    if(x.unlinkedActivity)el('p','Há atividade sem pedido vinculado; disponibilidade exige revisão.',out);
-   const history=api.cutEvidence(data(),active()),materialHistory=api.materialHistory(data(),active());
+   let history=null,materialHistory=null;
    for(const g of groups.slice(offset,offset+15)){
     const card=el('article','',out);card.className='panel';card.dataset.jointMaterial9714=g.materialId;card.style.cssText='min-width:0;max-width:100%;border:1px solid #ddd;border-radius:12px;padding:14px;box-sizing:border-box';el('h3',g.materialName+' · ID '+g.materialId,card);el('p',fmt(g.orderedPieces)+' peças pedidas em '+g.models.length+' modelos/pedidos candidatos.',card);const coverage=byMaterial.get(g.materialId);el('p',coverage?.sharedColors.length?'Cores de grade em comum: '+coverage.sharedColors.join(', '):'Não há cor de grade compartilhada por dois candidatos. Não comprova cor física do tecido.',card);
-    drawGradeSuggestions(g,card);drawEvidence(g,card,history,materialHistory);const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
+    const controls=el('div','',card),boxes=new Map();let shown=0;const result=el('div','',card);
+    drawGradeSuggestions(g,card);
+    const evidence=el('details','',card);el('summary','Histórico de pesagens e oportunidades de sobra',evidence);
+    let loaded=false;evidence.addEventListener('toggle',()=>{if(!evidence.open||loaded||!active())return;
+     const latest=fresh(),current=latest.groups?.find(z=>z.materialId===g.materialId);
+     if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Dados alterados. Atualize os grupos antes de consultar o histórico.',evidence);loaded=true;return}
+     history=history||api.cutEvidence(data(),active());materialHistory=materialHistory||api.materialHistory(data(),active());
+     drawEvidence(g,card,history,materialHistory,evidence);loaded=true;
+    });
     const update=(currentDiscovery)=>{result.replaceChildren();if(!active())return;for(const [key,c] of boxes)c.checked=selected.has(key);const current=currentDiscovery.groups?.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}
-     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key),v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);combinedMatrix9714(v.combinedGrade,result);if(v.models.length){const preview=el('details','',result);el('summary','3. Simular enfestos somente dos modelos selecionados',preview);let built=false;preview.addEventListener('toggle',()=>{if(preview.open&&!built&&active()){built=true;drawGradeSuggestions({...current,models:v.models},preview)}})}el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
+     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key);if(keys.some(key=>api.modelSignature(current.models.find(m=>m.key===key))!==selected.get(key)?.signature)||plan(currentDiscovery).state!=='local-preview'){el('p','Seleção alterada ou ambígua. Limpe e selecione novamente.',result);return}const v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);combinedMatrix9714(v.combinedGrade,result);if(v.models.length){const preview=el('details','',result);el('summary','3. Simular enfestos somente dos modelos selecionados',preview);let built=false;preview.addEventListener('toggle',()=>{if(preview.open&&!built&&active()){built=true;drawGradeSuggestions({...current,models:v.models},preview)}})}el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
     function append(){for(const m of g.models.slice(shown,shown+50)){const label=el('label','',controls);label.style.cssText='display:flex;align-items:center;gap:8px;min-width:0;padding:8px;border-bottom:1px solid #ddd;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=selected.has(m.key);boxes.set(m.key,c);el('span',' Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' peças',label);c.onchange=()=>{if(!active())return;if(c.checked){if(selected.size>=1000&&!selected.has(m.key)){c.checked=false;return}if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key);sync()}}shown+=50;more.hidden=shown>=g.models.length}
     const more=button('Mais modelos deste grupo',card,append);append();button('Selecionar todos deste grupo',card,()=>addGroup(g,true));button('Limpar seleção',card,()=>addGroup(g,false));visible.push(update);
    }
