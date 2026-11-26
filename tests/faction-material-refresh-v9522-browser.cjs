@@ -106,6 +106,21 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.waitForFunction(()=>document.getElementById('modal').textContent.includes('Conferência manual necessária'));
   assert.equal(await page.locator('#hlgbMaterialRefreshConfirm9522').count(),0,'checked materials must not be auto-rewritten');
   assert.equal(await page.evaluate(()=>window.__posts),2);
+  await page.evaluate(()=>{
+   closeModal();window.canOpenPage=()=>true;window.currentUser=()=>({id:'fixture'});
+   for(const id of ['pedidos','corte']){const section=document.createElement('section');section.id=id;document.body.appendChild(section)}
+   db.orders=[{id:1,orderNumber:12,client:'Cliente A',status:'Aguardando corte',grade:[{productId:8,color:'Preto',size:'P',qty:30}]},{id:2,orderNumber:13,client:'Cliente B',status:'Aguardando corte',grade:[{productId:8,color:'Preto',size:'P',qty:40}]}];db.products=[{id:8,name:'Modelo A',materials:[{materialId:1,name:'Fita',cat:'Aviamento',unit:'m',qty:1}]}];db.materials=[{id:1,name:'Fita',cat:'Aviamento',unit:'m',purchaseUnit:'rolo',purchaseConversion:50}];db.cuts=[{id:90,orderId:2,productId:8,status:'Finalizado',pieces:30,actualCutGrade:[{productId:8,color:'Preto',size:'P',qty:30}]}];db.production=[];db.materialChecklists=[];window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set()};
+   window.hlgbCutterSheetV9523={previewOnPage9523:html=>window.__orderCutPrint=html};
+   window.__orderCutBefore=JSON.stringify(db);window.hlgbFactionMaterialRefresh9522.ensurePanel();
+  });
+  await page.locator('#hlgbOrderCutMaterials9760-pedidos').click();
+  await page.locator('#oc9760-search').fill('Cliente A');await page.locator('#oc9760-all').click();
+  await page.locator('#oc9760-search').fill('Cliente B');await page.locator('#oc9760-all').click();
+  assert.match(await page.locator('#oc9760-output').innerText(),/2 modelos\/pedidos · 60 peças/);
+  await page.locator('#oc9760-print').click();assert.match(await page.evaluate(()=>window.__orderCutPrint),/Aviamentos de Pedidos e Corte/);
+  assert.equal(await page.evaluate(()=>JSON.stringify(db)===window.__orderCutBefore),true);assert.equal(await page.evaluate(()=>window.__posts),2);
+  await page.evaluate(()=>{db.production=[{id:1,orderId:2,productId:8}]});await page.locator('#oc9760-search').fill('Modelo');assert.equal(await page.locator('#oc9760-print').isDisabled(),true);
+  await page.evaluate(()=>closeModal());await page.locator('#hlgbOrderCutMaterials9760-corte').click();assert.equal(await page.locator('#oc9760-search').isVisible(),true);
   assert.deepEqual(errors,[]);
   console.log('PASS '+engine.name()+': Crystal 4 items, Melanie 6 items, live yield calculation, cloud ACK, checked items protected');
  }finally{await browser.close()}
