@@ -93,9 +93,9 @@ const kind=process.env.HLGB_BROWSER||'chromium';
   }finally{await first.close()}
   const off=await fixture();
   try{
-   await off.evaluate(()=>{db.capacityAssignments.push({id:'cap-ro',orderId:'ord1',productId:'pr',factionId:'ro',pieces:100});db.production.push({id:'other-order',orderId:'ord2',productId:'pr',factionId:'ro',planned:40,done:0});window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set(['ord1|pr'])};window.addRouteStop9249()});
+   await off.evaluate(()=>{db.capacityAssignments.push({id:'cap-ro',orderId:'ord1',productId:'pr',factionId:'ro',pieces:100});db.production.push({id:'other-order',orderId:'ord2',productId:'pr',factionId:'ro',planned:40,done:0});window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set(['ord1|pr'])};const original=window.cloudRequest;window.cloudRequest=async(path,opts)=>path.includes('module=eq.production')?db.production.filter(p=>p.factionId==='ro').map(p=>({entity_id:p.id,data:structuredClone(p),deleted_at:null})):original(path,opts);window.addRouteStop9249()});
    await off.locator('.ops-route-loc').first().selectOption('0');
-   const lines=await off.locator('.ops-route-carry').first().inputValue();assert.doesNotMatch(lines,/100 pç/);assert.match(lines,/40 pç/);assert.equal(await off.locator('[data-route-item9249]').count(),1);
+   await off.waitForFunction(()=>/0 modelo\(s\) novo\(s\)/.test(document.querySelector('.ops-route-refresh-status')?.textContent));const lines=await off.locator('.ops-route-carry').first().inputValue();assert.doesNotMatch(lines,/100 pç/);assert.match(lines,/40 pç/);assert.equal(await off.locator('[data-route-item9249]').count(),1);
    // A previously selected exact item can become written off while a route draft is open.
    await off.evaluate(()=>{window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set(['ord1|pr','ord2|pr'])}});
    await off.locator('.ops-route-carry').first().fill(lines+'\nConferir etiquetas');
