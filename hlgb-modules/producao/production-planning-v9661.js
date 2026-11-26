@@ -474,12 +474,34 @@
   const head=title=>'<h1>HLGB · '+title+'</h1><p class="warning">RASCUNHO DE SIMULAÇÃO — não autoriza corte, não comprova saldo nem encaixe físico.</p><p>'+ref+' · Data: ____/____/______</p>';
   const signatures='<div class="sign">Cortador 1: ____________________ &nbsp; Cortador 2: ____________________ &nbsp; Infestador / conferência: ____________________</div>';
   const material=esc(group.materialName||group.materialId);
-  const rowsFor=m=>plans.flatMap(p=>[...p.spreads.flatMap((s,i)=>s.rows.filter(r=>!m||r.key===m.key).map(r=>[r.orderNumber,r.productName,p.color,r.size,i+1,s.layers,r.perLayer,r.planned,''])),...p.remaining.filter(r=>!m||r.key===m.key).map(r=>[r.orderNumber,r.productName,p.color,r.size,'Complementar','—','—',r.remainder,''])]);
-  const columns=['Pedido','Modelo','Cor','Tam.','Enfesto','Folhas','Pç/folha','Previsto','Realizado'];
+  // One row per order/model/colour/spread, keeping quantities per size explicit.
+  const rowsFor=m=>{
+   const rows=[];
+   for(const p of plans){
+    const append=(entries,label,layers,complementary)=>{
+     const groups=new Map();
+     for(const x of entries){if(m&&x.key!==m.key)continue;const list=groups.get(x.key)||[];list.push(x);groups.set(x.key,list)}
+     for(const list of groups.values()){
+      const first=list[0],sizes=list.slice().sort((a,b)=>{const order=['PP','P','M','G','GG','XG','XGG','G1','G2','G3'];const rank=x=>{const i=order.indexOf(x.size);return i<0?order.length:i};return rank(a)-rank(b)||a.size.localeCompare(b.size,'pt-BR',{numeric:true})});
+      const grade=sizes.map(x=>x.size+': '+(complementary?x.remainder:x.planned)).join(' / ');
+      const perLeaf=complementary?'—':sizes.map(x=>x.size+': '+x.perLayer).join(' / ');
+      const actual=sizes.map(x=>x.size+': ___').join(' / ');
+      const total=sizes.reduce((n,x)=>n+(complementary?x.remainder:x.planned),0);
+      const common=[p.color,label,layers,perLeaf,grade,total,actual];
+      rows.push(m?common:[first.orderNumber,first.productName,...common]);
+     }
+    };
+    p.spreads.forEach((s,i)=>append(s.rows,String(i+1),s.layers,false));
+    append(p.remaining,'Complementar','—',true);
+   }
+   return rows;
+  };
+  const commonColumns=['Cor','Enfesto','Folhas','Grade por folha','Grade prevista','Total pç','Realizado por tam.'];
+  const columns=['Pedido','Modelo',...commonColumns];
   const combined='<section class="sheet" data-joint-sheet="combined">'+head('FOLHA CONJUNTA DE CORTE')+'<p>Matéria-prima candidata: <b>'+material+'</b> · '+group.models.length+' pedido(s)/modelo(s) · '+plans.reduce((n,p)=>n+p.total,0)+' peças previstas · opções: '+esc(plans.map(p=>p.color+' — '+p.name).join('; '))+'</p><p>☐ Interno &nbsp; ☐ Externo &nbsp; Lote: __________ Largura útil: ________</p><h2>Grade por modelo e enfesto</h2>'+table(columns,rowsFor(null))+'<h2>Conferência e pesagem coletiva</h2>'+table(['Material','Cor / lote','Total kg','Usado kg','Refugo kg','Sobra kg','Aprov. %'],[[group.materialName||group.materialId,'','','','','',''],['Outro:','','','','','','']])+'<p>☐ Material conferido &nbsp; ☐ Grade conferida &nbsp; ☐ Encaixe físico conferido &nbsp; ☐ Separação conferida</p><p>Peças extras / aproveitamento de sobras: ____________________________</p><p>Observações / divergências: _________________________________________</p>'+signatures+'</section>';
-  const individuals=group.models.map(m=>'<section class="sheet" data-joint-sheet="individual">'+head('FICHA INDIVIDUAL — APÓS SEPARAÇÃO (RAScunho)'.toUpperCase())+'<p>Pedido #'+esc(m.orderNumber)+' · <b>'+esc(m.productName)+'</b> · '+esc(m.pieces)+' peças previstas</p><p>Material candidato: '+material+' · Destino / facção: ________________________</p>'+table(columns,rowsFor(m))+'<p>Conferência da quantidade realmente separada: _________ pç</p><p>☐ Grade conferida &nbsp; ☐ Materiais conferidos &nbsp; ☐ Destino conferido</p><p>Observações / divergências: _________________________________________</p><p>Pesagem coletiva consta na ficha conjunta; não repetir como consumo individual.</p>'+signatures+'</section>').join('');
+  const individuals=group.models.map(m=>'<section class="sheet" data-joint-sheet="individual">'+head('FICHA INDIVIDUAL — APÓS SEPARAÇÃO (RAScunho)'.toUpperCase())+'<p>Pedido #'+esc(m.orderNumber)+' · <b>'+esc(m.productName)+'</b> · '+esc(m.pieces)+' peças previstas</p><p>Material candidato: '+material+' · Destino / facção: ________________________</p>'+table(commonColumns,rowsFor(m))+'<p>Conferência da quantidade realmente separada: _________ pç</p><p>☐ Grade conferida &nbsp; ☐ Materiais conferidos &nbsp; ☐ Destino conferido</p><p>Observações / divergências: _________________________________________</p><p>Pesagem coletiva consta na ficha conjunta; não repetir como consumo individual.</p>'+signatures+'</section>').join('');
   const pages=mode==='combined'?combined:mode==='individual'?individuals:combined+individuals;
-  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB — rascunho de corte conjunto</title><style>@page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{font:11px/1.3 Arial,sans-serif;color:#111;margin:0}h1{font-size:17px;margin:0 0 8px}h2{font-size:13px;margin:10px 0 4px}p{margin:5px 0}.warning{font-weight:bold;border:1px solid #555;padding:5px}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #777;padding:4px;overflow-wrap:anywhere}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}.sign{margin-top:20px;break-inside:avoid}.sheet+.sheet{break-before:page;page-break-before:always}@media screen{body{max-width:190mm;margin:12px auto}.sheet+.sheet{border-top:2px dashed #888;margin-top:20px;padding-top:15px}}</style></head><body>'+pages+'</body></html>';
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB — rascunho de corte conjunto</title><style>@page{size:A4 portrait;margin:9mm}*{box-sizing:border-box}body{font:10px/1.2 Arial,sans-serif;color:#111;margin:0}h1{font-size:17px;margin:0 0 8px}h2{font-size:12px;margin:7px 0 3px}p{margin:4px 0}.warning{font-weight:bold;border:1px solid #555;padding:5px}table{width:100%;border-collapse:collapse;table-layout:auto}th,td{border:1px solid #777;padding:3px;vertical-align:top;overflow-wrap:anywhere}th{background:#eee}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}.sign{margin-top:12px;break-inside:avoid}.sheet+.sheet{break-before:page;page-break-before:always}@media screen{body{max-width:190mm;margin:12px auto}.sheet+.sheet{border-top:2px dashed #888;margin-top:20px;padding-top:15px}}</style></head><body>'+pages+'</body></html>';
  }
  function unpairedModels(d,allowed){
   if(allowed!==true||d?.state!=='discovery-only')return [];
