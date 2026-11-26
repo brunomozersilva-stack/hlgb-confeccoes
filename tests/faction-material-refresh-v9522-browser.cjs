@@ -16,6 +16,17 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
    window.renderDestinationChecklists();
    window.renderFactionChecklists9198();
   });
+  // Exercise the real capture handler, ahead of the original modal save callback.
+  await page.evaluate(()=>{
+   db.production=[{id:123,productId:999999,planned:172}];window.__assignmentCalls=0;
+   openModal('Atribuição teste','<input id="assignProductionId" value="123"><input id="assignQty" value="172"><select id="assignDestination"><option value="F:1">Facção</option></select><button type="button" class="modalSave">Confirmar atribuição</button>');
+   document.querySelector('#modal .modalSave').onclick=()=>window.__assignmentCalls++;
+  });
+  await page.locator('#modal .modalSave').click();
+  assert.equal(await page.evaluate(()=>window.__assignmentCalls),0);assert.ok(await page.evaluate(()=>window.__alerts.some(x=>x.includes('Atribuição não realizada'))));
+  await page.evaluate(()=>{db.production[0].productId=db.products[1].id});
+  await page.locator('#modal .modalSave').click();
+  assert.equal(await page.evaluate(()=>window.__assignmentCalls),1);assert.equal(await page.evaluate(()=>window.__posts),0);await page.evaluate(()=>closeModal());
   await page.locator('#hlgbMaterialRevisions9522 details > summary').click();
   await page.locator('#hlgbFactionMaterialRevisions9522 details > summary').click();
   await page.waitForSelector('#hlgbMaterialRevisions9522 button[data-material-revision9522]',{timeout:12000});
