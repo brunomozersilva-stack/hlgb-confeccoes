@@ -131,71 +131,7 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   if(result?.state!=='local-events'||!Array.isArray(result.events)||result.eventTotal!==result.events.length||result.events.length>5000||!['cliente','faccao'].includes(kind)||result.events.some(x=>x.kind!==kind))throw Error('incomplete-export');
   const cell=v=>{let s=String(v??'');if(/^[\s]*[=+@-]/.test(s)||/^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
   const cash=n=>Number.isSafeInteger(n)?(n/100).toFixed(2).replace('.',','):'Não confirmado';
-  const lines=[['HLGB — eventos locais, não extrato bancário'],[kind==='faccao'?'Facção':'Cliente','ID',kind==='faccao'?'Serviço':'Nota','Data do evento original','Tipo','Valor R
-  for(const e of result.events)lines.push([e.name,e.ownerId,e.noteNumber,e.date,e.type,cash(e.amountCents),e.reversedAt,e.method,e.id]);
-  for(const [k,value] of Object.entries(result.totals||{}))lines.push([k,cash(value)]);
-  lines.push(['Lacunas ou inconsistências',result.issues?.length??0]);return '\uFEFF'+lines.map(r=>r.map(cell).join(';')).join('\r\n');
- }
- function printable(result,kind,layout,filters={}){
-  if(!Object.hasOwn(scopes,kind)||!['summary','detail'].includes(layout))throw Error('invalid-report');
-  const eventMode=kind!=='funcionario'&&filters.eventMode===true;
-  // Reuse export completeness and scope checks; never print a single paginated subset.
-  if(eventMode)eventCsv(result,kind);else csv(result,kind);
-  const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const cash=n=>Number.isSafeInteger(n)&&n>=0?(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Não confirmado';
-  const labels={faccao:'Facções',cliente:'Clientes',funcionario:'Funcionários'};
-  const dates={payment:'Pagamento registrado',scheduled:'Programação',service:'Serviço',record:'Registro',issue:'Emissão da nota'};
-  const events={'faction-paid':'Pagamento registrado','faction-discount':'Abatimento no acerto','payment-recorded':'Recebimento registrado','material-offset':'Abatimento de matéria-prima','return-active':'Devolução ativa','return-reversed':'Devolução estornada (referência)'};
-  const table=(headers,rows)=>'<table><thead><tr>'+headers.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map(x=>'<td>'+esc(x)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
-  const sum=(rows,keys)=>{const out=Object.fromEntries(keys.map(k=>[k,null]));for(const r of rows)for(const k of keys){if(!Number.isSafeInteger(r[k])||r[k]<0)continue;const n=(out[k]??0)+r[k];if(!Number.isSafeInteger(n))throw Error('overflow');out[k]=n}return out};
-  const group=(rows,key)=>{const m=new Map();for(const r of rows){const k=key(r),a=m.get(k)||[];a.push(r);m.set(k,a)}return [...m.values()]};
-  const period=(filters.from||'Sem início')+' a '+(filters.to||'Sem fim');
-  let body='<h1>HLGB Confecções — Histórico de acertos</h1><p><b>'+esc(labels[kind])+' · '+(layout==='summary'?'Resumo':'Detalhado')+'</b> | Período: '+esc(period)+'</p><p>Filtro de pessoa: '+esc(filters.ownerId||'Todas')+' · Busca: '+esc(filters.query||'Todas')+' · Situação: '+esc(eventMode?(filters.eventType||'all'):(filters.status||'all'))+'</p>';
-  body+='<p class="note">Consulta local, não conciliada com banco. '+(kind==='cliente'&&!eventMode?'Datas de emissão, não de recebimento. ':'')+'Valores não confirmados não equivalem a zero.</p>';
-  if(eventMode){
-   const rows=result.events;body+='<p>'+rows.length+' evento(s). '+(kind==='faccao'?'Abatimentos não são saída de caixa; avulsos e históricos incompletos não entram nesta consulta.':'Abatimentos não são entrada de caixa; devoluções estornadas são referência.')+'</p>';
-   const list=layout==='summary'?group(rows,r=>JSON.stringify([r.ownerId,r.date,r.type])).map(a=>[a[0].name,a[0].ownerId,a[0].date,events[a[0].type],a.length,cash(sum(a,['amountCents']).amountCents)]):rows.map(r=>[r.name,r.ownerId,r.date,r.noteNumber,events[r.type],cash(r.amountCents),r.method||'',r.reversedAt||'',r.description||'',r.id]);
-   body+=table(layout==='summary'?[kind==='faccao'?'Facção':'Cliente','ID','Data','Evento','Quantidade','Valor']:[kind==='faccao'?'Facção':'Cliente','ID','Data',kind==='faccao'?'Serviço':'Nota','Evento','Valor','Método','Estorno','Observação','Referência'],list);
-   body+=table(['Tipo de evento','Total observado'],Object.entries(result.totals||{}).map(([k,v])=>[({factionPaidCents:'Pagamentos registrados',factionDiscountCents:'Abatimentos no acerto',paymentRecordedCents:'Recebimentos',materialOffsetCents:'Abatimentos',activeReturnCents:'Devoluções ativas',reversedReturnReferenceCents:'Devoluções estornadas'})[k]||k,cash(v)]));
-  }else{
-   const rows=result.rows,keys=['totalCents','paidCents','creditCents','balanceCents'];
-   const values=r=>keys.map(k=>cash(r[k]));
-   const valid=r=>keys.every(k=>Number.isSafeInteger(r[k])&&r[k]>=0)&&r.totalCents===r.paidCents+r.creditCents+r.balanceCents;
-   const good=rows.filter(valid);
-   body+='<p>'+rows.length+' acerto(s); '+good.length+' com valores conferíveis.</p>';
-   if(layout==='summary'){
-    body+=table(['Pessoa','ID','Data','Natureza','Acertos','Lançado','Pago informado','Crédito','Saldo'],group(rows,r=>JSON.stringify([r.ownerId,r.date,r.dateBasis])).map(a=>[a[0].name,a[0].ownerId,a[0].date,dates[a[0].dateBasis]||a[0].dateBasis,a.length,...values(sum(a.filter(valid),keys))]));
-   }else for(const r of rows){
-    body+='<section><h2>'+esc(r.name)+' · '+esc(r.date)+' · '+esc(r.id)+'</h2><p>'+esc(dates[r.dateBasis]||r.dateBasis)+' · '+esc(r.status)+' · ID '+esc(r.ownerId)+(r.number?' · Nota '+esc(r.number):'')+(r.document?' · Comprovante registrado':'')+'</p>';
-    body+=table(['Lançado','Pago informado','Crédito','Saldo'],[values(r)]);
-    if(r.netOfAdjustments)body+='<p>Ajustes já incorporados no grupo; não descontar novamente.</p>';
-    if(r.details?.length)body+=table(['Modelo / serviço','Quantidade','Unitário','Serviço','Pago','Travetada descontada','Abatimento no acerto','Observação','ID'],r.details.map(x=>[x.description,x.quantity??'Não informada',cash(x.unitPriceCents),cash(x.serviceCents),cash(x.paidCents),cash(x.travetaCents),cash(x.discountCents),x.note,x.id]));
-    body+='<p>Referências: '+esc(r.lines.join(', '))+'</p></section>';
-   }
-   body+='<h2>Total observado do filtro completo</h2>'+table(['Lançado','Pago informado','Crédito','Saldo'],[values(sum(good,keys))]);
-  }
-  body+='<p class="note">Lacunas ou inconsistências sinalizadas na fonte: '+esc(result.issues?.length??0)+'. Conferir no módulo original. Não é recibo nem confirmação de pagamento.</p>';
-  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HLGB — Histórico de acertos</title><style>@page{size:A4 landscape;margin:12mm}body{font:12px Arial,sans-serif;color:#111;margin:16px}h1{font-size:21px}h2{font-size:15px;margin-top:18px}table{border-collapse:collapse;width:100%;margin:8px 0 16px;table-layout:auto}th,td{border:1px solid #aaa;padding:5px;vertical-align:top;overflow-wrap:anywhere}th{background:#eee;text-align:left}thead{display:table-header-group}tr{break-inside:avoid}.note{font-size:11px}button{padding:9px 14px}@media print{button{display:none}body{margin:0}}</style></head><body><button type="button" onclick="window.print()">Imprimir / salvar PDF</button>'+body+'</body></html>';
- }
- function originalAction(deps,kind,row,action,actions,active){
-  const fail=reason=>({opened:false,reason});try{
-   if(typeof active!=='function'||active()!==true||!row||row.kind!==kind||typeof actions?.[action]!=='function')return fail('unavailable');
-   const matches={factionPdf:['faccao','group:'],noteView:['cliente','note:projection:'],notePdf:['cliente','note:projection:'],orderView:['cliente','note:order:']};
-   const spec=Object.hasOwn(matches,action)?matches[action]:null;
-   if(!spec||spec[0]!==kind||typeof row.id!=='string'||!row.id.startsWith(spec[1])||!row.ownerId||!row.date)return fail('invalid-action');
-   const id=row.id.slice(spec[1].length);if(!id||id.length>120)return fail('invalid-action');
-   const latest=read(deps,kind,{ownerId:row.ownerId,from:row.date,to:row.date,export:true});
-   if(latest.state!=='local-observation'||!Array.isArray(latest.rows)||active()!==true)return fail('unavailable');
-   const current=latest.rows.filter(x=>x.id===row.id&&x.ownerId===row.ownerId);
-   const sig=x=>JSON.stringify([x.kind,x.id,x.ownerId,x.date,x.status,x.totalCents,x.paidCents,x.creditCents,x.balanceCents,x.lines,x.details,x.document]);
-   if(current.length!==1||sig(current[0])!==sig(row))return fail('stale');
-   if(active()!==true||deps.auth()!==true||!scopes[kind].every(p=>deps.can(p)===true))return fail('forbidden');
-   actions[action](id);return {opened:true,reason:'invoked-original-read-action'};
-  }catch(_){return fail('unavailable')}
- }
- return {read,scopes,csv,eventCsv,printable,originalAction};
-})());
-,'Data de estorno','Método','Referência']];
+  const lines=[['HLGB — eventos locais, não extrato bancário'],[kind==='faccao'?'Facção':'Cliente','ID',kind==='faccao'?'Serviço':'Nota','Data do evento original','Tipo','Valor R$','Data de estorno','Método','Referência']];
   for(const e of result.events)lines.push([e.name,e.ownerId,e.noteNumber,e.date,e.type,cash(e.amountCents),e.reversedAt,e.method,e.id]);
   for(const [k,value] of Object.entries(result.totals||{}))lines.push([k,cash(value)]);
   lines.push(['Lacunas ou inconsistências',result.issues?.length??0]);return '\uFEFF'+lines.map(r=>r.map(cell).join(';')).join('\r\n');
