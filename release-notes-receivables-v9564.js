@@ -322,6 +322,36 @@ function hasPanelWrapper(fn){
  }
  return false;
 }
+let archiveEvidence9710={observed:false,legacyPaid:null,projectionPaid:null};
+function organizeLegacyNotes9710(){
+ if(window.__HLGB_AUTH_READY!==true)return;
+ const pending=pendingProtection9710(),orders=new Map();for(const o of list('orders')){const id=sid(o.id);orders.set(id,orders.has(id)?null:o)}
+ let archived=0,observed=false;
+ for(const hostId of ['orderNotesTable','allOrderNotesTable']){
+  const host=document.getElementById(hostId);if(!host)continue;observed=true;
+  for(const existing of Array.from(host.querySelectorAll('[data-hlgb-paid-legacy9710]'))){
+   for(const tr of Array.from(existing.querySelectorAll('tbody tr'))){const body=tr.__hlgbPaidOriginalBody9710;if(body?.isConnected)body.appendChild(tr)}
+   existing.remove();
+  }
+  for(const table of Array.from(host.querySelectorAll('table')).filter(t=>!t.closest('.v930ProjectionNotes'))){
+   const body=table.querySelector('tbody');if(!body)continue;
+   const rows=Array.from(body.children).filter(tr=>{
+    const ids=Array.from(tr.querySelectorAll('button[onclick]')).map(b=>sid(b.getAttribute('onclick')).match(/^openAcerto\(\s*(['"]?)([^'")\s]+)\1\s*\)$/)?.[2]).filter(Boolean);
+    if(ids.length!==1)return false;const o=orders.get(ids[0]);return !!o&&archiveAllowed9710(orderView(o),pending);
+   });
+   if(!rows.length)continue;
+   const details=document.createElement('details');details.dataset.hlgbPaidLegacy9710='1';
+   const summary=document.createElement('summary');summary.textContent='Notas pagas — histórico ('+rows.length+')';details.appendChild(summary);
+   const wrap=document.createElement('div');wrap.style.overflowX='auto';
+   const historical=table.cloneNode(false);historical.removeAttribute('id');const head=table.querySelector('thead');if(head)historical.appendChild(head.cloneNode(true));
+   const dest=document.createElement('tbody');historical.appendChild(dest);wrap.appendChild(historical);details.appendChild(wrap);
+   table.insertAdjacentElement('afterend',details);
+   for(const tr of rows){tr.__hlgbPaidOriginalBody9710=body;dest.appendChild(tr);archived++}
+  }
+ }
+ archiveEvidence9710={...archiveEvidence9710,observed,legacyPaid:observed?archived:null,at:new Date().toISOString()};
+}
+function observeProjectionArchive9710(n){if(window.__HLGB_AUTH_READY===true&&Number.isSafeInteger(n)&&n>=0)archiveEvidence9710={...archiveEvidence9710,observed:true,projectionPaid:n,at:new Date().toISOString()}}
 function historyAuthorized9710(){
  try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('clientes')&&canOpenPage('notas')}catch(_){return false}
 }
@@ -358,21 +388,21 @@ function installClients9710(){
  decorateClients9710();
 }
 function install(){
- ensure();paint();installClients9710();
+ ensure();paint();installClients9710();organizeLegacyNotes9710();
  const old=window.renderOrderNotes;
  if(typeof old==='function'&&!hasPanelWrapper(old)){
-  const wrapper=function(){const result=old.apply(this,arguments);setTimeout(paint,0);return result};
+  const wrapper=function(){const result=old.apply(this,arguments);setTimeout(()=>{paint();organizeLegacyNotes9710()},0);return result};
   // Preserve the existing live-sync signature. Otherwise its delayed
   // installer could wrap us repeatedly, causing nested redraw loops.
   if(old.__hlgbNotesLive9563)wrapper.__hlgbNotesLive9563=true;
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,readOnly:true};
+window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,350));
-window.addEventListener?.('hlgb:logout',()=>{document.querySelectorAll?.('[data-hlgb-client-notes9710]').forEach(x=>x.remove())});
+window.addEventListener?.('hlgb:logout',()=>{archiveEvidence9710={observed:false,legacyPaid:null,projectionPaid:null};document.querySelectorAll?.('[data-hlgb-client-notes9710]').forEach(x=>x.remove())});
 console.info('[HLGB] notas v'+V+' organização/recebíveis somente leitura');
 })();
