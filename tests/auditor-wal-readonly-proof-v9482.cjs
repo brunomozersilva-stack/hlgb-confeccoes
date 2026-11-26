@@ -3,8 +3,8 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('release-auditor-autocorrect-v9447.js','utf8');
 const sample={key:'routePlans|route-1',module:'routePlans',id:'route-1',opId:'op-abc',
  data:{id:'route-1',driver:'Entregas',stops:[{id:'a'},{id:'b'}],updatedAt:'2026-11-04T10:00:00Z'}};
-async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
- const transactionModes=[],requests=[],writes=[],events=[];let active=0,peak=0;
+async function scenario(remote,available=true,idbRows=[sample],reviewAll=false,changeAfterFull=false){
+ const transactionModes=[],requests=[],writes=[],events=[];let active=0,peak=0,fullSnapshotCaptured=false;
  const indexedDB={
   open(name){
    assert.equal(name,'hlgb_durable_wal');
@@ -14,7 +14,7 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
      objectStoreNames:{contains:x=>x==='entries'},
      transaction(store,mode){
       assert.equal(store,'entries');transactionModes.push(mode);
-      return {objectStore(){return {getAll(){const g={};queueMicrotask(()=>{g.result=structuredClone(idbRows);g.onsuccess?.()});return g}}}}
+      return {objectStore(){return {getAll(){const g={};queueMicrotask(()=>{g.result=structuredClone(idbRows);if(changeAfterFull&&fullSnapshotCaptured){g.result[0].opId='new-op';g.result[0].data.driver='changed local'}g.onsuccess?.()});return g}}}}
      },
      close(){}
     };
@@ -49,7 +49,7 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  const out=await win.hlgbAuditorAutoCorrect9447.run({render:false,download:false});
  const writesBeforeReview=writes.length,progress=[];let snapshotCount=0,snapshotIds=[];
  const full=reviewAll?await win.hlgbAuditorAutoCorrect9447.verifyWalReadOnly9593(60,
-  p=>progress.push({done:p.done,total:p.total}),rows=>{snapshotCount++;snapshotIds=rows.map(x=>x.opId)}):null;
+  p=>progress.push({done:p.done,total:p.total}),rows=>{snapshotCount++;snapshotIds=rows.map(x=>x.opId);fullSnapshotCaptured=true}):null;
  return {out,full,progress,fullReviewWrites:writes.length-writesBeforeReview,transactionModes,requests,writes,peak,snapshotCount,snapshotIds};
 }
 (async()=>{
@@ -122,6 +122,7 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  assert.equal(complete.full.missing,21,'21 route IDs are absent remotely');
  assert.equal(complete.full.matched,1,'one matching route is NOT an acknowledged WAL operation');
  assert.equal(complete.full.unverified,0,'all operations covered by read-only query');
+ assert.equal(complete.full.snapshotStable,true);assert.equal(complete.full.currentTotal,22);
  assert.equal(complete.full.removed,0);
  assert.equal(complete.progress.length,22);
  assert.equal(complete.progress.at(-1).done,22);
@@ -129,6 +130,8 @@ async function scenario(remote,available=true,idbRows=[sample],reviewAll=false){
  assert(complete.transactionModes.every(mode=>mode==='readonly'));
  assert.equal(complete.requests.length,30,'eight automatic plus twenty-two explicitly requested GETs');
  assert(complete.requests.every(x=>x.method==='GET'));
+ const changed=await scenario(sample.data,true,[sample],true,true);
+ assert.equal(changed.full.status,'snapshot-changed');assert.equal(changed.full.snapshotStable,false);assert.equal(changed.full.matched,0);assert.equal(changed.full.unverified,1);assert.equal(changed.full.items[0].status,'snapshot-changed');assert.equal(changed.full.removed,0);assert.equal(changed.fullReviewWrites,0);assert.equal(changed.full.currentTotal,1);assert(!JSON.stringify(changed.full).includes('changed local'));
  const disconnected=await scenario(sample.data,false);
  assert.equal(disconnected.out.walProof.status,'cloud-api-unavailable');
  assert.equal(disconnected.out.walProof.attempted,false);
