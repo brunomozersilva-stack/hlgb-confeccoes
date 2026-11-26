@@ -360,6 +360,44 @@ function jointWorkspaceEvidence9714(){
  return {observed:true,materials:count(x.materials),pairs:count(x.pairs),products:count(x.products),orders:count(x.orders),ambiguous:count(x.ambiguous),at:sid(x.at||''),remoteConfirmed:false,geometryVerified:false};
  }catch(_){return {observed:false}}
 }
+// Read-only finance/projection evidence: never infer deletion from an empty result.
+async function financeLinkEvidence9720(audit){
+ const findings=(Array.isArray(audit?.main?.checks)?audit.main.checks:[]).filter(x=>x?.status==='fail'&&sid(x?.code)==='data:finance-projection-orphan');
+ const validId=x=>/^[A-Za-z0-9_-]{1,100}$/.test(sid(x));
+ const ids=[...new Set(findings.flatMap(x=>(Array.isArray(x.refs)?x.refs:[]).filter(y=>y?.module==='finance'&&validId(y.id)).map(y=>sid(y.id))))];
+ const selected=ids.slice(0,20),base={mode:'read-only',findings:findings.length,distinctFinanceIds:ids.length,checked:0,unverified:findings.length,canRepair:false,items:[]};
+ if(!findings.length)return {...base,state:'no-findings'};
+ if(!selected.length||!authReady()||navigator?.onLine===false||typeof window.cloudRequest!=='function')return {...base,state:'unavailable'};
+ async function read(module,keys){
+  if(!keys.length)return new Map();
+  if(!authReady())throw Error('session');
+  const query='hlgb_records?select=module,entity_id,data,deleted_at,revision&module=eq.'+module+'&entity_id=in.('+keys.map(encodeURIComponent).join(',')+')&limit='+keys.length;
+  let timer;const controller=typeof AbortController==='function'?new AbortController():null;
+  let rows;try{rows=await Promise.race([Promise.resolve(window.cloudRequest(query,{method:'GET',...(controller?{signal:controller.signal}:{})})),new Promise((_,reject)=>{timer=setTimeout(()=>{controller?.abort();reject(Error('timeout'))},12000)})])}finally{clearTimeout(timer)}
+  if(!authReady()||!Array.isArray(rows)||rows.length>keys.length)throw Error('invalid-response');
+  const out=new Map();
+  for(const row of rows){const id=sid(row?.entity_id);if(row?.module!==module||!keys.includes(id)||out.has(id)||!Number.isSafeInteger(Number(row.revision))||Number(row.revision)<1||!Object.prototype.hasOwnProperty.call(row,'deleted_at'))throw Error('invalid-identity');out.set(id,row)}
+  return out;
+ }
+ try{
+  const finance=await read('finance',selected);
+  const projectionIds=[...new Set([...finance.values()].filter(x=>!x.deleted_at&&validId(x.data?.projectionInvoiceId)&&sid(x.data?.id)===sid(x.entity_id)).map(x=>sid(x.data.projectionInvoiceId)))];
+  const projections=await read('projectionInvoices',projectionIds);
+  const items=selected.map(financeId=>{
+   const f=finance.get(financeId);if(!f)return {financeId,state:'finance-not-returned'};
+   if(f.deleted_at)return {financeId,state:'finance-deleted',financeRevision:Number(f.revision)};
+   if(sid(f.data?.id)!==financeId||!validId(f.data?.projectionInvoiceId))return {financeId,state:'link-unverified'};
+   const projectionId=sid(f.data.projectionInvoiceId),p=projections.get(projectionId);
+   const row={financeId,projectionId,financeRevision:Number(f.revision),paid:f.data?.status==='Pago'};
+   if(!p)return {...row,state:'projection-not-returned'};
+   if(p.deleted_at)return {...row,state:'projection-logically-deleted',projectionRevision:Number(p.revision)};
+   if(sid(p.data?.id)!==projectionId)return {...row,state:'projection-identity-unverified'};
+   return {...row,state:'projection-active',projectionRevision:Number(p.revision)};
+  });
+  const checked=items.filter(x=>['finance-deleted','projection-logically-deleted','projection-active'].includes(x.state)).length;
+  return {...base,state:'read-completed',checked,unverified:Math.max(0,findings.length-checked),items};
+ }catch(_){return {...base,state:'read-failed'}}
+}
 function makeReport(summary,audit,t){
  const report={kind:'hlgb_autocorrect_report',version:V,auditCompleted:summary.auditCompleted===true,generatedAt:nowIso(),appVersion:V,browser:sid(navigator?.userAgent||''),operationalCoverage:clone(t.coverage),cutUiEvidence9709:cutUiEvidence9709(),jointWorkspaceEvidence9714:jointWorkspaceEvidence9714(),destinationSelectorEvidence9713:destinationSelectorEvidence9713(),notesUiEvidence9710:notesUiEvidence9710(),knownGaps:knownGaps9474(t),run:clone(summary),fastConvergence:{repairSkipped:!!summary.repairSkipped,operationalQueue:clone(t.signal.operationalQueue),pendingBusiness:t.signal.pendingBusiness,pendingTechnicalRecent:t.signal.pendingTechnicalRecent,structureEvidence:clone(t.structureEvidence||{}),needsCode:clone(t.needsCode),businessBlocked:clone(t.businessBlocked),historicalBacklog:clone(t.historicalBacklog)},finalAudit:{summary:audit?.main?.summary||null,checks:unresolvedChecks(audit).map(compactFinding),metrics:metrics(),operations:clone(audit?.operations||{})},rules:{repairTrigger:'Somente sinal técnico vivo',historical:'Resumido, não reparado',business:'Bloqueado para decisão humana',neverInvent:['valores','quantidades','observações','vínculos sem fonte']}};
  writeJson(REPORT_KEY,report);state.lastReport=clone(report);return report;
@@ -493,14 +531,14 @@ async function run(opts={}){
    state.legacyRuns++;const legacy=window.hlgbAuditorAutoCorrect9446;if(typeof legacy?.run!=='function')throw new Error('Autocorretor v94.46 indisponível');
    const raw=await withLiveScope(()=>legacy.run({...opts,render:false,download:false,reason:(opts.reason||'v9447')+'-live-scope'}));if(raw===false)throw new Error('Autocorretor v94.46 retornou false');audit=await silentAudit('v9447-post-repair');t=await triage(audit);out=upgradeLegacy(raw,audit,t);
   }
-  out.version=V;out.runtimeVersion=V;out.fastConvergence=true;out.cleanTechnical=out.cleanTechnical===true&&t.coverage?.verifiedAll===true&&t.needsCode.length===0;out.knownGaps=knownGaps9474(t);out.operationalCoverage=clone(t.coverage);out.dependencyPreparation=clone(prep);out.walProof=clone({...walProof,remaining:t.signal?.indexedDbWal?.count});out.triage=clone(t);out.auditCompleted=assertAuditCompleted(audit);const report=makeReport(out,audit,t);out.report=report;state.lastSummary=clone(out);if(opts.render!==false)render(out);if(opts.download===true)downloadReport(report);return out;
+  out.version=V;out.runtimeVersion=V;out.fastConvergence=true;out.cleanTechnical=out.cleanTechnical===true&&t.coverage?.verifiedAll===true&&t.needsCode.length===0;out.knownGaps=knownGaps9474(t);out.operationalCoverage=clone(t.coverage);out.dependencyPreparation=clone(prep);out.walProof=clone({...walProof,remaining:t.signal?.indexedDbWal?.count});out.triage=clone(t);out.auditCompleted=assertAuditCompleted(audit);out.financeLinkEvidence9720=await financeLinkEvidence9720(audit);const report=makeReport(out,audit,t);out.report=report;state.lastSummary=clone(out);if(opts.render!==false)render(out);if(opts.download===true)downloadReport(report);return out;
  }catch(e){state.lastError=sid(e?.message||e);const out={version:V,runId:'autocorrect-9447-blocked-'+Date.now(),at:nowIso(),silent:true,nonNavigating:true,passes:0,repairSkipped:true,fastConvergence:true,stopReason:'Execução interrompida',fixed:0,corrected:[],stillFailing:[],blocked:[],unverified:[{detail:state.lastError}],rounds:[]};state.lastSummary=clone(out);if(opts.render!==false)render(out);return out}
  finally{state.running=false}
 }
 async function activate(reason='post-auth'){if(!authReady())return false;stamp();const p=await prepare(reason);return !!p.ok}
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(()=>activate('authenticated-event'),0));
 window.hlgbAuditorAutoCorrect9447={version:V,state,run,prepare,triage,liveSignal,ensureBase,render,downloadReport,
- verifyWalReadOnly9593:(max=30,onProgress,localEvidence)=>walRemoteReadOnlyProof9482(max,onProgress,localEvidence),
+ verifyWalReadOnly9593:(max=30,onProgress,localEvidence)=>walRemoteReadOnlyProof9482(max,onProgress,localEvidence),financeLinkEvidence9720,
  exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),lastTriage:clone(state.lastTriage)})};
 stamp();if(authReady())setTimeout(()=>activate('loaded-after-auth'),0);console.info('[HLGB] v'+V+' Auditor pronto · convergência rápida · histórico e negócio fora do ciclo técnico');
 })();
