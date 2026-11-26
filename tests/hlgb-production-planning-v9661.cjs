@@ -207,3 +207,21 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.deliveryCashScenario(planData,input,false).state,'forbidden');assert.equal(JSON.stringify([planData,input]),before);
  console.log('PASS delivery-linked cash scenarios, reserve, duplicate protection and accepted early delivery');
 })();
+
+
+(function productionStageGoals(){
+ const stages=[{key:'cut',name:'Corte',manualCapacity:500,initialWip:0,wipConfirmed:true,history:[],teams:[]},{key:'sew',name:'Costura',manualCapacity:400,initialWip:0,wipConfirmed:true,history:[],teams:[{key:'a',name:'Facção A',capacity:250},{key:'b',name:'Facção B',capacity:150}]},{key:'delivery',name:'Entrega',manualCapacity:300,initialWip:0,wipConfirmed:true,history:[],teams:[]}];
+ const input={start:'2026-11-30',goal:300,bufferPercent:0,closedDates:[],stages},before=JSON.stringify(input),v=plan.productionStageGoals(input,true);
+ assert.equal(v.state,'local-stage-goals');assert.equal(v.workdays,5);assert.equal(v.simulatedDeliveries,180);assert.equal(v.goalGap,120);assert.equal(v.bottlenecks[0].key,'delivery');
+ assert.equal(v.days[0].stages[1].pieces,0);assert.equal(v.days[1].stages[2].pieces,0);assert.equal(v.days[2].stages[2].pieces,60);
+ assert.equal(v.stages[1].simulatedPieces,300);assert.deepEqual(v.stages[1].teamAllocations.map(x=>x.pieces),[188,112]);
+ assert.equal(plan.productionStageGoals({...input,closedDates:['2026-12-02']},true).simulatedDeliveries,120);
+ const wip={...input,stages:stages.map((s,i)=>i===1?{...s,initialWip:80,wipConfirmed:true}:i===2?{...s,initialWip:60,wipConfirmed:true}:s)};
+ assert.equal(plan.productionStageGoals(wip,true).simulatedDeliveries,300);
+ const unconfirmed=plan.productionStageGoals({...wip,stages:wip.stages.map((s,i)=>i===2?{...s,wipConfirmed:false}:s)},true);assert.ok(unconfirmed.issues.includes('estoque-em-processo-nao-conferido:delivery'));assert.equal(unconfirmed.simulatedDeliveries,240);
+ const hist=[{week:'2026-11-02',pieces:200,confirmed:true},{week:'2026-11-09',pieces:300,confirmed:true},{week:'2026-11-16',pieces:400,confirmed:true},{week:'2026-11-23',pieces:500,confirmed:true}];
+ const learned=plan.productionStageGoals({...input,stages:stages.map((s,i)=>i===0?{...s,history:hist}:s)},true);assert.equal(learned.stages[0].average,350);assert.equal(learned.stages[0].capacity,200);
+ const unknown=plan.productionStageGoals({...input,stages:stages.map((s,i)=>i===0?{...s,manualCapacity:null}:s)},true);assert.equal(unknown.simulatedDeliveries,null);
+ assert.equal(plan.productionStageGoals(input,false).state,'forbidden');assert.equal(v.canWrite,false);assert.equal(v.canPromise,false);assert.equal(JSON.stringify(input),before);
+ console.log('PASS stage goals, WIP, workday calendar, bottlenecks and team allocation');
+})();
