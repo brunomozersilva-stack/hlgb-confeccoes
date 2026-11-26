@@ -31,8 +31,19 @@ async function ensureNoPending(){
  const w=window.hlgbWalIdbGuard9536;
  if(w?.supportsCustomTimeout!==true||typeof w.probe!=='function'||typeof w.ids!=='function'||typeof window.hlgbRecordPendingIdentitySet9535!=='function')throw Error('Proteção de sincronização indisponível.');
  await w.probe({timeoutMs:32000});
- if(w.status?.()?.readFailed!==false)throw Error('Leitura da WAL não confirmada.');
- const pending=new Set([...w.ids(),...window.hlgbRecordPendingIdentitySet9535()].map(sid));
+ const status=w.status?.();
+ if(!status||status.readFailed!==false||status.unsupported===true||status.localReadFailed===true||!(status.probes>0))throw Error('Leitura da WAL não confirmada.');
+ const durable=w.ids(),normal=window.hlgbRecordPendingIdentitySet9535();
+ if(!durable||typeof durable.has!=='function'||!normal||typeof normal.has!=='function'||!Number.isSafeInteger(status.entryCount)||status.entryCount!==durable.size)throw Error('Identidades de pendências não comprovadas.');
+ // Legacy guard may not expose a local read failure flag. Check both stored queues directly.
+ const pending=new Set([...durable,...normal].map(sid));
+ for(const [key,field] of [['hlgb_durable_wal_v1','entries'],['hlgb_records_pending_v91','modules']]){
+  const raw=localStorage.getItem(key);if(raw===null)continue;
+  const parsed=JSON.parse(raw),rows=parsed?.[field];
+  if(!rows||typeof rows!=='object'||Array.isArray(rows))throw Error('Fila local ilegível; correção bloqueada.');
+  if(field==='entries'){for(const [k,x] of Object.entries(rows)){if(!x||typeof x!=='object')throw Error('Operação local inválida.');pending.add(sid(k));if(x.module&&x.id!=null)pending.add(sid(x.module)+'::'+sid(x.id));}}
+  else{for(const [m,list] of Object.entries(rows)){if(!Array.isArray(list))throw Error('Fila local inválida.');for(const x of list){if(x?.id==null)throw Error('Pendência sem identificação.');pending.add(m+'::'+sid(x.id));}}}
+ }
  for(const [m,id] of [['cuts',CUT],['orders',ORDER],['products',PRODUCT]])if(pending.has(m+'::'+id)||pending.has(m+'|'+id))throw Error('Existe alteração local pendente. Sincronize antes de corrigir.');
 }
 async function check(){
