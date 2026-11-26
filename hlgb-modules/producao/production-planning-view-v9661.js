@@ -51,11 +51,11 @@
     if(typeof page==='function'&&can(pageId))page(pageId)
    }catch(_){el('p','Não foi possível confirmar a abertura do planejamento. Confira Compras antes de repetir.',basketOut)}
   }
-  function drawBasket(x){
+  function drawBasket(x,selectionPreview){
    basketOut.replaceChildren();if(!active())return;
    el('p',selected.size+' combinações pedido/modelo selecionadas.',basketOut);
    if(!selected.size)return;
-   const v=plan(x);if(v.state!=='local-preview'){el('p','Há seleção alterada ou ambígua. Limpe a cesta e selecione novamente. Não será calculada nem enviada para Compras.',basketOut);return}
+   const v=selectionPreview||plan(x);if(v.state!=='local-preview'){el('p','Há seleção alterada ou ambígua. Limpe a cesta e selecione novamente. Não será calculada nem enviada para Compras.',basketOut);return}
    el('h4',fmt(v.orderedPieces)+' peças únicas na cesta · '+v.byProduct.length+' modelos',basketOut);
    const models=el('details','',basketOut);el('summary','Modelos consolidados por quantidade',models);
    for(const m of v.byProduct)el('p',m.productName+' · '+fmt(m.pieces)+' peças · '+m.orderCount+' pedido(s)',models);
@@ -68,7 +68,7 @@
    if(purchaseAllowed()&&typeof root.hlgbWeeklyMaterialPlanner9583?.setSelection==='function')button('Enviar cesta para planejamento semanal de Compras',basketOut,transfer);
    else el('p','Envio para Compras requer acesso a compras, estoque e fornecedores.',basketOut);
   }
-  function sync(x=fresh()){if(!active())return;drawBasket(x);for(const fn of visible)fn(x)}
+  function sync(x=fresh()){if(!active())return;const checked=plan(x);drawBasket(x,checked);for(const fn of visible)fn(x,checked)}
   function addGroup(g,on){if(!active())return;const add=g.models.filter(m=>!selected.has(m.key));if(on&&selected.size+add.length>1000){el('p','Limite de 1000 combinações por cesta. Separe o planejamento.',basketOut);return}for(const m of g.models){if(on){if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key)}sync()}
   function overview9714(x){
    const o=api.workspaceOverview9714(x,active());stats.replaceChildren();
@@ -167,8 +167,8 @@
      history=history||api.cutEvidence(data(),active());materialHistory=materialHistory||api.materialHistory(data(),active());
      drawEvidence(g,card,history,materialHistory,evidence);loaded=true;
     });
-    const update=(currentDiscovery)=>{result.replaceChildren();if(!active())return;for(const [key,c] of boxes)c.checked=selected.has(key);const current=currentDiscovery.groups?.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}
-     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key);if(keys.some(key=>api.modelSignature(current.models.find(m=>m.key===key))!==selected.get(key)?.signature)||plan(currentDiscovery).state!=='local-preview'){el('p','Seleção alterada ou ambígua. Limpe e selecione novamente.',result);return}const v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);combinedMatrix9714(v.combinedGrade,result);if(v.models.length){const preview=el('details','',result);el('summary','3. Simular enfestos somente dos modelos selecionados',preview);let built=false;preview.addEventListener('toggle',()=>{if(preview.open&&!built&&active()){built=true;drawGradeSuggestions({...current,models:v.models},preview)}})}el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
+    const update=(currentDiscovery,checked)=>{result.replaceChildren();if(!active())return;for(const [key,c] of boxes)c.checked=selected.has(key);const current=currentDiscovery.groups?.find(z=>z.materialId===g.materialId);if(!current||JSON.stringify(current.models)!==JSON.stringify(g.models)){el('p','Pedidos ou baixas mudaram. Atualize a consulta antes de combinar.',result);return}
+     const keys=g.models.filter(m=>selected.has(m.key)).map(m=>m.key);if(keys.some(key=>api.modelSignature(current.models.find(m=>m.key===key))!==selected.get(key)?.signature)||checked?.state!=='local-preview'){el('p','Seleção alterada ou ambígua. Limpe e selecione novamente.',result);return}const v=api.combine(current,keys);el('h4',fmt(v.orderedPieces)+' peças selecionadas · '+v.models.length+' modelos/pedidos',result);combinedMatrix9714(v.combinedGrade,result);if(v.models.length){const preview=el('details','',result);el('summary','3. Simular enfestos somente dos modelos selecionados',preview);let built=false;preview.addEventListener('toggle',()=>{if(preview.open&&!built&&active()){built=true;drawGradeSuggestions({...current,models:v.models},preview)}})}el('p',v.isCombined?'Grupo candidato: conferir lote, largura, elasticidade, sentido, encaixe e grade antes de cortar.':'Selecione ao menos dois modelos/pedidos.',result)};
     function append(){for(const m of g.models.slice(shown,shown+50)){const label=el('label','',controls);label.style.cssText='display:flex;align-items:center;gap:8px;min-width:0;padding:8px;border-bottom:1px solid #ddd;overflow-wrap:anywhere';const c=el('input','',label);c.type='checkbox';c.checked=selected.has(m.key);boxes.set(m.key,c);el('span',' Pedido #'+m.orderNumber+' · '+m.productName+' · '+fmt(m.pieces)+' peças',label);c.onchange=()=>{if(!active())return;if(c.checked){if(selected.size>=1000&&!selected.has(m.key)){c.checked=false;return}if(!selected.has(m.key))selected.set(m.key,{key:m.key,signature:api.modelSignature(m)})}else selected.delete(m.key);sync()}}shown+=50;more.hidden=shown>=g.models.length}
     const more=button('Mais modelos deste grupo',card,append);append();button('Selecionar todos deste grupo',card,()=>addGroup(g,true));button('Limpar seleção',card,()=>addGroup(g,false));visible.push(update);
    }
