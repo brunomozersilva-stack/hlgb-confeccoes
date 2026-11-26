@@ -322,8 +322,43 @@ function hasPanelWrapper(fn){
  }
  return false;
 }
+function historyAuthorized9710(){
+ try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('clientes')&&canOpenPage('notas')}catch(_){return false}
+}
+function openClientNotes9710(id){
+ if(!historyAuthorized9710())return false;
+ const result=clientNotes9710(id);if(!result.available||typeof window.openModal!=='function')return false;
+ const rows=result.rows.slice().sort((a,b)=>b.issued.localeCompare(a.issued)||a.number.localeCompare(b.number));
+ const client=list('clients').find(x=>sid(x.id)===sid(id));
+ const html='<div class="sub">Histórico de notas do cadastro. Consulta dos dados carregados, sem alterar lançamentos.</div>'+
+ (result.ambiguous?'<p>Há '+result.ambiguous+' nota(s) sem identidade inequívoca. Confira na central de notas.</p>':'')+
+ '<p><b>'+rows.length+' nota(s) · A receber: '+brl(sum(rows,'balance'))+' · Recebido: '+brl(sum(rows,'paid'))+'</b></p>'+
+ '<div style="overflow:auto"><table><thead><tr><th>Nota</th><th>Emissão</th><th>Valor</th><th>Recebido</th><th>Saldo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>'+
+ rows.map(n=>'<tr><td>'+esc(n.number)+'</td><td>'+esc(dateFmt(n.issued))+'</td><td>'+brl(n.total)+'</td><td>'+brl(n.paid)+'</td><td>'+brl(n.balance)+'</td><td>'+esc(label(n,today())[0])+(n.mismatch?' · Conferir saldo':'')+'</td><td><button type="button" class="secondary" data-client-note-type="'+esc(n.type)+'" data-client-note-id="'+esc(n.id)+'">Abrir</button></td></tr>').join('')+
+ '</tbody></table></div><button type="button" class="secondary modalSave">Fechar</button>';
+ window.openModal('Histórico de notas — '+esc(client.name),html,()=>window.closeModal?.());
+ const host=document.getElementById('modalContent');
+ host?.querySelectorAll('[data-client-note-id]').forEach(b=>b.onclick=()=>{if(!historyAuthorized9710())return;const current=clientNotes9710(id).rows.find(n=>n.id===b.dataset.clientNoteId&&n.type===b.dataset.clientNoteType);if(!current)return;if(current.type==='projection')window.hlgbViewNote9411?.(current.id);else window.viewOrderDetails?.(current.id)});
+ return true;
+}
+function decorateClients9710(){
+ const root=document.getElementById('clientTable');if(!root)return;
+ for(const tr of Array.from(root.querySelectorAll('tbody tr'))){
+  const existing=tr.querySelector('[data-hlgb-client-notes9710]');
+  if(!historyAuthorized9710()){existing?.remove();continue}if(existing)continue;
+  const ids=Array.from(tr.querySelectorAll('button[onclick]')).map(b=>sid(b.getAttribute('onclick')).match(/^editClient\(\s*(['"]?)([^'")\s]+)\1\s*\)$/)?.[2]).filter(Boolean);
+  if(ids.length!==1||!clientNotes9710(ids[0],[]).available)continue;
+  const b=document.createElement('button');b.type='button';b.className='secondary';b.dataset.hlgbClientNotes9710='1';b.textContent='Histórico de notas';b.onclick=()=>openClientNotes9710(ids[0]);tr.lastElementChild?.appendChild(b);
+ }
+}
+function installClients9710(){
+ const old=window.renderClients;let fn=old;const seen=new Set();
+ while(typeof fn==='function'&&!seen.has(fn)){if(fn.__hlgbClientNotes9710){decorateClients9710();return}seen.add(fn);fn=fn.__original}
+ if(typeof old==='function'){const wrapper=function(){const result=old.apply(this,arguments);decorateClients9710();return result};wrapper.__hlgbClientNotes9710=true;wrapper.__original=old;window.renderClients=wrapper}
+ decorateClients9710();
+}
 function install(){
- ensure();paint();
+ ensure();paint();installClients9710();
  const old=window.renderOrderNotes;
  if(typeof old==='function'&&!hasPanelWrapper(old)){
   const wrapper=function(){const result=old.apply(this,arguments);setTimeout(paint,0);return result};
@@ -333,10 +368,11 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,readOnly:true};
+window.hlgbNotesReceivables9564={version:V,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
-window.addEventListener?.('hlgb:authenticated',()=>setTimeout(paint,350));
+window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,350));
+window.addEventListener?.('hlgb:logout',()=>{document.querySelectorAll?.('[data-hlgb-client-notes9710]').forEach(x=>x.remove())});
 console.info('[HLGB] notas v'+V+' organização/recebíveis somente leitura');
 })();
