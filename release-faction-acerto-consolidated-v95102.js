@@ -76,6 +76,8 @@
    possible=new Map(),seenEntries=new Set(),errors=[];
   const countIds=rows=>{const m=new Map();for(const x of rows){const k=sid(x?.id);if(k)m.set(k,(m.get(k)||0)+1)}return m};
   const paymentCounts=countIds(payments.filter(x=>x&&!canceled(x))),groupCounts=countIds(manualGroups);
+  const deliveryCounts=new Map(),deliveryKey=r=>sid(r.factionServiceId)&&sid(r.deliveryId)?JSON.stringify([sid(r.factionServiceId),sid(r.deliveryId)]):null;
+  for(const r of payments){if(!r||r.manual===true||canceled(r))continue;const k=deliveryKey(r);if(k)deliveryCounts.set(k,(deliveryCounts.get(k)||0)+1)}
   const perName=new Map();
   for(const m of masters.filter(x=>x?.active!==false&&sid(x.name)&&validId(x.id))){
    const n=norm(m.name),set=perName.get(n)||new Set();set.add(sid(m.id));perName.set(n,set);
@@ -162,6 +164,7 @@
     errors.push('pagamento-duplicado-ou-sem-id:'+id);continue;
    }
    seenEntries.add(id);
+   const delivery=deliveryKey(row);if(delivery&&deliveryCounts.get(delivery)!==1){errors.push('entrega-com-pagamento-duplicado:'+id);continue}
    const total=exact(row.value),paid=exact(row.paidAmount??0),discount=exact(row.discountAmount??0);
    if([total,paid,discount].some(v=>v===null)||!Number.isSafeInteger(paid+discount)||total<=0||paid+discount>=total){
     errors.push('valor-normal-invalido:'+id);continue;
