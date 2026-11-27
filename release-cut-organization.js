@@ -312,7 +312,7 @@ function removeInlineMaterials9711(root){root?.querySelectorAll?.('[data-hlgb-in
 /* v97.15 — move the single authoritative panel, never clone controls or write records. */
 let separationDock9715=null,separationDockEvidence9715={observed:false,moved:false,modelOpened:false};
 function restoreSeparationDock9715(){
- const d=separationDock9715;if(d){if(d.anchor?.parentNode)d.anchor.parentNode.insertBefore(d.panel,d.anchor);d.anchor?.remove();d.host?.remove();separationDock9715=null}
+ const d=separationDock9715;if(d){d.link?.remove();if(d.anchor?.parentNode)d.anchor.parentNode.insertBefore(d.panel,d.anchor);d.anchor?.remove();d.host?.remove();separationDock9715=null}
  separationDockEvidence9715={observed:false,moved:false,modelOpened:false};
 }
 function dockSeparation9715(){
@@ -325,14 +325,22 @@ function dockSeparation9715(){
  if(!ready||!panel||!list||!table||['separationOrder','separationList','separationTable'].some(id=>document.querySelectorAll('[id="'+id+'"]').length!==1)||!panel.contains(list)||!panel.contains(table)||!panel.querySelector?.('button[onclick*="openMultiOrderPurchase"]')){
   restoreSeparationDock9715();return null;
  }
- if(separationDock9715){if(separationDock9715.panel===panel&&separationDock9715.host.isConnected&&separationDock9715.host.contains(panel))return separationDock9715;restoreSeparationDock9715()}
+ if(separationDock9715){if(separationDock9715.panel===panel&&separationDock9715.host.isConnected&&separationDock9715.host.contains(panel)&&separationDock9715.anchor.isConnected&&separationDock9715.link?.isConnected)return separationDock9715;restoreSeparationDock9715()}
  if(panel.parentNode!==orders)return null;
  const anchor=document.createElement('span');anchor.hidden=true;anchor.dataset.hlgbSeparationOrigin9715='1';orders.insertBefore(anchor,panel);
  const host=document.createElement('details');host.id='hlgbSeparationOperation9715';host.className='panel';host.style.cssText='min-width:0;max-width:100%';
  const summary=document.createElement('summary');summary.textContent='Operação de separação e compra de materiais';host.appendChild(summary);
  const info=document.createElement('p');info.className='sub';info.textContent='Abra pela ficha do modelo ou consulte os pedidos pendentes. Confirmações e baixas usam a rotina original.';info.setAttribute('role','status');host.appendChild(info);
  const top=document.getElementById('cutSummaryCards');if(top?.parentNode===cut)cut.insertBefore(host,top.nextSibling);else cut.appendChild(host);
- host.appendChild(panel);separationDock9715={actor,panel,host,anchor,info};
+ host.appendChild(panel);
+ // Only a navigation shortcut remains in Pedidos; do not clone operational controls.
+ const link=document.createElement('button');link.type='button';link.className='secondary';link.id='hlgbSeparationGoToCut9774';link.textContent='Abrir separação de materiais no Corte';anchor.insertAdjacentElement('afterend',link);
+ separationDock9715={actor,panel,host,anchor,info,link};
+ link.onclick=()=>{
+  const d=separationDock9715;if(!d||d.link!==link||draftOwner9644()!==d.actor||!d.host.isConnected||!d.host.contains(panel)||typeof page!=='function')return;
+  try{page('corte',null);if(separationDock9715!==d||draftOwner9644()!==d.actor||!d.host.isConnected)return;d.host.open=true;d.host.scrollIntoView?.({block:'start',behavior:'auto'});d.host.querySelector('summary')?.focus?.()}catch(_){d.info.textContent='Abra a aba Corte para acessar a separação.'}
+ };
+
  separationDockEvidence9715={observed:true,moved:true,modelOpened:false,at:new Date().toISOString()};return separationDock9715;
 }
 function openModelSeparation9715(row){
