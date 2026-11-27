@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/financeiro/worker-registry-v9659.js');
+const p={worker_id:'11111111-1111-4111-8111-111111111111',operation_id:'22222222-2222-4222-8222-222222222222',revision:1,name:'Pessoa A',role_name:'Costura',sector:'Produção',start_date:'2026-11-25',active:true,planned_days:5,mode:'daily',relationship:'review-required',rate_cents:10000,transport_enabled:true,transport_cents:1000,benefits:[]};
+const input={friday:'2026-11-27',asOf:'2026-11-27',plannedDates:['2026-11-25','2026-11-26','2026-11-27'],plannedCommuteDates:['2026-11-25','2026-11-27'],workedDates:['2026-11-25','2026-11-26'],commuteDates:['2026-11-25'],closedDates:[],reviewed:true};
+const ctx={authenticated:true,payrollAllowed:true,financeAllowed:true,rows:[]},before=JSON.stringify({p,input}),run=(changes={},profile=p)=>api.datedWeek(profile,{...input,...changes},ctx);
+const r=run();assert.equal(r.partialFirstWeek,true);assert.equal(r.plannedCents,32000);assert.equal(r.actualCents,21000);assert.equal(r.differenceCents,-11000);assert.equal(r.canPublish,false);assert.equal(r.officialAmountCents,null);assert.ok(r.benefits.includes('13th'));assert.equal(r.requiresRegularizationReview,true);
+assert.equal(run({workedDates:null,commuteDates:null}).actualCents,null);
+assert.equal(run({workedDates:[],commuteDates:[]}).actualCents,0);
+assert.throws(()=>run({plannedDates:['2026-11-24']}),/invalid-dates/);
+assert.throws(()=>run({commuteDates:['2026-11-27']}),/invalid-commute/);
+assert.throws(()=>run({asOf:'2026-11-25'}),/invalid-commute/);
+assert.throws(()=>run({closedDates:['2026-11-27']}),/closed-day/);
+const c=run({plannedDates:['2026-11-25','2026-11-26'],plannedCommuteDates:['2026-11-25'],closedDates:['2026-11-27']});assert.equal(c.scheduledCandidate,'2026-11-26');
+assert.equal(JSON.stringify({p,input}),before);
+console.log('PASS dated worker week, partial first week, commute, unknown versus zero and no mutation');
