@@ -46,7 +46,9 @@
  function preview(batch,person,opt,transport){
   if(batch?.state!=='local-preview'||!person||!id(person.id)||!dates(opt?.asOf)||!dates(opt?.paidThrough)||!Number.isSafeInteger(opt?.rateCents)||opt.rateCents<0||typeof transport?.transport!=='function')return {state:'unavailable',canWrite:false};
   const pid=id(person.id),w=employmentWindow(person,batch.month);if(w.state==='invalid'||w.state==='outside')return {state:'unavailable',canWrite:false};
-  const rows=batch.rows.filter(x=>x.employeeId===pid&&x.date>=w.start&&x.date<=w.end),counts={scheduled:0,worked:0,justified:0,unjustified:0,vacation:0,leave:0,pending:0,commuted:0};
+  const rows=batch.rows.filter(x=>x.employeeId===pid&&x.date>=w.start&&x.date<=w.end);
+  if(rows.length!==batch.rows.filter(x=>x.employeeId===pid).length)return {state:'unavailable',canWrite:false};
+  const counts={scheduled:0,worked:0,justified:0,unjustified:0,vacation:0,leave:0,pending:0,commuted:0};
   for(const r of rows){if(r.scheduled)counts.scheduled++;if(r.status==='trabalhado')counts.worked++;if(r.status==='falta_justificada')counts.justified++;if(r.status==='falta_injustificada')counts.unjustified++;if(r.status==='ferias')counts.vacation++;if(r.status==='afastamento')counts.leave++;if(r.status==='pendente'||r.commute==='pendente'||r.adjusted==='pendente')counts.pending++;if(r.commute==='sim')counts.commuted++}
   const [y,m]=batch.month.split('-').map(Number),start=batch.month+'-01',end=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);
   const missingDays=w.days-new Set(rows.map(x=>x.date)).size;
@@ -84,7 +86,7 @@
   if(allowed!==true)return empty('forbidden');
   if(!Array.isArray(settings)||settings.length<1||settings.length>200||!dates(asOf))return empty('invalid-input');
   const source=roster(batch,employees,true);if(source.state!=='local-roster')return empty(source.state);
-  const current=new Map(source.rows.map(x=>[x.id,x])),seen=new Set(),rows=[],issues=[...source.issues],total={forecast:null,credit:null};let reviewedCount=0;
+  const current=new Map(source.rows.map(x=>[x.id,x])),people=new Map(employees.filter(e=>e&&!e.deletedAt&&!e.deleted_at&&!e.deleted&&!e._deleted).map(e=>[id(e.id),e])),seen=new Set(),rows=[],issues=[...source.issues],total={forecast:null,credit:null};let reviewedCount=0;
   for(const r of settings){
    const k=id(r?.employeeId),e=current.get(k);if(!k||seen.has(k))return empty('invalid-input');seen.add(k);
    const row={employeeId:k,name:e?.name||k,company:e?.company||'',state:'review',reason:null,forecastCents:null,possibleCreditCents:null,firstUncoveredDate:null,counts:null,missingDays:null};
@@ -93,7 +95,7 @@
    if(e.eligible===null){row.reason='eligibility-unknown';rows.push(row);continue}
    if(r.reviewed!==true||!dates(r.paidThrough)||!Number.isSafeInteger(r.rateCents)||r.rateCents<0||r.rateCents>1000000000){row.reason='parameters-unreviewed';rows.push(row);continue}
    if(r.paidThrough>asOf){row.reason='coverage-in-future';rows.push(row);continue}
-   try{const x=preview(batch,{id:k,hasTransport:e.eligible},{asOf,paidThrough:r.paidThrough,rateCents:r.rateCents},planning);
+   try{const x=preview(batch,people.get(k),{asOf,paidThrough:r.paidThrough,rateCents:r.rateCents},planning);
     if(x.state!=='local-preview'||!x.transport){row.reason='preview-unavailable';rows.push(row);continue}
     const z=x.transport;row.counts=x.counts;row.missingDays=x.missingDays;row.firstUncoveredDate=z.firstUncoveredDate;row.forecastCents=z.forecastCents;row.possibleCreditCents=z.possibleCreditCents;row.state='observed';row.issues=z.issues;reviewedCount++;
     total.forecast=(total.forecast??0)+z.forecastCents;total.credit=(total.credit??0)+z.possibleCreditCents;
@@ -101,7 +103,7 @@
    rows.push(row)
   }
   if([total.forecast,total.credit].some(n=>n!==null&&!Number.isSafeInteger(n)))return empty('invalid-input');
-  const totalsPartial=reviewedCount!==settings.length||batch.issues.length>0||rows.some(r=>r.missingDays>0||r.issues?.length||r.counts?.pending>0);
+  const totalsPartial=reviewedCount!==settings.length||batch.issues.length>0||source.issues.length>0||rows.some(r=>r.missingDays>0||r.issues?.length||r.counts?.pending>0);
   return {state:'local-batch-preview',rows,issues,selectedCount:settings.length,reviewedCount,observedForecastCents:total.forecast,observedCreditCents:total.credit,totalsPartial,officialNetCents:null,canWrite:false};
  }
 
