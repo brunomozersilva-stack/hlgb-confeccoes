@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/producao/production-planning-v9661.js');
+const stage=(key,capacity,initialWip=0)=>({key,name:key,manualCapacity:capacity,initialWip,wipConfirmed:true,history:[],teams:[]});
+const input={start:'2026-11-30',asOf:'2026-11-26',weeklyTargets:[100,100],bufferPercent:0,closedDates:[],stages:[stage('cut',100),stage('sew',100)]};
+const before=JSON.stringify(input),r=api.multiweekStageFlow(input,true);
+assert.equal(r.state,'local-multiweek-flow');assert.equal(r.weeks[0].finished,80);assert.equal(r.weeks[0].backlog,20);assert.equal(r.weeks[0].stages[1].endWip,20);assert.equal(r.weeks[1].stages[1].startWip,20);assert.equal(r.weeks[1].finished,100);assert.equal(r.totalFinished,180);assert.equal(r.endingWip,20);assert.equal(r.initialWip+r.released,r.totalFinished+r.endingWip);assert.equal(r.canPromise,false);assert.equal(r.canWrite,false);
+const w=api.multiweekStageFlow({...input,stages:[stage('cut',100),stage('sew',100,20)]},true);assert.equal(w.totalFinished,200);assert.equal(w.released,180);assert.equal(w.endingWip,0);
+const holiday=api.multiweekStageFlow({...input,closedDates:['2026-12-04']},true);assert.equal(holiday.weeks[0].stages[0].capacity,80);assert.equal(holiday.weeks[0].finished,60);
+assert.equal(api.multiweekStageFlow({...input,stages:[stage('cut',null),stage('sew',100)]},true).state,'unknown-capacity');
+assert.equal(api.multiweekStageFlow({...input,start:'2026-12-07',stages:[{...stage('cut',100),history:[{week:'2026-11-23',pieces:100,confirmed:true}]},stage('sew',100)]},true).state,'future-history');
+assert.equal(api.multiweekStageFlow(input,false).state,'forbidden');assert.equal(JSON.stringify(input),before);
+console.log('PASS multiweek goals, WIP continuity, capacity, closed dates and no mutation');
