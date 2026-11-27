@@ -302,3 +302,22 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(v.autoApply,false);assert.equal(v.canWrite,false);assert.equal(plan.factionForecastBacktest(db,iso(70),false).state,'forbidden');assert.equal(JSON.stringify(db),before);
  console.log('PASS walk-forward forecast validation and candidate calibration without future leakage');
 })();
+
+
+(function forecastJournalIntegrity(){
+ const mk=(k,start,end)=>({id:k,productId:'m',productionLocationId:'f',status:'Finalizado',sentAt:start,finishedAt:end,sent:200,returned:200,deliveryHistory:[{id:'ev-'+k,date:end,qty:200}]});
+ const open={id:'open',productId:'m',productionLocationId:'f',status:'Em produção',sentAt:'2026-11-20',sent:200,returned:0};
+ const db={products:[{id:'m',name:'Camisola'}],productionLocations:[{id:'f',name:'Facção'}],factions:[mk('a','2026-11-01','2026-11-03'),mk('b','2026-11-04','2026-11-07'),mk('c','2026-11-08','2026-11-12'),mk('d','2026-11-13','2026-11-18'),open]};
+ const before=JSON.stringify(db),capture={asOf:'2026-11-21',mode:'capture',entries:[],lotIds:['open']};
+ const v=plan.forecastJournal(db,capture,true);assert.equal(v.state,'local-forecast-journal');assert.equal(v.added,1);assert.equal(v.entries[0].referenceDays,4);assert.equal(v.entries[0].referenceDate,'2026-11-24');assert.equal(v.rows[0].status,'em-andamento');assert.equal(v.cloudPersisted,false);
+ const repeat=plan.forecastJournal(db,{...capture,entries:v.entries},true);assert.equal(repeat.added,0);assert.deepEqual(repeat.entries,v.entries);
+ const revision=plan.forecastJournal(db,{...capture,asOf:'2026-11-22',entries:v.entries},true);assert.equal(revision.entries.length,2);
+ const finished={...db,factions:[...db.factions.slice(0,4),mk('open','2026-11-20','2026-11-25')]};
+ const report=plan.forecastJournal(finished,{asOf:'2026-11-26',mode:'inspect',entries:revision.entries},true);assert.equal(report.summary.records,2);assert.equal(report.summary.lots,1);assert.equal(report.summary.evaluated,1);assert.equal(report.summary.meanAbsoluteErrorDays,1);assert.equal(report.summary.onTimePercent,0);
+ assert.equal(plan.forecastJournal(db,{...capture,entries:[...v.entries,...v.entries],mode:'inspect'},true).entries.length,1);
+ const altered={...v.entries[0],pieces:201};assert.equal(plan.forecastJournal(db,{...capture,entries:[...v.entries,altered],mode:'inspect'},true).state,'journal-conflict');
+ const leakage={...v.entries[0],training:v.entries[0].training.map((s,i)=>i===0?{...s,finishedAt:'2026-11-21'}:s)};assert.equal(plan.forecastJournal(db,{...capture,entries:[leakage],mode:'inspect'},true).state,'invalid-training');
+ const known=plan.forecastJournal(finished,{asOf:'2026-11-26',mode:'inspect',entries:[{...v.entries[0],capturedAt:'2026-11-25'}]},true);assert.equal(known.rows[0].status,'resultado-ja-conhecido-ou-mesmo-dia');
+ assert.equal(plan.forecastJournal(db,capture,false).state,'forbidden');assert.equal(JSON.stringify(db),before);
+ console.log('PASS portable forecast journal, immutable revisions and first-forecast outcome evaluation');
+})();

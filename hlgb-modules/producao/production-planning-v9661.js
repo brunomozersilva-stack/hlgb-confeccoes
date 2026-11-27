@@ -968,5 +968,61 @@
   const summary=aggregate(all);summary.suggestedBufferDays=null;
   return {...empty('local-forecast-backtest'),rows:rows.sort((a,b)=>b.evaluated-a.evaluated||a.productName.localeCompare(b.productName,'pt-BR')),summary:{...summary,eligibleLots,insufficient},issues:history.issues,windowDays:84,method:'walk-forward-prior-completed-lots-only'};
  }
- return {factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Portable append-only journal draft. Cloud persistence/actor authority is not asserted.
+ function forecastJournal(db,input,allowed){
+  const empty=(state,issues=[])=>({state,issues,entries:[],rows:[],summary:null,canWrite:false,canPromise:false,cloudPersisted:false});
+  if(allowed!==true)return empty('forbidden');
+  const D=86400000,dt=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?Date.parse(s+'T00:00:00Z'):null,iso=n=>new Date(n).toISOString().slice(0,10);
+  const today=dt(input?.asOf),raw=input?.entries,mode=input?.mode;
+  if(today===null||!Array.isArray(raw)||raw.length>5000||!['inspect','capture'].includes(mode))return empty('invalid-input');
+  const history=factionLeadTimes(db,input.asOf,true);if(history.state!=='local-leadtime-observation')return empty('unavailable');
+  const keyOf=e=>JSON.stringify([e.lotId,e.capturedAt]),byKey=new Map(),issues=[];
+  const band=q=>q<=100?'1–100':q<=300?'101–300':q<=600?'301–600':q<=1000?'601–1.000':'Mais de 1.000';
+  const validQty=n=>Number.isSafeInteger(n)&&n>0&&n<=10000000;
+  for(const e of raw){
+   const captured=dt(e?.capturedAt),sent=dt(e?.sentAt),due=dt(e?.referenceDate);
+   if(!e||e.version!==1||!id(e.lotId)||!id(e.productId)||!id(e.teamId)||captured===null||captured>today||sent===null||sent>captured||due===null||!validQty(e.pieces)||e.band!==band(e.pieces)||!Number.isSafeInteger(e.referenceDays)||e.referenceDays<0||e.referenceDays>3650||due!==sent+e.referenceDays*D||!Array.isArray(e.training)||e.training.length<4||e.training.length>5000)return empty('invalid-journal');
+   const seen=new Set(),durations=[],training=[];
+   for(const s of e.training){const k=id(s?.lotId),start=dt(s?.sentAt),end=dt(s?.finishedAt);
+    if(!k||k===id(e.lotId)||seen.has(k)||start===null||end===null||end<start||end>=captured||end<captured-84*D||!validQty(s.pieces)||band(s.pieces)!==e.band)return empty('invalid-training');
+    seen.add(k);durations.push((end-start)/D);training.push({lotId:k,sentAt:s.sentAt,finishedAt:s.finishedAt,pieces:s.pieces});
+   }
+   durations.sort((a,b)=>a-b);if(durations[Math.ceil(durations.length*.75)-1]!==e.referenceDays)return empty('invalid-reference');
+   training.sort((a,b)=>a.lotId.localeCompare(b.lotId));
+   const normalized={version:1,lotId:id(e.lotId),productId:id(e.productId),teamId:id(e.teamId),pieces:e.pieces,band:e.band,sentAt:e.sentAt,capturedAt:e.capturedAt,referenceDays:e.referenceDays,referenceDate:e.referenceDate,training};
+   const k=keyOf(normalized),prev=byKey.get(k);
+   if(prev&&JSON.stringify(prev)!==JSON.stringify(normalized))return empty('journal-conflict');
+   byKey.set(k,normalized);
+  }
+  let added=0;
+  if(mode==='capture'){
+   if(!Array.isArray(input.lotIds)||input.lotIds.length>500||new Set(input.lotIds.map(id)).size!==input.lotIds.length)return empty('invalid-selection');
+   for(const k of input.lotIds.map(id)){
+    const lot=history.open.find(x=>x.recordId===k);
+    if(!lot){issues.push({lotId:k,reason:'lote-aberto-nao-conciliado'});continue}
+    const g=history.rows.find(r=>r.productId===lot.productId&&r.teamId===lot.teamId&&r.band===lot.band),samples=(g?.samples||[]).filter(s=>dt(s.finishedAt)<today&&dt(s.finishedAt)>=today-84*D);
+    if(samples.length<4){issues.push({lotId:k,reason:'historico-insuficiente'});continue}
+    const days=samples.map(s=>s.elapsedDays).sort((a,b)=>a-b),referenceDays=days[Math.ceil(days.length*.75)-1];
+    const e={version:1,lotId:k,productId:lot.productId,teamId:lot.teamId,pieces:lot.sentPieces,band:lot.band,sentAt:lot.sentAt,capturedAt:input.asOf,referenceDays,referenceDate:iso(dt(lot.sentAt)+referenceDays*D),training:samples.map(s=>({lotId:s.recordId,sentAt:s.sentAt,finishedAt:s.finishedAt,pieces:s.pieces})).sort((a,b)=>a.lotId.localeCompare(b.lotId))};
+    if(byKey.has(keyOf(e))){if(JSON.stringify(byKey.get(keyOf(e)))!==JSON.stringify(e))issues.push({lotId:k,reason:'previsao-do-dia-ja-existe-preservada'});continue}
+    if(byKey.size>=5000)return empty('journal-limit');byKey.set(keyOf(e),e);added++;
+   }
+  }
+  const entries=[...byKey.values()].sort((a,b)=>a.capturedAt.localeCompare(b.capturedAt)||a.lotId.localeCompare(b.lotId));
+  const completed=new Map(),open=new Map(history.open.map(o=>[o.recordId,o]));
+  for(const g of history.rows)for(const s of g.samples)completed.set(s.recordId,{...s,productId:g.productId,teamId:g.teamId});
+  const rows=entries.map(e=>{
+   const actual=completed.get(e.lotId),pending=open.get(e.lotId),same=r=>r&&r.productId===e.productId&&r.teamId===e.teamId&&r.sentAt===e.sentAt&&(r.pieces??r.sentPieces)===e.pieces;
+   let status='sem-evidencia-atual',actualDate=null,errorDays=null;
+   if(actual){if(!same(actual))status='identidade-alterada';else if(dt(actual.finishedAt)<=dt(e.capturedAt))status='resultado-ja-conhecido-ou-mesmo-dia';else {status='avaliada';actualDate=actual.finishedAt;errorDays=(dt(actualDate)-dt(e.referenceDate))/D}}
+   else if(pending)status=same(pending)?'em-andamento':'identidade-alterada';
+   return {...e,status,actualDate,errorDays};
+  });
+  // Only the first captured forecast per lot contributes to accuracy, avoiding revision bias.
+  const first=new Map();for(const r of rows)if(!first.has(r.lotId))first.set(r.lotId,r);
+  const evaluated=[...first.values()].filter(r=>r.status==='avaliada'),n=evaluated.length;
+  return {...empty('local-forecast-journal'),entries,rows,issues:[...issues,...history.issues],added,summary:{records:entries.length,lots:first.size,evaluated:n,onTimePercent:n?Math.round(evaluated.filter(r=>r.errorDays<=0).length*1000/n)/10:null,meanAbsoluteErrorDays:n?Math.round(evaluated.reduce((s,r)=>s+Math.abs(r.errorDays),0)*10/n)/10:null},format:'hlgb-forecast-journal-v1'};
+ }
+ return {forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });

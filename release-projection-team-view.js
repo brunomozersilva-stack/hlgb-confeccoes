@@ -370,6 +370,50 @@ function mountPlanner(){
    btn('Avaliar precisão com os registros atuais',learning,()=>{
     if(!active())return;learnData=api.factionForecastBacktest(typeof db!=='undefined'?db:window.db,today(),active());learnOffset=0;drawLearning();if(learnData.state!=='local-forecast-backtest')el('p','Histórico indisponível.',learnOut);
    });learnSearch.oninput=()=>{learnOffset=0;drawLearning()};
+
+   const journal=el('details','',stages);el('summary','Diário de previsões — registro e conferência',journal);
+   el('p','Arquivo portátil de previsões originais e revisões. Não é armazenamento em nuvem: exporte depois de registrar e importe novamente em outra sessão. Não é prova de data de criação nem de autoria. Nenhum dado comercial será gravado.',journal);
+   const jfile=el('input','',journal);jfile.type='file';jfile.accept='.json,application/json';
+   const jpick=el('div','',journal),jout=el('div','',journal),jstatus=el('p','Nenhum diário carregado.',journal);let entries=[],openLots=[],chosen=new Set(),journalOffset=0;
+   const journalSource=()=>typeof db!=='undefined'?db:window.db;
+   function showJournal(v){
+    jout.replaceChildren();if(!active())return;
+    if(v.state!=='local-forecast-journal'){el('p','Diário não validado: '+v.state+'. O conteúdo anterior foi preservado.',jout);return}
+    const s=v.summary;el('p',s.records+' previsões · '+s.lots+' lotes distintos · '+s.evaluated+' primeiras previsões avaliadas · '+(s.onTimePercent===null?'Sem precisão calculável':s.onTimePercent+'% dentro da referência')+' · erro absoluto médio '+(s.meanAbsoluteErrorDays===null?'indisponível':s.meanAbsoluteErrorDays+' dias'),jout);
+    el('p',v.issues.length+' ocorrências a conferir. Resultados sem evidência na janela histórica atual permanecem sem avaliação.',jout);
+    for(const e of v.rows.slice(-50).reverse())el('p','Lote '+e.lotId+' · registrado '+e.capturedAt+' · referência '+e.referenceDate+' · '+e.status+(e.actualDate?' · retorno '+e.actualDate+' · erro '+e.errorDays+' dias':''),jout);
+    if(v.rows.length>50)el('p','Mostrando as 50 últimas previsões. O arquivo inclui todas.',jout);
+   }
+   function drawLots(){
+    jpick.replaceChildren();if(!active())return;
+    el('p',openLots.length+' lotes abertos conciliados · '+chosen.size+' selecionados',jpick);
+    for(const o of openLots.slice(journalOffset,journalOffset+20)){
+     const label=el('label',o.teamName+' · '+o.productName+' · '+o.remaining+' pç pendentes · '+o.sampleCount+' lotes históricos',jpick);label.style.display='block';
+     const c=el('input','',label);c.type='checkbox';c.checked=chosen.has(o.recordId);c.onchange=()=>{if(c.checked)chosen.add(o.recordId);else chosen.delete(o.recordId)};
+    }
+    if(journalOffset>0)btn('Anterior',jpick,()=>{journalOffset-=20;drawLots()});if(journalOffset+20<openLots.length)btn('Mais lotes',jpick,()=>{journalOffset+=20;drawLots()});
+   }
+   btn('Consultar lotes abertos e atualizar resultados',journal,()=>{
+    if(!active())return;const src=journalSource(),day=today(),h=api.factionLeadTimes(src,day,active());
+    openLots=h.state==='local-leadtime-observation'?h.open:[];chosen.clear();journalOffset=0;drawLots();showJournal(api.forecastJournal(src,{asOf:day,mode:'inspect',entries},active()));
+   });
+   btn('Registrar referência dos lotes selecionados no diário',journal,()=>{
+    if(!active())return;const v=api.forecastJournal(journalSource(),{asOf:today(),mode:'capture',entries,lotIds:[...chosen]},active());
+    if(v.state==='local-forecast-journal'){entries=v.entries;jstatus.textContent=v.added+' previsões novas no diário em memória. Exporte para manter o registro.'}showJournal(v);
+   });
+   let importing=false;
+   btn('Importar e unir arquivo ao diário',journal,async()=>{
+    if(!active()||importing)return;const f=jfile.files?.[0];if(!f||f.size>10000000){jstatus.textContent='Selecione um arquivo JSON de até 10 MB.';return}
+    importing=true;
+    try{const x=JSON.parse(await f.text());if(!active())return;if(x?.format!=='hlgb-forecast-journal-v1'||!Array.isArray(x.entries))throw Error('format');
+     const v=api.forecastJournal(journalSource(),{asOf:today(),mode:'inspect',entries:[...entries,...x.entries]},active());
+     if(v.state==='local-forecast-journal'){entries=v.entries;jstatus.textContent=entries.length+' previsões no diário; exporte o arquivo unido.'}showJournal(v);
+    }catch(_){if(active())jstatus.textContent='Arquivo inválido. Diário anterior preservado.'}finally{importing=false}
+   });
+   btn('Exportar diário completo (JSON)',journal,()=>{
+    if(!active())return;const v=api.forecastJournal(journalSource(),{asOf:today(),mode:'inspect',entries},active());if(v.state!=='local-forecast-journal'||!v.entries.length){jstatus.textContent='Não há previsões válidas para exportar.';return}
+    const url=URL.createObjectURL(new Blob([JSON.stringify({format:v.format,entries:v.entries},null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='hlgb-diario-previsoes-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);jstatus.textContent='Arquivo local solicitado. Confirme o download. Não foi enviado à nuvem.';
+   });
    const stageOut=el('div','',stages),lines=s=>s.split(/\r?\n/).filter(x=>x.trim()).map(x=>x.split(';').map(v=>v.trim())),num=v=>/^\d+$/.test(String(v).trim())?Number(v):NaN;
    for(const r of stageRows){for(const f of [r.capacity,r.wip,r.hist,r.teams].filter(Boolean))f.oninput=()=>{if(f===r.wip)r.confirmed.checked=false;stageOut.replaceChildren()};r.confirmed.onchange=()=>stageOut.replaceChildren()}
    target.oninput=()=>stageOut.replaceChildren();
