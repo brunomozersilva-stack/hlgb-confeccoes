@@ -291,6 +291,7 @@ function jointSnapshot9837(){
 }
 function openJointSimulation9837(){
  if(!jointAllowed9837())return false;
+ const owner=conferenceIdentity9828();if(!owner)return false;
  const snapshot=jointSnapshot9837();if(!snapshot||snapshot.state!=='discovery-only'){alert('Sugestões indisponíveis: confira os dados de pedidos, materiais e baixas.');return false}
  document.getElementById('hlgbJointSimulation9837')?.remove();
  const host=document.createElement('section');host.id='hlgbJointSimulation9837';host.setAttribute('role','dialog');host.setAttribute('aria-label','Simular corte conjunto');host.style.cssText='position:fixed;inset:12px;z-index:110002;background:white;color:#222;border:1px solid #bbb;border-radius:10px;padding:14px;overflow:auto;max-width:850px;max-height:86vh;margin:auto;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);box-sizing:border-box';
@@ -306,6 +307,42 @@ function openJointSimulation9837(){
  const list=el('div','');list.style.cssText='max-height:235px;overflow:auto;border:1px solid #ddd;padding:6px';
  const result=el('section',''),status=el('p','');status.setAttribute('role','status');
  const chosen=new Set();let candidates=[],group=null;
+ const idx=cutIndex9709(),orderMeta=oid=>{const o=idx.orders.get(oid);return {number:sid(o?.orderNumber||o?.number||oid),client:sid(o?.client||o?.clientName||'')}};
+ const selectedRows=()=>candidates.filter(x=>chosen.has(x.key));
+ const sameSource=()=>{const fresh=jointSnapshot9837();if(!fresh||JSON.stringify(fresh)!==JSON.stringify(snapshot))return false;const now=cutIndex9709();return selectedRows().every(x=>{const a=now.orders.get(x.orderId),b=orderMeta(x.orderId);return !!a&&sid(a.orderNumber||a.number||a.id)===b.number&&sid(a.client||a.clientName||'')===b.client})};
+ const printButtons=el('div','',host);printButtons.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin:8px 0';
+ const printCombined=button('Imprimir folha conjunta',printButtons,()=>printPlan(false));
+ const printIndividual=button('Imprimir folhas individuais',printButtons,()=>printPlan(true));
+ function printPlan(individual){
+  if(!host.isConnected||!jointAllowed9837()||conferenceIdentity9828()!==owner)return;
+  const rows=selectedRows();if(rows.length<2)return;
+  if(!sameSource()){status.textContent='Pedidos ou baixas alterados. Atualize as sugestões antes de imprimir.';return}
+  const page=document.createElement('main');
+  const add=(tag,txt,p=page)=>el(tag,txt,p);
+  const heading=individual?'Folhas individuais — separação':'Folha conjunta — planejamento';
+  const sizeOrder=[...new Set(rows.flatMap(x=>x.lines.map(l=>l.size)))].sort((a,b)=>{const rank=['PP','P','M','G','GG','XG','XGG'];const ia=rank.indexOf(a),ib=rank.indexOf(b);return (ia<0?999:ia)-(ib<0?999:ib)||a.localeCompare(b)});
+  const build=(section,items,title)=>{
+   add('h1','HLGB Confecções',section);add('h2',title,section);
+   add('p','SIMULAÇÃO — NÃO AUTORIZA CORTE. Quantidades pedidas; saldo e encaixe não verificados.',section);
+   add('p','Material compartilhado: '+group.materialName,section);
+   const table=add('table','',section);const head=add('tr','',add('thead','',table));for(const name of ['Modelo / pedido / cliente','Cor',...sizeOrder,'Total'])add('th',name,head);
+   const body=add('tbody','',table),totals=sizeOrder.map(()=>0);
+   for(const x of items){const tr=add('tr','',body),o=orderMeta(x.orderId);add('td',x.name+' / Pedido '+o.number+(o.client?' / '+o.client:''),tr);add('td',x.color,tr);const ns=sizeOrder.map(s=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0));ns.forEach((n,i)=>{totals[i]+=n;add('td',String(n),tr)});add('td',String(ns.reduce((a,b)=>a+b,0)),tr)}
+   const foot=add('tr','',body);add('th','Total pedido',foot);add('td','—',foot);for(const n of totals)add('td',String(n),foot);add('td',String(totals.reduce((a,b)=>a+b,0)),foot);
+   if(!individual){
+    for(const color of new Set(items.map(x=>x.color))){const same=items.filter(x=>x.color===color);if(same.length<2)continue;const common=sizeOrder.map(s=>Math.min(...same.map(x=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0))));add('p','Grade comum aritmética — '+color+': '+sizeOrder.map((s,i)=>s+' '+common[i]).join(' · '),section);for(const x of same){const dif=sizeOrder.map((s,i)=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0)-common[i]);add('p',x.name+' / Pedido '+orderMeta(x.orderId).number+' — fora da grade comum: '+sizeOrder.map((s,i)=>s+' '+dif[i]).join(' · '),section)}}
+    add('p','Lote: __________ Largura: __________ Peso total (kg): ______ Peso utilizado (kg): ______ Sobras (kg): ______',section);
+    add('p','Cortador 1: __________________ Cortador 2: __________________ Data: ____/____/____',section);
+   }else{add('p','Quantidade separada: ______ Faltas: ______ Responsável: __________________',section);}
+   add('p','Observações: __________________________________________________________',section);
+  };
+  if(individual){const byModel=new Map();for(const x of rows){const k=JSON.stringify([x.orderId,x.productId]);if(!byModel.has(k))byModel.set(k,[]);byModel.get(k).push(x)}for(const items of byModel.values())build(add('section',''),items,heading)}
+  else build(add('section',''),rows,heading);
+  const html='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>'+heading+'</title><style>@page{size:A4;margin:10mm}body{font:11px Arial;color:#222}h1{font-size:17px;margin:4px 0}h2{font-size:15px;margin:5px 0}p{margin:4px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #aaa;padding:4px;text-align:left}thead{display:table-header-group}tr{break-inside:avoid}section+section{break-before:page;page-break-before:always}</style><body>'+page.innerHTML+'</body></html>';
+  let popup;try{popup=window.open('','_blank')}catch(_){}
+  if(popup){try{popup.document.open();popup.document.write(html);popup.document.close();popup.focus?.();popup.print?.();return}catch(_){try{popup.close()}catch(_){}}}
+  if(typeof window.hlgbCutterSheetV9523?.previewOnPage9523==='function'){window.hlgbCutterSheetV9523.previewOnPage9523(html);const preview=document.getElementById('hlgbCutterSheetPreview9523');if(preview){preview.style.zIndex='110003';const b=preview.querySelector('[data-sheet-action="print"]');if(b){const print=b.onclick;b.onclick=()=>{if(!host.isConnected||conferenceIdentity9828()!==owner||!jointAllowed9837()||!sameSource()){preview.remove();status.textContent='Dados ou sessão alterados. Atualize as sugestões.';return}print?.call(b)}}}}else alert('Prévia de impressão indisponível.');
+ }
  function modelKey(l){return JSON.stringify([l.orderId,l.productId,l.color])}
  function refresh(){
   if(!jointAllowed9837()){host.remove();return}
@@ -315,15 +352,15 @@ function openJointSimulation9837(){
  }
  function paint(){
   list.replaceChildren();const q=norm(search.value);
-  for(const x of candidates.filter(x=>norm([x.name,x.color,'pedido '+x.orderId].join(' ')).includes(q))){
+  for(const x of candidates.filter(x=>norm([x.name,x.color,'pedido '+orderMeta(x.orderId).number,orderMeta(x.orderId).client].join(' ')).includes(q))){
    const line=el('label','',list);line.style.cssText='display:block;padding:6px;overflow-wrap:anywhere';
    const cb=el('input','',line);cb.type='checkbox';cb.checked=chosen.has(x.key);cb.onchange=()=>{if(cb.checked)chosen.add(x.key);else chosen.delete(x.key);compare()};
-   el('span',' '+x.name+' · Pedido '+x.orderId+' · '+x.color+' · '+x.lines.reduce((n,l)=>n+l.ordered,0)+' peças',line);
+   el('span',' '+x.name+' · Pedido '+orderMeta(x.orderId).number+' · '+x.color+' · '+x.lines.reduce((n,l)=>n+l.ordered,0)+' peças',line);
   }
  }
  function compare(){
   result.replaceChildren();if(!jointAllowed9837()){host.remove();return}
-  const rows=candidates.filter(x=>chosen.has(x.key));
+  const rows=selectedRows();printCombined.disabled=printIndividual.disabled=rows.length<2;
   if(!rows.length){status.textContent='Selecione os modelos e cores que deseja testar.';return}
   const pieces=rows.reduce((n,x)=>n+x.lines.reduce((a,l)=>a+l.ordered,0),0);
   const colors=new Set(rows.map(x=>norm(x.color)));
@@ -334,13 +371,13 @@ function openJointSimulation9837(){
   const wrap=el('div','',result);wrap.style.overflowX='auto';const table=el('table','',wrap);table.style.cssText='width:100%;border-collapse:collapse';
   const header=el('tr','',el('thead','',table));for(const h of ['Modelo / pedido','Cor',...sizes,'Total'])el('th',h,header);
   const body=el('tbody','',table),totals=sizes.map(()=>0);const vectors=[];
-  for(const x of rows){const tr=el('tr','',body);el('td',x.name+' / '+x.orderId,tr);el('td',x.color,tr);const ns=sizes.map(s=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0));vectors.push(ns);ns.forEach((n,i)=>{totals[i]+=n;el('td',String(n),tr)});el('td',String(ns.reduce((a,b)=>a+b,0)),tr)}
+  for(const x of rows){const tr=el('tr','',body);el('td',x.name+' / '+orderMeta(x.orderId).number,tr);el('td',x.color,tr);const ns=sizes.map(s=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0));vectors.push(ns);ns.forEach((n,i)=>{totals[i]+=n;el('td',String(n),tr)});el('td',String(ns.reduce((a,b)=>a+b,0)),tr)}
   const footer=el('tr','',body);el('th','Total pedido',footer);el('td','—',footer);for(const n of totals)el('td',String(n),footer);el('td',String(pieces),footer);
   for(const cell of table.querySelectorAll('td,th'))cell.style.cssText='border:1px solid #aaa;padding:5px;font-size:12px;text-align:left';
   if(rows.length>1){
    const common=sizes.map((_,i)=>Math.min(...vectors.map(v=>v[i]))),equal=vectors.every(v=>JSON.stringify(v)===JSON.stringify(vectors[0]));
    el('p',equal?'As grades pedidas coincidem em todos os tamanhos.':'As grades são diferentes. Quantidade comum por tamanho (comparação aritmética): '+sizes.map((s,i)=>s+' '+common[i]).join(' · ')+'.',result);
-   if(!equal){for(let i=0;i<rows.length;i++){const x=rows[i],rest=vectors[i].map((n,j)=>n-common[j]);el('p',x.name+' / '+x.orderId+' — quantidades fora da grade comum: '+sizes.map((s,j)=>s+' '+rest[j]).join(' · '),result)}}
+   if(!equal){for(let i=0;i<rows.length;i++){const x=rows[i],rest=vectors[i].map((n,j)=>n-common[j]);el('p',x.name+' / '+orderMeta(x.orderId).number+' — quantidades fora da grade comum: '+sizes.map((s,j)=>s+' '+rest[j]).join(' · '),result)}}
   }
   el('p','Compatibilidade física depende de lote, largura, elasticidade, sentido e moldes. Não há cálculo de encaixe ou economia comprovado. Nenhuma grade foi alterada.',result);
  }

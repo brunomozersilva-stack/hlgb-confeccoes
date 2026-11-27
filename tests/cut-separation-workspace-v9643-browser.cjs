@@ -233,6 +233,18 @@
  await p.getByRole('button',{name:'Simular corte conjunto',exact:true}).click();
  const joint=p.locator('#hlgbJointSimulation9837');await joint.getByLabel(/Camisola teste/).check();await joint.getByLabel(/Calcinha teste/).check();
  assert.match(await joint.innerText(),/110 peças pedidas/);assert.match(await joint.innerText(),/P 10 · M 40/);assert.match(await joint.innerText(),/fora da grade comum: P 10 · M 0/);
+ await p.evaluate(()=>{window.__jointOpen=window.open;window.open=()=>null});
+ await joint.getByRole('button',{name:'Imprimir folha conjunta'}).click();await preview.waitFor();
+ const combined=await preview.locator('iframe').evaluate(x=>x.srcdoc);assert.match(combined,/Folha conjunta/);assert.match(combined,/Camisola teste/);assert.match(combined,/Calcinha teste/);assert.match(combined,/110/);assert.match(combined,/Peso total/);assert.match(combined,/NÃO AUTORIZA CORTE/);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();
+ await joint.getByRole('button',{name:'Imprimir folhas individuais'}).click();await preview.waitFor();
+ const individual=await preview.locator('iframe').evaluate(x=>{const doc=new DOMParser().parseFromString(x.srcdoc,'text/html');return [...doc.querySelectorAll('section')].map(s=>s.textContent)});
+ assert.equal(individual.length,2);assert.match(individual[0],/Camisola teste/);assert.doesNotMatch(individual[0],/Calcinha teste/);assert.match(individual[1],/Calcinha teste/);assert.doesNotMatch(individual[1],/Camisola teste/);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();
+ await p.evaluate(()=>{db.orders[0].grade[0].qty++});
+ await joint.getByRole('button',{name:'Imprimir folha conjunta'}).click();await joint.getByText('Pedidos ou baixas alterados. Atualize as sugestões antes de imprimir.').waitFor();assert.equal(await preview.count(),0);
+ await p.evaluate(()=>{db.orders[0].grade[0].qty--;window.open=window.__jointOpen});
+
  await joint.getByRole('button',{name:'Limpar seleção'}).click();assert.equal(await joint.locator('input:checked').count(),0);
  await joint.getByRole('searchbox').fill('Calcinha');assert.equal(await joint.locator('input[type=checkbox]').count(),1);
  await joint.getByRole('button',{name:'Fechar simulação'}).click();assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__jointSnapshot),true);
