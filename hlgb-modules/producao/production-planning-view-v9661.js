@@ -580,10 +580,11 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
  }
 
  function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();mountDeliveryPlanner9845();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
- let operationalTimer9845=null;
+ let operationalPending9845=false;
 function scheduleOperational9845(){
- if(operationalTimer9845!==null)return;
- operationalTimer9845=setTimeout(()=>{operationalTimer9845=null;refresh()},0);
+ if(operationalPending9845)return;
+ operationalPending9845=true;
+ setTimeout(()=>{operationalPending9845=false;refresh()},0);
 }
 document.addEventListener('click',scheduleOperational9845,true);document.addEventListener('visibilitychange',()=>{
  root.hlgbJointWorkspaceEvidence9714={observed:false};
@@ -609,7 +610,7 @@ document.addEventListener('click',scheduleOperational9845,true);document.addEven
   metas:[['hlgbDeliveryPlanner9845','Planejamento de produção e entregas']]
  };
  const prefix='hlgb-operational-access-9845-';
- let timer=null,observer=null;const watched=new Set();
+ let timer=null,pending=false,observer=null;const watched=new Set();
  const auth=()=>root.__HLGB_AUTH_READY===true;
  const can=p=>{try{return auth()&&typeof canOpenPage==='function'&&canOpenPage(p)===true}catch(_){return false}};
  const actor=()=>{try{return String(typeof cloudUser!=='undefined'?cloudUser?.id||'':typeof currentUser==='function'?currentUser()?.id||'':'')}catch(_){return ''}};
@@ -643,7 +644,7 @@ document.addEventListener('click',scheduleOperational9845,true);document.addEven
     b.onclick=()=>{if(!auth()||actor()!==owner||!area.classList.contains('active')||!can(page))return;const target=panel(area,id);if(!target)return;target.setAttribute('tabindex','-1');target.focus?.({preventScroll:true});target.scrollIntoView?.({block:'start',behavior:'auto'})};bar.appendChild(b)}
   }
  }
- function schedule(){if(timer!==null)return;timer=setTimeout(()=>{timer=null;refresh()},0)}
+ function schedule(){if(pending)return;pending=true;timer=setTimeout(()=>{pending=false;timer=null;refresh()},0)}
  function observe(){
   if(typeof MutationObserver!=='function')return;
   if(!observer)observer=new MutationObserver(schedule);
@@ -652,6 +653,6 @@ document.addEventListener('click',scheduleOperational9845,true);document.addEven
  root.hlgbOperationalAccess9845={refresh};
  function boot(){observe();schedule()}
  document.addEventListener('click',boot,true);document.addEventListener('visibilitychange',boot);
- root.addEventListener?.('hlgb:authenticated',boot);root.addEventListener?.('hlgb:logout',()=>{if(timer!==null)clearTimeout(timer);timer=null;clear()});
+ root.addEventListener?.('hlgb:authenticated',boot);root.addEventListener?.('hlgb:logout',()=>{if(timer!==null&&typeof clearTimeout==='function')clearTimeout(timer);timer=null;pending=false;clear()});
  boot();setTimeout(boot,1000);
 })(typeof window!=='undefined'?window:null);

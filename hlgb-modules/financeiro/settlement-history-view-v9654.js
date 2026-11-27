@@ -103,10 +103,11 @@ function install(){
  }
 }
 function refresh(){closeUnauthorized();install()}
-let operationalTimer9845=null;
+let operationalPending9845=false;
 function scheduleOperational9845(){
- if(operationalTimer9845!==null)return;
- operationalTimer9845=setTimeout(()=>{operationalTimer9845=null;refresh()},0);
+ if(operationalPending9845)return;
+ operationalPending9845=true;
+ setTimeout(()=>{operationalPending9845=false;refresh()},0);
 }
 if(typeof document!=='undefined'){document.addEventListener('click',scheduleOperational9845,true);document.addEventListener('visibilitychange',refresh);document.addEventListener('DOMContentLoaded',refresh,{once:true});root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});root.addEventListener?.('hlgb:logout',clear);setTimeout(refresh,600)}
 })(typeof window!=='undefined'?window:null,(function bridgeFactory(){
