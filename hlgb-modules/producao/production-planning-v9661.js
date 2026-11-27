@@ -693,6 +693,31 @@
   return {...empty('local-cash-scenario',issues),openingCents:opening,reserveCents:reserve,baseline:simulate('baseline'),planned:simulate('planned'),early:simulate('early'),stress:simulate('stress'),opportunities,additionalCount:candidates.length,partial:issues.length>0};
  }
 
+ // Compare a genuinely new order against the existing queue and obligations.
+ function newOrderDecision(plan,input,allowed){
+  const no=(state)=>({state,canWrite:false,canPromise:false,cashVerified:false});
+  if(allowed!==true)return no('forbidden');
+  const date=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s;
+  const money=n=>Number.isSafeInteger(n)&&n>=0&&n<=100000000000,qty=n=>Number.isSafeInteger(n)&&n>=0&&n<=10000000;
+  const o=input?.proposal;
+  if(plan?.state!=='local-capacity-simulation'||!Array.isArray(plan.daily)||plan.daily.length>91||!Array.isArray(plan.orders)||!o||!date(input.start)||!date(o.dueDate)||o.dueDate<input.start||!qty(o.pieces)||o.pieces===0||!money(o.receiptCents)||o.receiptCents===0||!['cash','term'].includes(o.paymentMode)||o.paymentMode==='term'&&(!Number.isSafeInteger(o.paymentDays)||o.paymentDays<1||o.paymentDays>365)||input.reviewed!==true||!Array.isArray(input.entries)||!Array.isArray(o.costs)||!o.costs.length||o.costs.length>50||input.newCostsAndReceiptNotIncluded!==true)return no('invalid-proposal');
+  if(plan.weeklyTarget===null)return no('unknown-capacity');
+  const seen=new Set(),days=plan.daily.filter(d=>d.date>=input.start).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  for(const d of days){if(!date(d.date)||seen.has(d.date)||!qty(d.free))return no('invalid-capacity');seen.add(d.date)}
+  if(!days.length)return no('invalid-capacity');
+  let remaining=o.pieces,last=null,freeByDue=0;
+  for(const d of days){if(d.date<=o.dueDate)freeByDue+=d.free;if(remaining&&d.free){remaining-=Math.min(remaining,d.free);last=d.date}}
+  const completion=remaining===0?last:null,withinDue=!!completion&&completion<=o.dueDate;
+  const refs=new Set(input.entries.map(e=>e.reference)),costs=[];let costTotal=0;
+  for(const c of o.costs){if(typeof c.reference!=='string'||!c.reference.trim()||refs.has(c.reference)||!date(c.date)||c.date<input.start||!money(c.amountCents))return no('invalid-cost');refs.add(c.reference);costTotal+=c.amountCents;if(!Number.isSafeInteger(costTotal))return no('invalid-cost');if(c.amountCents>0)costs.push({reference:c.reference,date:c.date,direction:'out',amountCents:c.amountCents})}
+  let ref='hypothetical-new-order';while(refs.has(ref))ref+='-new';
+  const key=ref,synthetic={key,client:String(o.client||'Novo cliente'),model:'Novo pedido',pieces:o.pieces,remaining,lastWorkDate:completion,dueDate:o.dueDate,paymentMode:o.paymentMode,paymentDays:o.paymentMode==='term'?o.paymentDays:null,amountCents:o.receiptCents};
+  const opts={start:input.start,openingCents:input.openingCents,reserveCents:input.reserveCents,delayDays:input.delayDays,coverageConfirmed:false};
+  const base=deliveryCashScenario(plan,{...opts,entries:input.entries,additional:[]},true),candidate=deliveryCashScenario({...plan,orders:[...plan.orders,synthetic]},{...opts,entries:[...input.entries,...costs],additional:completion?[{key,reference:ref,amountCents:o.receiptCents,notAlreadyIncluded:true,earlyAccepted:false}]:[]},true);
+  if(base.state!=='local-cash-scenario'||candidate.state!=='local-cash-scenario')return no('invalid-cash');
+  return {...no('local-order-decision'),completion,withinDue,freeByDue,remaining,costTotalCents:costTotal,receiptIncluded:!!completion,receiptCents:o.receiptCents,indicativeContributionCents:o.receiptCents-costTotal,baseline:base.baseline,baselineStress:base.stress,withOrder:candidate.planned,withOrderStress:candidate.stress,extraReserveGapCents:candidate.planned.maximumGapCents-base.baseline.maximumGapCents,extraStressGapCents:candidate.stress.maximumGapCents-base.stress.maximumGapCents,issues:[...new Set([...(plan.issues||[]),...(!withinDue?['prazo-nao-cabe']:[]),...(!completion?['recebimento-nao-incluido']:[]),'custos-e-carteira-parciais'])]};
+ }
+
  // Capacity per sequential stage, with explicitly reviewed history and initial WIP.
  function productionStageGoals(input,allowed){
   const empty=(state,issues=[])=>({state,issues,stages:[],days:[],canWrite:false,canPromise:false});
@@ -1181,5 +1206,5 @@
    return empty(unconfirmed.length?'partial-cloud-capture':'cloud-capture-confirmed',{entries:after.entries,report:after,confirmed,unconfirmed,issues:draft.issues,cloudVerified:true});
   }catch(_){return empty('read-unconfirmed',{confirmed,unconfirmed})}
  }
- return {forecastCloudJournal,orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointCombinationHistory,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {newOrderDecision,forecastCloudJournal,orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointCombinationHistory,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
