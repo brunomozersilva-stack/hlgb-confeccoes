@@ -449,6 +449,44 @@ function readClientStatement9773(id,rows,input){
  const report=window.HLGBSettlementHistory9653.noteEvents({authenticated:true,clientsAllowed:true,notes:rows,noteSources:sources},{ownerId:sid(id),export:true});
  return clientAccountStatement9773(rows,report,{...input,clientKey:'id:'+sid(id)},true);
 }
+// Read-only preflight for a future atomic settlement. Never calls a save API.
+function globalPaymentPreflight9775(input,allowed){
+ const fail=(reason,detail='')=>({state:'blocked',reason,detail,allocations:[],canWrite:false,atomicConfirmed:false});
+ if(allowed!==true)return fail('permission');
+ const p=input?.preview,clientId=sid(input?.clientId),ref=sid(input?.reference).trim(),method=sid(input?.method).trim(),day=input?.date;
+ if(!clientId||p?.state!=='preview-only'||p.clientKey!=='id:'+clientId||!Number.isSafeInteger(p.payment)||p.payment<=0||!Array.isArray(p.allocations)||!p.allocations.length||p.allocations.length>50||!date(day)||day!==date(day)||!ref||ref.length>128||!method||method.length>80)return fail('invalid-input');
+ // No credit/opening writes until a persistent independent account exists.
+ if(p.opening!==0||p.openingApplied!==0||p.unallocatedPayment!==0)return fail('independent-balance-not-supported');
+ if(!Array.isArray(input.records)||!Array.isArray(input.pendingIds)||input.pendingObserved!==true||input.canonicalObserved!==true)return fail('source-unconfirmed');
+ const centExact=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(?:\.\d{1,2})?$/.test(v)))return null;const n=Number(v),c=Math.round(n*100);return Number.isSafeInteger(c)&&c>=0&&Math.abs(n*100-c)<.00001?c:null};
+ const pending=new Set(input.pendingIds.map(sid)),records=new Map(),notes=[],used=new Set();
+ for(const e of input.records){
+  const m=sid(e?.module),id=sid(e?.entity_id),k=m+':'+id;
+  if(!['projectionInvoices','finance'].includes(m)||!id||e.deleted_at!=null||!Number.isSafeInteger(e.revision)||e.revision<1||!e.data||sid(e.data.id)!==id||records.has(k))return fail('record-identity',k);
+  if(pending.has(m+'::'+id)||pending.has(m+'|'+id))return fail('pending-sync',k);
+  records.set(k,e);
+ }
+ let sum=0;
+ for(const a of p.allocations){
+  const k=sid(a?.key);if(!k.startsWith('projection:')||used.has(k))return fail('note-selection',k);used.add(k);
+  const id=k.slice(11),e=records.get('projectionInvoices:'+id),n=e?.data;
+  if(!n||sid(n.clientId)!==clientId||!['pendente','parcial'].includes(norm(n.status))||!date(n.issueDate||n.date)||date(n.issueDate||n.date)>day)return fail('note-identity-date-status',k);
+  const total=centExact(n.value),paid=centExact(n.paid),remaining=centExact(n.remaining),history=n.paymentHistory??[],returns=n.acertoReturnsV9565??[];
+  if(!Array.isArray(history)||!Array.isArray(returns)||[total,paid,remaining].some(v=>v===null)||total<=0||remaining<=0)return fail('note-money',k);
+  const hids=new Set();let historyPaid=0,credit=0;
+  for(const h of history){const hid=sid(h?.id),v=centExact(h?.value);if(!hid||hids.has(hid)||v===null||v<=0||h?.globalPaymentReference9775===ref)return fail('payment-history',k);hids.add(hid);historyPaid+=v}
+  for(const h of returns){const hid=sid(h?.id),v=centExact(h?.value);if(!hid||hids.has('return:'+hid)||v===null||v<=0)return fail('return-history',k);hids.add('return:'+hid);if(!h.reversedAt)credit+=v}
+  if(![historyPaid,credit].every(Number.isSafeInteger)||history.length&&historyPaid!==paid||total-paid-credit!==remaining||remaining!==a.before||!Number.isSafeInteger(a.amount)||a.amount<=0||a.amount>remaining||a.after!==remaining-a.amount)return fail('balance-changed',k);
+  const matches=[...records.values()].filter(f=>f.module==='finance'&&sid(f.data.projectionInvoiceId)===id);
+  if(matches.length!==1)return fail('title-count',k);
+  const f=matches[0],t=f.data;
+  if(sid(t.clientId)!==clientId||centExact(t.value)!==total||centExact(t.paid)!==paid||centExact(t.remaining)!==remaining||centExact(t.creditReturnsV9565??0)!==credit||!['pendente','parcial'].includes(norm(t.status)))return fail('title-divergence',k);
+  sum+=a.amount;if(!Number.isSafeInteger(sum))return fail('amount-limit');
+  notes.push({noteId:id,noteRevision:e.revision,titleId:sid(f.entity_id),titleRevision:f.revision,amountCents:a.amount,beforeCents:remaining,afterCents:a.after});
+ }
+ if(sum!==p.payment||notes.length*2!==records.size||new Set(notes.map(n=>n.titleId)).size!==notes.length)return fail('allocation-divergence');
+ return {state:'preflight-only',clientId,reference:ref,method,date:day,amountCents:sum,allocations:notes,hubExpectedEntries:1,canWrite:false,atomicConfirmed:false,referenceUniquenessVerified:false,hubReconciled:false};
+}
 function signedMoney9759(v){
  const s=sid(v).trim();if(!/^-?\d{1,10}(?:[,.]\d{1,2})?$/.test(s))return null;
  const n=Math.round(Number(s.replace(',','.'))*100);return Number.isSafeInteger(n)?n:null;
@@ -553,7 +591,7 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
+window.hlgbNotesReceivables9564={version:V,globalPaymentPreflight9775,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
