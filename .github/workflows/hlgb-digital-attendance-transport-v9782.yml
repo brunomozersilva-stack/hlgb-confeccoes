@@ -1,0 +1,21 @@
+name: HLGB RH - ponto digital e passagem
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/attendance-transport-preview-v9658.js'
+      - 'hlgb-modules/financeiro/attendance-transport-view-v9658.js'
+      - 'tests/digital-attendance-transport-v9782.cjs'
+      - '.github/workflows/hlgb-digital-attendance-transport-v9782.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check hlgb-modules/financeiro/attendance-transport-view-v9658.js
+      - run: node tests/digital-attendance-transport-v9782.cjs
