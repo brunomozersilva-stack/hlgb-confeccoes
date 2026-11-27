@@ -1097,5 +1097,55 @@
   if(term&&term!=='-')return {...unknown,source:'order-recorded-incomplete'};
   return parse(clientScenario?.mode,clientScenario?.days,'client-scenario')||unknown;
  }
- return {orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Dedicated table transport; never send imported journal files as authenticated captures.
+ // The deployment gate must only be enabled after the isolated schema and RLS tests.
+ async function forecastCloudJournal(context,input,allowed){
+  const empty=(state,extra={})=>({state,entries:[],confirmed:[],unconfirmed:[],canWrite:false,canPromise:false,cloudVerified:false,...extra});
+  if(allowed!==true||context?.schemaApproved!==true||typeof context.active!=='function'||typeof context.request!=='function'||typeof context.source!=='function'||typeof context.today!=='function')return empty('unavailable');
+  const actor=context.active();if(typeof actor!=='string'||!actor)return empty('forbidden');
+  const day=context.today(),same=()=>context.active()===actor&&context.today()===day;
+  const table='hlgb_production_forecast_journal',fields='seq,lot_id,captured_on,captured_at,captured_by,forecast';
+  const stable=x=>Array.isArray(x)?x.map(stable):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,stable(x[k])])):x;
+  const equal=(a,b)=>JSON.stringify(stable(a))===JSON.stringify(stable(b));
+  const goodRow=r=>r&&Number.isSafeInteger(Number(r.seq))&&Number(r.seq)>0&&typeof r.captured_by==='string'&&r.captured_by.length>0&&typeof r.captured_at==='string'&&Number.isFinite(Date.parse(r.captured_at))&&r.lot_id===r.forecast?.lotId&&r.captured_on===r.forecast?.capturedAt;
+  async function load(){
+   const rows=[];let cursor=0;
+   for(let p=0;p<21;p++){
+    if(!same())throw Error('session-changed');
+    const batch=await context.request(table+'?select='+fields+'&seq=gt.'+cursor+'&order=seq.asc&limit=250',{method:'GET'});
+    if(!same()||!Array.isArray(batch)||batch.length>250)throw Error('read-unconfirmed');
+    for(const r of batch){if(!goodRow(r)||Number(r.seq)<=cursor)throw Error('invalid-row');cursor=Number(r.seq);rows.push(r)}
+    if(rows.length>5000)throw Error('journal-limit');
+    if(batch.length<250)return rows;
+   }throw Error('journal-limit');
+  }
+  const inspect=rows=>forecastJournal(context.source(),{asOf:day,mode:'inspect',entries:rows.map(r=>r.forecast)},true);
+  const confirmed=[],unconfirmed=[];
+  try{
+   if(!same())return empty('session-changed');
+   const rows=await load(),before=inspect(rows);if(!same()||before.state!=='local-forecast-journal')return empty('read-unconfirmed');
+   if(input?.mode==='read')return empty('cloud-read-confirmed',{entries:before.entries,report:before,cloudVerified:true});
+   if(input?.mode!=='capture'||!Array.isArray(input.lotIds)||input.lotIds.length>50||!input.lotIds.length)return empty('invalid-selection');
+   const draft=forecastJournal(context.source(),{asOf:day,mode:'capture',entries:before.entries,lotIds:input.lotIds},true);
+   if(draft.state!=='local-forecast-journal')return empty('invalid-capture');
+   const candidates=draft.entries.filter(e=>!before.entries.some(x=>x.lotId===e.lotId&&x.capturedAt===e.capturedAt));
+   for(const e of candidates){
+    if(!same())return empty('session-changed',{confirmed,unconfirmed:candidates.filter(x=>!confirmed.includes(x.lotId)).map(x=>x.lotId)});
+    // Recheck live evidence immediately before each insert. No UPSERT, UPDATE or DELETE.
+    const fresh=forecastJournal(context.source(),{asOf:day,mode:'capture',entries:[],lotIds:[e.lotId]},true);
+    if(fresh.state!=='local-forecast-journal'||fresh.entries.length!==1||!equal(fresh.entries[0],e)){unconfirmed.push(e.lotId);continue}
+    try{await context.request(table,{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({lot_id:e.lotId,forecast:e})})}catch(_){}
+    if(!same())return empty('session-changed',{confirmed,unconfirmed:candidates.filter(x=>!confirmed.includes(x.lotId)).map(x=>x.lotId)});
+    try{
+     const lookup=await context.request(table+'?select='+fields+'&lot_id=eq.'+encodeURIComponent(e.lotId)+'&captured_on=eq.'+day+'&limit=2',{method:'GET'});
+     if(!same())return empty('session-changed',{confirmed,unconfirmed:candidates.filter(x=>!confirmed.includes(x.lotId)).map(x=>x.lotId)});
+     if(Array.isArray(lookup)&&lookup.length===1&&goodRow(lookup[0])&&equal(lookup[0].forecast,e))confirmed.push(e.lotId);else unconfirmed.push(e.lotId);
+    }catch(_){unconfirmed.push(e.lotId)}
+   }
+   const after=inspect(await load());if(!same()||after.state!=='local-forecast-journal')return empty('read-unconfirmed',{confirmed,unconfirmed});
+   return empty(unconfirmed.length?'partial-cloud-capture':'cloud-capture-confirmed',{entries:after.entries,report:after,confirmed,unconfirmed,issues:draft.issues,cloudVerified:true});
+  }catch(_){return empty('read-unconfirmed',{confirmed,unconfirmed})}
+ }
+ return {forecastCloudJournal,orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
