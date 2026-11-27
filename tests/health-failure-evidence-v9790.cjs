@@ -1,0 +1,17 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const s=fs.readFileSync('release-health-monitor-panel-v9541.js','utf8'),a=s.indexOf('function classifyFailureEvidence978A('),b=s.indexOf('const failureLabels978A=',a);assert.ok(a>=0&&b>a);
+const ctx={sid:x=>String(x??''),REPO:'example/repo'};vm.createContext(ctx);vm.runInContext(s.slice(a,b),ctx);
+const run={id:123,attempt:2,commit:'a'.repeat(40)},job=(id,name)=>({id,run_id:123,run_attempt:2,head_sha:run.commit,status:'completed',conclusion:'failure',name:'webkit',steps:[{number:1,name:'Checkout',conclusion:'success'},{number:2,name,conclusion:'failure'}]});
+const classify=jobs=>ctx.classifyFailureEvidence978A(run,{total_count:jobs.length,jobs});
+const input=[job(1,'Run npx playwright install --with-deps webkit')],before=JSON.stringify(input);
+const a1=classify(input);assert.equal(a1.classification,'setup-step-failed');assert.equal(a1.rootCauseConfirmed,false);assert.equal(a1.canRepair,false);assert.equal(a1.jobs[0].failedSteps[0].number,2);
+assert.equal(classify([job(2,'Run node tests/example.cjs')]).classification,'test-step-failed');
+assert.equal(classify([job(3,'Run custom script')]).classification,'unknown-step');
+assert.equal(classify([input[0],job(2,'Run node tests/example.cjs')]).classification,'mixed-evidence');
+assert.equal(classify([{...input[0],run_attempt:1}]).state,'identity-unconfirmed');
+assert.equal(classify([{...input[0],head_sha:'b'.repeat(40)}]).state,'identity-unconfirmed');
+assert.equal(classify([input[0],input[0]]).state,'identity-unconfirmed');
+assert.equal(ctx.classifyFailureEvidence978A(run,{total_count:2,jobs:input}).state,'incomplete-jobs');
+assert.equal(classify([]).state,'no-failed-job-observed');assert.equal(JSON.stringify(input),before);
+console.log('PASS failure step evidence, exact run and attempt, incomplete response, no root cause claim');
