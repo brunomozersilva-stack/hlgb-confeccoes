@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/financeiro/client-account-ledger-v9800.cjs');
+const account={clientId:'client-1',revision:0,events:[]},base={clientId:'client-1',reference:'open',kind:'opening',reason:'Saldo anterior independente',amountCents:100000,independentConfirmed:true,expectedRevision:0},before=JSON.stringify(account);
+const add=(a,p)=>({clientId:a.clientId,revision:a.revision+1,events:[...a.events,p.event]});
+assert.equal(api.propose(account,base,false).reason,'permission');
+const p=api.propose(account,base,true);assert.equal(p.state,'proposal-only');assert.equal(p.event.date,null);assert.equal(p.hubMovementCents,0);assert.equal(p.independentAfterCents,100000);assert.equal(p.canWrite,false);
+assert.equal(api.propose(account,{...base,amountCents:-50000},true).independentAfterCents,-50000);
+assert.equal(api.propose(account,{...base,date:'2026-11-26'},true).reason,'independent-proof');assert.equal(JSON.stringify(account),before);
+const a=add(account,p),receipt={clientId:a.clientId,reference:'bank-1',kind:'receipt',reason:'Recebimento global',expectedRevision:1,date:'2026-11-26',method:'PIX',amountCents:250000,remainderReviewed:true,allocations:[{noteId:'n1',titleId:'f1',noteRevision:3,titleRevision:4,amountCents:100000,beforeCents:100000,afterCents:0},{noteId:'n2',titleId:'f2',noteRevision:2,titleRevision:5,amountCents:50000,beforeCents:80000,afterCents:30000}]};
+const x=api.propose(a,receipt,true);assert.equal(x.state,'proposal-only');assert.equal(x.independentAfterCents,0);assert.equal(x.hubMovementCents,250000);assert.equal(x.requiredNoteUpdates,2);
+const b=add(a,x);assert.equal(api.propose(b,receipt,true).state,'existing-reference-candidate');assert.equal(api.propose(b,{...receipt,amountCents:250001},true).reason,'reference-conflict');assert.equal(api.propose(a,{...receipt,remainderReviewed:false},true).reason,'remainder-not-reviewed');assert.equal(api.propose(a,{...receipt,expectedRevision:0},true).reason,'revision-changed');assert.equal(api.propose(a,{...receipt,allocations:[receipt.allocations[0],receipt.allocations[0]]},true).reason,'allocation-proof');
+const extra=api.propose(b,{...receipt,reference:'credit',expectedRevision:2,allocations:[],amountCents:50000},true);assert.equal(extra.independentAfterCents,-50000);
+const rev={clientId:a.clientId,reference:'reverse',kind:'reversal',reason:'Estorno autorizado',reverses:'bank-1',expectedRevision:2,date:'2026-11-27'};
+const y=api.propose(b,rev,true);assert.equal(y.independentAfterCents,100000);assert.equal(y.hubMovementCents,-250000);assert.equal(y.requiredNoteUpdates,2);assert.equal(api.propose(add(b,y),{...rev,reference:'reverse2',expectedRevision:3},true).reason,'reversal-proof');
+assert.equal(api.inspect(add(b,y),true).netReceiptsCents,0);assert.equal(api.propose(a,{...base,reference:'open2',expectedRevision:1},true).reason,'opening-proof');
+console.log('PASS client account ledger contract: signed opening, payment allocation, credit, idempotence, revision, reversal, no writes');

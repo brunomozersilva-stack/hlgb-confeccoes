@@ -20,3 +20,7 @@ A pré-validação 9775 é somente leitura. Não autoriza a gravação. A revis�
 6. Testar RLS e permissões com perfis reais de homologação, inclusive negativas.
 
 Sem migração, endpoint ou escrita comercial nesta etapa. Não habilitar até concluir testes no banco isolado e revisão da integração financeira existente.
+
+## Contrato isolado v98.00 — conta independente
+
+`client-account-ledger-v9800.cjs` modela abertura assinada sem data comercial, ajustes com justificativa, recebimentos com alocações por nota/título e crédito excedente, estorno integral rastreável. O delta independente é somente a parte não alocada; uma entrada no Hub pelo total, nunca por nota. Referência idempotente e revisão são candidatos locais, não garantias de concorrência. O servidor deve recalcular alocações, validar permissões e referências globais, bloquear revisões, conservar movimentos imutáveis e confirmar o recibo e todas as alterações em uma única transação. Estornos exigem prova dos movimentos originais e reversão financeira atômica. Nenhuma tabela, migração, endpoint ou gravação foi ativada. A interface comercial permanece em prévia.
