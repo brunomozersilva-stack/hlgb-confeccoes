@@ -78,3 +78,8 @@ const wrong={...completed,id:'wrong-model',actualCutGrade:[{productId:12,color:'
 const badGrade=api.completedCutHistory([wrong],api.cutIndex9709()).rows[0];assert.equal(badGrade.grade.length,0);assert(badGrade.reasons.includes('Grade realizada a conferir'));
 const empty={...completed,id:'zero',pieces:0,actualCutGrade:[{productId:11,color:'Preto',size:'P',qty:0}]};assert.equal(api.completedCutHistory([empty],api.cutIndex9709()).rows[0].grade.length,0);
 console.log('PASS live identity and exact model in history');
+
+context.db.orders[0].grade=[{productId:11,color:'Preto',size:'P',qty:100}];
+const proof=api.cutActionProof9820(cut,api.cutIndex9709());assert.equal(proof.pieces,100);assert.equal(proof.productId,'11');assert.equal(proof.grade[0].color,'Preto');assert.equal(proof.materials.length,1);assert.equal(proof.canWrite,false);
+assert.equal(api.cutActionProof9820({...cut},api.cutIndex9709()),null);
+console.log('PASS required cut actions exact identity and complete grade');
