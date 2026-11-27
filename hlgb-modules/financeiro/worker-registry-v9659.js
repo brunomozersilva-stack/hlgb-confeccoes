@@ -86,6 +86,34 @@
   let state='incomplete-forecast';if(due&&typeof reconcile?.inspect==='function')state=reconcile.inspect({authenticated:ctx?.authenticated===true,payrollAllowed:ctx?.payrollAllowed===true,financeAllowed:ctx?.financeAllowed===true,rows:ctx?.rows,pendingOrigins:[],snapshotVerified:false,coverageVerified:false,pendingVerified:false},{kind:'worker-week',personId:p.worker_id,friday,dueDate:due,amountCents:actual??plan,sourceVerified:false,calendarVerified:false}).state;
   return {state:'dated-week-preview',identity,start,friday,partialFirstWeek:p.start_date>start,plannedDays:planned.length,plannedCommuteDays:plannedCommute.length,workedDays:worked?.length??null,commuteDays:commute?.length??null,plannedCents:plan,actualCents:actual,differenceCents:actual===null?null:actual-plan,scheduledCandidate:due,issues,benefits:p.benefits,requiresRegularizationReview:p.relationship==='review-required',reconciliation:state,officialAmountCents:null,canPublish:false};
  }
+ // Collective scenario: individual reviewed snapshots, never a payable total.
+ function batchDatedWeeks(entries,friday,asOf,ctx){
+  const empty=state=>({state,rows:[],canPublish:false,officialAmountCents:null});
+  if(ctx?.authenticated!==true||ctx?.payrollAllowed!==true)return empty('permission');
+  if(!Array.isArray(entries)||entries.length<1||entries.length>200||!date(friday)||new Date(friday+'T00:00:00Z').getUTCDay()!==5||!date(asOf))return empty('invalid-batch');
+  const ids=new Map(),names=new Map(),rows=[],totals={plannedCents:null,actualCents:null,pairedPlannedCents:null,pairedDifferenceCents:null};
+  const nameKey=p=>p.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  for(const entry of entries){let p;try{p=profile(entry?.profile)}catch(_){return empty('invalid-profile')}if(entry.input?.friday!==friday)return empty('mixed-week');ids.set(p.worker_id,(ids.get(p.worker_id)||0)+1);const k=nameKey(p);names.set(k,(names.get(k)||0)+1)}
+  let plannedCount=0,actualCount=0,reviewCount=0;
+  for(const entry of entries){
+   const p=profile(entry.profile),row={workerId:p.worker_id,name:p.name,sector:p.sector,revision:p.revision,localDraft:entry.localDraft===true,preview:null,reason:null};
+   if(ids.get(p.worker_id)>1)row.reason='duplicate-worker';
+   else if(names.get(nameKey(p))>1)row.reason='same-name-review';
+   else if(entry.input.reviewed!==true)row.reason='parameters-unreviewed';
+   else try{const v=datedWeek(p,{...entry.input,asOf},ctx);row.preview=v;
+    if(!v.scheduledCandidate)row.reason='no-payment-date';
+    else if(v.reconciliation==='already-paid-review')row.reason='already-paid-review';
+    else if(['duplicate-review','legacy-or-unlinked-review','existing-conflict','pending-sync-review'].includes(v.reconciliation))row.reason=v.reconciliation;
+    else {totals.plannedCents=(totals.plannedCents??0)+v.plannedCents;plannedCount++;
+     if(v.actualCents!==null&&!v.issues.some(x=>x!=='week-not-ended')&&asOf>=friday){totals.actualCents=(totals.actualCents??0)+v.actualCents;totals.pairedPlannedCents=(totals.pairedPlannedCents??0)+v.plannedCents;totals.pairedDifferenceCents=(totals.pairedDifferenceCents??0)+v.differenceCents;actualCount++}
+     else row.reason=v.actualCents===null?'actual-unknown':'actual-review';
+    }
+   }catch(_){row.reason='invalid-dates-or-profile'}
+   if(row.reason)reviewCount++;rows.push(row);
+  }
+  if(Object.values(totals).some(x=>x!==null&&!Number.isSafeInteger(x)))return empty('amount-limit');
+  return {state:'local-batch',friday,asOf,rows,totals,selectedCount:rows.length,plannedCount,actualCount,reviewCount,partial:reviewCount>0,officialAmountCents:null,canPublish:false};
+ }
  function reviewedWeek(p,old,friday){
   const x=profile(p);if(!date(friday)||new Date(friday+'T00:00:00Z').getUTCDay()!==5)throw Error('invalid-friday');
   if(old&&(old.worker_id!==x.worker_id||old.week_friday!==friday||!integer(old.revision,1,2147483647)))throw Error('invalid-week-record');
@@ -96,5 +124,5 @@
   if(!reviewed||reviewed.worker_id!==x.worker_id||reviewed.worker_revision!==x.revision||reviewed.friday!==v.friday||!integer(reviewed.expectedRevision,0,2147483646))throw Error('review-required');
   return draft(x,{...v,revision:reviewed.expectedRevision+1});
  }
- return {profile,review,draft,save,forecast,monthly,datedWeek,reviewedWeek,nextWeek};
+ return {profile,review,draft,save,forecast,monthly,datedWeek,batchDatedWeeks,reviewedWeek,nextWeek};
 });

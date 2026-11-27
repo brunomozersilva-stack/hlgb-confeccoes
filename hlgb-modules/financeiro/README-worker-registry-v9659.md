@@ -4,3 +4,6 @@
 ## v96.60
 
 29 verificações cumulativas do núcleo, 7 novas: previsão desconhecida não vira zero, mensalistas (base e passagem, não folha legal), período parcial exige revisão, versão semanal explicitamente carregada, edição concorrente e vínculo com revisão do cadastro. Interface inclui novo cadastro, lista paginada por nome, reabertura, últimos 50 registros/revisões, benefícios adicionais, prévia mensal. A operação remota se vincula ao ID de sessão autenticada; servidor ainda deve validar RLS, concorrência e auditoria. View latest proposta com security_invoker, nenhum DDL executado. Sem calendário oficial, pagamentos ou lançamento. A interface é candidata, flag desligada.
+
+## Conferência coletiva — 27/11
+Lote local de até 200 prévias diárias revisadas, mesma sexta de referência, substituição por ID, nomes repetidos exigem revisão. Previsto e efetivo separado, diferença apenas dos mesmos trabalhadores com dias completos, origens já realizadas/conflitantes excluídas. Rascunhos identificados, sem gravação; dados descartados ao sair ou trocar sessão. Não é título a pagar nem prova de cobertura. Mantém flag remota desligada e funções individuais; não modifica SQL, Hub ou banco.
