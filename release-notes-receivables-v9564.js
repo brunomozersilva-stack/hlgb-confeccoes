@@ -476,7 +476,7 @@ function globalPaymentPreflight9775(input,allowed){
   const hids=new Set();let historyPaid=0,credit=0;
   for(const h of history){const hid=sid(h?.id),v=centExact(h?.value);if(!hid||hids.has(hid)||v===null||v<=0||h?.globalPaymentReference9775===ref)return fail('payment-history',k);hids.add(hid);historyPaid+=v}
   for(const h of returns){const hid=sid(h?.id),v=centExact(h?.value);if(!hid||hids.has('return:'+hid)||v===null||v<=0)return fail('return-history',k);hids.add('return:'+hid);if(!h.reversedAt)credit+=v}
-  if(![historyPaid,credit].every(Number.isSafeInteger)||history.length&&historyPaid!==paid||total-paid-credit!==remaining||remaining!==a.before||!Number.isSafeInteger(a.amount)||a.amount<=0||a.amount>remaining||a.after!==remaining-a.amount)return fail('balance-changed',k);
+  if(![historyPaid,credit].every(Number.isSafeInteger)||historyPaid!==paid||total-paid-credit!==remaining||remaining!==a.before||!Number.isSafeInteger(a.amount)||a.amount<=0||a.amount>remaining||a.after!==remaining-a.amount)return fail('balance-changed',k);
   const matches=[...records.values()].filter(f=>f.module==='finance'&&sid(f.data.projectionInvoiceId)===id);
   if(matches.length!==1)return fail('title-count',k);
   const f=matches[0],t=f.data;
@@ -486,6 +486,55 @@ function globalPaymentPreflight9775(input,allowed){
  }
  if(sum!==p.payment||notes.length*2!==records.size||new Set(notes.map(n=>n.titleId)).size!==notes.length)return fail('allocation-divergence');
  return {state:'preflight-only',clientId,reference:ref,method,date:day,amountCents:sum,allocations:notes,hubExpectedEntries:1,canWrite:false,atomicConfirmed:false,referenceUniquenessVerified:false,hubReconciled:false};
+}
+// Cloud comparison is read-only and not a server-side transaction or a lock.
+async function globalCloudCheck9812(input,deps){
+ const fail=reason=>({state:'blocked',reason,allocations:[],canWrite:false,atomicConfirmed:false,hubReconciled:false});
+ const permitted=()=>{try{return deps.allowed()===true}catch(_){return false}};
+ if(!permitted())return fail('permission');
+ const p=input?.preview,clientId=sid(input?.clientId);
+ if(!clientId||p?.state!=='preview-only'||p.clientKey!=='id:'+clientId||!Array.isArray(p.allocations)||!p.allocations.length||p.allocations.length>50||p.opening!==0||p.openingApplied!==0||p.unallocatedPayment!==0||!sid(input.method).trim()||!sid(input.reference).trim()||date(input.date)!==input.date)return fail('preview-not-supported');
+ const ids=p.allocations.map(a=>sid(a.key)).map(k=>k.startsWith('projection:')?k.slice(11):'');
+ if(ids.some(id=>!id||id.length>128)||new Set(ids).size!==ids.length)return fail('note-selection');
+ try{
+  const first=await deps.pending();
+  if(!permitted()||!Array.isArray(first))return fail('sync-unavailable');
+  const canon=deps.canonical();if(!Array.isArray(canon)||ids.some(id=>canon.filter(n=>sid(n.id)===id).length!==1))return fail('canonical-local');
+  const pending=new Set(first.map(sid)),related=k=>pending.has(k.replace(':','::'))||pending.has(k.replace(':','|'));
+  if(ids.some(id=>related('projectionInvoices:'+id)))return fail('pending-sync');
+  const records=[];
+  for(const id of ids){
+   if(!permitted())return fail('permission');
+   const n=await deps.read('projectionInvoices','entity_id',id);
+   if(!permitted())return fail('permission');
+   const titles=await deps.read('finance','data->>projectionInvoiceId',id);
+   if(!permitted())return fail('permission');
+   if(!Array.isArray(n)||n.length!==1||!Array.isArray(titles)||titles.length!==1)return fail('note-title-count');
+   if(n[0].module!=='projectionInvoices'||sid(n[0].entity_id)!==id||titles[0].module!=='finance'||sid(titles[0].data?.projectionInvoiceId)!==id)return fail('record-identity');
+   if(n[0].data?.migratedToNoteQueueV9223||n[0].data?.items?.some?.(i=>i?.source==='faction_delivery_v9140'))return fail('shadow-note');
+   // Preserve canonical local financial evidence; do not accept a cloud value changed
+   // since the preview, even when the net balance coincidentally stayed equal.
+   const local=canon.find(x=>sid(x.id)===id);
+   const canonJson=v=>Array.isArray(v)?v.map(canonJson):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonJson(v[k])])):v;
+   for(const key of ['clientId','value','paid','remaining','status','issueDate','date','paymentHistory','acertoReturnsV9565']){
+    if(JSON.stringify(canonJson(local[key]??null))!==JSON.stringify(canonJson(n[0].data?.[key]??null)))return fail('note-changed');
+   }
+   records.push(n[0],titles[0]);
+  }
+  const final=await deps.pending();if(!permitted()||!Array.isArray(final))return fail('sync-unavailable');
+  const latest=deps.canonical();if(!Array.isArray(latest)||ids.some(id=>latest.filter(n=>sid(n.id)===id).length!==1))return fail('canonical-local');
+  if(JSON.stringify(canon)!==JSON.stringify(latest))return fail('canonical-changed');
+  const report=globalPaymentPreflight9775({...input,records,pendingIds:[...first,...final],pendingObserved:true,canonicalObserved:true},true);
+  if(!permitted())return fail('permission');
+  return {...report,cloudNotesCompared:report.state==='preflight-only',canonicalScope:'local',serverLockConfirmed:false};
+ }catch(_){return fail('cloud-unavailable')}
+}
+function cloudCheckAllowed9812(){try{return historyAuthorized9710()&&window.__HLGB_AUTH_READY===true&&['clientes','notas','financeiro','hubFinanceiro'].every(k=>canOpenPage(k)===true)}catch(_){return false}}
+function browserCloudCheck9812(input){
+ const deps={allowed:cloudCheckAllowed9812,canonical:()=>{if(typeof window.hlgbCanonicalProjectionInvoices!=='function')return null;const r=window.hlgbCanonicalProjectionInvoices();return Array.isArray(r)?JSON.parse(JSON.stringify(r)):null},
+ pending:async()=>{const guard=window.hlgbWalIdbGuard9536;if(typeof guard?.probe!=='function'||await guard.probe()!==true)return null;const ids=pendingProtection9710();return ids?[...ids]:null},
+ read:async(module,field,id)=>{if(typeof window.cloudRequest!=='function')return null;return window.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.'+encodeURIComponent(module)+'&'+field+'=eq.'+encodeURIComponent(id)+'&deleted_at=is.null&limit=2',{method:'GET'})}};
+ return globalCloudCheck9812(input,deps);
 }
 function signedMoney9759(v){
  const s=sid(v).trim();if(!/^-?\d{1,10}(?:[,.]\d{1,2})?$/.test(s))return null;
@@ -499,7 +548,7 @@ function openAccountPreview9759(id){
  '<div class="grid"><label>Saldo inicial independente (R$)<input id="ca9759-opening" value="0" inputmode="decimal"></label><label>Justificativa<input id="ca9759-reason"></label><label>Pagamento global (R$)<input id="ca9759-payment" value="0" inputmode="decimal"></label><label>Data do pagamento<input id="ca9759-date" type="date" value="'+today()+'"></label></div>'+
  '<label><input id="ca9759-independent" type="checkbox"> Confirmo que o saldo inicial não repete notas existentes.</label><p>Distribuição sugerida: emissão mais antiga primeiro; notas sem data ficam no final. Selecione quais notas deseja incluir.</p>'+
  '<div style="overflow:auto;max-height:250px">'+result.rows.filter(n=>n.balance>0).map(n=>'<label style="display:block"><input type="checkbox" data-ca9759-note="'+esc(n.key)+'" checked> '+esc(n.number)+' · '+esc(dateFmt(n.issued))+' · '+brl(n.balance)+'</label>').join('')+'</div>'+
- '<button type="button" class="primary" id="ca9759-preview">Simular pagamento global</button><div id="ca9759-result" aria-live="polite"></div><button type="button" class="secondary modalSave">Fechar</button>';
+ '<button type="button" class="primary" id="ca9759-preview">Simular pagamento global</button><div id="ca9759-result" aria-live="polite"></div><details><summary>Conferência das notas na nuvem (sem gravar)</summary><p>Somente pagamentos alocados integralmente em notas, sem saldo inicial ou crédito excedente. Ainda não confirma Hub nem autoriza baixa.</p><label>Referência do recebimento<input id="ca9812-ref" maxlength="128"></label><label>Forma de pagamento<input id="ca9812-method" maxlength="80"></label><button type="button" id="ca9812-check" disabled>Conferir notas e títulos</button><div id="ca9812-output" aria-live="polite"></div></details><button type="button" class="secondary modalSave">Fechar</button>';
  const statementHtml='<details id="ca9773-statement"><summary>Extrato detalhado por data</summary><p>Emissões, pagamentos, compensações, devoluções e estornos com evidência. O saldo inicial independente permanece separado, sem data fictícia. Não é extrato bancário.</p><div class="grid"><label>De<input id="ca9773-from" type="date"></label><label>Até<input id="ca9773-to" type="date"></label></div><button type="button" class="secondary" id="ca9773-load">Consultar extrato</button><button type="button" class="secondary" id="ca9773-export" disabled>Exportar extrato CSV</button><div id="ca9773-output" aria-live="polite"></div></details>';
  window.openModal('Conta corrente — '+esc(client.name)+' (prévia)',html+statementHtml,()=>window.closeModal?.());
  const host=document.getElementById('modalContent')||document.getElementById('modal'),btn=host?.querySelector('#ca9759-preview');if(!btn)return false;
@@ -537,13 +586,28 @@ function openAccountPreview9759(id){
   }catch(_){resetStatement()}
  };
  const signature=JSON.stringify(result.rows);
+ let cloudPreview=null,cloudEpoch=0;const checkBtn=host.querySelector('#ca9812-check'),checkOut=host.querySelector('#ca9812-output');
+ const invalidateCloud=()=>{cloudPreview=null;cloudEpoch++;if(checkBtn)checkBtn.disabled=true;if(checkOut)checkOut.textContent='Simule novamente após alterar os dados.'};
+ host.addEventListener('input',e=>{if(e.target?.matches?.('[id^="ca9759-"],[data-ca9759-note]'))invalidateCloud();else if(e.target?.matches?.('#ca9812-ref,#ca9812-method')){cloudEpoch++;if(checkOut)checkOut.textContent='Conferir novamente após alterar referência ou forma de pagamento.';if(checkBtn)checkBtn.disabled=!cloudPreview||!cloudCheckAllowed9812()}});
+ if(checkBtn)checkBtn.onclick=async()=>{
+  if(!cloudPreview||!cloudCheckAllowed9812()||!checkOut)return;
+  const epoch=++cloudEpoch,p=cloudPreview,reference=host.querySelector('#ca9812-ref')?.value,method=host.querySelector('#ca9812-method')?.value;
+  checkBtn.disabled=true;checkOut.textContent='Conferindo notas, títulos e sincronização…';
+  const report=await browserCloudCheck9812({preview:p.preview,clientId:sid(id),date:p.date,reference,method});
+  if(epoch!==cloudEpoch||!host.isConnected||!cloudCheckAllowed9812())return;
+  checkBtn.disabled=false;
+  if(report.state!=='preflight-only'){checkOut.textContent='Conferência bloqueada: '+report.reason+'. Nenhuma gravação realizada.';return}
+  checkOut.textContent=report.allocations.length+' nota(s) e título(s) conferidos na nuvem, total '+brl(report.amountCents)+'. Somente comparação de leitura; referência, Hub e transação ainda não confirmados. Nenhuma baixa realizada.';
+ };
  btn.onclick=()=>{
+  invalidateCloud();
   if(!historyAuthorized9710())return;
   const latest=clientNotes9710(id),out=host.querySelector('#ca9759-result');if(!out)return;
   if(!latest.available||latest.ambiguous||JSON.stringify(latest.rows)!==signature){out.textContent='As notas mudaram. Reabra a consulta antes de simular.';return}
   const val=k=>host.querySelector('#ca9759-'+k)?.value;
   const p=clientAccountPreview9759(latest.rows.map(n=>({...n,clientKey:'id:'+sid(id)})),{clientKey:'id:'+sid(id),openingCents:signedMoney9759(val('opening')),paymentCents:signedMoney9759(val('payment')),date:val('date'),reason:val('reason'),independentOpening:host.querySelector('#ca9759-independent')?.checked===true,noteKeys:Array.from(host.querySelectorAll('[data-ca9759-note]:checked')).map(x=>x.dataset.ca9759Note).sort((a,b)=>{const x=latest.rows.find(n=>n.key===a),y=latest.rows.find(n=>n.key===b);return (x.issued||'9999-12-31').localeCompare(y.issued||'9999-12-31')||a.localeCompare(b)})},true);
   if(p.state!=='preview-only'){out.textContent='Confira valores, saldo inicial independente e divergências das notas antes de simular.';return}
+  cloudPreview={preview:p,date:val('date')};if(checkBtn)checkBtn.disabled=!cloudCheckAllowed9812();if(checkOut)checkOut.textContent='Informe referência e forma de pagamento para conferir.';
   out.innerHTML='<p><b>Saldo das notas: '+brl(p.notesBalance)+' · Saldo anterior: '+brl(p.before)+' · Pagamento: '+brl(p.payment)+' · Saldo projetado: '+brl(p.after)+'</b></p><p>Abatimento do saldo inicial: '+brl(p.openingApplied)+' · Pagamento sem alocação: '+brl(p.unallocatedPayment)+' (crédito ainda não registrado).</p><div style="overflow:auto"><table><thead><tr><th>Nota</th><th>Antes</th><th>Abatimento</th><th>Depois</th></tr></thead><tbody>'+p.allocations.map(a=>'<tr><td>'+esc(a.number)+'</td><td>'+brl(a.before)+'</td><td>'+brl(a.amount)+'</td><td>'+brl(a.after)+'</td></tr>').join('')+'</tbody></table></div><p>Prazo médio simulado: '+(p.weightedDays===null?'sem datas comprováveis':p.weightedDays.toFixed(1)+' dias sobre '+brl(p.datedAmount))+' · Não é histórico de recebimentos.</p><p>Nenhum valor foi gravado.</p>';
  };
  return true;
@@ -591,7 +655,7 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,globalPaymentPreflight9775,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
+window.hlgbNotesReceivables9564={version:V,globalPaymentPreflight9775,globalCloudCheck9812,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
