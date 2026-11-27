@@ -756,7 +756,7 @@ async function applyCorrectionV9590(sourceGroupId,correctionId,targetGroupId,amo
  }finally{state.status=STATUS.idle}
 }
 
-async function markGroupPaid(groupId,date,method,receipt){
+async function markGroupPaid(groupId,date,method,receipt,options={}){
  if(state.status===STATUS.saving)throw Error('Outra alteração de pagamento está em andamento.');
  state.status=STATUS.saving;state.lastError='';let confirmed=0,hubConfirmed=false;
  try{
@@ -774,6 +774,7 @@ async function markGroupPaid(groupId,date,method,receipt){
     cents(x.paidAmount)!==cents(allocations[rows.indexOf(x)])))
    throw Error('Parte deste pagamento já foi registrada com outros dados. Não duplicar; revisar histórico.');
   const oldHub=await preflightGroup(groupId,allRows);
+  if(options.requireExistingHub===true&&(!oldHub||oldHub.sourceType!=='faction_manual_payment'||sid(oldHub.id)!==sid(hubId(groupId))))throw Error('Pagamento anterior sem saída vinculada confirmada na nuvem. Nenhuma baixa ou saída nova será criada.');
   if(oldHub&&(cents(oldHub.value)!==cents(total)||sid(oldHub.date)!==date||sid(oldHub.paymentMethod)!==method||sid(oldHub.status)!=='Realizado'))
    throw Error('Existe lançamento financeiro diferente para este grupo. Corrija a divergência antes de dar baixa.');
   if(!oldHub&&alreadyPaid.length)throw Error('Há linhas pagas sem confirmação do Hub. Baixa bloqueada.');
@@ -1737,7 +1738,8 @@ function downloadSummaryPdfV9590(groupId){
  return {name:link.download,size:pdf.size,pages:null};
 }
 
-function openPayModal(groupId){
+function openPayModal(groupId,options={}){
+ const existingOnly=options.requireExistingHub===true;
  const rows=assertGroup(groupId),status=groupState(rows);
  if(status==='Pago')throw Error('Este lançamento já está pago.');
  const total=netGroupV9590(rows);
@@ -1751,10 +1753,10 @@ function openPayModal(groupId){
  if(!open)throw Error('Janela de pagamento indisponível.');
  const html='<div id="fm88-pay-modal" class="panel" style="padding:12px">'+
   '<p><b>'+esc(group.factionName)+'</b> · '+group.items+' serviço(s) · <b>'+money(total)+'</b></p>'+
-  '<p class="sub">A baixa registra o total já ajustado no Hub Financeiro. Para abater ou acrescentar agora, use o botão abaixo antes de confirmar. Nenhuma alteração será feita automaticamente.</p>'+
+  (existingOnly?'<p class="sub"><b>Pagamento anterior:</b> só conclui a baixa quando a saída deste grupo já existe e coincide com data, valor e forma na nuvem. Não cria saída financeira.</p>':'<p class="sub">A baixa registra o total já ajustado no Hub Financeiro. Para abater ou acrescentar agora, use o botão abaixo antes de confirmar. Nenhuma alteração será feita automaticamente.</p>')+
    '<p class="sub">Serviços: '+money(group.nominal)+' · Ajustes diretos: '+money(sumDirectCentsV9591(group.directAdjustments||[])/100)+
    ' · Total líquido: <b>'+money(total)+'</b></p>'+
-   '<button type="button" class="secondary" id="fm91-pay-adjust">➖ Abater / ➕ Acrescentar antes de pagar</button>'+
+   (existingOnly?'':'<button type="button" class="secondary" id="fm91-pay-adjust">➖ Abater / ➕ Acrescentar antes de pagar</button>')+
   (status==='Revisar'?'<p style="color:#934">⚠ Algumas linhas possuem situação divergente. Confirme os dados da baixa anterior antes de continuar.</p>':'')+
   '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px">'+
   '<div class="field"><label>Data em que foi pago</label><input type="date" id="fm88-paid-date" value="'+esc(suggestedDate)+'"></div>'+
@@ -1771,7 +1773,7 @@ function openPayModal(groupId){
    const date=document.getElementById('fm88-paid-date')?.value||'',
     method=document.getElementById('fm88-paid-method')?.value||'',
     pdf=await readReceipt(document.getElementById('fm88-paid-pdf')?.files?.[0]);
-   await markGroupPaid(groupId,date,method,pdf);
+   await markGroupPaid(groupId,date,method,pdf,{requireExistingHub:existingOnly});
    window.closeModal?.();window.renderFactionPayments?.();window.renderHubFinance?.();
    renderReceipts();return true;
   }catch(e){

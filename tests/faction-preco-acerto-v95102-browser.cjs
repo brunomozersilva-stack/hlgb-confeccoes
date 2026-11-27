@@ -70,8 +70,8 @@ async function submit(page,{name,qty,price,date}){
   assert.equal(await page.evaluate(()=>window.db.hubFinanceEntries.length),0);
   await dates.locator('summary').click();
 
-  const popupPromise=page.waitForEvent('popup');await page.locator('[data-faction-print9777]').click();const report=await popupPromise;
-  await report.waitForLoadState('domcontentloaded');assert.match(await report.locator('body').innerText(),/Conferência de acerto/);assert.match(await report.locator('body').innerText(),/35,00/);await report.close();
+  const popupPromise=page.waitForEvent('popup');await page.getByRole('button',{name:'Consulta geral de saldos / PDF'}).click();const report=await popupPromise;
+  await report.waitForLoadState('domcontentloaded');assert.match(await report.locator('body').innerText(),/Conferência de acerto/);assert.match(await report.locator('body').innerText(),/35,00/);assert.match(await report.locator('body').innerText(),/Camisola avulsa sem preço comercial/);assert.match(await report.locator('body').innerText(),/Conjunto avulso sem cadastro comercial/);assert.match(await report.locator('body').innerText(),/Avulso original/);assert.match(await report.locator('body').innerText(),/SALDO GERAL DE CONSULTA/);assert.equal(await report.locator('table.week-products').count(),3,'reference dates do not consolidate unverified deliveries or avulsos');assert.doesNotMatch(await report.locator('body').innerText(),/fmpli-/);await report.close();
   await page.evaluate(()=>{window.__factionReportAllowed=false;window.hlgbFactionAcertoUnified95102.render()});
   assert.equal(await page.locator('#hlgb-unified-acertos-v95102').count(),0);
   await page.evaluate(()=>{window.__factionReportAllowed=true;window.hlgbFactionAcertoUnified95102.render()});
