@@ -261,6 +261,15 @@
  await p.getByRole('button',{name:'Simular corte conjunto',exact:true}).click();
  await joint.getByText('Comparar aproveitamento e registrar simulação',{exact:true}).click();
  assert.match(await joint.innerText(),/Lote fictício/);
+ await joint.getByRole('button',{name:'Fechar simulação'}).click();
+ await p.evaluate(()=>{window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set(['j1|a','j2|b'])}});
+ await p.getByRole('button',{name:'Simular corte conjunto',exact:true}).click();
+ await joint.getByText('Comparar aproveitamento e registrar simulação',{exact:true}).click();
+ assert.match(await joint.innerText(),/Lote fictício/);
+ assert.match(await joint.innerText(),/Nenhum grupo de pedidos/);
+ await joint.getByRole('button',{name:'Fechar simulação'}).click();
+ await p.evaluate(()=>{window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set()}});
+ await p.getByRole('button',{name:'Simular corte conjunto',exact:true}).click();
  await joint.getByRole('button',{name:'Limpar seleção'}).click();assert.equal(await joint.locator('input:checked').count(),0);
  await joint.getByRole('searchbox').fill('Calcinha');assert.equal(await joint.locator('input[type=checkbox]').count(),1);
  await joint.getByRole('button',{name:'Fechar simulação'}).click();assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__jointSnapshot),true);

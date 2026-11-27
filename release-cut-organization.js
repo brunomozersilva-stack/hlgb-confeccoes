@@ -305,7 +305,7 @@ function openJointSimulation9837(){
  if(snapshot.unlinkedActivity)el('p','Atenção: existem atividades sem vínculo; confira os registros antes de planejar.');
  const label=el('label','Matéria-prima compartilhada '),material=el('select','',label);material.setAttribute('aria-label','Matéria-prima compartilhada');material.style.maxWidth='100%';
  const groups=snapshot.groups;for(const g of groups){const o=el('option',g.materialName+' · '+g.orderedPieces+' peças pedidas',material);o.value=g.materialId}
- if(!groups.length){el('p','Nenhum grupo de pedidos compatível por matéria-prima encontrado.');document.body.appendChild(host);return true}
+ if(!groups.length){el('p','Nenhum grupo de pedidos compatível por matéria-prima encontrado. O caderno desta sessão permanece disponível.');material.disabled=true;}
  const search=el('input','');search.type='search';search.placeholder='Buscar modelo, pedido ou cor';search.setAttribute('aria-label','Buscar modelos para corte conjunto');search.style.cssText='width:100%;margin:8px 0';
  const list=el('div','');list.style.cssText='max-height:235px;overflow:auto;border:1px solid #ddd;padding:6px';
  const result=el('section',''),status=el('p','');status.setAttribute('role','status');
@@ -422,10 +422,12 @@ function openJointSimulation9837(){
   for(const x of rows){const tr=el('tr','',body);el('td',x.name+' / '+orderMeta(x.orderId).number,tr);el('td',x.color,tr);const ns=sizes.map(s=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0));vectors.push(ns);ns.forEach((n,i)=>{totals[i]+=n;el('td',String(n),tr)});el('td',String(ns.reduce((a,b)=>a+b,0)),tr)}
   const footer=el('tr','',body);el('th','Total pedido',footer);el('td','—',footer);for(const n of totals)el('td',String(n),footer);el('td',String(pieces),footer);
   for(const cell of table.querySelectorAll('td,th'))cell.style.cssText='border:1px solid #aaa;padding:5px;font-size:12px;text-align:left';
-  if(rows.length>1){
-   const common=sizes.map((_,i)=>Math.min(...vectors.map(v=>v[i]))),equal=vectors.every(v=>JSON.stringify(v)===JSON.stringify(vectors[0]));
-   el('p',equal?'As grades pedidas coincidem em todos os tamanhos.':'As grades são diferentes. Quantidade comum por tamanho (comparação aritmética): '+sizes.map((s,i)=>s+' '+common[i]).join(' · ')+'.',result);
-   if(!equal){for(let i=0;i<rows.length;i++){const x=rows[i],rest=vectors[i].map((n,j)=>n-common[j]);el('p',x.name+' / '+orderMeta(x.orderId).number+' — quantidades fora da grade comum: '+sizes.map((s,j)=>s+' '+rest[j]).join(' · '),result)}}
+  for(const color of new Set(rows.map(x=>x.color))){
+   const indexes=rows.map((x,i)=>x.color===color?i:-1).filter(i=>i>=0);
+   if(indexes.length<2)continue;
+   const local=indexes.map(i=>vectors[i]),common=sizes.map((_,i)=>Math.min(...local.map(v=>v[i]))),equal=local.every(v=>JSON.stringify(v)===JSON.stringify(local[0]));
+   el('p',equal?'As grades pedidas coincidem em todos os tamanhos — '+color+'.':'As grades são diferentes — '+color+'. Quantidade comum por tamanho (comparação aritmética): '+sizes.map((s,i)=>s+' '+common[i]).join(' · ')+'.',result);
+   if(!equal){for(const i of indexes){const x=rows[i],rest=vectors[i].map((n,j)=>n-common[j]);el('p',x.name+' / '+orderMeta(x.orderId).number+' — quantidades fora da grade comum: '+sizes.map((s,j)=>s+' '+rest[j]).join(' · '),result)}}
   }
   el('p','Compatibilidade física depende de lote, largura, elasticidade, sentido e moldes. Não há cálculo de encaixe ou economia comprovado. Nenhuma grade foi alterada.',result);
  }
