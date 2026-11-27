@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/assistente/evidence-query-v9655.js'),planning=require('../hlgb-modules/producao/production-planning-v9661.js');
+const make=(team,i,q,days)=>({id:team+'-'+i,productId:'m',productionLocationId:team,status:'Finalizado',sentAt:'2026-11-01',finishedAt:'2026-11-'+String(days+1).padStart(2,'0'),sent:q,returned:q,deliveryHistory:[{id:'evt-'+team+'-'+i,date:'2026-11-'+String(days+1).padStart(2,'0'),qty:q}]});
+const data={products:[{id:'m',name:'Camisola'},{id:'n',name:'Body'}],productionLocations:[{id:'a',name:'A'},{id:'b',name:'B'},{id:'c',name:'C'}],factions:[...[200,220,250,300].map((q,i)=>make('a',i,q,4)),...[150,180,200,250].map((q,i)=>make('b',i,q,5)),make('c',0,200,3)],production:[]};
+let active=true,denied=new Set(),reads=[];const deps={auth:()=>active,can:p=>!denied.has(p),today:()=> '2026-11-30',planningApi:planning,read:k=>{reads.push(k);return data[k]}};
+const team=id=>({id,capacity:'500',extra:'0'}),raw={productId:'m',pieces:'450',dueDate:'2026-12-07',finish:'1',buffer:'0',closed:'',reviewed:true,teams:['a','b','c'].map(team)},before=JSON.stringify([data,raw]);
+const choices=api.distributionChoices('camisola',deps);assert.equal(choices.state,'observed');assert.deepEqual(choices.products,[{id:'m',name:'Camisola'}]);assert.equal(choices.teams.length,3);
+let x=api.simulateDistribution(raw,deps);assert.equal(x.state,'observed');assert.equal(x.canWrite,false);assert.match(x.message,/450 de 450/);assert.match(x.rows[0].detail,/300 peças/);assert.match(x.rows[1].detail,/150 peças/);assert.ok(x.rows.some(r=>r.id==='c'&&r.detail.includes('Histórico comparável insuficiente')));
+x=api.simulateDistribution({...raw,pieces:'340'},deps);assert.match(x.message,/40 sem distribuição/);
+assert.equal(api.simulateDistribution({...raw,reviewed:false},deps).state,'unsupported');assert.equal(api.simulateDistribution({...raw,teams:[team('a'),team('a')]},deps).state,'unsupported');
+assert.equal(api.simulateDistribution({...raw,teams:[team('missing')]},deps).state,'unavailable');
+denied.add('faccoes');reads=[];assert.equal(api.simulateDistribution(raw,deps).state,'forbidden');assert.equal(api.distributionChoices('m',deps).state,'forbidden');assert.equal(reads.length,0);denied.clear();
+assert.equal(api.simulateDistribution(raw,{...deps,read:k=>{active=false;return data[k]}}).state,'forbidden');active=true;
+assert.equal(JSON.stringify([data,raw]),before);console.log('PASS assistant distribution: existing real core, partial lot, permission, no mutation');

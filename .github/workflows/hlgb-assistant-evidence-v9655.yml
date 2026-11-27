@@ -8,6 +8,7 @@ on:
       - 'tests/hlgb-assistant-operation-overview-v9794.cjs'
       - 'tests/hlgb-assistant-order-simulation-v9795.cjs'
       - 'tests/hlgb-assistant-payment-priority-v9796.cjs'
+      - 'tests/hlgb-assistant-faction-distribution-v9797.cjs'
       - 'hlgb-modules/producao/production-planning-v9661.js'
       - 'tests/hlgb-search-inventory-v9655.cjs'
       - 'app-stable3.html'
@@ -29,5 +30,6 @@ jobs:
       - run: node tests/hlgb-assistant-operation-overview-v9794.cjs
       - run: node tests/hlgb-assistant-order-simulation-v9795.cjs
       - run: node tests/hlgb-assistant-payment-priority-v9796.cjs
+      - run: node tests/hlgb-assistant-faction-distribution-v9797.cjs
       - run: node tests/hlgb-search-inventory-v9655.cjs
       - run: node tests/hlgb-integration-v9651.cjs
