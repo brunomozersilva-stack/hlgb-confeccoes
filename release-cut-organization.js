@@ -99,15 +99,16 @@ function openFullCutChecklist9820(id){
  const mark=el('button','Marcar todos os materiais',host);mark.type='button';
  const grid=el('div','');grid.dataset.cutChecklistLines9823='1';grid.style.overflowX='auto';
  const table=el('table','',grid);table.style.cssText='width:100%;border-collapse:collapse';const head=el('tr','',el('thead','',table));
- for(const label of ['OK','Material','Categoria','Cor','Quantidade','Unidade','Rolos'])el('th',label,head);
+ for(const label of ['OK','Material','Categoria','Cor','Peças da cor','Quantidade por cor','Unidade','Rolos por cor'])el('th',label,head);
  const tbody=el('tbody','',table);
  const warnings=v.materials.filter(m=>m.issues.length);
  if(warnings.length){const warning=el('div','');warning.setAttribute('role','note');warning.style.cssText='border:1px solid #a86a18;padding:8px;margin:8px 0';el('strong','Pendências da ficha técnica — conferir antes de separar',warning);for(const m of warnings)el('p',m.name+': '+m.issues.join('; '),warning);}
+ el('p','Cada linha corresponde à quantidade necessária para a cor indicada. Rolos arredondados por cor, sem somar sobras de cores diferentes.');
  for(const m of v.materials){
   const splits=m.color?m.byColor.filter(x=>norm(x.color)===norm(m.color)):m.byColor;
   const lines=splits.length?splits:[{color:m.color||'A conferir',pieces:0,amount:null,rolls:null}];
   for(const color of lines){const row=el('tr','',tbody),cell=el('td','',row),check=el('input','',cell);check.type='checkbox';check.disabled=color.amount===null||!m.linkOK;check.setAttribute('aria-label',m.name+' '+color.color);
-   el('td',m.name,row);el('td',m.category||'-',row);el('td',color.color,row);el('td',fmt(color.amount)+(!m.linkOK&&color.amount!==null?' (estimativa; conferir vínculo)':''),row);el('td',m.unit||'-',row);el('td',color.rolls===null?'-':String(color.rolls),row);
+   el('td',m.name,row);el('td',m.category||'-',row);el('td',color.color,row);el('td',String(color.pieces||'A conferir'),row);el('td',fmt(color.amount)+(!m.linkOK&&color.amount!==null?' (estimativa; conferir vínculo)':''),row);el('td',m.unit||'-',row);el('td',color.rolls===null?'-':String(color.rolls),row);
   }
  }
  for(const cell of host.querySelectorAll('th,td'))cell.style.cssText='border:1px solid #aaa;padding:5px;text-align:left;font-size:12px';

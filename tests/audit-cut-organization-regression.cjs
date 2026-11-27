@@ -99,3 +99,8 @@ assert.equal(real.materials[1].byColor[0].amount,72);assert.equal(real.materials
 assert.equal(real.materials[2].amount,24);assert.equal(real.materials[2].rolls,1);assert.equal(real.materials[2].linkOK,true);
 assert.equal(JSON.stringify(context.db),beforeChecklist9825);
 console.log('PASS 300-piece matrix and material integrity without changing catalogue or stock');
+
+// Each material's individual color quantities must be checked, not merely its total.
+assert.deepEqual(JSON.parse(JSON.stringify(real.materials[1].byColor.map(x=>[x.color,x.pieces,x.amount]))),[['Preto',120,72],['Branco',60,36],['Rubi',120,72]]);
+assert.deepEqual(JSON.parse(JSON.stringify(real.materials[2].byColor.map(x=>[x.color,x.pieces,Number(x.amount.toFixed(2)),x.rolls]))),[['Preto',120,9.6,1],['Branco',60,4.8,1],['Rubi',120,9.6,1]]);
+console.log('PASS exact per-color requirements and separate roll rounding');
