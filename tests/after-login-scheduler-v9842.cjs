@@ -1,0 +1,30 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('release-runtime-profiler-v9292.js','utf8');
+const start=source.indexOf('(function installLateLoginBridge9337()'),end=source.indexOf('if(window.hlgbRuntimeProfiler9292)',start);
+assert(start>=0&&end>start);
+let id=0,clock=0;const timers=new Map(),listeners=new Map(),calls=[];
+const window={__HLGB_AUTH_READY:false,hlgbAfterLogin(fn,delay){calls.push([fn,delay])},addEventListener(name,fn){listeners.set(name,fn)}};
+const ctx={window,document:{querySelector:()=>null,addEventListener(){}},console,setInterval:()=>++id,clearInterval(){},setTimeout(fn,ms){const k=++id;timers.set(k,{fn,at:clock+ms});return k},clearTimeout:k=>timers.delete(k)};
+vm.runInNewContext(source.slice(start,end),ctx);
+const bridge=window.hlgbLateLoginBridge9337;
+let count=0;
+for(let i=0;i<100;i++)window.hlgbAfterLogin(()=>count++,5000);
+assert.equal(calls.length,100,'legacy registration preserved');
+calls[0][0]();assert.equal(count,0,'no callback before authorization');
+assert.equal(bridge.pending(),100);
+window.__HLGB_AUTH_READY=true;listeners.get('hlgb:authenticated')();
+for(let i=0;i<20;i++)bridge.flush();
+assert.equal(timers.size,100,'100 callbacks, not 2100 repeated timers');
+assert.equal(bridge.schedulerStatus().coalesced,2000);
+calls[0][0]();assert.equal(count,1);assert.equal(timers.size,99,'legacy execution cancels duplicate timer');
+window.__HLGB_AUTH_READY=false;listeners.get('hlgb:logout')();assert.equal(timers.size,0);
+assert.equal(bridge.pending(),99,'not-yet-run registrations preserved');
+window.__HLGB_AUTH_READY=true;listeners.get('hlgb:authenticated')();assert.equal(timers.size,99);
+clock=5000;for(const [k,t] of [...timers]){timers.delete(k);t.fn()}
+assert.equal(count,100);assert.equal(bridge.pending(),0);assert.equal(timers.size,0);
+for(const [fn] of calls)fn();assert.equal(count,100,'legacy callbacks still run once');
+let late=0;window.hlgbAfterLogin(()=>late++,0);bridge.flush();assert.equal(timers.size,1);
+for(const [k,t] of [...timers]){timers.delete(k);t.fn()}
+assert.equal(late,1);assert.equal(bridge.schedulerStatus().executed,101);
+console.log('PASS scheduler: 100 callbacks with 2000 duplicate timer schedules avoided; legacy, auth, logout, late login preserved');

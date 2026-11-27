@@ -21,6 +21,8 @@ jobs:
         run: node tests/auditor-boot-dedupe-v9397.js
       - name: Classificar restauração e duplicidade real v94.45
         run: node tests/auditor-boot-analysis-v9445.js
+      - name: Verificar agendamento pós-login sem duplicação
+        run: node tests/after-login-scheduler-v9842.cjs
       - name: Verificar sintaxe
         run: |
           node --check release-cut-view.js
