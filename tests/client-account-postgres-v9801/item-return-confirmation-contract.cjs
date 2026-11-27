@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict'),{verify,confirm}=require('./item-return-confirmation.cjs');
+const items=[{key:'line',qty:2,unitCents:1000}],req={kind:'return',clientId:'c',noteId:'n',titleId:'t',forecastId:'h',ref:'ref',amountCents:2000,balanceBefore:10000,cashCents:5000,items,noteRevision:1,titleRevision:2,forecastRevision:3};
+const ack={ref:'ref',noteId:'n',titleId:'t',forecastId:'h',amountCents:2000,remainingCents:8000,cashCents:5000,items,noteRevision:2,titleRevision:3,forecastRevision:4};
+const read={receipt:ack,clientId:'c',event:{id:'item-return:ref',value:20,itemsV9847:items},currentMatch:true,currentRevisions:[2,3,4]};
+assert.equal(verify(req,ack,read),'confirmed');
+assert.equal(verify(req,ack,{...read,clientId:'other'}),'unconfirmed');
+assert.equal(verify(req,ack,{...read,receipt:{...ack,remainingCents:9000}}),'unconfirmed');
+assert.equal(verify(req,ack,{...read,currentMatch:false,currentRevisions:[3,4,5]}),'confirmed-history-refresh');
+assert.equal(verify(req,ack,{...read,currentMatch:false}),'unconfirmed');
+(async()=>{let calls=0;const transport={save:async()=>{calls++;return ack},read:async()=>{throw Error('readback unavailable')}};
+const result=await confirm(req,transport,()=>true);assert.equal(result.state,'unconfirmed');assert.equal(result.reference,'ref');assert.equal(result.retrySameReference,true);
+transport.read=async()=>read;assert.equal((await confirm(req,transport,()=>true)).state,'confirmed');assert.equal(calls,2);
+assert.equal((await confirm(req,transport,()=>false)).state,'unconfirmed');assert.equal(calls,2);
+console.log('PASS exact independent receipt confirmation and same-reference retry');})().catch(e=>{console.error(e);process.exitCode=1});

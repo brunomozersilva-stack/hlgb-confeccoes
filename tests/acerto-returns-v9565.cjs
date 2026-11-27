@@ -98,6 +98,13 @@ const amounts=()=>api.moneyState(db.projectionInvoices[0],'projection');
  await assert.rejects(()=>api.saveAction('projection','legacy-invoice','note',{text:'Sem proteção local não salvar'}),/Proteção de sincronização/);
  assert.equal(writes.length,writeCount,'missing WAL guard cannot reach cloud write');
  assert(writes.every(x=>x.module==='projectionInvoices'||x.module==='finance'||x.module==='orders'));
+ const fixture={id:'guard-items9849',orderId:'o',value:100,paid:0,remaining:90,status:'Parcial',items:[{productId:'p',qty:10,unitPrice:10,value:100}],acertoReturnsV9565:[{id:'item-return:guard',value:10,itemsV9847:[{key:'line',qty:1,unitCents:1000}]}]};
+ db.projectionInvoices.push(fixture);
+ await assert.rejects(()=>api.saveAction('projection',fixture.id,'reversal',{entryId:'item-return:guard',reason:'Teste'}),/estorno integrado/);
+ await assert.rejects(()=>api.saveAction('projection',fixture.id,'return',{value:1,reason:'Teste'}),/revisão integrada/);
+ await assert.rejects(()=>api.saveAction('projection',fixture.id,'edit',{date:'2026-11-26',reason:'Teste',items:[{qty:10,unitPrice:10}],value:100}),/revisão integrada/);
+ assert.equal(db.projectionInvoices.find(n=>n.id===fixture.id).remaining,90);
+
  console.log('PASS acerto v95.65: cloud-confirmed returns, notes, overpayment guard, audit reversals, finance retry and original order receipt preserved.');
 })().catch(e=>{console.error(e);process.exitCode=1});
 

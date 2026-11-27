@@ -4,3 +4,12 @@ PostgreSQL synthetic fixture; no HLGB commercial tables, credentials, RPC, brows
 Concurrent test: two simultaneous sessions for one reference return the identical receipt; a competing reference with stale revision must fail, with exactly one Hub movement and one note/title update. This validates the synthetic function only, not actual commercial WAL, permissions or concurrent legacy writers.
 
 Forecast reconciliation extension: one synthetic forecast row per title; verified balance must equal note/title open amount, locked alongside them. Partial receipts reduce planned inflow, full receipts close it without deleting the forecast; actual Hub receipt remains one per reference. Failed Hub insert rolls forecast back. Divergent forecast is blocked and concurrency checks one reduction. Real Hub data representation, permissions and synchronization are NOT proven. No deployment or migration.
+
+## Devolução por item v98.48
+Contrato isolado exige nota, título e previsão documental vinculados e revisões exatas; calcula pelo preço histórico, controla quantidade acumulada, rejeita abatimento legado sem item e excedente, atualiza os três registros na mesma transação, mantém recebido e não cria entrada de caixa. Referência idempotente. Ainda não é RPC comercial: autorização real, concorrência com escritores legados, reversão e ambiente de homologação pendentes. Não executar no Supabase comercial.
+
+## Estorno e falha transacional v98.49
+Estorno por evento exato, preserva original, motivo, autoria e referência; reabre previsão encerrada e libera somente as quantidades do evento estornado. Testa repetição, estorno duplicado, compensação integral, falha na terceira escrita e duas conexões simultâneas. Contrato de laboratório; não é autorização real, RPC comercial ou migração.
+
+## Confirmação independente v98.50
+Consulta a referência exata e os três registros associados, valida evento e revisões, distingue histórico confirmado de saldo ainda atual. Contrato cliente não aceita ACK divergente; após falha de transporte mantém referência para repetição idempotente, não gera novo lançamento. Fluxo legado bloqueia estorno, edição e abatimento por valor incompatíveis com uma devolução por item ativa. Ainda não é adaptador comercial e não habilita gravação; nenhuma alteração de banco de produção.
