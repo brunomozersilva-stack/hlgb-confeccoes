@@ -105,7 +105,12 @@ function mount(pageId){const area=document.getElementById(pageId),id='hlgb-live-
 }
 function refresh(){for(const host of document.querySelectorAll('[data-live-finance9656]')){const page=host.closest('.page');if(!auth()||!can('folhaPagamento')||!page?.classList.contains('active')||page.id==='hubFinanceiro'&&!can(page.id))host.remove()}mount('folhaPagamento');mount('hubFinanceiro')}
 function clear(){for(const x of document.querySelectorAll('[data-live-finance9656]'))x.remove()}
-if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)refresh()});root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});root.addEventListener?.('hlgb:logout',clear);setTimeout(refresh,600)}
+let operationalTimer9845=null;
+function scheduleOperational9845(){
+ if(operationalTimer9845!==null)return;
+ operationalTimer9845=setTimeout(()=>{operationalTimer9845=null;refresh()},0);
+}
+if(typeof document!=='undefined'){document.addEventListener('click',scheduleOperational9845,true);document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)refresh()});root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});root.addEventListener?.('hlgb:logout',clear);setTimeout(refresh,600)}
 })(typeof window!=='undefined'?window:null,(function bridge(){
  const invalid=(reason)=>({state:'unavailable',reason,canPublish:false});
  const safe=(f)=>{try{return f()}catch(_){return false}};

@@ -183,5 +183,10 @@
   });
 
  }
- document.addEventListener('click',()=>setTimeout(mount,0),true);document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)mount()});root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();mount()});setTimeout(mount,700);
+ let operationalTimer9845=null;
+function scheduleOperational9845(){
+ if(operationalTimer9845!==null)return;
+ operationalTimer9845=setTimeout(()=>{operationalTimer9845=null;mount()},0);
+}
+document.addEventListener('click',scheduleOperational9845,true);document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)mount()});root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();mount()});setTimeout(mount,700);
 })(typeof window!=='undefined'?window:null);

@@ -103,7 +103,12 @@ function install(){
  }
 }
 function refresh(){closeUnauthorized();install()}
-if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',refresh);document.addEventListener('DOMContentLoaded',refresh,{once:true});root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});root.addEventListener?.('hlgb:logout',clear);setTimeout(refresh,600)}
+let operationalTimer9845=null;
+function scheduleOperational9845(){
+ if(operationalTimer9845!==null)return;
+ operationalTimer9845=setTimeout(()=>{operationalTimer9845=null;refresh()},0);
+}
+if(typeof document!=='undefined'){document.addEventListener('click',scheduleOperational9845,true);document.addEventListener('visibilitychange',refresh);document.addEventListener('DOMContentLoaded',refresh,{once:true});root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});root.addEventListener?.('hlgb:logout',clear);setTimeout(refresh,600)}
 })(typeof window!=='undefined'?window:null,(function bridgeFactory(){
  const scopes={faccao:['pagamentosFaccoes','faccoes'],cliente:['notas','financeiro'],funcionario:['folhaPagamento']};
  function read(deps,kind,filters={}){

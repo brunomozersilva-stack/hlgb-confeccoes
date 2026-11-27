@@ -24,6 +24,10 @@
   const heading=el('header','',host);heading.style.cssText='border-bottom:1px solid #ddd;padding:6px 0 14px;margin-bottom:14px';
   el('h2','Corte Conjunto — planejamento por matéria-prima',heading);
   el('p','Planeje modelos que utilizam o mesmo material, confira grades e compare enfestos. Não cria corte nem baixa estoque.',heading);
+  const quick=el('div','',heading);quick.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center';
+  button('Simulação rápida / folhas de corte',quick,()=>{if(!active())return;const open=root.hlgbCutOrganization?.openJointSimulation9837;if(typeof open!=='function'){alert('Simulador rápido indisponível. Atualize a página.');return}open()});
+  button('Consultar histórico real de combinações',quick,()=>{if(!active())return;historyPanel.open=true;historyPanel.scrollIntoView?.({block:'start',behavior:'auto'})});
+  button('Ir à cesta de planejamento',quick,()=>{if(active())basket.scrollIntoView?.({block:'start',behavior:'auto'})});
   const historyPanel=el('details','',host);historyPanel.className='panel';el('summary','Histórico de cortes com grade real de vários modelos',historyPanel);
   const historyBody=el('div','',historyPanel);
   function drawJointHistory(){
@@ -444,11 +448,16 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    if(area.firstChild!==bar)area.insertBefore(bar,area.firstChild);
    button('Corte Conjunto',bar,openJoint);el('p','',bar)}
   bar.children[0].disabled=!allowed;
-  const note=allowed?'Abrir planejamento em uma tela separada.':'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
+  const note=allowed?'Abrir planejamento completo, simulação, impressões e histórico.':'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
   if(bar.children[1].textContent!==note)bar.children[1].textContent=note;
  }
  function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
- document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',()=>{
+ let operationalTimer9845=null;
+function scheduleOperational9845(){
+ if(operationalTimer9845!==null)return;
+ operationalTimer9845=setTimeout(()=>{operationalTimer9845=null;refresh()},0);
+}
+document.addEventListener('click',scheduleOperational9845,true);document.addEventListener('visibilitychange',()=>{
  root.hlgbJointWorkspaceEvidence9714={observed:false};
  const actor=user();
  for(const x of document.querySelectorAll('[data-planning9661]')){
@@ -457,4 +466,62 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
  }
  if(!document.hidden)refresh();
 });root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});setTimeout(refresh,1000);
+})(typeof window!=='undefined'?window:null);
+
+
+// Shared quick access to existing panels. No independent query, write or shadow copy.
+(function installOperationalAccess9845(root){
+ if(!root||root.hlgbOperationalAccess9845)return;
+ const sections={
+  folhaPagamento:[['hlgb-live-finance-9656-folhaPagamento','Prévia salarial e calendário'],['hlgbAttendance9658','Ponto e passagem'],['hlgbRHLive9667','Férias, provisões e desligamento'],['hlgbWorkers9659','Diaristas e mensalistas'],['hlgb-settlement-history-9654-funcionario','Histórico de acertos']],
+  hubFinanceiro:[['hlgb-live-finance-9656-hubFinanceiro','Inteligência financeira e prévia salarial']],
+  notas:[['hlgb-settlement-history-9654-cliente','Histórico de acertos por cliente']],
+  pagamentosFaccoes:[['hlgb-settlement-history-9654-faccao','Histórico de acertos por facção']],
+  produtos:[['hlgbRemnant9661','Aproveitamento de sobras']]
+ };
+ const prefix='hlgb-operational-access-9845-';
+ let timer=null,observer=null;const watched=new Set();
+ const auth=()=>root.__HLGB_AUTH_READY===true;
+ const can=p=>{try{return auth()&&typeof canOpenPage==='function'&&canOpenPage(p)===true}catch(_){return false}};
+ const actor=()=>{try{return String(typeof cloudUser!=='undefined'?cloudUser?.id||'':typeof currentUser==='function'?currentUser()?.id||'':'')}catch(_){return ''}};
+ const access={
+  'hlgb-live-finance-9656-folhaPagamento':['folhaPagamento'],
+  'hlgb-live-finance-9656-hubFinanceiro':['hubFinanceiro','folhaPagamento'],
+  'hlgbAttendance9658':['folhaPagamento'],
+  'hlgbRHLive9667':['folhaPagamento','funcionarios'],
+  'hlgbWorkers9659':['folhaPagamento','funcionarios'],
+  'hlgb-settlement-history-9654-funcionario':['folhaPagamento'],
+  'hlgb-settlement-history-9654-cliente':['notas','financeiro'],
+  'hlgb-settlement-history-9654-faccao':['pagamentosFaccoes','faccoes'],
+  'hlgbRemnant9661':['produtos','materiais']
+ };
+ const panel=(area,id)=>{const target=document.getElementById(id);return target&&area.contains(target)&&access[id]?.every(can)?target:null};
+ function clear(){for(const page of Object.keys(sections))document.getElementById(prefix+page)?.remove()}
+ function refresh(){
+  const owner=actor();if(!auth()||!owner){clear();return}
+  for(const [page,entries] of Object.entries(sections)){
+   const area=document.getElementById(page);let bar=document.getElementById(prefix+page);
+   if(!area?.classList.contains('active')||!can(page)||document.hidden){bar?.remove();continue}
+   const available=entries.filter(([id])=>panel(area,id));
+   const sig=JSON.stringify([owner,available.map(([id])=>id)]);
+   if(!available.length){bar?.remove();continue}
+   if(bar?.dataset.signature9845===sig)continue;
+   if(!bar){bar=document.createElement('nav');bar.id=prefix+page;bar.setAttribute('aria-label','Atalhos de trabalho');bar.className='panel';bar.style.cssText='display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px;min-width:0;box-sizing:border-box';const h=area.querySelector('h1');if(h&&h.parentElement===area)h.insertAdjacentElement('afterend',bar);else area.prepend(bar)}
+   bar.dataset.signature9845=sig;bar.replaceChildren();
+   const title=document.createElement('strong');title.textContent='Acesso rápido:';bar.appendChild(title);
+   for(const [id,label] of available){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=label;b.style.cssText='max-width:100%;white-space:normal';
+    b.onclick=()=>{if(!auth()||actor()!==owner||!area.classList.contains('active')||!can(page))return;const target=panel(area,id);if(!target)return;target.setAttribute('tabindex','-1');target.focus?.({preventScroll:true});target.scrollIntoView?.({block:'start',behavior:'auto'})};bar.appendChild(b)}
+  }
+ }
+ function schedule(){if(timer!==null)return;timer=setTimeout(()=>{timer=null;refresh()},0)}
+ function observe(){
+  if(typeof MutationObserver!=='function')return;
+  if(!observer)observer=new MutationObserver(schedule);
+  for(const page of Object.keys(sections)){const area=document.getElementById(page);if(area&&!watched.has(area)){watched.add(area);observer.observe(area,{attributes:true,attributeFilter:['class'],childList:true})}}
+ }
+ root.hlgbOperationalAccess9845={refresh};
+ function boot(){observe();schedule()}
+ document.addEventListener('click',boot,true);document.addEventListener('visibilitychange',boot);
+ root.addEventListener?.('hlgb:authenticated',boot);root.addEventListener?.('hlgb:logout',()=>{if(timer!==null)clearTimeout(timer);timer=null;clear()});
+ boot();setTimeout(boot,1000);
 })(typeof window!=='undefined'?window:null);
