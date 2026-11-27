@@ -71,6 +71,9 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  assert.equal(db.hubFinanceEntries.length,0);
  stale.updatedAt=db.factionPayments.find(x=>x.id==='A-2').updatedAt;
  await assert.rejects(()=>api.markGroupPaid('group-edit','2999-11-14','Pix',null),/data real/,'future date blocked if current day 13');
+ const beforeExistingOnly=writes.length;
+ await assert.rejects(()=>api.markGroupPaid('group-edit','2026-11-13','Pix',null,{requireExistingHub:true}),/sem saída vinculada confirmada/);
+ assert.equal(writes.length,beforeExistingOnly);assert.equal(db.hubFinanceEntries.length,0);
  const paid=await api.markGroupPaid('group-edit','2026-11-13','Pix',null);
  assert.equal(paid.total,73);assert.equal(paid.hubConfirmed,true);
  assert.equal(db.hubFinanceEntries.length,1,'one Hub entry per group');
@@ -90,7 +93,9 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  assert.equal(db.hubFinanceEntries.length,2,'Hub posted with deterministic ID');
  assert.equal(api.receiptGroups().find(x=>x.id==='group-partial').status,'Revisar');
  failId='';
- const resumed=await api.markGroupPaid('group-partial','2026-11-13','Pix',null);
+ const beforeResume=writes.length;
+ const resumed=await api.markGroupPaid('group-partial','2026-11-13','Pix',null,{requireExistingHub:true});
+ assert.ok(writes.slice(beforeResume).every(x=>x.m==='factionPayments'),'previous payment mode never writes Hub');
  assert.equal(resumed.paid,true);
  assert.equal(db.hubFinanceEntries.length,2,'retry cannot create a second Hub entry');
  assert.equal(server.hubFinanceEntries.length,2,'one server Hub per group');
