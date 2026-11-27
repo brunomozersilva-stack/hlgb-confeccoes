@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const context={window:{db:{},addEventListener(){}},document:{readyState:'complete',getElementById(){return null},addEventListener(){}},setTimeout(){},console,Date};
+vm.createContext(context);vm.runInContext(fs.readFileSync('release-notes-receivables-v9564.js','utf8'),context);
+const review=context.window.hlgbNotesReceivables9564.hubLegacyReview9814;
+const h=(id,fields)=>({id,flow:'Entrada',status:'Previsto',value:100,date:'2026-11-26',description:'Nota teste',...fields});
+const input={hub:[h('1',{person:'Cliente A'}),h('2',{person:''}),h('3',{person:'Cliente B'}),h('4',{sourceId:'f1',sourceType:'finance'}),h('5',{status:'Realizado',realizedAt:'2026-11-26'}),h('6',{flow:'Saída'}),h('7',{deleted:true}),h('8',{value:0}),h('9',{status:'Realizado'}),h('10',{}),h('10',{})],clients:[{id:'a',name:'Cliente A'},{id:'b',name:'Cliente B'}],clientId:'a',pendingIds:['hubFinanceEntries::2'],pendingObserved:true};
+const before=JSON.stringify(input),r=review(input,true);
+assert.equal(r.state,'local-review-only');assert.equal(r.summary.planned,7);assert.equal(r.summary.realized,2);assert.equal(r.summary.unlinked,8);assert.equal(r.summary.marked,1);assert.equal(r.summary.missingPerson,6);assert.equal(r.summary.clientNameCandidates,1);assert.equal(r.summary.review,5);assert.equal(r.rows[0].kind,'name-candidate');assert(!r.rows.some(x=>x.id==='3'||x.id==='4'));assert.equal(r.rows.find(x=>x.id==='2').issue,true);assert.equal(r.rows.find(x=>x.id==='9').day,'');assert.equal(r.canWrite,false);assert.equal(r.hubReconciled,false);assert.equal(JSON.stringify(input),before);
+assert.equal(review(input,false).reason,'permission');assert.equal(review({...input,pendingObserved:false},true).reason,'source');const a=review({...input,clients:[...input.clients,{id:'a2',name:'Cliente A'}]},true);assert.equal(a.summary.clientNameCandidates,0);assert(!a.rows.some(x=>x.id==='1'));
+console.log('PASS legacy Hub review: exact name only candidate, no linkage, pending/duplicates, permission, no writes');
