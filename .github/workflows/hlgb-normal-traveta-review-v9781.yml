@@ -1,0 +1,20 @@
+name: HLGB Facções - conferência travetada normal
+on:
+  pull_request:
+    paths:
+      - 'release-faction-payments.js'
+      - 'tests/normal-faction-traveta-review-v9781.cjs'
+      - '.github/workflows/hlgb-normal-traveta-review-v9781.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-faction-payments.js
+      - run: node tests/normal-faction-traveta-review-v9781.cjs
