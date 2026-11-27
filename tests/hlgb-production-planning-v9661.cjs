@@ -353,3 +353,14 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.orderPaymentCondition({paymentTerms:'À vista'},null,fallback,false).mode,'unknown');
  console.log('PASS payment timing after simulated completion, historical cutoffs and per-order conditions');
 })();
+
+
+(function jointCombinationHistory(){
+ const mk=(id,date,qty,weights,models=[10,11])=>({id,orderId:1,productId:models[0],status:'Finalizado',finishedAt:date,pieces:qty*models.length,actualCutGrade:models.map(productId=>({productId,color:'Rubi',size:'M',qty})),cutWeightV9579:weights,materialUsage:[{materialId:1,name:'Malha',weight:10,unit:'kg'}]});
+ const db={products:[{id:10,name:'Juliana'},{id:11,name:'Letícia'},{id:12,name:'Liliane'}],orders:[{id:1,client:'Cliente'}],cutters:[],cuts:[mk('c1','2026-11-20',50,{totalKg:10,usedKg:9,wasteKg:1}),mk('c2','2026-11-21',100,{totalKg:20,usedKg:16,wasteKg:2},[11,10]),mk('c3','2026-11-22',50,null),mk('c4','2026-11-23',50,null,[10,12])]},before=JSON.stringify(db);
+ const v=plan.jointCombinationHistory(db,{},true),g=v.groups[0];
+ assert.equal(v.state,'local-combination-history');assert.equal(v.groups.length,2);assert.equal(v.summary.cuts,4);assert.equal(v.summary.pieces,500);assert.equal(v.summary.weighedCuts,2);assert.equal(v.summary.totalKg,30);assert.equal(g.cuts,3);assert.equal(g.pieces,400);assert.equal(g.weighedPieces,300);assert.equal(g.totalKg,30);assert.equal(g.usedKg,25);assert.equal(g.wasteKg,3);assert.equal(g.unclassifiedKg,2);assert.equal(g.gramsPerPiece,100);assert.ok(Math.abs(g.usedPct-83.33333333333333)<1e-8);assert.equal(v.groups[1].totalKg,null);
+ const filtered=plan.jointCombinationHistory(db,{from:'2026-11-21',to:'2026-11-22',query:'leticia'},true);assert.equal(filtered.summary.cuts,2);assert.equal(filtered.summary.totalKg,20);assert.equal(filtered.summary.weighedPieces,200);
+ assert.equal(plan.jointCombinationHistory(db,{from:'2026-11-23',to:'2026-11-20'},true).state,'invalid-period');assert.equal(plan.jointCombinationHistory(db,{},false).state,'forbidden');assert.equal(v.savings,null);assert.equal(v.canWrite,false);assert.equal(JSON.stringify(db),before);
+ console.log('PASS joint combination history, weighted collective yield, missing weights and filters');
+})();
