@@ -9,10 +9,27 @@ const src=fs.readFileSync('release-mobile-friendly-v9512.js','utf8');
   await p.addScriptTag({content:src});await p.getByRole('button',{name:'Abrir menu completo'}).click();const sheet=p.getByRole('dialog',{name:'Menu do HLGB'}),search=sheet.getByRole('searchbox',{name:'Buscar área do sistema'});
   await search.fill('producao faccoes');assert.equal(await sheet.getByRole('button',{name:'Facções',exact:true}).count(),1);assert.equal(await sheet.getByRole('button',{name:'Corte Conjunto',exact:true}).count(),0);assert.equal(await sheet.getByRole('button',{name:'Financeiro restrito'}).count(),0);
   await search.fill('sem correspondência');await sheet.getByText('Nenhuma área encontrada. Tente outro termo.').waitFor();
-  await search.fill('');await p.evaluate(()=>document.getElementById('faction').disabled=true);await sheet.getByRole('button',{name:'Facções',exact:true}).click();assert.deepEqual(await p.evaluate(()=>__clicks),[]);assert.equal(await sheet.getByRole('button',{name:'Facções',exact:true}).count(),0);
+  await search.fill('faccoes');
+  await p.evaluate(()=>{const b=[...document.querySelectorAll('.hlgb-mobile-link9513')].find(x=>x.textContent==='Facções');document.getElementById('faction').disabled=true;b.click()});
+  assert.deepEqual(await p.evaluate(()=>__clicks),[]);
+  await sheet.getByRole('button',{name:'Facções',exact:true}).waitFor({state:'detached'});
+  await p.evaluate(()=>document.getElementById('faction').disabled=false);
+  await sheet.getByRole('button',{name:'Facções',exact:true}).waitFor();
+  assert.equal(await search.inputValue(),'faccoes');
+  await sheet.getByRole('button',{name:'Facções',exact:true}).focus();
+  await p.evaluate(()=>document.getElementById('faction').setAttribute('aria-hidden','true'));
+  await sheet.getByRole('button',{name:'Facções',exact:true}).waitFor({state:'detached'});
+  assert.equal(await p.evaluate(()=>document.activeElement.id),'hlgbMobileSheetSearch9513');
+  await p.evaluate(()=>document.getElementById('faction').removeAttribute('aria-hidden'));
+  await sheet.getByRole('button',{name:'Facções',exact:true}).waitFor();
+  await search.fill('');
   await p.keyboard.press('Escape');assert.equal(await p.locator('#hlgbMobileSheet9513').getAttribute('aria-hidden'),'true');assert.equal(await p.evaluate(()=>document.activeElement.id),'hlgbMobileMenu9512');
   await p.getByRole('button',{name:'Abrir menu completo'}).click();await sheet.getByRole('button',{name:'Corte Conjunto',exact:true}).click();assert.deepEqual(await p.evaluate(()=>__clicks),['cut']);
   await p.getByRole('button',{name:'Abrir menu completo'}).click();await p.evaluate(()=>{window.__HLGB_AUTH_READY=false;window.dispatchEvent(new Event('hlgb:logout'))});assert.equal(await p.locator('#hlgbMobileSheet9513').getAttribute('aria-hidden'),'true');assert.equal(await p.locator('#hlgbMobileSheetLinks9513 button').count(),0);
-  assert.equal(await p.evaluate(()=>document.querySelector('.page').scrollWidth<=document.querySelector('.page').clientWidth+2),true);await p.close()
+  assert.equal(await p.evaluate(()=>document.querySelector('.page').scrollWidth<=document.querySelector('.page').clientWidth+2),true);
+  await p.evaluate(()=>{const m=document.createElement('div');m.id='modal';m.className='modal';m.style.cssText='display:flex;position:fixed;inset:0';m.innerHTML='<div class="modalbox"><div class="toolbar"><div class="field" style="min-width:520px"><label>Quantidade conferida<input style="min-width:500px"></label></div><button style="min-width:420px">Salvar conferência detalhada</button></div></div>';document.body.append(m)});
+  assert.equal(await p.locator('#modal .toolbar').evaluate(el=>el.scrollWidth<=el.clientWidth+2),true);
+  assert.equal(await p.locator('#modal input').evaluate(el=>el.getBoundingClientRect().right<=innerWidth+2),true);
+  await p.close()
  }
 }finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});
