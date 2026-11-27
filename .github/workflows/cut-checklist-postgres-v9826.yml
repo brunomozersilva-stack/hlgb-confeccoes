@@ -34,3 +34,5 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/fixture.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/candidate.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/contract.sql
+      - name: Verify simultaneous sessions and source lock
+        run: bash tests/cut-checklist-postgres-v9826/concurrency.sh

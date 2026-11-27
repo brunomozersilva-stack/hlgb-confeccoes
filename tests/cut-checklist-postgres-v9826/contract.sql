@@ -22,6 +22,9 @@ set role checklist_lab_operator;
 do $$ begin
  if (select count(*) from checklist_lab.checklist_history where cut_id='cut-1')<>2 then raise exception 'readback';end if;
  begin perform checklist_lab.save_checklist('cut-1','order-1','model-1',1,2,'stale-source','{}');raise exception 'accepted-old-source';exception when others then if sqlerrm<>'source-stale-or-identity' then raise;end if;end;
+ begin insert into checklist_lab.checklist_history select * from checklist_lab.checklist_history where version=1;raise exception 'allowed-direct-insert';exception when insufficient_privilege then null;end;
+ begin update checklist_lab.checklist_history set payload='{}';raise exception 'allowed-direct-update';exception when insufficient_privilege then null;end;
+ begin update checklist_lab.cut_source set source_revision=99;raise exception 'allowed-source-update';exception when insufficient_privilege then null;end;
  begin delete from checklist_lab.checklist_history;raise exception 'allowed-delete';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
