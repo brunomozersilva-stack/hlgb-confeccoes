@@ -21,3 +21,31 @@ do $$declare a jsonb;b jsonb; before_hub bigint; sel jsonb:='[{"key":"[\"order-p
 end$$;
 reset role;
 select 'PASS isolated item return: exact replay, revisions, quantities, historical prices, no cash entry';
+
+set role records_lab_operator;
+do $$declare a jsonb;b jsonb;begin
+ a:=records_lab.reverse_item_return('c','ret-n','ret-f','ret-h',3,3,3,'undo1','2026-11-26','Estorno solicitado','item-return:ret1');
+ b:=records_lab.reverse_item_return('c','ret-n','ret-f','ret-h',3,3,3,'undo1','2026-11-26','Estorno solicitado','item-return:ret1');
+ if a is distinct from b or (a->>'remainingCents')::int<>12000 or (a->>'cashCents')::int<>2000 then raise exception 'reverse balance';end if;
+ if (select jsonb_array_length(data->'acertoReturnsV9565') from records_lab.hlgb_records where entity_id='ret-n')<>2 or (select data->'acertoReturnsV9565'->0->>'reversalReference9849' from records_lab.hlgb_records where entity_id='ret-n')<>'undo1' then raise exception 'lost history';end if;
+ begin perform records_lab.reverse_item_return('c','ret-n','ret-f','ret-h',4,4,4,'undo2','2026-11-26','Duplicado','item-return:ret1');raise exception 'expected duplicate';exception when others then if sqlerrm<>'already-reversed-or-unknown' then raise;end if;end;
+ a:=records_lab.item_return('c','ret-n','ret-f','ret-h',4,4,4,'ret3','2026-11-26','Nova devolução','[{"key":"[\"order-product\",\"o\",\"p1\"]","qty":9},{"key":"[\"order-product\",\"o\",\"p2\"]","qty":6}]');
+ if (a->>'remainingCents')::int<>0 or (select data->>'status' from records_lab.hlgb_records where entity_id='ret-h')<>'Encerrado' then raise exception 'full compensation';end if;
+ a:=records_lab.reverse_item_return('c','ret-n','ret-f','ret-h',5,5,5,'undo3','2026-11-26','Reabrir nota','item-return:ret3');
+ if (a->>'remainingCents')::int<>12000 or (select data->>'status' from records_lab.hlgb_records where entity_id='ret-h')<>'Previsto' then raise exception 'reopen forecast';end if;
+end$$;
+reset role;
+-- Failure at the third write must roll back note and finance, not just forecast.
+create function records_lab.fail_item_forecast9849() returns trigger language plpgsql as $$begin
+ if new.entity_id='ret-h' then raise exception 'test-forecast-fault';end if;return new;
+end$$;
+create trigger test_item_forecast9849 before update on records_lab.hlgb_records for each row execute function records_lab.fail_item_forecast9849();
+set role records_lab_operator;
+do $$begin
+ begin perform records_lab.item_return('c','ret-n','ret-f','ret-h',6,6,6,'fault-item','2026-11-26','Falha simulada','[{"key":"[\"order-product\",\"o\",\"p1\"]","qty":1}]');raise exception 'expected fault';exception when others then if sqlerrm<>'test-forecast-fault' then raise;end if;end;
+ if (select count(*) from records_lab.hlgb_records where entity_id in ('ret-n','ret-f','ret-h') and revision=6)<>3 or exists(select 1 from records_lab.item_return_receipts where ref='fault-item') then raise exception 'partial write';end if;
+end$$;
+reset role;
+drop trigger test_item_forecast9849 on records_lab.hlgb_records;
+drop function records_lab.fail_item_forecast9849();
+select 'PASS isolated reversal, reopen forecast, and rollback of three writes';

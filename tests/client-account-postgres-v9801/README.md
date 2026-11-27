@@ -7,3 +7,6 @@ Forecast reconciliation extension: one synthetic forecast row per title; verifie
 
 ## Devolução por item v98.48
 Contrato isolado exige nota, título e previsão documental vinculados e revisões exatas; calcula pelo preço histórico, controla quantidade acumulada, rejeita abatimento legado sem item e excedente, atualiza os três registros na mesma transação, mantém recebido e não cria entrada de caixa. Referência idempotente. Ainda não é RPC comercial: autorização real, concorrência com escritores legados, reversão e ambiente de homologação pendentes. Não executar no Supabase comercial.
+
+## Estorno e falha transacional v98.49
+Estorno por evento exato, preserva original, motivo, autoria e referência; reabre previsão encerrada e libera somente as quantidades do evento estornado. Testa repetição, estorno duplicado, compensação integral, falha na terceira escrita e duas conexões simultâneas. Contrato de laboratório; não é autorização real, RPC comercial ou migração.

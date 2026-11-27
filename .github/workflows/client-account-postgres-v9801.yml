@@ -54,3 +54,6 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/item-returns.sql
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/item-returns-contract.sql
+
+      - name: Verify concurrent item return and exact replay
+        run: bash tests/client-account-postgres-v9801/item-returns-concurrency.sh
