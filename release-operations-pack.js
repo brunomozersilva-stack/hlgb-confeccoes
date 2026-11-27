@@ -263,7 +263,9 @@ function renderRoutes(){
  // A abertura também força uma leitura de routePlans; nova chamada não gera loop devido ao cooldown.
  refreshRoutes9453(false);const a=arr('routePlans').slice().sort((x,y)=>sid(y.date).localeCompare(sid(x.date)));
  const rows=a.map(r=>'<tr><td>'+escSafe(r.date||'')+'</td><td><b>'+escSafe(r.driver||'-')+'</b></td><td>'+((r.stops||[]).length)+'</td><td>'+escSafe(r.status||'Planejada')+'</td><td><button class="primary" onclick="editRoute9249(\''+escSafe(r.id)+'\')">Editar rota</button> <button class="secondary" onclick="printRoute9249(\''+escSafe(r.id)+'\')">🖨️ Imprimir</button> <button class="danger" onclick="deleteRoute9249(\''+escSafe(r.id)+'\')">Excluir</button></td></tr>').join('');
- h.innerHTML='<div class="toolbar"><button class="primary" onclick="newRoute9249()">+ Nova rota</button></div><div class="ops-table">'+(rows?'<table><thead><tr><th>Data</th><th>Responsável</th><th>Paradas</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">Nenhuma rota criada.</div>')+'</div>';
+ const review=routeDestinationReview9779({production:arr('production'),capacityAssignments:arr('capacityAssignments'),factionMasters:arr('factionMasters'),orders:arr('orders'),products:arr('products')},routeWriteoffIndex9733());
+ const reviewHtml='<details><summary>Conferir destinos e produtos prontos ('+review.length+')</summary><p class="sub">Consulta local, sem alterar destinos ou incluir mercadorias automaticamente. Pronto não comprova que ainda esteja na facção.</p>'+review.slice(0,100).map(x=>'<p class="sub"><b>'+escSafe(x.product)+'</b> · Pedido #'+escSafe(x.orderNo)+' · '+(x.qty===null?'Quantidade a conferir':x.qty+' pç')+' · '+escSafe(x.reason)+' · '+escSafe(x.source+':'+x.id)+'</p>').join('')+(review.length>100?'<p>Exibindo os primeiros 100 registros; confira os demais na Produção.</p>':'')+'</details>';
+ h.innerHTML='<div class="toolbar"><button class="primary" onclick="newRoute9249()">+ Nova rota</button></div>'+reviewHtml+'<div class="ops-table">'+(rows?'<table><thead><tr><th>Data</th><th>Responsável</th><th>Paradas</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">Nenhuma rota criada.</div>')+'</div>';
 }
 function routeStopHtml(stop,i){
  const locs=routeLocations(),selected=locs.some(x=>sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type));
@@ -282,12 +284,44 @@ function routeProductName9249(p){
 // Reuse the canonical operational writeoff index, never infer a writeoff from a payment or name.
 function routeWriteoffIndex9733(){try{const x=window.hlgbWriteoffIntegrity9391?.pairIndex?.();return x&&typeof x.has==='function'?x:null}catch(_){return null}}
 function routeWrittenOff9733(row,index){const o=sid(row?.orderId),p=sid(row?.productId);return !!(index&&o&&p&&index.has(o+'|'+p))}
+// A capacity assignment identifies a production location, not necessarily a
+// particular subcontractor. Never infer a person from a shared location.
+function routeDestinationReview9779(data,writtenOff){
+ const live=x=>x&&!x.deleted_at&&!x.deletedAt&&x.deleted!==true&&!x._deleted&&!/cancelad|excluid/.test(sid(x.stage||x.status).toLowerCase());
+ const production=(Array.isArray(data?.production)?data.production:[]).filter(live),capacity=(Array.isArray(data?.capacityAssignments)?data.capacityAssignments:[]).filter(live),masters=(Array.isArray(data?.factionMasters)?data.factionMasters:[]).filter(x=>live(x)&&x.active!==false);
+ const orders=Array.isArray(data?.orders)?data.orders:[],products=Array.isArray(data?.products)?data.products:[];
+ const identityCounts=new Map(),issues=[];
+ for(const p of production){const id=sid(p.id);identityCounts.set(id,(identityCounts.get(id)||0)+1)}
+ const pair=p=>sid(p.orderId)+'|'+sid(p.productId),knownPairs=new Set(production.filter(p=>sid(p.orderId)&&sid(p.productId)).map(pair));
+ const integer=v=>v!=null&&sid(v).trim()!==''&&Number.isSafeInteger(Number(v))&&Number(v)>=0?Number(v):null;
+ const append=(p,source,reason,qty)=>{
+  const o=orders.find(x=>sid(x.id)===sid(p.orderId)),prod=products.find(x=>sid(x.id)===sid(p.productId));
+  issues.push({source,id:sid(p.id),orderId:sid(p.orderId),productId:sid(p.productId),orderNo:o?routeOrderNo9249(o):sid(p.orderId),product:p.product||p.productName||prod?.name||'Modelo não identificado',qty,reason});
+ };
+ for(const p of production){
+  if(routeWrittenOff9733(p,writtenOff))continue;
+  const id=sid(p.id),planned=integer(p.planned),done=integer(p.done),fid=sid(p.factionId),lid=sid(p.productionLocationId),stage=sid(p.stage).toLowerCase();
+  if(!id||identityCounts.get(id)!==1||!sid(p.orderId)||!sid(p.productId)||planned===null||done===null||done>planned){append(p,'production','Registro de produção a conferir',null);continue}
+  if(fid&&masters.filter(m=>sid(m.id)===fid).length!==1){append(p,'production','Facção cadastrada não confirmada',planned-done);continue}
+  if(!fid&&!lid&&planned>done){append(p,'production','Aguardando atribuição de destino',planned-done);continue}
+  if(fid&&stage==='pronto'&&planned>0&&planned===done){append(p,'production','Pronto na produção: confirmar se ainda precisa buscar',done)}
+ }
+ for(const p of capacity){
+  if(routeWrittenOff9733(p,writtenOff)||knownPairs.has(pair(p))||sid(p.factionId)||!sid(p.locationId||p.productionLocationId))continue;
+  const lid=sid(p.locationId||p.productionLocationId),matches=masters.filter(m=>sid(m.productionLocationId)===lid);
+  if(matches.length>1)append(p,'capacity','Local compartilhado: escolher a facção responsável',integer(p.pieces??p.qty??p.planned));
+ }
+ return issues;
+}
 function routeAssignedProducts9249(loc,productionRows=null){
  if(!loc)return {active:[],planned:[]};
  const active=[],planned=[],seen=new Set(),writtenOff=routeWriteoffIndex9733();
- const prods=(Array.isArray(productionRows)?productionRows:arr('production')).filter(p=>p&&!p.deleted_at&&!p.deletedAt&&(loc.type==='Facção'?sid(p.factionId)===sid(loc.id):(!p.factionId&&sid(p.productionLocationId)===sid(loc.id))));
+ const live=p=>p&&!p.deleted_at&&!p.deletedAt&&p.deleted!==true&&!p._deleted&&!/cancelad|excluid/.test(sid(p.stage||p.status).toLowerCase());
+ const all=Array.isArray(productionRows)?productionRows:arr('production'),knownPairs=new Set([...arr('production'),...all].filter(p=>live(p)&&sid(p.orderId)&&sid(p.productId)).map(p=>sid(p.orderId)+'|'+sid(p.productId)));
+ const counts=new Map();for(const p of all.filter(live)){const id=sid(p.id??p.__hlgbId);counts.set(id,(counts.get(id)||0)+1)}
+ const prods=all.filter(p=>live(p)&&(loc.type==='Facção'?sid(p.factionId)===sid(loc.id):(!p.factionId&&sid(p.productionLocationId)===sid(loc.id))));
  for(const p of prods){
-   if(routeWrittenOff9733(p,writtenOff))continue;
+   if(routeWrittenOff9733(p,writtenOff)||!sid(p.id??p.__hlgbId)||counts.get(sid(p.id??p.__hlgbId))!==1||!sid(p.orderId)||!sid(p.productId))continue;
    const qty=Math.max(0,q(p.planned)-q(p.done));if(qty<=0)continue;
    const o=arr('orders').find(x=>sid(x.id)===sid(p.orderId)),pid=sid(p.productId),prod=arr('products').find(x=>sid(x.id)===pid),name=p.product||prod?.name||'Produto';
    const key='production:'+sid(p.id??p.__hlgbId??(sid(p.orderId)+'-'+pid));seen.add(sid(p.orderId)+'|'+pid);
@@ -297,7 +331,7 @@ function routeAssignedProducts9249(loc,productionRows=null){
  for(const c of arr('capacityAssignments')){
    if(routeWrittenOff9733(c,writtenOff))continue;
    const same=loc.type==='Facção'?sid(c.factionId)===sid(loc.id):sid(c.locationId||c.productionLocationId)===sid(loc.id);if(!same)continue;
-   const o=arr('orders').find(x=>sid(x.id)===sid(c.orderId)),pid=sid(c.productId),dupe=sid(c.orderId)+'|'+pid;if(seen.has(dupe))continue;
+   const o=arr('orders').find(x=>sid(x.id)===sid(c.orderId)),pid=sid(c.productId),dupe=sid(c.orderId)+'|'+pid;if(seen.has(dupe)||knownPairs.has(dupe)||!live(c))continue;
    const prod=arr('products').find(x=>sid(x.id)===pid),qty=q(c.pieces||c.qty||c.planned);if(qty<=0)continue;
    planned.push({key:'capacity:'+sid(c.id??dupe),source:'capacity',orderId:sid(c.orderId),productId:pid,orderNo:o?routeOrderNo9249(o):'',product:c.productName||prod?.name||'Produto',qty,stage:'Planejado para o local',direction:'carry'});
  }
