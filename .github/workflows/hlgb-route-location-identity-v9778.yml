@@ -1,0 +1,20 @@
+name: HLGB Rotas - identidade estável v97.78
+on:
+  pull_request:
+    paths:
+      - 'release-operations-pack.js'
+      - 'tests/route-location-identity-v9778.cjs'
+      - '.github/workflows/hlgb-route-location-identity-v9778.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-operations-pack.js
+      - run: node tests/route-location-identity-v9778.cjs
