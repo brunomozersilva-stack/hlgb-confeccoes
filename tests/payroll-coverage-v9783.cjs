@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/financeiro/payroll-preview-adapter-v9634.js');
+const employees=[{id:'a',hireDate:'2026-01-01',active:true},{id:'b',hireDate:'2026-11-15',active:true},{id:'c',hireDate:'2025-01-01',terminationDate:'2026-11-02',active:false},{id:'d',hireDate:'2025-01-01',terminationDate:'2026-10-30',active:false},{id:'e',hireDate:'2026-12-01',active:true},{id:'f',active:false}];
+const payroll=[{id:'p1',employeeId:'a',month:'2026-11',paid:false},{id:'p2',employeeId:'c',month:'2026-11',paid:false},{id:'p3',employeeId:'d',month:'2026-11',paid:false}];
+const pending={state:'observed',ids:['payroll::p2']},before=JSON.stringify({employees,payroll,pending});
+const c=api.coverage(employees,payroll,'2026-11',pending);
+assert.equal(c.expectedCount,3);assert.equal(c.missingCount,1);assert.equal(c.reviewCount,1);assert.equal(c.unexpectedCount,1);assert.equal(c.complete,false);
+const v=api.inspect({authenticated:true,payrollAllowed:true,db:{employees,payroll},pendingEvidence:pending,payrollCalc:()=>({net:100})},{competence:'2026-11',asOf:'2026-12-01'});
+assert.equal(v.observedEmployeeCount,2);assert.equal(v.localOpenCents,20000);assert.equal(v.officialAmountCents,null);assert.equal(v.canPublish,false);assert.equal(JSON.stringify({employees,payroll,pending}),before);
+assert.equal(api.coverage(employees,payroll,'2026-11',{state:'incomplete',ids:[]}).complete,false);
+console.log('PASS payroll month roster coverage and pending exclusion');
