@@ -47,9 +47,10 @@
   const dated=el('details','',host);el('summary','Conferência semanal por dia — inclusive primeira semana',dated);
   el('p','Marque os dias previstos, trabalhados e de passagem separadamente. Use a sexta de referência acima. Simulação local, sem gravação ou pagamento.',dated);
   const dayHost=el('div','',dated),dayOut=el('div','',dated),reviewLabel=el('label','Conferi as datas e os valores do cadastro',dated),reviewCheck=el('input','',reviewLabel);reviewCheck.type='checkbox';
+  const actualLabel=el('label','Conferi os dias efetivos (desmarcado: ainda não apurados)',dated),actualCheck=el('input','',actualLabel);actualCheck.type='checkbox';actualCheck.onchange=()=>{reviewCheck.checked=false;dayOut.replaceChildren()};
   const make=el('button','Carregar dias da semana',dated);make.type='button';make.className='secondary';
   const calc=el('button','Calcular semana por dia',dated);calc.type='button';calc.className='secondary';
-  let dayRows=[],loaded=null;const reset=()=>{dayRows=[];loaded=null;dayHost.replaceChildren();dayOut.replaceChildren();reviewCheck.checked=false};
+  let dayRows=[],loaded=null;const reset=()=>{dayRows=[];loaded=null;dayHost.replaceChildren();dayOut.replaceChildren();reviewCheck.checked=false;actualCheck.checked=false};
   for(const x of [friday,name,role,sector,start,mode,relationship,rate,vt,fare,days,status,...benefits])x.addEventListener('change',reset);
   make.onclick=()=>{reset();if(!active())return;try{
    const p=current||payload(),f=friday.value,n=Date.parse(f+'T00:00:00Z');if(!Number.isFinite(n)||new Date(n).getUTCDay()!==5||p.mode!=='daily'||f<p.start_date||!p.active)throw Error('week');
@@ -65,9 +66,9 @@
    try{const p=current||payload();if(!current){p.worker_id=loaded.workerId;const stored=JSON.parse(loaded.profile);p.operation_id=stored.operation_id}
     if(friday.value!==loaded.friday||JSON.stringify(p)!==loaded.profile)throw Error('changed');
     const pick=k=>dayRows.filter(r=>r[k].checked).map(r=>r.date);
-    const x=api.datedWeek(p,{friday:friday.value,asOf:today(),plannedDates:pick('plan'),plannedCommuteDates:pick('planCommute'),workedDates:pick('worked'),commuteDates:pick('commute'),closedDates:pick('closed'),reviewed:true},hubContext());
+    const x=api.datedWeek(p,{friday:friday.value,asOf:today(),plannedDates:pick('plan'),plannedCommuteDates:pick('planCommute'),workedDates:actualCheck.checked?pick('worked'):null,commuteDates:actualCheck.checked?pick('commute'):null,closedDates:pick('closed'),reviewed:true},hubContext());
     el('p','Previsto '+money(x.plannedCents)+' · Efetivo informado '+money(x.actualCents)+' · Diferença '+money(x.differenceCents),dayOut);
-    el('p',x.plannedDays+' dias previstos · '+x.workedDays+' trabalhados · '+x.commuteDays+' deslocamentos · Data candidata '+(x.scheduledCandidate||'A revisar')+' · Hub: '+x.reconciliation,dayOut);
+    el('p',x.plannedDays+' dias previstos · '+(x.workedDays??'A conferir')+' trabalhados · '+(x.commuteDays??'A conferir')+' deslocamentos · Data candidata '+(x.scheduledCandidate||'A revisar')+' · Hub: '+x.reconciliation,dayOut);
     if(x.partialFirstWeek)el('p','Primeira semana parcial: somente dias a partir do início do cadastro.',dayOut);
     if(x.issues.length)el('p','Conferir: '+x.issues.join(' · '),dayOut);
     el('p','Benefícios: '+(x.benefits.join(', ')||'Não informados')+' · '+(x.requiresRegularizationReview?'Vínculo exige revisão de RH.':'Vínculo informado como revisado.')+' Nenhum valor lançado.',dayOut);
