@@ -1,0 +1,24 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const context={window:{db:{},addEventListener(){}},document:{readyState:'complete',getElementById(){return null},addEventListener(){}},setTimeout(){},console,Date};
+vm.createContext(context);vm.runInContext(fs.readFileSync('release-notes-receivables-v9564.js','utf8'),context);
+const api=context.window.hlgbNotesReceivables9564;
+const note={id:'n',clientId:'a',value:100,paid:20,remaining:80,status:'Parcial',issueDate:'2026-11-01',paymentHistory:[{id:'p',value:20,date:'2026-11-02'}],acertoReturnsV9565:[]};
+const title={id:'f',clientId:'a',projectionInvoiceId:'n',value:100,paid:20,remaining:80,creditReturnsV9565:0,status:'Parcial'};
+const clone=x=>JSON.parse(JSON.stringify(x));
+const preview={state:'preview-only',clientKey:'id:a',payment:5000,opening:0,openingApplied:0,unallocatedPayment:0,allocations:[{key:'projection:n',before:8000,amount:5000,after:3000}]};
+const input={preview,clientId:'a',reference:'pix-1',method:'Pix',date:'2026-11-26'};
+const setup=()=>{let auth=true,calls=0;const local=[clone(note)],records={projectionInvoices:[{module:'projectionInvoices',entity_id:'n',revision:4,deleted_at:null,data:clone(note)}],finance:[{module:'finance',entity_id:'f',revision:5,deleted_at:null,data:clone(title)}]};return {local,records,get calls(){return calls},revoke:()=>{auth=false},deps:{allowed:()=>auth,pending:async()=>[],canonical:()=>clone(local),read:async(m)=>{calls++;return clone(records[m])}}}};
+(async()=>{
+ let x=setup(),out=await api.globalCloudCheck9812(input,x.deps);assert.equal(out.state,'preflight-only');assert.equal(out.amountCents,5000);assert.equal(out.allocations[0].noteRevision,4);assert.equal(out.cloudNotesCompared,true);assert.equal(out.atomicConfirmed,false);assert.equal(out.hubReconciled,false);assert.equal(out.canWrite,false);
+ x=setup();x.revoke();assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'permission');assert.equal(x.calls,0);
+ x=setup();x.deps.pending=async()=>['projectionInvoices::n'];assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'pending-sync');assert.equal(x.calls,0);
+ x=setup();x.deps.pending=async()=>['finance::f'];assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'pending-sync');
+ x=setup();x.records.finance.push(clone(x.records.finance[0]));assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'note-title-count');
+ x=setup();x.records.projectionInvoices[0].data.paymentHistory=[];assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'note-changed');
+ x=setup();x.local[0].paymentHistory=[];x.records.projectionInvoices[0].data.paymentHistory=[];assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'balance-changed');
+ x=setup();x.records.finance[0].data.remaining=79;assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'title-divergence');
+ x=setup();x.deps.read=async()=>{x.revoke();return []};assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'permission');
+ x=setup();assert.equal((await api.globalCloudCheck9812({...input,preview:{...preview,opening:100}},x.deps)).reason,'preview-not-supported');assert.equal(x.calls,0);
+ console.log('PASS cloud comparison only: revision, note/title identity, missing payment history, WAL, permission, no writes');
+})().catch(e=>{console.error(e);process.exitCode=1});
