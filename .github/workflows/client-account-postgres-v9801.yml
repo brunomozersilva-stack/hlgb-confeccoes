@@ -1,0 +1,36 @@
+name: HLGB Conta corrente - Laboratorio PostgreSQL v98.01
+on:
+  pull_request:
+    paths:
+      - 'tests/client-account-postgres-v9801/**'
+      - '.github/workflows/client-account-postgres-v9801.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture_only
+          POSTGRES_DB: hlgb_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_fixture"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: fixture_only
+      PGDATABASE: hlgb_fixture
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute isolated PostgreSQL contract
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/fixture.sql
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/candidate.sql
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/contract.sql
