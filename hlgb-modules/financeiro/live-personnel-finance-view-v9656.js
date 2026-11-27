@@ -25,12 +25,13 @@ function mount(pageId){const area=document.getElementById(pageId),id='hlgb-live-
  function salaryDraw(){salaryOut.replaceChildren();if(!active())return;const asOf=today(),opt={competence:month.value,asOf,holidays:list(holidays),companyClosed:list(companyClosed),bankClosed:list(bankClosed)};const signal=api.salarySignal(deps,opt,hub);
  if(signal.state!=='provisional'){el('p','Calendário indisponível. Confira competência, feriados e acesso.',salaryOut);return}
  const dateLabel=d=>d.split('-').reverse().join('/');
- const heading=el('h4',signal.schedule==='today'?'Hoje é a data candidata para programar o pagamento':signal.fifth==='today'?'Hoje é o quinto dia útil candidato':signal.schedule==='upcoming'?'Próxima programação salarial':'Data candidata já passou: confira a folha',salaryOut);
+ const heading=el('h4',signal.schedule==='today'?'Hoje é a data candidata para programar o pagamento':signal.fifth==='today'?'Hoje é o quinto dia útil candidato':signal.company==='today'?'Hoje é o quinto dia de expediente candidato da empresa':signal.schedule==='upcoming'?'Próxima programação salarial':'Data candidata já passou: confira a folha',salaryOut);
  heading.setAttribute('role','status');el('p','Competência '+month.value+' · 5º dia útil salarial: '+dateLabel(signal.fifthDay)+' · 5º dia de expediente: '+dateLabel(signal.companyFifthDay)+' · Programação da empresa: '+dateLabel(signal.scheduledDay),salaryOut);
  el('p','Calendário provisório. Sábado conta para o prazo salarial, mas não para o expediente da empresa. Feriados, convenção e banco precisam de confirmação.',salaryOut);
  const x=api.payroll(deps,opt,hub);if(!active()){salaryOut.replaceChildren();return}if(x.state!=='local-preview-only'){el('p','Prévia indisponível. Confira acesso, competência e fontes.',salaryOut);return}
  el('p','Funcionários considerados: '+x.observedEmployeeCount+' · '+x.issueCount+' registro(s) exigem revisão.',salaryOut);
  el('p',x.observedEmployeeCount?'Em aberto observado: '+money(x.localOpenCents)+' · Pago informado: '+money(x.localPaidCents):'Nenhum registro salarial válido carregado. Valor desconhecido, não zero.',salaryOut);
+ if(x.coverage){const v=x.coverage;el('p','Cobertura da competência: '+v.expectedCount+' funcionários com vínculo no mês · '+v.missingCount+' sem linha de folha · '+v.reviewCount+' cadastros/linhas a revisar · '+v.unexpectedCount+' vínculos fora do período.',salaryOut);el('p',v.pendingObserved?'Fila local de sincronização consultada; valores pendentes excluídos.':'Fila de sincronização não confirmada; total observado pode estar incompleto.',salaryOut);}
  el('p','Consulta local, não é previsão oficial gravada nem confirmação de pagamento.',salaryOut);
  if(x.reconciliation)el('p','Conferência Hub: '+({'local-preview-only':'Sem prova suficiente para lançamento','legacy-or-unlinked-review':'Conciliar lançamento anterior','already-paid-review':'Pagamento registrado: revisar','duplicate-review':'Duplicidade: revisar','existing-conflict':'Conflito em lançamento','source-unavailable':'Fonte indisponível'}[x.reconciliation.state]||x.reconciliation.state),salaryOut);
  }
@@ -98,14 +99,15 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
    const p=deps.payrollApi(),c=deps.calendarApi();if(typeof p?.inspect!=='function'||typeof c?.salaryDate!=='function'||typeof deps.calc!=='function')return invalid('source-unavailable');
    const rows=deps.read('payroll');if(!allowed(deps,...areas))return invalid('permission');const employees=deps.read('employees');if(!allowed(deps,...areas))return invalid('permission');if(!Array.isArray(rows)||!Array.isArray(employees))return invalid('source-unavailable');
    const opts={competence:opt.competence,asOf:opt.asOf,holidays:opt.holidays||[],companyClosed:opt.companyClosed||[],bankClosed:opt.bankClosed||[]};
-   const calendar=c.salaryDate(opts),v=p.inspect({authenticated:true,payrollAllowed:true,db:{payroll:copy(rows),employees:copy(employees)},payrollCalc:(row,e)=>deps.calc(row,e)},opts);
+   const pending=typeof deps.pendingEvidence==='function'?deps.pendingEvidence():{state:'incomplete',ids:[]};if(!allowed(deps,...areas))return invalid('permission');
+   const calendar=c.salaryDate(opts),v=p.inspect({authenticated:true,payrollAllowed:true,pendingEvidence:copy(pending),db:{payroll:copy(rows),employees:copy(employees)},payrollCalc:(row,e)=>deps.calc(row,e)},opts);
    if(!allowed(deps,...areas))return invalid('permission');
    if(v.state!=='local-preview-only')return invalid(v.reason||'payroll-review');
-   const out={state:'local-preview-only',competence:opts.competence,calendar,observedEmployeeCount:v.observedEmployeeCount,localOpenCents:v.localOpenCents,localPaidCents:v.localPaidCents,issueCount:v.issues.length,officialAmountCents:null,canPublish:false};
+   const out={state:'local-preview-only',competence:opts.competence,calendar,coverage:v.coverage,observedEmployeeCount:v.observedEmployeeCount,localOpenCents:v.localOpenCents,localPaidCents:v.localPaidCents,issueCount:v.issues.length,officialAmountCents:null,canPublish:false};
    if(fromHub){
     const raw=deps.read('hubFinanceEntries');if(!allowed(deps,...areas))return invalid('permission');const a=deps.reconcileApi();if(!allowed(deps,...areas))return invalid('permission');
     if(!Array.isArray(raw)||typeof a?.inspect!=='function')return {...out,reconciliation:{state:'source-unavailable',canPublish:false}};
-    const res=a.inspect({authenticated:true,payrollAllowed:true,financeAllowed:true,rows:copy(raw),pendingOrigins:[],snapshotVerified:false,coverageVerified:false,pendingVerified:false},{kind:'salary',competence:opts.competence,dueDate:calendar.scheduledCandidate,amountCents:v.localOpenCents,sourceVerified:false,calendarVerified:false});
+    const res=a.inspect({authenticated:true,payrollAllowed:true,financeAllowed:true,rows:copy(raw),pendingOrigins:(pending?.ids||[]).includes('payroll_forecast_v1|'+opts.competence)?['payroll_forecast_v1|'+opts.competence]:[],snapshotVerified:false,coverageVerified:false,pendingVerified:false},{kind:'salary',competence:opts.competence,dueDate:calendar.scheduledCandidate,amountCents:v.localOpenCents,sourceVerified:false,calendarVerified:false});
     if(!allowed(deps,...areas))return invalid('permission');
     out.reconciliation={state:res.state,existingCount:res.existingCount??null,paidViewCount:res.paidViewCount??null,canPublish:false};
    }
