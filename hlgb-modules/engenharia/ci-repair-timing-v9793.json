@@ -1,0 +1,48 @@
+[
+  {
+    "id": "cut-remnant-selector-9661",
+    "before": {
+      "runId": 45304497656,
+      "commit": "4fdc40ffb07678a2f12bbddec7590b1f3bbaaf7f",
+      "workflow": "HLGB Comercial - Planejamento e dossie de Corte v96.61",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "createdAt": "2026-11-24T01:21:56Z",
+      "updatedAt": "2026-11-24T08:26:56Z"
+    },
+    "after": {
+      "runId": 45359414421,
+      "commit": "664a15e1090b8a79d0f782a921639525bd6c0c33",
+      "workflow": "HLGB Comercial - Planejamento e dossie de Corte v96.61",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "createdAt": "2026-11-24T08:48:59Z",
+      "updatedAt": "2026-11-24T08:59:38Z"
+    }
+  },
+  {
+    "id": "worker-passage-label-9659",
+    "before": {
+      "runId": 45359414185,
+      "commit": "664a15e1090b8a79d0f782a921639525bd6c0c33",
+      "workflow": "HLGB Comercial - Cadastro e acerto semanal v96.59",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "createdAt": "2026-11-24T08:48:58Z",
+      "updatedAt": "2026-11-24T08:58:13Z"
+    },
+    "after": {
+      "runId": 45361271637,
+      "commit": "e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3",
+      "workflow": "HLGB Comercial - Cadastro e acerto semanal v96.59",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "createdAt": "2026-11-24T09:01:35Z",
+      "updatedAt": "2026-11-24T09:05:54Z"
+    }
+  }
+]
