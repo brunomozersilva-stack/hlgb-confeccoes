@@ -54,6 +54,15 @@ function canonical(v){
  return r;
 }
 function sameBusiness(a,b){try{return JSON.stringify(canonical(a))===JSON.stringify(canonical(b))}catch(e){return false}}
+// Reserved account links may only be created or changed by a future
+// dedicated financial transaction. Generic Hub edits cannot change them.
+function guardAccountLink9816(existing,payload){
+ const marked=x=>x?.clientForecastLinkV9815!=null||['client_note_forecast_v9815','client_global_receipt_v9815'].includes(x?.sourceType);
+ if(!marked(existing)&&!marked(payload))return;
+ if(!existing||!marked(existing)||!marked(payload))throw Error('Vínculo financeiro protegido. Use o acerto específico; nenhuma alteração foi enviada.');
+ const keys=['clientForecastLinkV9815','sourceType','sourceId','projectionInvoiceId','clientId','id','flow','status','value','date','realizedAt','method','person','origin','category','subcategory'];
+ for(const k of keys)if(!sameBusiness(existing[k],payload[k]))throw Error('Vínculo financeiro protegido. Altere valores, origem ou baixa pelo acerto específico.');
+}
 function revisionOf(s){const n=Number(s?.revision);return Number.isSafeInteger(n)&&n>=0?n:null}
 function snapshotFor(id){
  try{const root=typeof hlgbRecordSnapshots!=='undefined'?hlgbRecordSnapshots:window.hlgbRecordSnapshots;
@@ -128,6 +137,7 @@ async function save(row,deleted=false,opts={}){
   checkPending(id);signal('remote-preflight',{},attemptId);
   const existing=await cloudRow(id); // Falha de consulta NAO deve ser confundida com registro novo.
   let expected=0;
+  guardAccountLink9816(existing?.data,payload);
   if(existing){
    if(existing.deleted_at)throw new Error('Lançamento excluído na nuvem. Recarregue antes de editar.');
    const serverRev=revisionOf(existing);
