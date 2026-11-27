@@ -176,7 +176,7 @@ function openFullCutChecklist9820(id){
    // Keep the photos/PDFs beside their actual per-color conference, not in a separate total-only form.
    const docs=el('section','',panel);docs.dataset.hlgbConferenceDocs9834='1';
    el('h3','Fotos e PDFs desta conferência',docs);
-   el('p','Até 3 arquivos de 5 MB. Seleção mantida apenas nesta sessão; não enviada à nuvem.',docs);
+   el('p','Até 3 arquivos de 5 MB por conferência e 30 MB por sessão. Seleção mantida apenas nesta sessão; não enviada à nuvem.',docs);
    const label=el('label','Selecionar foto ou PDF da conferência',docs),picker=el('input','',label);
    picker.type='file';picker.accept='application/pdf,image/jpeg,image/png,image/webp';picker.style.maxWidth='100%';
    const message=el('p','',docs);message.setAttribute('role','status');
@@ -204,6 +204,8 @@ function openFullCutChecklist9820(id){
      const sha=Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');
      if(!current())return;
      if(selected.length>=3||selected.some(x=>x.sha===sha)){message.textContent='Limite de arquivos ou conteúdo repetido.';return}
+     const total=[...conferenceDrafts9828.entries()].filter(([k])=>k!==cacheKey).reduce((n,[,d])=>n+(d.files||[]).reduce((a,x)=>a+x.info.size,0),0)+selected.reduce((n,x)=>n+x.info.size,0)+file.size;
+     if(total>30*1024*1024){message.textContent='Limite de 30 MB de documentos nesta sessão atingido.';return}
      selected.push({file,info:meta,sha});capture();paintFiles();message.textContent='Arquivo selecionado apenas nesta sessão. Ainda não enviado.';
     }catch(_){if(current())message.textContent='Não foi possível verificar o arquivo.'}finally{selecting=false;picker.disabled=false}
    });
@@ -218,6 +220,7 @@ function openFullCutChecklist9820(id){
  const print=el('button','Imprimir folha de pedido do corte');print.type='button';print.onclick=()=>printRequiredCut9820(v.cutId);
  const checklistPrint=el('button','Imprimir checklist de separação',top);checklistPrint.type='button';checklistPrint.className='primary';checklistPrint.dataset.hlgbPrintChecklist9824='1';top.insertBefore(checklistPrint,close);checklistPrint.onclick=()=>{
   if(!requiredCutAllowed9820()||!host.isConnected)return;
+  if(host.querySelector('[data-hlgb-color-conference9827]')&&conferenceIdentity9828()!==sessionOwner){alert('Sessão alterada. Reabra o checklist.');host.remove();return}
   const freshIdx=cutIndex9709(),fresh=cutActionProof9820(freshIdx.cuts.get(v.cutId),freshIdx);if(JSON.stringify(fresh)!==JSON.stringify(v)){alert('A grade ou ficha mudou. Reabra o checklist.');return}
   const html=host.cloneNode(true);html.querySelectorAll('button,[data-hlgb-conference-docs9834] input,[data-hlgb-conference-docs9834] label,[data-hlgb-conference-docs9834] [role=status]').forEach(n=>n.remove());const original=[...host.querySelectorAll('input[type=checkbox]')];[...html.querySelectorAll('input[type=checkbox]')].forEach((n,i)=>{const text=document.createTextNode(original[i]?.checked?'☑ ':'☐ ');n.replaceWith(text)});const inputs=[...host.querySelectorAll('[data-hlgb-color-conference9827] input:not([type=file])')];[...html.querySelectorAll('[data-hlgb-color-conference9827] input')].forEach((n,i)=>{const input=inputs[i];n.replaceWith(document.createTextNode(input?.getAttribute('aria-invalid')==='true'?'Valor inválido':input?.value||'________________'))});html.removeAttribute('style');
   const page='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Checklist de separação</title><style>@page{size:A4;margin:10mm}body{font:12px Arial;color:#222}h2{font-size:19px}h3{font-size:14px}h2,h3{margin:8px 0}p{margin:4px 0}table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #aaa;padding:4px}th{background:#eee}tr{break-inside:avoid}thead{display:table-header-group}</style><body><h1 style="font-size:20px;margin:0 0 8px">HLGB Confecções</h1>'+html.innerHTML+'<p>Responsável: _____________________ Data: ____/____/____</p><p>Faltas / observações: __________________________________________</p></body></html>';
