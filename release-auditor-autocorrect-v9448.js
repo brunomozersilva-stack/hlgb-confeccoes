@@ -321,7 +321,7 @@ async function run(opts={}){
 async function activate(reason='post-auth'){if(!authReady())return false;stamp();const p=await prepare(reason);return !!p.ok}
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(()=>activate('authenticated-event'),0));
 window.hlgbAuditorAutoCorrect9448={version:V,state,run,prepare,ensureBase,ensureResidual,render,downloadReport,exportWalPayload:exportWalPayload9494,readWalIndexedDb:readWalIndexedDb9494,
- reviewWalAll9593,downloadWalReview9593,summarizeRouteDuplicates9595,summarizeWalModules9708,cutMaterialsEvidence9711,separationDockEvidence9715,walGuardEvidence9719,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
+ reviewWalAll9593,downloadWalReview9593,summarizeRouteDuplicates9595,summarizeWalModules9708,cutMaterialsEvidence9711,separationDockEvidence9715,walGuardEvidence9719,reportStamp:()=>authReady()&&state.lastReport?.run?.runId?JSON.stringify([state.lastReport.run.runId,state.lastReport.generatedAt||'',state.lastReport.auditCompleted,state.lastReport.run.executionFailed]):null,exportReport:()=>clone(state.lastReport),status:()=>({...state,authReady:authReady(),baseReady:baseReady(),residualReady:residualReady()})};
 stamp();if(authReady())setTimeout(()=>activate('loaded-after-auth'),0);console.info('[HLGB] v'+V+' Auditor pronto · prova residual de Produção antes da classificação');
 /* Optional v95.56 learning assistant. Loaded after login; a failure here must
    never delay or interrupt the existing Auditor or any business operation. */

@@ -12,7 +12,7 @@ const localStorage={
  setItem(k,v){writes.push(k);storage.set(k,String(v))}
 };
 let current;
-const window={__HLGB_AUTH_READY:true,__HLGB_TEST__:true,hlgbAuditorAutoCorrect9448:{exportReport:()=>current}};
+let reportReads=0;const window={__HLGB_AUTH_READY:true,__HLGB_TEST__:true,hlgbAuditorAutoCorrect9448:{exportReport:()=>{reportReads++;return current}}};
 const document={hidden:false,getElementById(){return null}};
 const context={window,localStorage,document,navigator:{userAgent:'Mozilla/5.0 Safari/605.1'},Date,console,setTimeout(){throw Error('Test mode cannot schedule runtime tasks')},setInterval(){throw Error('Test mode cannot start timers')}};
 vm.createContext(context);
@@ -87,3 +87,8 @@ assert.equal(api.download(),false);
 assert.equal(api.history().length,0);assert.equal(api.pack().reason,'not-authenticated');assert.equal(api.status().historyCount,0);
 assert(writes.every(k=>/^hlgb_auditor_diagnostic_(cases|assistant_disabled)_v9556$/.test(k)),'No business data or WAL keys may be modified');
 console.log('PASS Auditor learning assistant: recurring incidents, diagnostic pack, privacy, auth, disable and WAL safety');
+
+// Cheap producer stamp prevents repeated cloning/processing on the same audit.
+window.__HLGB_AUTH_READY=true;current=base();current.run.runId='poll-1';current.auditCompleted=true;window.hlgbAuditorAutoCorrect9448.reportStamp=()=>JSON.stringify([current.run.runId,current.auditCompleted]);const reads=reportReads;assert.equal(api.poll(),true);assert.equal(reportReads,reads+1);for(let i=0;i<20;i++)api.poll();assert.equal(reportReads,reads+1);assert.equal(api.status().pollSkippedUnchanged,20);current.run.runId='poll-2';api.poll();assert.equal(reportReads,reads+2);document.hidden=true;current.run.runId='poll-3';assert.equal(api.poll(),false);assert.equal(reportReads,reads+2);document.hidden=false;api.poll();assert.equal(reportReads,reads+3);delete window.hlgbAuditorAutoCorrect9448.reportStamp;api.poll();assert.equal(reportReads,reads+4,'legacy fallback remains');
+const missing={run:{runId:'feature-test',needsCode:[{code:'cut:missing-control',detail:'botao imprimir ausente'}]},finalAudit:{checks:[]}};assert.equal(api.findings(missing)[0].kind,'feature');assert.equal(api.collect({...missing,executionFailed:true}).reason,'incomplete-audit');assert.equal(api.findings({run:{needsCode:[{code:'cut:unknown',detail:'missing-control text only'}]}})[0].kind,'general');
+console.log('PASS cheap report polling, hidden-tab guard and explicit regression triage');
