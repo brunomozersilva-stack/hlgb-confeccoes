@@ -100,3 +100,15 @@ const amounts=()=>api.moneyState(db.projectionInvoices[0],'projection');
  assert(writes.every(x=>x.module==='projectionInvoices'||x.module==='finance'||x.module==='orders'));
  console.log('PASS acerto v95.65: cloud-confirmed returns, notes, overpayment guard, audit reversals, finance retry and original order receipt preserved.');
 })().catch(e=>{console.error(e);process.exitCode=1});
+
+const note9847={id:'item-note',orderId:'order-1',value:150,paid:20,remaining:130,items:[{productId:'p1',productName:'Camisola',qty:10,unitPrice:10,value:100},{productId:'p2',productName:'Calcinha',qty:10,unitPrice:5,value:50}]};
+const a9847=api.itemReturns9847(note9847);assert.equal(a9847.state,'preview');
+const b9847=api.itemReturns9847(note9847,[{key:a9847.rows[0].key,qty:2},{key:a9847.rows[1].key,qty:3}]);assert.equal(b9847.amountCents,3500);assert.equal(b9847.balanceAfter,9500);assert.equal(b9847.cashCents,2000);assert.equal(b9847.canWrite,false);
+assert.equal(api.itemReturns9847(note9847,[{key:a9847.rows[0].key,qty:11}]).state,'review');
+const history9847={...note9847,remaining:95,acertoReturnsV9565:[{id:'r1',value:35,itemsV9847:b9847.picked}]};
+assert.equal(api.itemReturns9847(history9847).rows[0].available,8);
+assert.equal(api.itemReturns9847({...history9847,acertoReturnsV9565:[{id:'old',value:35}]}).reason,'legacy-return-unallocated');
+assert.equal(api.itemReturns9847({...note9847,items:[...note9847.items,note9847.items[0]]}).state,'review');
+assert.equal(api.itemReturns9847({...note9847,acertoReturnsV9565:[{...history9847.acertoReturnsV9565[0],reversedAt:'2026-11-27'}]}).rows[0].available,10);
+assert.equal(api.itemReturns9847(note9847,a9847.rows.map(r=>({key:r.key,qty:r.qty}))).excessCents,2000);
+console.log('PASS item return preview: historical prices, partial, reversed, excess and unidentified legacy');

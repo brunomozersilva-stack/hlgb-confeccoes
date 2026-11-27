@@ -33,6 +33,38 @@ function balance(x,type){
  const cash=Math.min(total,paid(x,type)),credit=credits(x);
  return {total,cash,credit,remaining:Math.max(0,total-cash-credit),overCredit:credit>total-cash};
 }
+// Read-only exact item review; legacy monetary credits cannot be attributed to products.
+function itemReturns9847(doc,selection=[]){
+ const fail=reason=>({state:'review',reason,rows:[],canWrite:false});
+ const integer=x=>Number.isSafeInteger(x)&&x>0&&x<=10000000;
+ const cents=x=>{if(typeof x!=='number'&&!(typeof x==='string'&&/^\d+(?:\.\d{1,2})?$/.test(x)))return null;const n=Number(x),v=Math.round(n*100);return Number.isSafeInteger(v)&&v>=0&&Math.abs(n*100-v)<1e-6?v:null};
+ if(!doc||!sid(doc.id)||!Array.isArray(doc.items)||!doc.items.length||doc.items.length>500||!Array.isArray(selection))return fail('missing-items');
+ const map=new Map();let total=0;
+ for(const item of doc.items){
+  const pid=sid(item?.productId||item?.itemKey),oid=sid(item?.orderId||doc.orderId),line=sid(item?.lineId||item?.id),key=JSON.stringify(line?['line',line]:['order-product',oid,pid]),qty=Number(item?.qty),unit=cents(item?.unitPrice),value=cents(item?.value);
+  if(!pid||!line&&!oid||map.has(key)||!integer(qty)||unit===null||unit<=0||!Number.isSafeInteger(qty*unit)||value!==qty*unit)return fail('item-identity-or-price');
+  total+=value;map.set(key,{key,productId:pid,orderId:oid,lineId:line,name:sid(item.productName||item.name||pid),qty,unitCents:unit,returned:0});
+ }
+ if(!Number.isSafeInteger(total)||total!==cents(doc.value))return fail('note-total');
+ const events=new Set();let credit=0;
+ for(const e of ret(doc)){
+  const id=sid(e?.id);if(!id||events.has(id))return fail('return-history');events.add(id);if(e.reversedAt)continue;
+  if(!Array.isArray(e.itemsV9847)||!e.itemsV9847.length)return fail('legacy-return-unallocated');
+  let sum=0;const seen=new Set();
+  for(const item of e.itemsV9847){
+   const r=map.get(item.key);
+   if(!r||seen.has(item.key)||!integer(item.qty)||item.unitCents!==r.unitCents||item.productId!==r.productId||item.orderId!==r.orderId||item.lineId!==r.lineId)return fail('return-history');
+   seen.add(item.key);r.returned+=item.qty;if(r.returned>r.qty)return fail('quantity-exceeded');sum+=item.qty*r.unitCents;
+  }
+  if(sum!==cents(e.value))return fail('return-history');credit+=sum;
+ }
+ const m=moneyState(doc,'projection');
+ if(m.total!==total||m.credit!==credit||m.overCredit||doc.remaining!=null&&cents(doc.remaining)!==m.remaining)return fail('balance');
+ const rows=[...map.values()].map(r=>({...r,available:r.qty-r.returned})),picked=[],seen=new Set();let amount=0;
+ for(const x of selection){const r=map.get(x?.key);if(!r||seen.has(x.key)||!integer(x.qty)||x.qty>r.qty-r.returned)return fail('invalid-selection');seen.add(x.key);amount+=x.qty*r.unitCents;picked.push({key:r.key,productId:r.productId,orderId:r.orderId,lineId:r.lineId,qty:x.qty,unitCents:r.unitCents});}
+ if(!Number.isSafeInteger(amount))return fail('amount');
+ return {state:'preview',rows,picked,amountCents:amount,balanceBefore:m.remaining,balanceAfter:Math.max(0,m.remaining-amount),excessCents:Math.max(0,amount-m.remaining),cashCents:m.cash,canWrite:false};
+}
 function status(m){
  return m.remaining>1?(m.cash>0||m.credit>0?'Parcial':'Pendente'):
  m.credit>0?'Compensado por devolução':'Pago';
@@ -282,6 +314,8 @@ function render(type,id){
   editItems+'<div class="field"><label>Valor total da nota (R$)</label><input id="ar72-total" type="number" min="0.01" step="0.01" value="'+(m.total/100).toFixed(2)+'"'+(itemList.length?' readonly':'')+'></div>'+
   '<div class="field"><label>Motivo da alteração (obrigatório)</label><input id="ar72-reason" maxlength="180" placeholder="Ex.: conferir quantidade entregue"></div>'+
   '<button type="button" class="primary" data-ar65="edit">Salvar alterações da nota</button></details>':'';
+ const itemReview=type==='projection'?itemReturns9847(doc):null;
+ const itemReturnPanel=itemReview?.state==='preview'?'<details class="panel" style="padding:10px;margin:8px 0"><summary><b>Calcular devolução por produto / quantidade</b></summary><p class="sub">Prévia com preço histórico da nota. Ainda não grava quantidade devolvida; o abatimento por valor continua separado.</p><div style="overflow:auto"><table><thead><tr><th>Produto</th><th>Original</th><th>Devolvido identificado</th><th>Disponível</th><th>Unitário</th><th>Quantidade a devolver</th><th>Subtotal</th></tr></thead><tbody>'+itemReview.rows.map((r,i)=>'<tr><td>'+esc(r.name)+'</td><td>'+r.qty+'</td><td>'+r.returned+'</td><td>'+r.available+'</td><td>'+brl(r.unitCents)+'</td><td><input type="number" aria-label="Quantidade a devolver — '+esc(r.name)+'" data-ar9847-qty="'+i+'" min="0" max="'+r.available+'" step="1" value="0" style="width:85px"><button type="button" class="secondary" data-ar9847-all="'+i+'">Todas</button></td><td data-ar9847-sub="'+i+'">'+brl(0)+'</td></tr>').join('')+'</tbody></table></div><p id="ar9847-result" role="status">Selecione as quantidades.</p></details>':itemReview?'<p class="sub">Devolução por item não disponível: nota, preços ou devoluções anteriores precisam de conferência. O fluxo original por valor permanece.</p>':'';
  const todayStr=today(),html='<div id="hlgbAcertoReturn9565" style="max-width:860px">'+
  '<div class="cards" style="margin-bottom:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:7px">'+
  [['Total original',m.total],['Recebido em dinheiro',m.cash],['Abatido por devolução',m.credit],['Saldo a cobrar',m.remaining]].map(([label,value])=>
@@ -294,7 +328,7 @@ function render(type,id){
  '<div class="field"><label>Data</label><input id="ar65-paydate" type="date" value="'+todayStr+'"></div></div>'+
  '<div class="field"><label>Observação do pagamento</label><input id="ar65-paynote" placeholder="Ex.: cheque nº 123"></div>'+
  '<button type="button" class="primary" data-ar65="payment"'+(m.remaining<=1?' disabled':'')+'>Salvar recebimento</button></div>'+
- '<div class="panel" style="padding:12px;margin:10px 0"><h3 style="margin-top:0">↩️ Abater devolução</h3>'+
+ '<div class="panel" style="padding:12px;margin:10px 0"><h3 style="margin-top:0">↩️ Abater devolução</h3>'+itemReturnPanel+
  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">'+
  '<div class="field"><label>Valor a abater (R$)</label><input id="ar65-return" type="number" min="0.01" step="0.01" max="'+(m.remaining/100)+'" placeholder="0,00"></div>'+
  '<div class="field"><label>Data da devolução</label><input id="ar65-returndate" type="date" value="'+todayStr+'"></div></div>'+
@@ -316,11 +350,26 @@ function render(type,id){
  if(type==='projection')try{window.hlgbNoteReceipts9576?.show?.(id,host)}catch(e){console.warn('[HLGB PDF note]',e)}
  const preview=()=>{const raw=Number(host.querySelector('#ar65-return')?.value||0),value=Number.isFinite(raw)&&raw>=0?cent(raw):0;
   const target=host.querySelector('#ar65-return-preview');if(target)target.textContent='Nota '+brl(m.total)+' − recebimentos '+brl(m.cash)+' − devoluções anteriores '+brl(m.credit)+' − novo abatimento '+brl(value)+' = a cobrar '+brl(Math.max(0,m.remaining-value))+(value>m.remaining?' · ⚠ Valor acima do saldo':'');};
+ const itemSignature=JSON.stringify(doc);
+ const itemPreview=()=>{
+  if(itemReview?.state!=='preview')return;
+  const target=host.querySelector('#ar9847-result');if(!target)return;
+  const current=lookup(type,id);
+  if(!current||JSON.stringify(current)!==itemSignature){target.textContent='A nota mudou. Reabra o acerto para recalcular.';return}
+  const chosen=[];let invalid=false;
+  itemReview.rows.forEach((r,i)=>{const raw=host.querySelector('[data-ar9847-qty="'+i+'"]')?.value??'',qty=Number(raw),ok=/^\d+$/.test(raw)&&Number.isSafeInteger(qty)&&qty>=0&&qty<=r.available;
+   const sub=host.querySelector('[data-ar9847-sub="'+i+'"]');if(sub)sub.textContent=ok?brl(qty*r.unitCents):'Inválido';
+   if(!ok)invalid=true;else if(qty)chosen.push({key:r.key,qty});
+  });
+  const v=invalid?null:itemReturns9847(current,chosen);
+  target.textContent=v?.state==='preview'?'Total dos itens: '+brl(v.amountCents)+' · Saldo após abatimento: '+brl(v.balanceAfter)+(v.excessCents?' · Excedente '+brl(v.excessCents)+' exige revisão de crédito.':'')+' · Prévia, sem gravação.':'Confira as quantidades e a nota.';
+ };
  const recalc=()=>{if(!itemList.length)return;let sum=0;host.querySelectorAll('[data-ar72-qty]').forEach(input=>{const i=Number(input.dataset.ar72Qty),qty=Number(input.value),unit=Number(host.querySelector('[data-ar72-unit="'+i+'"]')?.value||0);sum+=Math.round(qty*cent(unit));});
   const el=host.querySelector('#ar72-total');if(el)el.value=(sum/100).toFixed(2);};
- host.addEventListener('input',e=>{if(e.target?.id==='ar65-return')preview();if(e.target?.matches?.('[data-ar72-qty],[data-ar72-unit]'))recalc();});
+ host.addEventListener('input',e=>{if(e.target?.id==='ar65-return')preview();if(e.target?.matches?.('[data-ar9847-qty]'))itemPreview();if(e.target?.matches?.('[data-ar72-qty],[data-ar72-unit]'))recalc();});
  preview();
  host.addEventListener('click',async e=>{
+  const all=e.target?.closest?.('[data-ar9847-all]');if(all){const i=Number(all.dataset.ar9847All),input=host.querySelector('[data-ar9847-qty="'+i+'"]');if(input&&itemReview?.rows[i]){input.value=String(itemReview.rows[i].available);itemPreview()}return}
   const b=e.target?.closest?.('[data-ar65],[data-return-reverse]');if(!b||b.disabled)return;
   const kind=b.hasAttribute('data-return-reverse')?'reversal':b.dataset.ar65;
   const g=x=>sid(document.getElementById(x)?.value);
@@ -427,7 +476,7 @@ function install(){
  window.openProjectionAcerto9214=id=>render('projection',id);
  patchRenderer();patchOrderRemaining();patchOrderAcerto();
 }
-window.hlgbAcertoReturns9565={version:V,balance,moneyState,credits,paid,lookup,saveAction,retryFinance,render,install,status:()=>copy(state)};
+window.hlgbAcertoReturns9565={version:V,itemReturns9847,balance,moneyState,credits,paid,lookup,saveAction,retryFinance,render,install,status:()=>copy(state)};
 install();[600,1600,3600].forEach(ms=>setTimeout(install,ms));
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,400));
 console.info('[HLGB] v'+V+' devoluções e anotações do acerto auditáveis; confirmação de nuvem obrigatória');
