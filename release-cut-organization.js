@@ -283,13 +283,85 @@ function matchesCut9709(meta,filters){
 }
 let filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};
 const centsFilter9712=v=>{if(v==null||String(v).trim()==='')return null;const n=Number(v);return Number.isFinite(n)&&n>=0&&Number.isSafeInteger(Math.round(n*100))?Math.round(n*100):null};
+// Compact read-only Corte Conjunto. Discovery never constitutes authorization to cut.
+function jointAllowed9837(){try{return requiredCutAllowed9820()&&canOpenPage('materiais')===true}catch(_){return false}}
+function jointSnapshot9837(){
+ if(!jointAllowed9837()||typeof window.HLGBJointCutDiscovery9629?.discover!=='function')return null;
+ try{return window.HLGBJointCutDiscovery9629.discover(db,window.hlgbWriteoffIntegrity9391)}catch(_){return null}
+}
+function openJointSimulation9837(){
+ if(!jointAllowed9837())return false;
+ const snapshot=jointSnapshot9837();if(!snapshot||snapshot.state!=='discovery-only'){alert('Sugestões indisponíveis: confira os dados de pedidos, materiais e baixas.');return false}
+ document.getElementById('hlgbJointSimulation9837')?.remove();
+ const host=document.createElement('section');host.id='hlgbJointSimulation9837';host.setAttribute('role','dialog');host.setAttribute('aria-label','Simular corte conjunto');host.style.cssText='position:fixed;inset:12px;z-index:110002;background:white;color:#222;border:1px solid #bbb;border-radius:10px;padding:14px;overflow:auto;max-width:850px;max-height:86vh;margin:auto;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);box-sizing:border-box';
+ const el=(tag,text,parent=host)=>{const n=document.createElement(tag);n.textContent=text;parent.appendChild(n);return n};
+ const button=(label,parent,fn)=>{const b=el('button',label,parent);b.type='button';b.className='secondary';b.onclick=fn;return b};
+ el('h2','Simular corte conjunto');button('Fechar simulação',host,()=>host.remove());
+ el('p','Escolha a matéria-prima e os modelos para comparar as grades. Quantidades pedidas, não saldo confirmado. Nenhum corte será reservado ou alterado.');
+ if(snapshot.unlinkedActivity)el('p','Atenção: existem atividades sem vínculo; confira os registros antes de planejar.');
+ const label=el('label','Matéria-prima compartilhada '),material=el('select','',label);material.setAttribute('aria-label','Matéria-prima compartilhada');material.style.maxWidth='100%';
+ const groups=snapshot.groups;for(const g of groups){const o=el('option',g.materialName+' · '+g.orderedPieces+' peças pedidas',material);o.value=g.materialId}
+ if(!groups.length){el('p','Nenhum grupo de pedidos compatível por matéria-prima encontrado.');document.body.appendChild(host);return true}
+ const search=el('input','');search.type='search';search.placeholder='Buscar modelo, pedido ou cor';search.setAttribute('aria-label','Buscar modelos para corte conjunto');search.style.cssText='width:100%;margin:8px 0';
+ const list=el('div','');list.style.cssText='max-height:235px;overflow:auto;border:1px solid #ddd;padding:6px';
+ const result=el('section',''),status=el('p','');status.setAttribute('role','status');
+ const chosen=new Set();let candidates=[],group=null;
+ function modelKey(l){return JSON.stringify([l.orderId,l.productId,l.color])}
+ function refresh(){
+  if(!jointAllowed9837()){host.remove();return}
+  group=groups.find(g=>g.materialId===material.value);const map=new Map();
+  for(const l of group?.lines||[]){const k=modelKey(l);if(!map.has(k))map.set(k,{key:k,orderId:l.orderId,productId:l.productId,name:l.productName,color:l.color,lines:[]});map.get(k).lines.push(l)}
+  candidates=[...map.values()];chosen.clear();paint();compare();
+ }
+ function paint(){
+  list.replaceChildren();const q=norm(search.value);
+  for(const x of candidates.filter(x=>norm([x.name,x.color,'pedido '+x.orderId].join(' ')).includes(q))){
+   const line=el('label','',list);line.style.cssText='display:block;padding:6px;overflow-wrap:anywhere';
+   const cb=el('input','',line);cb.type='checkbox';cb.checked=chosen.has(x.key);cb.onchange=()=>{if(cb.checked)chosen.add(x.key);else chosen.delete(x.key);compare()};
+   el('span',' '+x.name+' · Pedido '+x.orderId+' · '+x.color+' · '+x.lines.reduce((n,l)=>n+l.ordered,0)+' peças',line);
+  }
+ }
+ function compare(){
+  result.replaceChildren();if(!jointAllowed9837()){host.remove();return}
+  const rows=candidates.filter(x=>chosen.has(x.key));
+  if(!rows.length){status.textContent='Selecione os modelos e cores que deseja testar.';return}
+  const pieces=rows.reduce((n,x)=>n+x.lines.reduce((a,l)=>a+l.ordered,0),0);
+  const colors=new Set(rows.map(x=>norm(x.color)));
+  status.textContent=rows.length+' seleção(ões) · '+pieces+' peças pedidas';
+  el('h3','Comparação de grades',result);
+  if(colors.size>1)el('p','Cores diferentes: confirmar a cor física de cada tecido e fazer planos separados quando necessário.',result);
+  const sizes=[...new Set(rows.flatMap(x=>x.lines.map(l=>l.size)))].sort((a,b)=>{const rank=['PP','P','M','G','GG','XG','XGG'];const ia=rank.indexOf(a),ib=rank.indexOf(b);return (ia<0?999:ia)-(ib<0?999:ib)||a.localeCompare(b)});
+  const wrap=el('div','',result);wrap.style.overflowX='auto';const table=el('table','',wrap);table.style.cssText='width:100%;border-collapse:collapse';
+  const header=el('tr','',el('thead','',table));for(const h of ['Modelo / pedido','Cor',...sizes,'Total'])el('th',h,header);
+  const body=el('tbody','',table),totals=sizes.map(()=>0);const vectors=[];
+  for(const x of rows){const tr=el('tr','',body);el('td',x.name+' / '+x.orderId,tr);el('td',x.color,tr);const ns=sizes.map(s=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0));vectors.push(ns);ns.forEach((n,i)=>{totals[i]+=n;el('td',String(n),tr)});el('td',String(ns.reduce((a,b)=>a+b,0)),tr)}
+  const footer=el('tr','',body);el('th','Total pedido',footer);el('td','—',footer);for(const n of totals)el('td',String(n),footer);el('td',String(pieces),footer);
+  for(const cell of table.querySelectorAll('td,th'))cell.style.cssText='border:1px solid #aaa;padding:5px;font-size:12px;text-align:left';
+  if(rows.length>1){
+   const common=sizes.map((_,i)=>Math.min(...vectors.map(v=>v[i]))),equal=vectors.every(v=>JSON.stringify(v)===JSON.stringify(vectors[0]));
+   el('p',equal?'As grades pedidas coincidem em todos os tamanhos.':'As grades são diferentes. Quantidade comum por tamanho (comparação aritmética): '+sizes.map((s,i)=>s+' '+common[i]).join(' · ')+'.',result);
+   if(!equal){for(let i=0;i<rows.length;i++){const x=rows[i],rest=vectors[i].map((n,j)=>n-common[j]);el('p',x.name+' / '+x.orderId+' — quantidades fora da grade comum: '+sizes.map((s,j)=>s+' '+rest[j]).join(' · '),result)}}
+  }
+  el('p','Compatibilidade física depende de lote, largura, elasticidade, sentido e moldes. Não há cálculo de encaixe ou economia comprovado. Nenhuma grade foi alterada.',result);
+ }
+ material.onchange=refresh;search.oninput=paint;
+ button('Limpar seleção',host,()=>{chosen.clear();paint();compare()});
+ button('Atualizar sugestões',host,()=>{host.remove();openJointSimulation9837()});
+ document.body.appendChild(host);refresh();return true;
+}
+function ensureJointButton9837(bar){
+ if(!bar?.querySelector)return;let b=bar.querySelector('#hlgbJointSimulationButton9837');
+ if(!jointAllowed9837()||typeof window.HLGBJointCutDiscovery9629?.discover!=='function'){b?.remove();document.getElementById('hlgbJointSimulation9837')?.remove();return}
+ if(!b){b=document.createElement('button');b.id='hlgbJointSimulationButton9837';b.type='button';b.className='secondary';b.textContent='Simular corte conjunto';b.onclick=openJointSimulation9837;bar.appendChild(b)}
+}
+
 function ensureToolbar(){
   const root=document.getElementById('cutTable'),panel=root?.closest?.('.panel');if(!root||!panel)return;
   const existing=document.getElementById('hlgbCutFilters'),split=document.getElementById('hlgbCutSplitPanel');
-  if(existing){if(split&&existing.nextElementSibling!==split)split.insertAdjacentElement('beforebegin',existing);return;}
+  if(existing){if(split&&existing.nextElementSibling!==split)split.insertAdjacentElement('beforebegin',existing);ensureJointButton9837(existing);return;}
   const bar=document.createElement('div');bar.id='hlgbCutFilters';bar.className='toolbar';bar.style.cssText='align-items:flex-end;flex-wrap:wrap;margin:10px 0';
   bar.innerHTML='<div class="field" style="min-width:min(100%,260px);flex:1"><label>Buscar corte</label><input id="hlgbCutSearch" placeholder="Pedido, cliente, produto ou cortador" oninput="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutStatus9770">Exibir</label><select id="hlgbCutStatus9770" onchange="hlgbCutApplyFilters()"><option value="">Lista de trabalho</option><option value="completed">Finalizados — histórico completo</option></select></div><div class="field"><label>Urgência</label><select id="hlgbCutPriority" onchange="hlgbCutApplyFilters()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div><div class="field"><label>Cortador</label><select id="hlgbCutCutter" onchange="hlgbCutApplyFilters()"><option value="">Todos</option></select></div><div class="field"><label>Data do corte</label><input id="hlgbCutDate" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutClient9712">Cliente</label><input id="hlgbCutClient9712" oninput="hlgbCutApplyFilters()" placeholder="Nome do cliente"></div><div class="field"><label for="hlgbCutFrom9712">De</label><input id="hlgbCutFrom9712" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutTo9712">Até</label><input id="hlgbCutTo9712" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutMin9712">Valor catálogo mín. (R$)</label><input id="hlgbCutMin9712" type="number" min="0" step="0.01" oninput="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutMax9712">Valor catálogo máx. (R$)</label><input id="hlgbCutMax9712" type="number" min="0" step="0.01" oninput="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutSort9712">Ordenar</label><select id="hlgbCutSort9712" onchange="hlgbCutApplyFilters()"><option value="">Ordem original</option><option value="date">Data</option><option value="client">Cliente</option><option value="model">Modelo</option><option value="value">Maior valor catálogo</option></select></div><button type="button" class="secondary" onclick="hlgbCutClearFilters()">Limpar</button><button type="button" class="secondary" onclick="hlgbCutToggleExtra()">Seções adicionais</button><div id="hlgbCutFilterCount" class="sub" style="align-self:center"></div>';
-  (document.getElementById('hlgbCutSplitPanel')||root).insertAdjacentElement('beforebegin',bar);
+  (document.getElementById('hlgbCutSplitPanel')||root).insertAdjacentElement('beforebegin',bar);ensureJointButton9837(bar);
 }
 function syncCutters(){
   const sel=document.getElementById('hlgbCutCutter');if(!sel)return;const cur=sel.value;
@@ -801,6 +873,6 @@ function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643();or
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('nav'))setTimeout(dockSeparation9715,0)},true);
-window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbFullCutChecklist9820')?.remove();document.querySelectorAll('[data-hlgb-required-cut9820]').forEach(n=>n.remove());completedOffset=0;completedFilterSignature='';document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();conferenceDrafts9828.clear();conferenceOwner9828='';expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbFullCutChecklist9820')?.remove();document.getElementById('hlgbJointSimulation9837')?.remove();document.getElementById('hlgbJointSimulationButton9837')?.remove();document.querySelectorAll('[data-hlgb-required-cut9820]').forEach(n=>n.remove());completedOffset=0;completedFilterSignature='';document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();conferenceDrafts9828.clear();conferenceOwner9828='';expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();
