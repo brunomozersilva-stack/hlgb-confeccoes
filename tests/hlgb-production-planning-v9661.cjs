@@ -143,6 +143,9 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  const g={materialId:'1',materialName:'Romantic',models:[mk('a','2','Juliana'),mk('b','50','Leticia')]},before=JSON.stringify(g);
  const html=plan.jointPrintDraft(g,null,'packet',true),combined=html.split('data-joint-sheet="combined"')[1].split('data-joint-sheet="individual"')[0],individuals=html.split('data-joint-sheet="individual"').slice(1);
  assert.equal(individuals.length,2);
+ assert.ok(combined.includes('Ficha 1 de 3'));assert.ok(individuals[0].includes('Ficha 2 de 3'));assert.ok(individuals[1].includes('Ficha 3 de 3'));
+ assert.ok(combined.includes('Comprimento de encaixe'));assert.ok(individuals[0].includes('Diferença em relação à prevista'));
+ const separate=plan.jointPrintDraft(g,null,'individual',true);assert.ok(separate.includes('Ficha 1 de 2')&&separate.includes('Ficha 2 de 2'));assert.ok(plan.jointPrintDraft(g,null,'combined',true).includes('Ficha 1 de 1'));
  assert.ok(combined.includes('Grade por folha'));assert.ok(combined.includes('Grade prevista'));assert.ok(combined.includes('Realizado por tam.'));
  assert.ok(combined.includes('P: 20 / M: 30 / G: 30 / GG: 20'));
  assert.ok(combined.includes('P: 2 / M: 3 / G: 3 / GG: 2'));
