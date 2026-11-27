@@ -28,6 +28,7 @@
   if(window.HLGB_LATE_LOGIN_BRIDGE_9337)return;
   const V='93.38', pending=new Set();
   let base=null,wrapped=null,poll=null;
+  const scheduled=new Map();let queued=0,coalesced=0,executed=0,blocked=0;
   const ready=()=>{
     try{
       /* Não inferir login por DOM: app9240 já nasce com dashboard.page.active
@@ -40,17 +41,25 @@
     let done=false;
     const fn=function(){
       if(done)return;
+      if(!ready()){blocked++;return}
       done=true;fn.__hlgbDone=true;pending.delete(fn);
-      return cb.apply(this,arguments);
+      const timer=scheduled.get(fn);if(timer!==undefined){clearTimeout(timer);scheduled.delete(fn)}
+      executed++;return cb.apply(this,arguments);
     };
     fn.__hlgbDone=false;return fn;
+  }
+  function schedule(fn){
+    if(fn.__hlgbDone)return;
+    if(scheduled.has(fn)){coalesced++;return}
+    const delay=Math.max(0,Number(fn.__hlgbDelay)||0);
+    const timer=setTimeout(()=>{scheduled.delete(fn);try{fn()}catch(e){console.warn('[HLGB v93.38] callback tardio',e)}},delay);
+    scheduled.set(fn,timer);queued++;
   }
   function flush(){
     if(!ready())return false;
     for(const fn of [...pending]){
       if(fn.__hlgbDone){pending.delete(fn);continue}
-      const delay=Math.max(0,Number(fn.__hlgbDelay)||0);
-      setTimeout(()=>{try{fn()}catch(e){console.warn('[HLGB v93.38] callback tardio',e)}},delay);
+      schedule(fn);
     }
     return true;
   }
@@ -65,7 +74,7 @@
       pending.add(fn);
       let out;
       try{out=base.call(this,fn,delay)}catch(e){console.warn('[HLGB v93.38] registro afterLogin legado',e)}
-      if(ready())setTimeout(()=>{try{fn()}catch(e){console.warn('[HLGB v93.38] callback imediato',e)}},Math.max(0,Number(delay)||0));
+      if(ready())schedule(fn);
       return out;
     };
     wrapped.__hlgbLateBridge9337=true;
@@ -82,10 +91,11 @@
   }
   function maintain(){install();stamp();flush()}
   window.HLGB_LATE_LOGIN_BRIDGE_9337=V;
-  window.hlgbLateLoginBridge9337={version:V,ready,install,flush,pending:()=>pending.size,authority:'__HLGB_AUTH_READY'};
+  window.hlgbLateLoginBridge9337={version:V,ready,install,flush,pending:()=>pending.size,authority:'__HLGB_AUTH_READY',schedulerStatus:()=>({pending:pending.size,scheduled:scheduled.size,queued,coalesced,executed,blocked})};
   maintain();
   let tries=0;poll=setInterval(()=>{tries++;maintain();if(tries>=120){clearInterval(poll);poll=null}},250);
   window.addEventListener?.('hlgb:authenticated',maintain);
+  window.addEventListener?.('hlgb:logout',()=>{for(const timer of scheduled.values())clearTimeout(timer);scheduled.clear()});
   window.addEventListener?.('pageshow',maintain);
   window.addEventListener?.('focus',maintain);
   window.addEventListener?.('online',maintain);
