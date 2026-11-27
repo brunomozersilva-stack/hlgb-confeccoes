@@ -312,7 +312,14 @@ function removeInlineMaterials9711(root){root?.querySelectorAll?.('[data-hlgb-in
 /* v97.15 — move the single authoritative panel, never clone controls or write records. */
 let separationDock9715=null,separationDockEvidence9715={observed:false,moved:false,modelOpened:false};
 function restoreSeparationDock9715(){
- const d=separationDock9715;if(d){d.link?.remove();if(d.anchor?.parentNode)d.anchor.parentNode.insertBefore(d.panel,d.anchor);d.anchor?.remove();d.host?.remove();separationDock9715=null}
+ const d=separationDock9715;if(d){
+  d.link?.remove();
+  const orders=document.getElementById('pedidos');
+  if(d.anchor?.isConnected&&d.anchor.parentNode===orders)orders.insertBefore(d.panel,d.anchor);
+  else if(orders&&d.panel?.isConnected&&!orders.querySelector('#separationOrder,#separationList,#separationTable'))orders.appendChild(d.panel);
+  else if(d.panel?.isConnected&&!orders){d.host.hidden=true;d.anchor?.remove();separationDockEvidence9715={observed:false,moved:false,modelOpened:false};return}
+  d.anchor?.remove();d.host?.remove();separationDock9715=null;
+ }
  separationDockEvidence9715={observed:false,moved:false,modelOpened:false};
 }
 function dockSeparation9715(){
@@ -325,7 +332,7 @@ function dockSeparation9715(){
  if(!ready||!panel||!list||!table||['separationOrder','separationList','separationTable'].some(id=>document.querySelectorAll('[id="'+id+'"]').length!==1)||!panel.contains(list)||!panel.contains(table)||!panel.querySelector?.('button[onclick*="openMultiOrderPurchase"]')){
   restoreSeparationDock9715();return null;
  }
- if(separationDock9715){if(separationDock9715.panel===panel&&separationDock9715.host.isConnected&&separationDock9715.host.contains(panel)&&separationDock9715.anchor.isConnected&&separationDock9715.link?.isConnected)return separationDock9715;restoreSeparationDock9715()}
+ if(separationDock9715){if(separationDock9715.panel===panel&&separationDock9715.host.isConnected&&separationDock9715.host.contains(panel)&&separationDock9715.anchor.isConnected&&separationDock9715.link?.isConnected){separationDock9715.host.hidden=false;return separationDock9715;}restoreSeparationDock9715()}
  if(panel.parentNode!==orders)return null;
  const anchor=document.createElement('span');anchor.hidden=true;anchor.dataset.hlgbSeparationOrigin9715='1';orders.insertBefore(anchor,panel);
  const host=document.createElement('details');host.id='hlgbSeparationOperation9715';host.className='panel';host.style.cssText='min-width:0;max-width:100%';
