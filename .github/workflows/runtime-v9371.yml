@@ -3,6 +3,11 @@ on:
   push:
     branches:
       - fix/runtime-render-save-v9371
+  pull_request:
+    paths:
+      - 'release-runtime-performance-v9371.js'
+      - 'tests/runtime-v9371-webkit.js'
+      - '.github/workflows/runtime-v9371.yml'
   workflow_dispatch:
 jobs:
   runtime:
