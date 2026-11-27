@@ -134,6 +134,32 @@
   });
   return {...empty('local-digital-preview'),month,rows:[...groups.values()].filter(x=>!x.conflict).map(x=>x.v).sort((a,b)=>a.employeeId.localeCompare(b.employeeId)||a.date.localeCompare(b.date)),issues,duplicateCount};
  }
+ // Reuse the same consolidated report when it explicitly contains transport evidence.
+ // Presence/absence alone is not evidence of advance, commute or compensation.
+ function digitalTransportBridge(table,mapping,employees,month,links,transportMapping,allowed){
+  const empty=state=>({state,rows:[],issues:[],canWrite:false,official:false});
+  if(allowed!==true)return empty('forbidden');
+  const digital=inspectDigital(table,mapping,employees,month,true,links);
+  if(digital.state!=='local-digital-preview')return empty(digital.state);
+  const keys=['commute','advance','adjusted'],indexes=keys.map(k=>table.columns.indexOf(transportMapping?.[k]));
+  const baseIndexes=['employee','date','scheduled','worked','status'].map(k=>table.columns.indexOf(mapping[k]));
+  if(indexes.some(x=>x<0)||new Set([...baseIndexes,...indexes]).size!==8)return empty('invalid-transport-mapping');
+  const external=new Map(links.map(x=>[id(x.code),id(x.employeeId)])),valid=new Map(digital.rows.map(x=>[JSON.stringify([x.employeeId,x.date]),x])),groups=new Map(),issues=[...digital.issues];let duplicateCount=0;
+  for(const [i,r] of table.rows.entries()){
+   const line=i+2,code=id(String(r[baseIndexes[0]]??'').trim()),pid=external.get(code)||code,date=reportDate(r[baseIndexes[1]]),key=JSON.stringify([pid,date]),d=valid.get(key);
+   if(!d)continue;
+   const [commute,advance,adjusted]=indexes.map(j=>String(r[j]??'').trim().toLowerCase());
+   const v={employeeId:pid,date,scheduled:d.scheduledMinutes>0,status:d.status,commute,advanceCents:advance===''?null:cents(advance),adjusted,sourceLine:line};
+   const prior=groups.get(key);
+   if(!['sim','nao','pendente'].includes(commute)||!['sim','nao','pendente'].includes(adjusted)||advance!==''&&v.advanceCents===null||v.status==='pendente'&&commute!=='pendente'||adjusted==='sim'&&advance===''){
+    issues.push({line,reason:'evidencia-passagem-invalida'});groups.set(key,{conflict:true});continue;
+   }
+   const canonical=JSON.stringify({...v,sourceLine:0});
+   if(prior){if(!prior.conflict&&prior.canonical===canonical){duplicateCount++;continue}groups.set(key,{conflict:true});issues.push({line,reason:'conflito-passagem-mesmo-dia'});continue}
+   groups.set(key,{v,canonical,conflict:false});
+  }
+  return {...empty('local-preview'),month,rows:[...groups.values()].filter(x=>!x.conflict).map(x=>x.v).sort((a,b)=>a.employeeId.localeCompare(b.employeeId)||a.date.localeCompare(b.date)),issues,duplicateCount,source:'digital-explicit-transport',salaryRows:digital.rows.length};
+ }
  function salaryDigitalPreview(batch,person,opt,allowed){
   const empty=state=>({state,canWrite:false,officialNetCents:null});
   if(allowed!==true)return empty('forbidden');
@@ -200,5 +226,5 @@
   if(totals&&Object.values(totals).some(n=>!Number.isSafeInteger(n)))return empty('invalid-input');
   return {...empty('local-digital-batch'),rows,issues:source.issues,selectedCount:settings.length,reviewedCount,totals,partial:reviewedCount!==settings.length||batch.issues.length>0||source.issues.length>0||rows.some(r=>r.preview?.partial)};
  }
- return {digitalSalaryRoster,digitalSalaryBatch,digitalTable,inspectDigital,salaryDigitalPreview,header,parse,inspect,preview,roster,coverageCandidate,batchPreview};
+ return {digitalTransportBridge,digitalSalaryRoster,digitalSalaryBatch,digitalTable,inspectDigital,salaryDigitalPreview,header,parse,inspect,preview,roster,coverageCandidate,batchPreview};
 })());
