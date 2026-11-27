@@ -55,7 +55,7 @@
    if(realized&&['payroll','payroll_month'].includes(type)){issues.push({id:k,reason:'legacy-payroll-date'});continue}
    const origin=type?JSON.stringify([type,src,type==='payroll_paid_date_view'?day:'']):null;
    ids.set(k,(ids.get(k)||0)+1);if(origin)originCounts.set(origin,(originCounts.get(origin)||0)+1);
-   records.push({id:k,category:cat,value:value/100,flow:e.flow,status:e.status,date:planned?day:date(e.date)||day,realizedAt:realized?day:'',sourceType:type,sourceId:src,day,origin,cents:value});
+   records.push({id:k,category:cat,value:value/100,flow:e.flow,status:e.status,date:planned?day:date(e.date)||day,realizedAt:realized?day:'',sourceType:type,sourceId:src,originalDueDate:date(e.date),day,origin,cents:value});
   }
   const accepted=records.filter(x=>{if(ids.get(x.id)>1||(x.origin&&originCounts.get(x.origin)>1)){issues.push({id:x.id,reason:'duplicate-id-or-origin'});return false}return true});
   const target=weekly.monday(targetDate),groups=new Map();
@@ -80,7 +80,7 @@
   // Historical observation does not establish complete weeks; a missing record is null, not zero.
   const historical=recordedHistory(accepted,comparison.history,target,asOf,issues.length);
   const weeklyCash=rows=>rows.map(x=>({start:x.start,end:x.end,incomingCents:x.incomingCents,outgoingCents:x.outgoingCents,closingCents:null,shortfall:null}));
-  return {state:'local-observation-only',plannerObligations,reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',pendingEvidence:{state:pendingState,excludedCount:pendingOmitted,blockedPayrollMonths:blockedMonths.size,allPayrollBlocked,remoteConfirmed:false},observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,weeklyActions:weeklyActions(historical,projection,asOf,target,issues.length),cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
+  return {state:'local-observation-only',plannerObligations,reason:'Consulta local; saldo bancário, cobertura histórica e confirmação na nuvem não comprovados.',pendingEvidence:{state:pendingState,excludedCount:pendingOmitted,blockedPayrollMonths:blockedMonths.size,allPayrollBlocked,remoteConfirmed:false},observations:[...groups.values()].sort((a,b)=>b.plannedCents+b.paidCents-a.plannedCents-a.paidCents),comparison:{quality:comparison.quality,history:comparison.history,categories:comparison.categories.map(x=>({category:x.category,medianCents:null,signal:'insufficient-evidence'}))},recordedHistory:historical,settlementTiming:settlementTiming(accepted,comparison.history,issues.length),weeklyActions:weeklyActions(historical,projection,asOf,target,issues.length),cash:{quality:projection.quality,base:weeklyCash(projection.base.weeks),conservative:weeklyCash(projection.conservative.weeks),receiptDelayDays,commitmentReview:commitmentReview(projection),issues:projection.issues.map(x=>({reason:x.reason}))},issues:issues.map(x=>({reason:x.reason})),omitted:issues.length};
  }
 
  // Descriptive priorities, not an automated diagnosis or payment instruction.
@@ -154,6 +154,28 @@
    });
   }
   return {state:'partial-simulation',base:scenario(projection.base.days),delayed:scenario(projection.conservative.days),overdueReceiptsExcluded:projection.overdue.filter(x=>x.direction==='in').length,overduePaymentsIncluded:projection.overdue.filter(x=>x.direction==='out').length,openingBalanceVerified:false,coverageVerified:false,canPublish:false};
+ }
+ // Observed settlement timing from the due date still recorded on a paid title.
+ // Not forecast accuracy: the original forecast may have been edited.
+ function settlementTiming(rows,weeks,omitted){
+  const scope=new Set(weeks),groups=new Map(),overall=new Map(),excluded={noDueDate:0,payroll:0},DAY=86400000;
+  const add=(map,key,flow,category,x,delta)=>{
+   const g=map.get(key)||{flow,category,count:0,earlyCount:0,onTimeCount:0,lateCount:0,amountCents:0,lateAmountCents:0,delays:[],maxLateDays:null};
+   g.count++;g.amountCents+=x.cents;
+   if(delta<0)g.earlyCount++;else if(delta===0)g.onTimeCount++;else{g.lateCount++;g.lateAmountCents+=x.cents;g.delays.push(delta);g.maxLateDays=Math.max(g.maxLateDays??0,delta)}
+   map.set(key,g);
+  };
+  for(const x of rows){
+   if(x.status!=='Realizado'||!scope.has(weekly.monday(x.day)))continue;
+   if(['payroll','payroll_month','payroll_paid_date_view'].includes(x.sourceType)){excluded.payroll++;continue}
+   if(!x.originalDueDate){excluded.noDueDate++;continue}
+   const delta=(Date.parse(x.day+'T00:00:00Z')-Date.parse(x.originalDueDate+'T00:00:00Z'))/DAY;
+   add(overall,x.flow,x.flow,null,x,delta);
+   add(groups,JSON.stringify([x.flow,x.category]),x.flow,x.category,x,delta);
+  }
+  const output=g=>{const {delays,...rest}=g;const s=delays.sort((a,b)=>a-b),i=Math.floor(s.length/2);return {...rest,latePercent:Math.round(g.lateCount*100/g.count),medianLateDays:s.length>=4?(s.length%2?s[i]:(s[i-1]+s[i])/2):null}};
+  const categories=groups.size<=500?[...groups.values()].map(output).sort((a,b)=>b.lateAmountCents-a.lateAmountCents||a.category.localeCompare(b.category,'pt-BR')):[];
+  return {state:'partial-local',weeks:weeks.length,overall:[...overall.values()].map(output),categories,categoryLimitExceeded:groups.size>500,excluded,omitted,officialForecastAccuracy:null,canPublish:false};
  }
  function recordedHistory(rows,weeks,target,asOf,omitted){
   const scope=new Set(weeks),byWeek=new Map(),byCategory=new Map(),targetGroups=new Map(),overdue={in:{amountCents:0,count:0},out:{amountCents:0,count:0}},categories=new Set();
