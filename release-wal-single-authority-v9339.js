@@ -7,8 +7,9 @@
 'use strict';
 const V='93.50', DELEGATE_MIN_MS=15000, SCAN_MIN_MS=12000;
 const WAL_KEY='hlgb_durable_wal_v1', DB_NAME='hlgb_durable_wal', STORE='entries';
-if(window.HLGB_WAL_SINGLE_AUTHORITY_9339){try{window.hlgbWalSingleAuthority9339?.install?.();window.hlgbWalSingleAuthority9339?.pruneConfirmed?.(true)}catch(e){}return}
-window.HLGB_WAL_SINGLE_AUTHORITY_9339=V;
+const paymentCheckOnly=document.currentScript?.dataset?.hlgbPaymentCheck==='1';
+if(!paymentCheckOnly&&window.HLGB_WAL_SINGLE_AUTHORITY_9339){try{window.hlgbWalSingleAuthority9339?.install?.();window.hlgbWalSingleAuthority9339?.pruneConfirmed?.(true)}catch(e){}return}
+if(!paymentCheckOnly)window.HLGB_WAL_SINGLE_AUTHORITY_9339=V;
 let original=null,installed=false,calls=0,lastAt='',lastResult=null,reinstalls=0,lastDelegatedAt=0,throttled=0;
 let confirmedPruned=0,equivalentProductionPruned=0,lastConfirmedPruneAt='',scanBusy=false,lastScanAt=0,lastScanResult=null;
 const sid=v=>String(v??'');
@@ -171,6 +172,10 @@ function install(){
   window.hlgb955FlushSilent=wrapped;installed=true;stamp();return true;
 }
 function maintain(){install();stamp()}
+if(paymentCheckOnly){
+ window.hlgbPaymentWalCheck={pruneConfirmedFor};
+ return;
+}
 window.hlgbWalSingleAuthority9339={version:V,status:()=>({installed,calls,lastAt,lastResult,reinstalls,lastDelegatedAt,throttled,delegateMinMs:DELEGATE_MIN_MS,replayVersion:window.hlgbWalConfirmedReplay9333?.version||'',replayBusy:!!window.hlgbWalConfirmedReplay9333?.state?.busy,confirmedPruned,equivalentProductionPruned,lastConfirmedPruneAt,scanBusy,lastScanAt,lastScanResult}),install,maintain,pruneConfirmed,pruneConfirmedFor,prunePayroll,sameProductionReplacement};
 [100,400,900,1800,3500,6000,9000,12000,16000,20000].forEach(ms=>setTimeout(maintain,ms));
 setTimeout(()=>pruneConfirmed(true,8).then(()=>window.hlgbWalConfirmedReplay9333?.run?.('v9349-after-confirmed-prune',true)).catch(()=>{}),1200);

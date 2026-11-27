@@ -188,6 +188,20 @@ async function assertRecordNotPending(module,id){
  const ids=await pendingPaymentIdentities();
  if(pendingIdentity(ids,module,id))throw Error('Este pagamento ainda possui alteração local pendente. Não reenvie até sincronizar. Use Conferir sincronização deste acerto.');
 }
+async function paymentSyncAuthority(){
+ const existing=window.hlgbWalSingleAuthority9339;
+ if(typeof existing?.pruneConfirmedFor==='function')return existing;
+ if(typeof window.hlgbPaymentWalCheck?.pruneConfirmedFor==='function')return window.hlgbPaymentWalCheck;
+ await new Promise((resolve,reject)=>{
+  const script=document.createElement('script');
+  script.dataset.hlgbPaymentCheck='1';
+  script.src='./release-wal-single-authority-v9339.js?paymentCheck=1';
+  script.onload=()=>{script.remove();resolve()};
+  script.onerror=()=>{script.remove();reject(Error('Falha ao carregar a conferência. Confira a conexão e tente novamente.'))};
+  document.head.appendChild(script);
+ });
+ return window.hlgbPaymentWalCheck;
+}
 async function checkPaymentSync(groupId){
  if(window.__HLGB_AUTH_READY!==true)throw Error('Sessão não autenticada.');
  if(state.status===STATUS.saving)throw Error('Existe uma operação de pagamento em andamento.');
@@ -196,7 +210,7 @@ async function checkPaymentSync(groupId){
   const rows=assertGroup(groupId),targets=[...rows.map(r=>({module:'factionPayments',id:sid(r.id),label:sid(r.description||'Serviço')})),{module:'hubFinanceEntries',id:sid(hubId(groupId)),label:'Saída no Hub Financeiro'}];
   const before=await pendingPaymentIdentities(),blocked=targets.filter(t=>pendingIdentity(before,t.module,t.id));
   let checked={removed:0};
-  if(blocked.length){const authority=window.hlgbWalSingleAuthority9339;if(typeof authority?.pruneConfirmedFor!=='function')throw Error('Conferência específica indisponível. Nenhuma alteração foi removida.');checked=await authority.pruneConfirmedFor(blocked.map(({module,id})=>({module,id})));}
+  if(blocked.length){const authority=await paymentSyncAuthority();if(typeof authority?.pruneConfirmedFor!=='function')throw Error('Conferência específica indisponível. Nenhuma alteração foi removida.');checked=await authority.pruneConfirmedFor(blocked.map(({module,id})=>({module,id})));}
   const after=await pendingPaymentIdentities(),remaining=targets.filter(t=>pendingIdentity(after,t.module,t.id));
   return {state:remaining.length?'pending':'clear',before:blocked.length,removed:checked.removed||0,remaining:remaining.map(t=>t.label),skipped:!!checked.skipped};
  }finally{state.status=STATUS.idle}
