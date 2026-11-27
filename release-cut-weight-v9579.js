@@ -8,7 +8,8 @@ const V='95.79',busy=new Set(),state={lastError:'',lastSuccess:'',attempts:0,con
 const sid=x=>String(x??''),num=x=>Number(sid(x).replace(',','.')),money=x=>Number(x||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
 const esc=x=>sid(x).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
 const dbRef=()=>{try{return typeof db!=='undefined'?db:window.db}catch(_){return window.db||{}}};
-const cut=id=>(dbRef()?.cuts||[]).find(x=>sid(x?.id)===sid(id))||null;
+const cut=id=>{const rows=(dbRef()?.cuts||[]).filter(x=>x&&!x.deletedAt&&!x.deleted_at&&x.deleted!==true&&x._deleted!==true&&sid(x.id)===sid(id));return rows.length===1?rows[0]:null};
+const eligible=c=>!!c&&!c.modelSplitParentV1&&!c.hiddenByModelSplitV1&&!/cancel|desmembrado/.test(sid(c.status).toLowerCase());
 // A gravação, confirmação remota, histórico e proteção WAL ficam neste arquivo
 // comercial. Só a validação pura pode usar o módulo independente, com fallback.
 const weightCore=window.HLGB_CUT_WEIGHT_CORE_9623||null;
@@ -69,7 +70,7 @@ async function save(id,input){
  }catch(e){state.lastError=sid(e?.message||e);throw e}finally{busy.delete(sid(id))}
 }
 function show(id){
- const c=cut(id);if(!c)return false;
+ const c=cut(id);if(!eligible(c))return false;
  if(typeof window.openModal!=='function')return false;
  const w=c.cutWeightV9579||{},h=Array.isArray(c.cutWeightEventsV9579)?c.cutWeightEventsV9579:[];
  const entries=h.slice(-12).reverse().map(e=>'<div class="sub">'+esc(e.at)+' · total '+money(e.after?.totalKg)+' kg · usado '+money(e.after?.usedKg)+' kg · refugo '+money(e.after?.wasteKg)+' kg · '+esc(e.after?.note||'')+'</div>').join('');
@@ -78,7 +79,7 @@ function show(id){
  '<div class="field"><label>Peso total do corte (kg)</label><input type="number" min="0.001" step="0.001" id="cw79-total" value="'+esc(w.totalKg??'')+'"></div>'+
  '<div class="field"><label>Peso utilizado (kg)</label><input type="number" min="0" step="0.001" id="cw79-used" value="'+esc(w.usedKg??'')+'"></div>'+
  '<div class="field"><label>Peso refugo / lixo (kg)</label><input type="number" min="0" step="0.001" id="cw79-waste" value="'+esc(w.wasteKg??'')+'"></div></div>'+
- '<div class="field"><label>Observação</label><input id="cw79-note" maxlength="300" placeholder="Rolo, conferência, diferença ou observação"></div>'+
+ '<div class="field"><label>Observação</label><input id="cw79-note" maxlength="300" placeholder="Rolo, conferência, diferença ou observação" value="'+esc(w.note||'')+'"></div>'+
  '<h4>Histórico de pesagens</h4>'+(entries||'<div class="sub">Nenhuma pesagem cadastrada.</div>')+
  '<div id="cw79-feedback" role="status" class="sub"></div><button type="button" class="primary modalSave">☁️ Salvar peso do corte</button></div>';
  window.openModal('⚖️ Peso do corte · '+esc(c.product||c.productId||c.id),html,async()=>{
@@ -99,18 +100,32 @@ function rowId(tr){
  }
  return sid(tr.dataset.cutId||'');
 }
+function decorateRow(row,key,model=false){
+ const c=cut(key),buttons=Array.from(row?.querySelectorAll?.('.hlgbCutWeight9579')||[]);
+ if(!eligible(c)||row.dataset.hlgbSplitAggregateHidden==='1'||(model&&c.modelSplitChildV1!==true)){buttons.forEach(b=>b.remove());return false}
+ if(model&&typeof window.hlgbCutModelSplit?.competingModelCuts==='function'&&window.hlgbCutModelSplit.competingModelCuts(c).length>1){buttons.forEach(b=>b.remove());return false}
+ const host=model?(Array.from(row.querySelectorAll('.toolbar')).filter(n=>!n.closest('details')).at(-1)||row):Array.from(row.children).filter(n=>!n.hasAttribute('data-hlgb-cut-summary9761')).at(-1);
+ if(!host)return false;
+ let button=buttons.find(b=>b.dataset.cutWeightId===sid(key));
+ for(const b of buttons)if(b!==button)b.remove();
+ if(!button){button=document.createElement('button');button.type='button';button.className='secondary hlgbCutWeight9579';button.dataset.cutWeightId=sid(key);host.appendChild(button)}
+ if(button.parentElement!==host)host.appendChild(button);
+ button.textContent='⚖️ Peso do corte';button.title=c.cutWeightV9579?'Consultar ou atualizar pesagem registrada':'Registrar peso total, utilizado e refugo';
+ button.onclick=()=>{
+  const fresh=cut(key);
+  if(!row.isConnected||!eligible(fresh)||(model&&(row.dataset.hlgbCutModelId!==sid(key)||fresh.modelSplitChildV1!==true))||(!model&&rowId(row)!==sid(key))){alert('Corte mudou. Atualize a lista.');return}
+  if(window.__HLGB_AUTH_READY!==true||typeof canOpenPage!=='function'||canOpenPage('corte')!==true){alert('Entre com permissão de Corte para registrar peso.');return}
+  if(model&&typeof window.hlgbCutModelSplit?.competingModelCuts==='function'&&window.hlgbCutModelSplit.competingModelCuts(fresh).length>1){alert('Corte duplicado: confira antes de pesar.');return}
+  show(key);
+ };
+ return true;
+}
 function decorate(){
  for(const id of ['cutTable','dailyCutsTable']){
   const root=document.getElementById(id);if(!root)continue;
-  root.querySelectorAll('tbody tr').forEach(tr=>{
-   if(tr.querySelector('.hlgbCutWeight9579'))return;
-   const key=rowId(tr);if(!key||!cut(key))return;
-   const cell=tr.lastElementChild;if(!cell)return;
-   const b=document.createElement('button');b.type='button';b.className='secondary hlgbCutWeight9579';
-   b.textContent='⚖️ Peso do corte';b.addEventListener('click',()=>show(key));
-   cell.appendChild(document.createTextNode(' '));cell.appendChild(b);
-  });
+  root.querySelectorAll('tbody tr').forEach(tr=>{const key=rowId(tr);if(key)decorateRow(tr,key)});
  }
+ document.querySelectorAll('#hlgbCutSplitPanel [data-hlgb-cut-model-id]').forEach(row=>decorateRow(row,row.dataset.hlgbCutModelId,true));
 }
 function wrapper(name){
  const fn=window[name];if(typeof fn!=='function'||fn.__hlgbWeight9579)return;
@@ -118,7 +133,7 @@ function wrapper(name){
  w.__original=fn;w.__hlgbWeight9579=true;window[name]=w;
 }
 function install(){wrapper('renderCuts');wrapper('renderDailyCuts');decorate()}
-window.hlgbCutWeight9579={version:V,cut,validate,save,remote,show,decorate,install,status:()=>({...state})};
+window.hlgbCutWeight9579={version:V,cut,validate,save,remote,show,decorate,decorateRow,install,status:()=>({...state})};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [500,1600].forEach(ms=>setTimeout(install,ms));
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,450));
