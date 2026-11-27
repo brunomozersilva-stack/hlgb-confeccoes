@@ -71,7 +71,7 @@ async function submit(page,{name,qty,price,date}){
   await dates.locator('summary').click();
 
   const popupPromise=page.waitForEvent('popup');await page.locator('[data-faction-print9777]').click();const report=await popupPromise;
-  await report.waitForLoadState('domcontentloaded');assert.match(await report.locator('body').innerText(),/Conferência de acerto/);assert.match(await report.locator('body').innerText(),/35,00/);await report.close();
+  await report.waitForLoadState('domcontentloaded');assert.match(await report.locator('body').innerText(),/Conferência de acerto/);assert.match(await report.locator('body').innerText(),/35,00/);assert.match(await report.locator('body').innerText(),/Camisola avulsa sem preço comercial/);assert.match(await report.locator('body').innerText(),/Conjunto avulso sem cadastro comercial/);assert.match(await report.locator('body').innerText(),/Semana de referência/);assert.match(await report.locator('body').innerText(),/TOTAL LÍQUIDO A CONFERIR/);assert.doesNotMatch(await report.locator('body').innerText(),/fmpli-/);await report.close();
   await page.evaluate(()=>{window.__factionReportAllowed=false;window.hlgbFactionAcertoUnified95102.render()});
   assert.equal(await page.locator('#hlgb-unified-acertos-v95102').count(),0);
   await page.evaluate(()=>{window.__factionReportAllowed=true;window.hlgbFactionAcertoUnified95102.render()});
