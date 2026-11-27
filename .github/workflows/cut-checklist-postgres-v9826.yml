@@ -39,4 +39,6 @@ jobs:
       - name: Verify authoritative record source and per-color calculation
         run: |
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-source.sql
+          psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-integrated.sql
+          psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-integrated-contract.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-source-contract.sql

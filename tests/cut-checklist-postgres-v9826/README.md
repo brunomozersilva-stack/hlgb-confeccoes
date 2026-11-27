@@ -9,3 +9,7 @@ Função de escrita isolada com proprietário sem login, sem INSERT/UPDATE/DELET
 Laboratório com shape module/entity_id/data/revision/deleted_at observado no banco comercial, mas registros fictícios. Calcula grade e necessidades por cor no servidor, rejeita modelo divergente, fonte excluída, vínculo divergente ou consumo ausente como quantidade desconhecida, identifica revisões de corte/pedido/produto e materiais. Leitura isolada: ainda não é o RPC de gravação e não bloqueia registros comerciais. Antes de integração: testar igualdade com motor comercial (normalização de acentos, material de cor fixa ausente, composição, opções de consumo e catálogos), ligar snapshot a transação com bloqueio e controle de revisões, implementar identidade real e anexos. Não instalar em produção.
 
 Correção do fixture: uso de to_jsonb para nomes textuais. Cor fixa ausente da grade agora gera linha explícita a conferir, sem omissão de material.
+
+
+## Integração do laboratório
+Histórico independente recebe apenas linhas vinculadas ao snapshot calculado no servidor, grava revisões de todas as fontes e rejeita material alterado, modelo errado, replays divergentes e versões obsoletas. O bloqueio de tabela é propositalmente restrito ao laboratório: antes de produção, trocar por bloqueios de escopo reduzido e testar concorrência do contrato integrado, identidade Supabase, paridade de cálculo, anexos e UI. Não executar no banco comercial.
