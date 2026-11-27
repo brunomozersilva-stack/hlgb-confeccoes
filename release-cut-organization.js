@@ -37,7 +37,7 @@ function ensureToolbar(){
   const existing=document.getElementById('hlgbCutFilters'),split=document.getElementById('hlgbCutSplitPanel');
   if(existing){if(split&&existing.nextElementSibling!==split)split.insertAdjacentElement('beforebegin',existing);return;}
   const bar=document.createElement('div');bar.id='hlgbCutFilters';bar.className='toolbar';bar.style.cssText='align-items:flex-end;flex-wrap:wrap;margin:10px 0';
-  bar.innerHTML='<div class="field" style="min-width:min(100%,260px);flex:1"><label>Buscar corte</label><input id="hlgbCutSearch" placeholder="Pedido, cliente, produto ou cortador" oninput="hlgbCutApplyFilters()"></div><div class="field"><label>Urgência</label><select id="hlgbCutPriority" onchange="hlgbCutApplyFilters()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div><div class="field"><label>Cortador</label><select id="hlgbCutCutter" onchange="hlgbCutApplyFilters()"><option value="">Todos</option></select></div><div class="field"><label>Data do corte</label><input id="hlgbCutDate" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutClient9712">Cliente</label><input id="hlgbCutClient9712" oninput="hlgbCutApplyFilters()" placeholder="Nome do cliente"></div><div class="field"><label for="hlgbCutFrom9712">De</label><input id="hlgbCutFrom9712" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutTo9712">Até</label><input id="hlgbCutTo9712" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutMin9712">Valor catálogo mín. (R$)</label><input id="hlgbCutMin9712" type="number" min="0" step="0.01" oninput="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutMax9712">Valor catálogo máx. (R$)</label><input id="hlgbCutMax9712" type="number" min="0" step="0.01" oninput="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutSort9712">Ordenar</label><select id="hlgbCutSort9712" onchange="hlgbCutApplyFilters()"><option value="">Ordem original</option><option value="date">Data</option><option value="client">Cliente</option><option value="model">Modelo</option><option value="value">Maior valor catálogo</option></select></div><button type="button" class="secondary" onclick="hlgbCutClearFilters()">Limpar</button><button type="button" class="secondary" onclick="hlgbCutToggleExtra()">Seções adicionais</button><div id="hlgbCutFilterCount" class="sub" style="align-self:center"></div>';
+  bar.innerHTML='<div class="field" style="min-width:min(100%,260px);flex:1"><label>Buscar corte</label><input id="hlgbCutSearch" placeholder="Pedido, cliente, produto ou cortador" oninput="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutStatus9770">Exibir</label><select id="hlgbCutStatus9770" onchange="hlgbCutApplyFilters()"><option value="">Lista de trabalho</option><option value="completed">Finalizados — histórico completo</option></select></div><div class="field"><label>Urgência</label><select id="hlgbCutPriority" onchange="hlgbCutApplyFilters()"><option value="">Todas</option><option>Padrão</option><option>Urgente</option><option>Urgentíssimo</option></select></div><div class="field"><label>Cortador</label><select id="hlgbCutCutter" onchange="hlgbCutApplyFilters()"><option value="">Todos</option></select></div><div class="field"><label>Data do corte</label><input id="hlgbCutDate" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutClient9712">Cliente</label><input id="hlgbCutClient9712" oninput="hlgbCutApplyFilters()" placeholder="Nome do cliente"></div><div class="field"><label for="hlgbCutFrom9712">De</label><input id="hlgbCutFrom9712" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutTo9712">Até</label><input id="hlgbCutTo9712" type="date" onchange="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutMin9712">Valor catálogo mín. (R$)</label><input id="hlgbCutMin9712" type="number" min="0" step="0.01" oninput="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutMax9712">Valor catálogo máx. (R$)</label><input id="hlgbCutMax9712" type="number" min="0" step="0.01" oninput="hlgbCutApplyFilters()"></div><div class="field"><label for="hlgbCutSort9712">Ordenar</label><select id="hlgbCutSort9712" onchange="hlgbCutApplyFilters()"><option value="">Ordem original</option><option value="date">Data</option><option value="client">Cliente</option><option value="model">Modelo</option><option value="value">Maior valor catálogo</option></select></div><button type="button" class="secondary" onclick="hlgbCutClearFilters()">Limpar</button><button type="button" class="secondary" onclick="hlgbCutToggleExtra()">Seções adicionais</button><div id="hlgbCutFilterCount" class="sub" style="align-self:center"></div>';
   (document.getElementById('hlgbCutSplitPanel')||root).insertAdjacentElement('beforebegin',bar);
 }
 function syncCutters(){
@@ -86,6 +86,67 @@ function ensureGradeAction9722(row,cut,model){
   window[handler](id);
  };
 }
+
+ // Completed cuts are a historical view of the actual records, independent of
+ // whether today's order grade still contains every model in the original split.
+ function completedCutHistory(cuts,idx){
+  const live=c=>c&&!c.deletedAt&&!c.deleted_at&&c.deleted!==true&&c._deleted!==true;
+  const counts=new Map(),rows=[],review=[];
+  for(const c of cuts.filter(live)){const k=sid(c.id);if(k)counts.set(k,(counts.get(k)||0)+1)}
+  for(const c of cuts.filter(live)){
+   if(norm(c.status)!=='finalizado'||c.modelSplitParentV1===true||c.hiddenByModelSplitV1===true)continue;
+   const key=sid(c.id);if(!key||counts.get(key)!==1){review.push({id:key,reason:'Identidade duplicada ou ausente'});continue}
+   const meta=cutMeta9709(c,idx),raw=sid(c.finishedAt||''),day=raw.slice(0,10),date=/^\d{4}-\d{2}-\d{2}$/.test(day)&&Number.isFinite(Date.parse(day+'T00:00:00Z'))&&new Date(day+'T00:00:00Z').toISOString().slice(0,10)===day?day:'';
+   const grade=Array.isArray(c.actualCutGrade)?c.actualCutGrade:[],cells=[],seen=new Set();let sum=0,valid=grade.length>0;
+   for(const g of grade){const pid=sid(g?.productId||c.productId),color=sid(g?.color),size=sid(g?.size),qty=g?.qty,k=JSON.stringify([sid(g?.orderId||c.orderId),pid,color,size]);
+    if(!pid||!color||!size||!Number.isSafeInteger(qty)||qty<0||seen.has(k)){valid=false;continue}
+    seen.add(k);sum+=qty;if(qty)cells.push({model:idx.products.get(pid)?.name||pid,color,size,qty});
+   }
+   valid=valid&&Number.isSafeInteger(sum)&&sum===meta.pieces;
+   const models=[...new Set(cells.map(g=>g.model))];
+   const hasOrder=!!idx.orders.get(sid(c.orderId)),hasProduct=!!idx.products.get(sid(c.productId));
+   const reasons=[];if(!date)reasons.push('Data de conclusão não confirmada');if(!hasOrder)reasons.push('Pedido original não encontrado');if(!valid)reasons.push('Grade realizada a conferir');if(!hasProduct&&!models.length)reasons.push('Modelo não confirmado');
+   const named=models.length>1?models.join(' + '):meta.model||models[0]||'Modelo não identificado';
+   rows.push({id:key,meta:{...meta,model:named,date,search:norm([meta.search,named,raw,'finalizado'].join(' ')),valueCents:models.length>1?null:meta.valueCents},grade:valid?cells:[],reasons,weight:c.cutWeightV9579||null});
+  }
+  return {rows:rows.sort((a,b)=>(b.meta.date||'').localeCompare(a.meta.date||'')||a.id.localeCompare(b.id,'pt-BR',{numeric:true})),review};
+ }
+ let completedOffset=0,completedFilterSignature='';
+ function renderCompletedHistory(root,panel,idx,filters,invalid){
+  const parent=root.parentElement;if(!parent)return;
+  const allowed=window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('corte')===true;
+  let host=document.getElementById('hlgbCompletedHistory9770');
+  const on=allowed&&document.getElementById('hlgbCutStatus9770')?.value==='completed';
+  parent.classList.toggle('hlgb-cut-history-mode9770',on);
+  if(!on){host?.remove();completedOffset=0;completedFilterSignature='';return}
+  if(!document.getElementById('hlgbCompletedHistoryCss9770')){const css=document.createElement('style');css.id='hlgbCompletedHistoryCss9770';css.textContent='.hlgb-cut-history-mode9770>#cutTable,.hlgb-cut-history-mode9770>#hlgbCutSplitPanel{display:none!important}.hlgb-cut-history-mode9770>#hlgbCompletedHistory9770{display:block;order:0;min-width:0}.hlgb-completed-card9770{border:1px solid #ddd;border-radius:8px;padding:9px;margin:6px 0;overflow-wrap:anywhere}';document.head.appendChild(css)}
+  if(!host){host=document.createElement('section');host.id='hlgbCompletedHistory9770';root.insertAdjacentElement('afterend',host)}
+  host.replaceChildren();
+  const el=(tag,text,p=host)=>{const n=document.createElement(tag);n.textContent=text;p.appendChild(n);return n};
+  const all=completedCutHistory(arr('cuts'),idx),signature=JSON.stringify(filters);
+  if(signature!==completedFilterSignature){completedFilterSignature=signature;completedOffset=0}
+  const rows=invalid?[]:all.rows.filter(r=>matchesCut9709(r.meta,filters));
+  if(filters.sort)rows.sort((a,b)=>compareCut9712(a,b,filters.sort)||a.id.localeCompare(b.id));
+  if(completedOffset>=rows.length)completedOffset=Math.max(0,Math.floor((rows.length-1)/25)*25);
+  el('h3','Cortes finalizados — histórico');
+  el('p',rows.length+' de '+all.rows.length+' cortes identificados · '+all.review.length+' registros com identidade a conferir. Datas dos filtros referem-se à conclusão; cobertura local, sem confirmação de nuvem.');
+  if(invalid)el('p','Confira o período ou valor dos filtros.');
+  for(const r of rows.slice(completedOffset,completedOffset+25)){
+   const card=el('article','');card.className='hlgb-completed-card9770';card.dataset.completedCutId=r.id;
+   el('strong',r.meta.model,card);el('p','Pedido #'+(r.meta.orderNumber||'—')+' · '+(r.meta.client||'Cliente não identificado')+' · '+(r.meta.pieces===null?'Quantidade a conferir':r.meta.pieces+' pç')+' · '+(r.meta.date||'Sem data de conclusão')+' · '+r.meta.cutterName,card);
+   if(r.reasons.length)el('p',r.reasons.join(' · '),card);
+   if(r.grade.length){const d=el('details','',card);el('summary','Ver grade realmente cortada',d);for(const g of r.grade)el('p',g.model+' · '+g.color+' '+g.size+': '+g.qty,d)}
+   if(typeof window.hlgbCutWeight9579?.show==='function'){
+    const b=el('button',r.weight?'Consultar / atualizar peso':'Registrar peso do corte',card);b.type='button';b.className='secondary';
+    b.onclick=()=>{if(window.__HLGB_AUTH_READY!==true||canOpenPage('corte')!==true||!card.isConnected)return;const fresh=arr('cuts').filter(c=>sid(c?.id)===r.id&&!c.deleted&&!c.deletedAt&&!c.deleted_at&&!c._deleted);if(fresh.length!==1||norm(fresh[0].status)!=='finalizado'||fresh[0].modelSplitParentV1||fresh[0].hiddenByModelSplitV1){alert('Corte mudou. Atualize o histórico.');return}if(fresh[0].modelSplitChildV1&&window.hlgbCutModelSplit?.competingModelCuts?.(fresh[0])?.length>1){alert('Corte duplicado: confira antes de pesar.');return}window.hlgbCutWeight9579.show(r.id)};
+   }
+  }
+  if(!rows.length)el('p','Nenhum corte finalizado corresponde aos filtros.');
+  if(completedOffset>0){const b=el('button','Anterior');b.type='button';b.onclick=()=>{completedOffset-=25;renderCompletedHistory(root,panel,idx,filters,invalid)}}
+  if(completedOffset+25<rows.length){const b=el('button','Mais cortes finalizados');b.type='button';b.onclick=()=>{completedOffset+=25;renderCompletedHistory(root,panel,idx,filters,invalid)}}
+  if(all.review.length){const d=el('details','');el('summary','Identidades que exigem conferência',d);for(const r of all.review)el('p',(r.id||'Sem ID')+' · '+r.reason,d)}
+  const count=document.getElementById('hlgbCutFilterCount');if(count)count.textContent=rows.length+' cortes finalizados no filtro · '+all.rows.length+' identificados';
+ }
 function apply(){
  ensureToolbar();syncCutters();
  const root=document.getElementById('cutTable'),panel=document.getElementById('hlgbCutSplitPanel');if(!root)return;
@@ -101,6 +162,7 @@ function apply(){
   if(!model&&row.dataset.hlgbSplitAggregateHidden==='1'){delete row.dataset.hlgbCutFilterHidden;delete row.dataset.hlgbCutFilterPrevious;row.style.display='none';return}
   const meta=cutMeta9709(cut,idx);stats[model?'modelRows':'legacyRows']++;
   ensureGradeAction9722(row,cut,model);
+  window.hlgbCutWeight9579?.decorateRow?.(row,id,model);
   const completed=meta.completed;
   const visible=(model||!completed)&&!invalid&&matchesCut9709(meta,filters);entries.push({row,meta,id});if(meta.valueCents===null)stats.unknownValue++;
   setFilterVisible9709(row,visible);if(visible&&row.style.display!=='none'){stats.shown++;stats.visiblePieces+=meta.pieces||0;if(meta.valueCents===null)stats.visibleUnknownValue++;else stats.visibleValueCents+=meta.valueCents;}
@@ -114,6 +176,7 @@ function apply(){
  const layout=applyUnifiedLayout9712(root,panel,entries,filters.sort);
  filterEvidence9709={...stats,layout,observed:true,at:new Date().toISOString()};
  const count=document.getElementById('hlgbCutFilterCount');if(count)count.textContent=layout==='review-original'?'Identidades ou estrutura não verificadas — visualização original preservada. '+stats.shown+' linha(s) observadas.':invalid?'Confira os limites do período ou do valor.':stats.shown+' de '+(stats.legacyRows+stats.modelRows)+' corte(s) · '+stats.visiblePieces.toLocaleString('pt-BR')+' peças · '+(stats.visibleValueCents/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+' (catálogo conhecido)'+(stats.visibleUnknownValue?' · '+stats.visibleUnknownValue+' sem valor':'')+(stats.unresolved?' · '+stats.unresolved+' identidade(s) não verificadas':'');
+ renderCompletedHistory(root,panel,idx,filters,invalid);
 }
 
 /* v97.12: same visual sequence, original DOM nodes and save handlers untouched.
@@ -434,12 +497,12 @@ function applyExtraState(){
   secondaryPanels().forEach(p=>{if(!p.dataset.hlgbCutOriginalDisplay)p.dataset.hlgbCutOriginalDisplay=p.style.display||'';p.style.display=open?p.dataset.hlgbCutOriginalDisplay:'none'});
 }
 function toggleExtra(){let open=false;try{open=localStorage.getItem('hlgb_cut_extra_open_v1')==='1';localStorage.setItem('hlgb_cut_extra_open_v1',open?'0':'1')}catch(e){}applyExtraState()}
-window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,secondaryPanels,merchandiseEvidence9755,organizeMerchandise9755,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,compareCut9712,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,scheduleMaterials:scheduleMaterials9711,materialsStatus9711:()=>({...materialsEvidence9711}),separationDockStatus9715:()=>({...separationDockEvidence9715}),dockSeparation9715,openModelSeparation9715};
+window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,completedCutHistory,secondaryPanels,merchandiseEvidence9755,organizeMerchandise9755,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,compareCut9712,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,scheduleMaterials:scheduleMaterials9711,materialsStatus9711:()=>({...materialsEvidence9711}),separationDockStatus9715:()=>({...separationDockEvidence9715}),dockSeparation9715,openModelSeparation9715};
 const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{apply();applyExtraState();scheduleMaterials9711();organizeMerchandise9755()},0);return r};w.__hlgbOrgV1=true;w.__original=old;window.renderCuts=w}
 function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643();organizeMerchandise9755()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('nav'))setTimeout(dockSeparation9715,0)},true);
-window.addEventListener?.('hlgb:logout',()=>{restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();

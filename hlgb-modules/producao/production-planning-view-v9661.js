@@ -32,6 +32,32 @@
    el('p','Consulta somente de registros finalizados com grade efetivamente cortada de vários modelos. Não transforma simulações em cortes realizados; pesagem pertence ao corte inteiro.',historyBody);
    if(h.state!=='local-observation'){el('p','Fontes indisponíveis.',historyBody);return}
    el('p',h.rows.length+' corte(s) com grade real identificada · '+h.review+' registro(s) precisam de conferência. Cobertura local, não prova de sincronização.',historyBody);
+   const comparison=el('details','',historyBody);el('summary','Combinações já cortadas e resultado de aproveitamento',comparison);
+   el('p','Agrupa os mesmos modelos independentemente do pedido. Pesagem coletiva entra uma vez; peso médio é do conjunto, não de cada modelo. Sem pesagem não há percentual ou economia.',comparison);
+   const comboFilter=el('div','',comparison);comboFilter.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:8px';
+   const comboSearch=field('Buscar combinação, pedido ou material',comboFilter,'search'),comboFrom=field('De',comboFilter,'date'),comboTo=field('Até',comboFilter,'date'),comboOut=el('div','',comparison);let comboPage=0;
+   function drawCombinations(){
+    comboOut.replaceChildren();if(!active())return;
+    const v=api.jointCombinationHistory(data(),{query:comboSearch.value,from:comboFrom.value,to:comboTo.value},active());
+    if(v.state!=='local-combination-history'){el('p','Confira as datas e a disponibilidade do histórico.',comboOut);return}
+    const s=v.summary,measure=x=>x===null?'Não registrado':fmt(x);
+    el('p',v.groups.length+' combinações · '+fmt(s.cuts)+' cortes · '+fmt(s.pieces)+' peças · '+s.weighedCuts+' com pesagem · '+s.missingWeightCuts+' sem pesagem válida · '+s.review+' registros fora da análise a conferir.',comboOut);
+    el('p','Peso total observado: '+measure(s.totalKg)+' kg · usado: '+measure(s.usedKg)+' kg · refugo: '+measure(s.wasteKg)+' kg · cobertura de pesagem: '+measure(s.weightCoveragePct)+'%.',comboOut);
+    for(const g of v.groups.slice(comboPage,comboPage+15)){
+     const row=el('details','',comboOut);el('summary',g.models.map(m=>m.productName).join(' + ')+' · '+g.cuts+' cortes · '+g.pieces+' pç',row);
+     el('p','Materiais registrados: '+(g.materials.map(m=>m.name).join(' / ')||'Não registrados'),row);
+     el('p','Pesagem em '+g.weighedCuts+' cortes · '+g.weighedPieces+' peças com medição · '+g.missingWeightCuts+' cortes sem medição.',row);
+     if(g.totalKg!==null)el('p','Total '+fmt(g.totalKg)+' kg · usado '+fmt(g.usedKg)+' kg ('+fmt(g.usedPct)+'%) · refugo '+fmt(g.wasteKg)+' kg ('+fmt(g.wastePct)+'%) · sem classificação '+fmt(g.unclassifiedKg)+' kg · '+fmt(g.gramsPerPiece)+' g/peça no conjunto.',row);
+     else el('p','Sem pesagem válida. Não é possível calcular aproveitamento.',row);
+     for(const r of g.rows){const d=el('details','',row);el('summary','Corte '+r.cutId+' · '+(r.date||'sem data')+' · '+r.pieces+' pç',d);
+      el('p',r.weights?'Total '+fmt(r.weights.totalKg)+' kg · usado '+fmt(r.weights.usedKg)+' kg · refugo '+fmt(r.weights.wasteKg)+' kg · sem classificação '+fmt(r.weights.unclassifiedKg)+' kg':'Pesagem ausente ou inconsistente.',d);
+      for(const m of r.models)el('p',m.productName+' · pedido '+m.orderNumber+' · '+m.pieces+' pç · '+m.grade.map(x=>x.color+' '+x.size+': '+x.qty).join(' / '),d);
+     }
+    }
+    if(comboPage>0)button('Anterior',comboOut,()=>{comboPage-=15;drawCombinations()});if(comboPage+15<v.groups.length)button('Mais combinações',comboOut,()=>{comboPage+=15;drawCombinations()});
+   }
+   for(const f of [comboSearch,comboFrom,comboTo])f.addEventListener('input',()=>{comboPage=0;drawCombinations()});
+   comparison.addEventListener('toggle',()=>{if(comparison.open)drawCombinations()});
    const fieldSearch=field('Buscar modelo, pedido, material ou corte no histórico',historyBody,'search'),result=el('div','',historyBody);let offset=0;
    const drawRows=()=>{result.replaceChildren();const q=norm(fieldSearch.value).trim().split(/\s+/).filter(Boolean);const rows=h.rows.filter(r=>q.every(t=>norm([r.cutId,r.date,...r.models.flatMap(m=>[m.productName,m.orderNumber,m.client]),...r.materials.map(m=>m.name)].join(' ')).includes(t)));
     for(const r of rows.slice(0,offset+20)){const d=el('details','',result);el('summary','Corte '+r.cutId+' · '+(r.date||'Data não registrada')+' · '+r.pieces+' peças · '+r.models.map(m=>m.productName).join(' / '),d);
