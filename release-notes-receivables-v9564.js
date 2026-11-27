@@ -399,6 +399,56 @@ function clientAccountPreview9759(rows,input,allowed){
  if(![before,after,allocated,weighted,dated].every(Number.isSafeInteger))return blocked('amount-limit');
  return {state:'preview-only',clientKey:key,notesBalance,opening,payment,before,after,allocations,openingApplied,unallocatedPayment:left,weightedDays:dated?weighted/dated:null,datedAmount:dated,canWrite:false};
 }
+// Continuous account statement derived from reconciled existing notes/events.
+// The independent starting balance is a scenario, never a fabricated dated receipt.
+function clientAccountStatement9773(rows,eventReport,input,allowed){
+ const empty=state=>({state,rows:[],issues:[],summary:null,canWrite:false,officialBalance:false});
+ if(allowed!==true)return empty('forbidden');
+ const key=sid(input?.clientKey),owner=key.slice(3),opening=input?.openingCents??0,from=input?.from||'',to=input?.to||'';
+ if(!key.startsWith('id:')||!owner||!Array.isArray(rows)||rows.length>5000||eventReport?.state!=='local-events'||!Array.isArray(eventReport.events)||eventReport.events.length!==eventReport.eventTotal||!Array.isArray(eventReport.issues)||!Number.isSafeInteger(opening)||opening!==0&&(input.independentOpening!==true||!sid(input.reason).trim())||from&&date(from)!==from||to&&date(to)!==to||from&&to&&from>to)return empty('unavailable');
+ const notes=new Map(),issues=[],seen=new Set(),eventsByNote=new Map(),movements=[];let current=0,undated=0;
+ for(const n of rows){
+  if(!n||n.clientKey!==key||!sid(n.key)||notes.has(n.key)||n.mismatch||!['total','paid','credit','balance'].every(k=>Number.isSafeInteger(n[k])&&n[k]>=0)||n.total!==n.paid+n.credit+n.balance||/cancelad|excluid|estornad/.test(norm(n.sourceStatus)))return empty('note-review');
+  notes.set(n.key,n);current+=n.balance;if(!Number.isSafeInteger(current))return empty('amount-limit');
+ }
+ for(const e of eventReport.events){
+  const n=notes.get(e?.noteKey),id=sid(e?.id),day=date(e?.date);
+  if(!n||sid(e.ownerId)!==owner||!id||seen.has(id)||day!==e.date||!day||!Number.isSafeInteger(e.amountCents)||e.amountCents<=0||!['payment-recorded','material-offset','return-active','return-reversed'].includes(e.type))return empty('event-review');
+  seen.add(id);const list=eventsByNote.get(n.key)||[];list.push(e);eventsByNote.set(n.key,list);
+ }
+ for(const n of rows){
+  const issue=eventReport.issues.some(x=>sid(x).endsWith(':'+n.key));
+  const list=eventsByNote.get(n.key)||[],issued=date(n.issued);
+  let paid=0,credit=0,ok=!!issued&&issued===n.issued&&!issue;
+  for(const e of list){if(e.date<issued)ok=false;if(e.type==='payment-recorded'||e.type==='material-offset')paid+=e.amountCents;else if(e.type==='return-active')credit+=e.amountCents;else if(date(e.reversedAt)!==e.reversedAt||!e.reversedAt||e.reversedAt<e.date)ok=false}
+  if(!ok||paid!==n.paid||credit!==n.credit){issues.push({key:n.key,number:n.number,reason:'Emissão ou histórico financeiro sem conciliação por data',balanceCents:n.balance});undated+=n.balance;continue}
+  movements.push({id:'issue:'+n.key,date:issued,noteKey:n.key,number:n.number,type:'issue',deltaCents:n.total});
+  for(const e of list){
+   movements.push({id:e.id,date:e.date,noteKey:n.key,number:n.number,type:e.type==='return-reversed'?'return-active':e.type,deltaCents:-e.amountCents,method:e.method,description:e.description});
+   if(e.type==='return-reversed')movements.push({id:e.id+':reverse',date:e.reversedAt,noteKey:n.key,number:n.number,type:'return-reversal',deltaCents:e.amountCents,description:e.description});
+  }
+ }
+ const daysMap=new Map();for(const m of movements){const a=daysMap.get(m.date)||[];a.push(m);daysMap.set(m.date,a)}
+ let running=0,prior=0;const groups=[];
+ for(const day of [...daysMap.keys()].sort()){
+  const entries=daysMap.get(day).sort((a,b)=>a.number.localeCompare(b.number,'pt-BR',{numeric:true})||a.id.localeCompare(b.id));
+  const debits=entries.filter(e=>e.deltaCents>0).reduce((s,e)=>s+e.deltaCents,0),credits=entries.filter(e=>e.deltaCents<0).reduce((s,e)=>s-e.deltaCents,0);
+  const before=running;running+=debits-credits;if(![running,before,debits,credits].every(Number.isSafeInteger))return empty('amount-limit');
+  if(from&&day<from){prior=running;continue}if(to&&day>to)continue;
+  groups.push({date:day,before,debits,credits,after:running,entries});
+ }
+ if(!Number.isSafeInteger(current+opening)||!Number.isSafeInteger(undated)||running!==current-undated)return empty('balance-review');
+ return {...empty('local-statement'),rows:groups,issues,summary:{currentNotesCents:current,independentOpeningCents:opening,projectedCurrentCents:current+opening,datedBalanceCents:running,unreconciledBalanceCents:undated,priorDatedCents:prior,periodEndDatedCents:groups.length?groups[groups.length-1].after:prior,notes:notes.size,complete:issues.length===0}};
+}
+function readClientStatement9773(id,rows,input){
+ if(!historyAuthorized9710()||typeof window.HLGBSettlementHistory9653?.noteEvents!=='function'||typeof window.hlgbCanonicalProjectionInvoices!=='function')return {state:'unavailable'};
+ const pending=pendingProtection9710();if(!pending)return {state:'unavailable'};
+ if(rows.some(n=>{const m=n.type==='order'?'orders':'projectionInvoices';return pending.has(m+'::'+n.id)||pending.has(m+'|'+n.id)||list('finance').some(f=>sid(n.type==='order'?f.orderId:f.projectionInvoiceId)===n.id&&(pending.has('finance::'+f.id)||pending.has('finance|'+f.id)))}))return {state:'pending'};
+ const canonicalRows=window.hlgbCanonicalProjectionInvoices();if(!Array.isArray(canonicalRows))return {state:'unavailable'};
+ const sources=[...canonicalRows.map(record=>({key:'projection:'+sid(record.id),record})),...list('orders').map(record=>({key:'order:'+sid(record.id),record}))].filter(x=>rows.some(n=>n.key===x.key));
+ const report=window.HLGBSettlementHistory9653.noteEvents({authenticated:true,clientsAllowed:true,notes:rows,noteSources:sources},{ownerId:sid(id),export:true});
+ return clientAccountStatement9773(rows,report,{...input,clientKey:'id:'+sid(id)},true);
+}
 function signedMoney9759(v){
  const s=sid(v).trim();if(!/^-?\d{1,10}(?:[,.]\d{1,2})?$/.test(s))return null;
  const n=Math.round(Number(s.replace(',','.'))*100);return Number.isSafeInteger(n)?n:null;
@@ -469,7 +519,7 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
+window.hlgbNotesReceivables9564={version:V,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
