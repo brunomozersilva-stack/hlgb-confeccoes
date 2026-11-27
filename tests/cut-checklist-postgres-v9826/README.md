@@ -25,3 +25,7 @@ Consulta histórica por corte/pedido/modelo e versão exata; listagem paginada, 
 
 ## Anexos por versão (v98.32)
 Laboratório bytea somente para testar conteúdo real, SHA-256, prefixo PDF/JPEG/PNG/WebP, limite de 3 arquivos de 5 MiB por versão, replay e autorização simulada. Vincula corte/pedido/modelo/versão exatos e mantém checklist imutável; leitura de bytes e metadados por função autorizada, sem acesso direto. Prefixo não é validação completa nem antivírus. Produção requer armazenamento privado, política real, verificação confiável do objeto, upload/commit/releitura, testes concorrentes e interface. Nenhuma instalação comercial.
+
+
+## Autorização por funcionário (v98.33)
+Mapeamento fictício com active/access conforme shape comercial hlgb_user_access. Exige Corte, Pedidos, Produtos e Materiais; decisão conservadora até validar as permissões operacionais reais. Dois operadores compartilham histórico com autoria distinta; desativação e retirada de área bloqueiam leitura, gravação e anexos. Identidade SET ROLE é exclusiva do laboratório, não deve ser usada em produção. Banco comercial consultado apenas para metadados: nenhum bucket configurado. Produção exige auth.uid() validado no servidor, RLS real e armazenamento privado; não publicar automaticamente.

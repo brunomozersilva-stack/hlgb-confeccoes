@@ -38,6 +38,7 @@ jobs:
         run: bash tests/cut-checklist-postgres-v9826/concurrency.sh
       - name: Verify authoritative record source and per-color calculation
         run: |
+          psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-auth.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-source.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-integrated.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-integrated-contract.sql
@@ -46,6 +47,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-read-contract.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-attachments.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-attachments-contract.sql
+          psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-auth-contract.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-source-contract.sql
       - uses: actions/setup-node@v4
         with: {node-version: '22'}

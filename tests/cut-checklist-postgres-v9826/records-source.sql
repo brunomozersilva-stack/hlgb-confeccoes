@@ -1,8 +1,8 @@
 -- Laboratory only. Source record shape verified read-only in HLGB; no commercial deployment.
 create table checklist_lab.source_records(module text not null,entity_id text not null,data jsonb not null,revision bigint not null,deleted_at timestamptz,primary key(module,entity_id));
 alter table checklist_lab.source_records enable row level security;
-grant select on checklist_lab.source_records to checklist_lab_operator;
-create policy source_read on checklist_lab.source_records for select to checklist_lab_operator using(module in ('cuts','orders','products','materials') and deleted_at is null);
+grant select on checklist_lab.source_records to checklist_lab_operator,checklist_lab_operator2,checklist_lab_revoked;
+create policy source_read on checklist_lab.source_records for select to checklist_lab_operator,checklist_lab_operator2,checklist_lab_revoked using(checklist_lab.authorized() and module in ('cuts','orders','products','materials') and deleted_at is null);
 insert into checklist_lab.source_records values
 ('orders','o1','{"id":"o1","grade":[{"productId":"p1","color":"Preto","size":"P","qty":120},{"productId":"p1","color":"Branco","size":"M","qty":60},{"productId":"p1","color":"Rubi","size":"G","qty":120},{"productId":"p2","color":"Preto","size":"P","qty":20}]}',4,null),
 ('cuts','c1','{"id":"c1","orderId":"o1","productId":"p1","status":"Planejado","pieces":300,"actualCutGrade":[{"productId":"p1","color":"Preto","size":"P","qty":120},{"productId":"p1","color":"Branco","size":"M","qty":60},{"productId":"p1","color":"Rubi","size":"G","qty":120}]}',5,null),
@@ -50,4 +50,4 @@ begin
  return jsonb_build_object('cutId',p_cut,'orderId',p_order,'productId',p_product,'revisions',refs,'grade',grade,'lines',lines);
 end$$;
 revoke all on function checklist_lab.record_source(text,text,text) from public;
-grant execute on function checklist_lab.record_source(text,text,text) to checklist_lab_operator;
+grant execute on function checklist_lab.record_source(text,text,text) to checklist_lab_operator,checklist_lab_operator2,checklist_lab_revoked;
