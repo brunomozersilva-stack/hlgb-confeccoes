@@ -53,6 +53,7 @@ jobs:
       - run: node --check tests/notes-receivables-v9564.cjs
       - run: node --test tests/notes-receivables-v9564.cjs
       - run: node tests/notes-receivables-v9564-cloud-check.cjs
+      - run: node tests/notes-receivables-v9564-hub-review.cjs
       - run: node --check release-acerto-returns-v9565.js
       - run: node tests/acerto-returns-v9565.cjs
       - run: node --check release-note-receipts-v9576.js

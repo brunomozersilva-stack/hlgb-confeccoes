@@ -536,6 +536,39 @@ function browserCloudCheck9812(input){
  read:async(module,field,id)=>{if(typeof window.cloudRequest!=='function')return null;return window.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.'+encodeURIComponent(module)+'&'+field+'=eq.'+encodeURIComponent(id)+'&deleted_at=is.null&limit=2',{method:'GET'})}};
  return globalCloudCheck9812(input,deps);
 }
+// A legacy Hub entry without explicit source identity is a review item, NOT
+// a note payment. Never derive a link from amount, description, person or date.
+function hubLegacyReview9814(input,allowed){
+ const fail=reason=>({state:'unavailable',reason,rows:[],canWrite:false,hubReconciled:false});
+ if(allowed!==true)return fail('permission');
+ const {hub,clients,clientId,pendingIds}=input||{};
+ if(!Array.isArray(hub)||!Array.isArray(clients)||!Array.isArray(pendingIds)||hub.length>20000||clients.length>20000||input.pendingObserved!==true)return fail('source');
+ const live=x=>x&&!x.deleted_at&&!x.deletedAt&&x.deleted!==true&&x._deleted!==true;
+ const exact=clients.filter(x=>live(x)&&sid(x.id)===sid(clientId));
+ if(exact.length!==1)return fail('client');
+ const name=norm(exact[0].name),unique=!!name&&clients.filter(x=>live(x)&&norm(x.name)===name).length===1;
+ const pending=new Set(pendingIds.map(sid)),counts=new Map();
+ for(const h of hub.filter(live)){const id=sid(h.id);counts.set(id,(counts.get(id)||0)+1)}
+ const rows=[],summary={planned:0,realized:0,unlinked:0,marked:0,missingPerson:0,clientNameCandidates:0,review:0,omitted:0};
+ const cents=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(\.\d{1,2})?$/.test(v)))return null;const n=Number(v),c=Math.round(n*100);return Number.isSafeInteger(c)&&c>0&&Math.abs(n*100-c)<.00001?c:null};
+ for(const h of hub.filter(live)){
+  if(h.flow!=='Entrada')continue;
+  const id=sid(h.id),status=h.status,amount=cents(h.value),day=status==='Realizado'?date(h.realizedAt):date(h.date);
+  if(status==='Previsto')summary.planned++;else if(status==='Realizado')summary.realized++;else{summary.omitted++;continue}
+  const marker=!!sid(h.projectionInvoiceId).trim()||!!sid(h.sourceId).trim()||!!sid(h.sourceType).trim();
+  const person=norm(h.person);
+  if(marker)summary.marked++;else{summary.unlinked++;if(!person)summary.missingPerson++;if(unique&&person===name)summary.clientNameCandidates++}
+  const issue=!id||counts.get(id)!==1||pending.has('hubFinanceEntries::'+id)||pending.has('hubFinanceEntries|'+id)||h.pendingSync===true||h.walPending===true||h.unverified===true||amount===null||!day;
+  if(issue)summary.review++;
+  if(marker)continue;
+  const kind=unique&&person===name?'name-candidate':!person?'unassigned':'other-person';
+  // Other named people are counted, not displayed in this client's account.
+  if(kind==='other-person')continue;
+  rows.push({id:id||null,status,amountCents:amount,day,description:sid(h.description).slice(0,300),kind,issue:!!issue});
+ }
+ rows.sort((a,b)=>Number(b.kind==='name-candidate')-Number(a.kind==='name-candidate')||(b.day||'').localeCompare(a.day||'')||sid(a.id).localeCompare(sid(b.id)));
+ return {state:'local-review-only',summary,rows,uniqueClientName:unique,canWrite:false,hubReconciled:false,remoteConfirmed:false};
+}
 function signedMoney9759(v){
  const s=sid(v).trim();if(!/^-?\d{1,10}(?:[,.]\d{1,2})?$/.test(s))return null;
  const n=Math.round(Number(s.replace(',','.'))*100);return Number.isSafeInteger(n)?n:null;
@@ -549,9 +582,27 @@ function openAccountPreview9759(id){
  '<label><input id="ca9759-independent" type="checkbox"> Confirmo que o saldo inicial não repete notas existentes.</label><p>Distribuição sugerida: emissão mais antiga primeiro; notas sem data ficam no final. Selecione quais notas deseja incluir.</p>'+
  '<div style="overflow:auto;max-height:250px">'+result.rows.filter(n=>n.balance>0).map(n=>'<label style="display:block"><input type="checkbox" data-ca9759-note="'+esc(n.key)+'" checked> '+esc(n.number)+' · '+esc(dateFmt(n.issued))+' · '+brl(n.balance)+'</label>').join('')+'</div>'+
  '<button type="button" class="primary" id="ca9759-preview">Simular pagamento global</button><div id="ca9759-result" aria-live="polite"></div><details><summary>Conferência das notas na nuvem (sem gravar)</summary><p>Somente pagamentos alocados integralmente em notas, sem saldo inicial ou crédito excedente. Ainda não confirma Hub nem autoriza baixa.</p><label>Referência do recebimento<input id="ca9812-ref" maxlength="128"></label><label>Forma de pagamento<input id="ca9812-method" maxlength="80"></label><button type="button" id="ca9812-check" disabled>Conferir notas e títulos</button><div id="ca9812-output" aria-live="polite"></div></details><button type="button" class="secondary modalSave">Fechar</button>';
+ const hubReviewHtml='<details><summary>Conferir entradas antigas do Hub</summary><p>Consulta local: entradas sem origem identificada não são associadas a notas automaticamente. Uma coincidência de nome é apenas candidata.</p><button type="button" id="ca9814-review">Consultar entradas sem vínculo</button><div id="ca9814-output" aria-live="polite"></div></details>';
  const statementHtml='<details id="ca9773-statement"><summary>Extrato detalhado por data</summary><p>Emissões, pagamentos, compensações, devoluções e estornos com evidência. O saldo inicial independente permanece separado, sem data fictícia. Não é extrato bancário.</p><div class="grid"><label>De<input id="ca9773-from" type="date"></label><label>Até<input id="ca9773-to" type="date"></label></div><button type="button" class="secondary" id="ca9773-load">Consultar extrato</button><button type="button" class="secondary" id="ca9773-export" disabled>Exportar extrato CSV</button><div id="ca9773-output" aria-live="polite"></div></details>';
- window.openModal('Conta corrente — '+esc(client.name)+' (prévia)',html+statementHtml,()=>window.closeModal?.());
+ window.openModal('Conta corrente — '+esc(client.name)+' (prévia)',html+hubReviewHtml+statementHtml,()=>window.closeModal?.());
  const host=document.getElementById('modalContent')||document.getElementById('modal'),btn=host?.querySelector('#ca9759-preview');if(!btn)return false;
+ const hubBtn=host.querySelector('#ca9814-review'),hubOut=host.querySelector('#ca9814-output');
+ if(hubBtn)hubBtn.onclick=()=>{
+  if(!cloudCheckAllowed9812()||!hubOut)return;
+  hubOut.replaceChildren();
+  const pending=pendingProtection9710(),d=records();
+  const v=hubLegacyReview9814({hub:d.hubFinanceEntries,clients:d.clients,clientId:id,pendingIds:pending?[...pending]:null,pendingObserved:!!pending},true);
+  if(!cloudCheckAllowed9812())return;
+  if(v.state!=='local-review-only'){hubOut.textContent='Não foi possível conferir a base local ou a sincronização.';return}
+  const p=document.createElement('p'),a=v.summary;p.textContent='Hub local: '+a.planned+' previstas, '+a.realized+' realizadas; '+a.unlinked+' sem origem identificada, '+a.missingPerson+' sem pessoa, '+a.marked+' com marcador de origem (não conciliado), '+a.review+' com dados ou sincronização a conferir. Candidatas por nome único: '+a.clientNameCandidates+'. Nenhuma baixa autorizada.';hubOut.appendChild(p);
+  const search=document.createElement('input');search.placeholder='Filtrar por descrição, data ou ID';search.setAttribute('aria-label','Filtrar entradas antigas');hubOut.appendChild(search);
+  const body=document.createElement('div');hubOut.appendChild(body);let offset=0;
+  const draw=()=>{body.replaceChildren();if(!cloudCheckAllowed9812())return;const q=norm(search.value),rows=v.rows.filter(x=>!q||norm(x.description+' '+x.day+' '+sid(x.id)).includes(q));
+   const count=document.createElement('p');count.textContent=rows.length+' entrada(s) sem pessoa ou candidata(s) por nome; consulte a origem e o comprovante. Atualize a consulta se houver alterações.';body.appendChild(count);
+   for(const x of rows.slice(offset,offset+25)){const line=document.createElement('p');line.textContent=(x.day?dateFmt(x.day):'Sem data comprovável')+' · '+x.status+' · '+(x.amountCents===null?'valor a conferir':brl(x.amountCents))+' · '+x.description+' · ID '+sid(x.id||'indefinido')+' · '+(x.kind==='name-candidate'?'Nome candidato, não vinculado':'Sem pessoa')+(x.issue?' · REVISAR':'');body.appendChild(line)}
+   for(const [label,delta] of [['Anterior',-25],['Mais entradas',25]])if(delta<0?offset>0:offset+25<rows.length){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>{offset+=delta;draw()};body.appendChild(b)}
+  };search.oninput=()=>{offset=0;draw()};draw();
+ };
  let statement=null,statementSignature='';
  const load=host.querySelector('#ca9773-load'),exportButton=host.querySelector('#ca9773-export'),statementOut=host.querySelector('#ca9773-output');
  const statementInput=()=>({openingCents:signedMoney9759(host.querySelector('#ca9759-opening')?.value),reason:host.querySelector('#ca9759-reason')?.value,independentOpening:host.querySelector('#ca9759-independent')?.checked===true,from:host.querySelector('#ca9773-from')?.value,to:host.querySelector('#ca9773-to')?.value});
@@ -655,7 +706,7 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,globalPaymentPreflight9775,globalCloudCheck9812,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
+window.hlgbNotesReceivables9564={version:V,globalPaymentPreflight9775,globalCloudCheck9812,hubLegacyReview9814,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
