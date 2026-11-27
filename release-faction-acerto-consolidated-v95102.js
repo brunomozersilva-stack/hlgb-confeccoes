@@ -98,23 +98,29 @@
     label:'Pagamento avulso · '+unique.filter(x=>!canceled(x)).length+' item(ns)',
     lineIds:unique.map(x=>sid(x.id))});
   }
-  // Lançamentos normais não são convertidos em avulsos, apenas contabilizados
-  // ao lado deles. IDs repetidos e saldos parciais tornam a prévia inconclusiva.
+  // Normal and partial settlements retain their original identities. Discount
+  // reduces the obligation but is never counted as money already transferred.
+  const exact=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(?:\.\d{1,2})?$/.test(v)))return null;const n=Number(v),c=Math.round(n*100);return Number.isSafeInteger(c)&&c>=0&&Math.abs(n*100-c)<.00001?c:null};
   for(const row of payments){
-   if(!row||row.manual===true||canceled(row)||!active(row.status))continue;
+   if(!row||row.manual===true||canceled(row)||!['pendente','parcial'].includes(norm(row.status)))continue;
    const id=sid(row.id);
    if(!id||paymentCounts.get(id)!==1||seenEntries.has(id)||manualRowIds.has(id)){
     errors.push('pagamento-duplicado-ou-sem-id:'+id);continue;
    }
    seenEntries.add(id);
-   const balance=cents(row.value)-cents(row.paidAmount);
-   if(!Number.isFinite(Number(row.value))||row.value==null||sid(row.value)===''||!Number.isSafeInteger(cents(row.value))||Number(row.value)<0||(row.paidAmount!=null&&(!Number.isFinite(Number(row.paidAmount))||Number(row.paidAmount)<0))){errors.push('valor-normal-invalido:'+id);continue}
-   if(cents(row.paidAmount)!==0){
-    errors.push('pagamento-parcial-requer-conferencia:'+id);continue;
+   const total=exact(row.value),paid=exact(row.paidAmount??0),discount=exact(row.discountAmount??0);
+   if([total,paid,discount].some(v=>v===null)||!Number.isSafeInteger(paid+discount)||total<=0||paid+discount>=total){
+    errors.push('valor-normal-invalido:'+id);continue;
    }
-   if(balance<=0){errors.push('pagamento-sem-saldo:'+id);continue}
+   const partial=norm(row.status)==='parcial';
+   if(!partial&&paid!==0||partial&&paid+discount===0){errors.push('situacao-saldo-divergente:'+id);continue}
+   const history=row.paymentHistory??[];let historyPaid=0,historyDiscount=0,valid=Array.isArray(history);const eventIds=new Set();
+   if(valid)for(const h of history){const eventId=sid(h?.id),p=exact(h?.paid??0),d=exact(h?.discount??0);if(!eventId||eventIds.has(eventId)||p===null||d===null||p+d<=0){valid=false;break}eventIds.add(eventId);historyPaid+=p;historyDiscount+=d}
+   if(!valid||!Number.isSafeInteger(historyPaid)||!Number.isSafeInteger(historyDiscount)||history.length&&(historyPaid!==paid||historyDiscount!==discount)||partial&&!history.length){errors.push('pagamento-parcial-requer-conferencia:'+id);continue}
+   const balance=total-paid-discount;
    const actor=owner(row.factionName,row.factionMasterId);
-   append(actor,{kind:'normal',paymentId:id,amountCents:balance,
+   if(!actor.name){errors.push('pagamento-sem-pessoa:'+id);continue}
+   append(actor,{kind:'normal',paymentId:id,amountCents:balance,totalCents:total,paidCents:paid,discountCents:discount,partial,
     date:sid(row.scheduledPaymentDate||row.serviceFinishedAt||row.paymentDate),
     label:sid(row.description||row.productName||'Pagamento de facção'),lineIds:[id]});
   }
@@ -149,7 +155,7 @@
   if(signature===json)return true;
   signature=json;
   host.innerHTML='<h3 style="margin:0 0 8px">🧾 Acerto consolidado por pessoa</h3>'+
-   '<p class="sub">Uma visão por facção/embaladeira: soma pagamentos <b>pendentes</b> normais e avulsos da mesma pessoa, preservando os registros e datas originais. <b>Não dá baixa nem cria um novo lançamento financeiro.</b></p>'+
+   '<p class="sub">Uma visão por facção/embaladeira: soma saldos <b>pendentes e parciais conciliados</b> normais e avulsos da mesma pessoa, preservando os registros e datas originais. <b>Não dá baixa nem cria um novo lançamento financeiro.</b></p>'+
    (data.warnings.length?'<p class="sub" style="color:#934">⚠ Existem '+data.warnings.length+
     ' registro(s) que precisam de conferência e não entram na soma para evitar pagamento incorreto.</p>':'')+
    (data.groups.length?'<div style="overflow-x:auto"><table style="width:100%"><thead><tr>'+
@@ -162,8 +168,8 @@
       '<td><details><summary>Ver itens e datas</summary>'+
       g.entries.map(e=>'<div style="padding:5px;border-bottom:1px solid #ddd">'+
        esc(e.kind==='avulso'?'Avulso':'Normal')+' · '+esc(e.label)+' · '+
-       esc(e.date||'Sem data')+' · '+money(e.amountCents)+'<br><small>'+
-       esc(e.groupId||e.paymentId||'')+'</small>'+       (e.kind==='normal'?        ' <button type="button" class="secondary" data-payee104-id="'+esc(e.paymentId)+'">↔ Trocar facção</button>'+        ' <button type="button" class="secondary" data-already-paid104-id="'+esc(e.paymentId)+'">✓ Já estava pago</button>':        ' <button type="button" class="secondary" data-manual-payee104-group="'+esc(e.groupId)+'">↔ Trocar facção avulsa</button>')+       '</div>').join('')+
+       esc(e.date||'Sem data')+' · Saldo '+money(e.amountCents)+(e.kind==='normal'?' · Bruto '+money(e.totalCents)+' · Pago '+money(e.paidCents)+' · Desconto '+money(e.discountCents):'')+'<br><small>'+
+       esc(e.groupId||e.paymentId||'')+'</small>'+       (e.kind==='normal'&&!e.partial?        ' <button type="button" class="secondary" data-payee104-id="'+esc(e.paymentId)+'">↔ Trocar facção</button>'+        ' <button type="button" class="secondary" data-already-paid104-id="'+esc(e.paymentId)+'">✓ Já estava pago</button>':e.kind==='avulso'?        ' <button type="button" class="secondary" data-manual-payee104-group="'+esc(e.groupId)+'">↔ Trocar facção avulsa</button>':' <span class="sub">Parcial: continuar no acerto original</span>')+       '</div>').join('')+
       '</details></td></tr>').join('')+'</tbody></table></div>':
     '<div class="sub">Nenhum acerto pendente nos dados disponíveis neste computador.</div>')+
    '<p class="sub">A conferência da mesma pessoa usa o cadastro e o nome normalizado. Se houver homônimos ou pagamento parcial, revise os registros antes de pagar. Para registrar uma única saída bancária, será necessário homologar uma transação financeira unificada com confirmação remota; as baixas atuais continuam separadas e protegidas.</p>';
