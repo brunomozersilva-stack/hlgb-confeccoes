@@ -61,7 +61,8 @@ function guardAccountLink9816(existing,payload){
  if(!marked(existing)&&!marked(payload))return;
  if(!existing||!marked(existing)||!marked(payload))throw Error('Vínculo financeiro protegido. Use o acerto específico; nenhuma alteração foi enviada.');
  const keys=['clientForecastLinkV9815','sourceType','sourceId','projectionInvoiceId','clientId','id','flow','status','value','date','realizedAt','method','person','origin','category','subcategory'];
- for(const k of keys)if(!sameBusiness(existing[k],payload[k]))throw Error('Vínculo financeiro protegido. Altere valores, origem ou baixa pelo acerto específico.');
+ const exact=v=>Array.isArray(v)?v.map(exact):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,exact(v[k])])):v;
+ for(const k of keys)if(JSON.stringify(exact(existing[k]))!==JSON.stringify(exact(payload[k])))throw Error('Vínculo financeiro protegido. Altere valores, origem ou baixa pelo acerto específico.');
 }
 function revisionOf(s){const n=Number(s?.revision);return Number.isSafeInteger(n)&&n>=0?n:null}
 function snapshotFor(id){
