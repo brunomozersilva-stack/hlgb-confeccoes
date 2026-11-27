@@ -353,3 +353,29 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.orderPaymentCondition({paymentTerms:'À vista'},null,fallback,false).mode,'unknown');
  console.log('PASS payment timing after simulated completion, historical cutoffs and per-order conditions');
 })();
+
+
+(async function forecastCloudJournalTransport(){
+ const mk=(k,start,end)=>({id:k,productId:'m',productionLocationId:'f',status:'Finalizado',sentAt:start,finishedAt:end,sent:200,returned:200,deliveryHistory:[{id:'ev-'+k,date:end,qty:200}]});
+ const db={products:[{id:'m',name:'Camisola'}],productionLocations:[{id:'f',name:'Facção'}],factions:[mk('a','2026-11-01','2026-11-03'),mk('b','2026-11-04','2026-11-07'),mk('c','2026-11-08','2026-11-12'),mk('d','2026-11-13','2026-11-18'),{id:'open',productId:'m',productionLocationId:'f',status:'Em produção',sentAt:'2026-11-20',sent:200,returned:0}]};
+ const before=JSON.stringify(db),rows=[],calls=[];let actor='actor',drop=false,failPost=false;
+ const request=async(path,opts)=>{calls.push([path,opts.method]);if(opts.method==='POST'){
+   const body=JSON.parse(opts.body);assert.deepEqual(Object.keys(body).sort(),['forecast','lot_id']);assert.ok(!rows.some(r=>r.lot_id===body.lot_id&&r.captured_on===body.forecast.capturedAt));
+   if(!drop)rows.push({seq:rows.length+1,lot_id:body.lot_id,captured_on:body.forecast.capturedAt,captured_at:'2026-11-21T12:00:00Z',captured_by:actor,forecast:JSON.parse(JSON.stringify(body.forecast))});
+   if(failPost)throw Error('lost acknowledgement');return [];
+  }
+  if(path.includes('&lot_id=eq.'))return rows.filter(r=>r.lot_id==='open');
+  return rows.filter(r=>r.seq>Number(path.match(/seq=gt\.(\d+)/)[1]));
+ };
+ const ctx={schemaApproved:true,active:()=>actor,source:()=>db,today:()=>'2026-11-21',request};
+ const input={mode:'capture',lotIds:['open']};
+ assert.equal((await plan.forecastCloudJournal({...ctx,schemaApproved:false},input,true)).state,'unavailable');assert.equal(calls.length,0);
+ assert.equal((await plan.forecastCloudJournal(ctx,input,false)).state,'unavailable');
+ drop=true;const failed=await plan.forecastCloudJournal(ctx,input,true);assert.equal(failed.state,'partial-cloud-capture');assert.deepEqual(failed.unconfirmed,['open']);assert.equal(failed.confirmed.length,0);
+ drop=false;failPost=true;const ok=await plan.forecastCloudJournal(ctx,input,true);assert.equal(ok.state,'cloud-capture-confirmed');assert.deepEqual(ok.confirmed,['open']);assert.equal(ok.entries.length,1);
+ const previousPosts=calls.filter(c=>c[1]==='POST').length;const repeat=await plan.forecastCloudJournal(ctx,input,true);assert.equal(repeat.state,'cloud-capture-confirmed');assert.equal(calls.filter(c=>c[1]==='POST').length,previousPosts);
+ const read=await plan.forecastCloudJournal(ctx,{mode:'read'},true);assert.equal(read.state,'cloud-read-confirmed');assert.equal(read.entries.length,1);
+ const session=await plan.forecastCloudJournal({...ctx,request:async()=>{actor='other';return []}},{mode:'read'},true);assert.equal(session.state,'read-unconfirmed');
+ assert.ok(calls.every(c=>['GET','POST'].includes(c[1])));assert.equal(JSON.stringify(db),before);
+ console.log('PASS gated cloud journal transport, exact readback, retries and session change');
+})().catch(e=>{console.error(e);process.exitCode=1});
