@@ -26,6 +26,21 @@ function canonical(){
  const shadows=typeof window.hlgbNoteLegacyShadowIds==='function'?window.hlgbNoteLegacyShadowIds():new Set();
  return list('projectionInvoices').filter(n=>n&&!shadows?.has?.(sid(n.id))&&!n.migratedToNoteQueueV9223&&!(n.items||[]).some(i=>i?.source==='faction_delivery_v9140'));
 }
+// Archive eligibility must use unclamped evidence, not the display balance.
+function exactPaidProof9771(row,totalKey,paidKey){
+ const cents=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(?:\.\d{1,2})?$/.test(v)))return null;const n=Number(v),k=Math.round(n*100);return Number.isSafeInteger(k)&&k>=0&&Math.abs(n*100-k)<.00001?k:null};
+ const total=cents(row?.[totalKey]);if(total===null||total<=0)return false;
+ const explicit=row[paidKey]==null?null:cents(row[paidKey]);
+ if(row[paidKey]!=null&&explicit===null)return false;
+ if(row.remaining!=null&&cents(row.remaining)!==0)return false;
+ if(row.paymentHistory!=null&&!Array.isArray(row.paymentHistory))return false;
+ const history=row.paymentHistory||[];
+ if(history.length){const values=history.map(x=>cents(x?.value));if(values.some(x=>x===null||x<=0))return false;const paid=values.reduce((a,b)=>a+b,0);if(!Number.isSafeInteger(paid)||paid!==total||explicit!==null&&explicit!==paid)return false;}
+ else if(explicit!==total)return false;
+ if(row.acertoReturnsV9565!=null&&!Array.isArray(row.acertoReturnsV9565))return false;
+ if((row.acertoReturnsV9565||[]).some(x=>!x?.reversedAt))return false;
+ return true;
+}
 function projectionView(inv){
  const total=cent(inv.value!=null?inv.value:(inv.items||[]).reduce((s,i)=>s+num(i.value||num(i.qty)*num(i.unitPrice)),0));
  const history=Array.isArray(inv.paymentHistory)?inv.paymentHistory:[];
@@ -40,7 +55,7 @@ function projectionView(inv){
  clientKey:inv.clientId!=null&&sid(inv.clientId)?'id:'+sid(inv.clientId):'name:'+norm(inv.client||inv.clientName||'Sem cliente'),
  issued:date(inv.issueDate||inv.date),due:date(inv.dueDate),
  total,paid,credit,balance,paymentEvidence:history.length>0||inv.paid!=null||finance?.paid!=null,sourceStatus:sid(inv.status),terms:sid(inv.terms||inv.paymentTerms||'-'),source:'Nota de entrega',
- mismatch:inv.remaining!=null&&Math.abs(cent(inv.remaining)-balance)>1};
+ archiveProof:exactPaidProof9771(inv,'value','paid'),mismatch:inv.remaining!=null&&Math.abs(cent(inv.remaining)-balance)>1};
 }
 function orderView(o){
  const total=cent(o.total),history=Array.isArray(o.paymentHistory)?o.paymentHistory:[];
@@ -51,7 +66,7 @@ function orderView(o){
  clientKey:o.clientId!=null&&sid(o.clientId)?'id:'+sid(o.clientId):'name:'+norm(o.client||'Sem cliente'),
  issued:date(o.invoiceDate||o.date),due:date(o.dueDate),total,paid,credit,balance:Math.max(0,total-paid-credit),
  paymentEvidence:history.length>0||o.received!=null,sourceStatus:sid(o.status),terms:sid(o.paymentTerms||'-'),source:'Pedido com nota pronta',
- mismatch:o.remaining!=null&&Math.abs(cent(o.remaining)-Math.max(0,total-paid-credit))>1};
+ archiveProof:exactPaidProof9771(o,'total','received'),mismatch:o.remaining!=null&&Math.abs(cent(o.remaining)-Math.max(0,total-paid-credit))>1};
 }
 function allNotes(){
  const original=canonical().filter(x=>x&&x.id!=null&&!/cancelad|excluid/.test(norm(x.status)));
@@ -72,7 +87,7 @@ function allNotes(){
 }
 /* v97.10: archive only visual evidence; never move or modify the ledger. */
 function settledForArchive9710(n){
- return !!n&&!/cancelad|excluid|estornad/.test(norm(n.sourceStatus))&&n.paymentEvidence===true&&Number.isSafeInteger(n.total)&&n.total>0&&
+ return !!n&&n.archiveProof===true&&!/cancelad|excluid|estornad/.test(norm(n.sourceStatus))&&n.paymentEvidence===true&&Number.isSafeInteger(n.total)&&n.total>0&&
  Number.isSafeInteger(n.paid)&&n.paid===n.total&&n.balance===0&&n.credit===0&&!n.mismatch;
 }
 function clientNotes9710(clientId,rows=allNotes()){
@@ -454,7 +469,7 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
+window.hlgbNotesReceivables9564={version:V,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
