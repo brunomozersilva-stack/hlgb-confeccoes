@@ -121,6 +121,30 @@ async function pruneConfirmed(force=false,max=8){
   return clone(lastScanResult);
  }finally{scanBusy=false}
 }
+// Explicit reconciliation of a bounded set of payment identities. No replay,
+// no remote writes, no tombstone or equivalent-production shortcut.
+async function pruneConfirmedFor(targets){
+ if(window.__HLGB_AUTH_READY!==true||scanBusy||window.hlgbWalConfirmedReplay9333?.state?.busy||navigator.onLine===false||!loggedIn())return {removed:0,skipped:true};
+ if(!Array.isArray(targets)||!targets.length||targets.length>501||targets.some(x=>!x||!['factionPayments','hubFinanceEntries'].includes(x.module)||!sid(x.id).trim()))throw Error('Identidades de pagamento inválidas');
+ const wanted=new Set(targets.map(x=>x.module+'|'+sid(x.id))),removed=[],kept=[],errors=[];
+ scanBusy=true;
+ try{
+  const items=Object.entries(await mergedWalEntries()).filter(([key])=>wanted.has(key));
+  for(const [key,op] of items){
+   if(window.__HLGB_AUTH_READY!==true||window.hlgbWalConfirmedReplay9333?.state?.busy){kept.push(key);continue}
+   if(!op||op.deleted===true||sid(op.key)!==key||op.module+'|'+sid(op.id)!==key||!op.opId||!op.data){kept.push(key);continue}
+   try{
+    const row=await cloudRow(op.module,op.id);
+    // Exact payload match, except the same metadata already ignored by the
+    // existing authority. Verify row identity and never release a tombstone.
+    if(window.__HLGB_AUTH_READY===true&&!window.hlgbWalConfirmedReplay9333?.state?.busy&&row&&!row.deleted_at&&sid(row.module)===sid(op.module)&&sid(row.entity_id)===sid(op.id)&&sameMeaning(row.data,op.data)&&await confirmRemove(key,op))removed.push(key);
+    else kept.push(key);
+   }catch(e){errors.push({key,error:sid(e?.message||e)});kept.push(key)}
+  }
+  confirmedPruned+=removed.length;lastConfirmedPruneAt=new Date().toISOString();
+  return {removed:removed.length,checked:items.length,kept,errors};
+ }finally{scanBusy=false}
+}
 async function prunePayroll(){return pruneConfirmed(true,8)}
 function install(){
   const replay=window.hlgbWalConfirmedReplay9333;
@@ -147,7 +171,7 @@ function install(){
   window.hlgb955FlushSilent=wrapped;installed=true;stamp();return true;
 }
 function maintain(){install();stamp()}
-window.hlgbWalSingleAuthority9339={version:V,status:()=>({installed,calls,lastAt,lastResult,reinstalls,lastDelegatedAt,throttled,delegateMinMs:DELEGATE_MIN_MS,replayVersion:window.hlgbWalConfirmedReplay9333?.version||'',replayBusy:!!window.hlgbWalConfirmedReplay9333?.state?.busy,confirmedPruned,equivalentProductionPruned,lastConfirmedPruneAt,scanBusy,lastScanAt,lastScanResult}),install,maintain,pruneConfirmed,prunePayroll,sameProductionReplacement};
+window.hlgbWalSingleAuthority9339={version:V,status:()=>({installed,calls,lastAt,lastResult,reinstalls,lastDelegatedAt,throttled,delegateMinMs:DELEGATE_MIN_MS,replayVersion:window.hlgbWalConfirmedReplay9333?.version||'',replayBusy:!!window.hlgbWalConfirmedReplay9333?.state?.busy,confirmedPruned,equivalentProductionPruned,lastConfirmedPruneAt,scanBusy,lastScanAt,lastScanResult}),install,maintain,pruneConfirmed,pruneConfirmedFor,prunePayroll,sameProductionReplacement};
 [100,400,900,1800,3500,6000,9000,12000,16000,20000].forEach(ms=>setTimeout(maintain,ms));
 setTimeout(()=>pruneConfirmed(true,8).then(()=>window.hlgbWalConfirmedReplay9333?.run?.('v9349-after-confirmed-prune',true)).catch(()=>{}),1200);
 setTimeout(()=>pruneConfirmed(true,8).then(()=>window.hlgbWalConfirmedReplay9333?.run?.('v9349-late-confirmed-prune',true)).catch(()=>{}),15000);

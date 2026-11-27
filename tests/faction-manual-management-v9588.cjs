@@ -63,6 +63,10 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  const before=writes.length;
  await assert.rejects(()=>api.markGroupPaid('group-edit','2026-11-13','Pix',null),/pendente/);
  assert.equal(writes.length,before,'WAL guard blocks all writes');
+ let checks=0;w.hlgbWalSingleAuthority9339={pruneConfirmedFor:async targets=>{checks++;assert.equal(targets.length,1);assert.equal(targets[0].id,'A-1');return {removed:0}}};
+ const unchanged=await api.checkPaymentSync('group-edit');assert.equal(unchanged.state,'pending');assert.equal(unchanged.remaining.length,1);assert.equal(writes.length,before);
+ w.hlgbWalSingleAuthority9339.pruneConfirmedFor=async()=>{checks++;pending=[];return {removed:1}};
+ const clear=await api.checkPaymentSync('group-edit');assert.equal(clear.state,'clear');assert.equal(clear.removed,1);assert.equal(checks,2);assert.equal(writes.length,before);
  pending=[];
  // A stale remote version must fail preflight instead of overwriting it.
  const stale=server.factionPayments.find(x=>x.id==='A-2');
