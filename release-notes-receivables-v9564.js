@@ -462,8 +462,42 @@ function openAccountPreview9759(id){
  '<label><input id="ca9759-independent" type="checkbox"> Confirmo que o saldo inicial não repete notas existentes.</label><p>Distribuição sugerida: emissão mais antiga primeiro; notas sem data ficam no final. Selecione quais notas deseja incluir.</p>'+
  '<div style="overflow:auto;max-height:250px">'+result.rows.filter(n=>n.balance>0).map(n=>'<label style="display:block"><input type="checkbox" data-ca9759-note="'+esc(n.key)+'" checked> '+esc(n.number)+' · '+esc(dateFmt(n.issued))+' · '+brl(n.balance)+'</label>').join('')+'</div>'+
  '<button type="button" class="primary" id="ca9759-preview">Simular pagamento global</button><div id="ca9759-result" aria-live="polite"></div><button type="button" class="secondary modalSave">Fechar</button>';
- window.openModal('Conta corrente — '+esc(client.name)+' (prévia)',html,()=>window.closeModal?.());
+ const statementHtml='<details id="ca9773-statement"><summary>Extrato detalhado por data</summary><p>Emissões, pagamentos, compensações, devoluções e estornos com evidência. O saldo inicial independente permanece separado, sem data fictícia. Não é extrato bancário.</p><div class="grid"><label>De<input id="ca9773-from" type="date"></label><label>Até<input id="ca9773-to" type="date"></label></div><button type="button" class="secondary" id="ca9773-load">Consultar extrato</button><button type="button" class="secondary" id="ca9773-export" disabled>Exportar extrato CSV</button><div id="ca9773-output" aria-live="polite"></div></details>';
+ window.openModal('Conta corrente — '+esc(client.name)+' (prévia)',html+statementHtml,()=>window.closeModal?.());
  const host=document.getElementById('modalContent')||document.getElementById('modal'),btn=host?.querySelector('#ca9759-preview');if(!btn)return false;
+ let statement=null,statementSignature='';
+ const load=host.querySelector('#ca9773-load'),exportButton=host.querySelector('#ca9773-export'),statementOut=host.querySelector('#ca9773-output');
+ const statementInput=()=>({openingCents:signedMoney9759(host.querySelector('#ca9759-opening')?.value),reason:host.querySelector('#ca9759-reason')?.value,independentOpening:host.querySelector('#ca9759-independent')?.checked===true,from:host.querySelector('#ca9773-from')?.value,to:host.querySelector('#ca9773-to')?.value});
+ const labels={issue:'Emissão da nota','payment-recorded':'Recebimento registrado','material-offset':'Compensação de matéria-prima','return-active':'Devolução','return-reversal':'Estorno de devolução'};
+ const resetStatement=()=>{statement=null;exportButton.disabled=true;statementOut.textContent='Atualize a consulta após alterar os filtros ou o saldo inicial.'};
+ for(const k of ['ca9759-opening','ca9759-reason','ca9759-independent','ca9773-from','ca9773-to'])host.querySelector('#'+k)?.addEventListener('input',resetStatement);
+ load.onclick=()=>{
+  resetStatement();if(!historyAuthorized9710())return;
+  try{
+   const latest=clientNotes9710(id),input=statementInput();if(!latest.available||latest.ambiguous||input.openingCents===null){statementOut.textContent='Confira cadastro, saldo inicial e identidade das notas.';return}
+   const v=readClientStatement9773(id,latest.rows,input);
+   if(v.state!=='local-statement'){statementOut.textContent='Extrato não confirmado. Confira a sincronização, as datas e as notas.';return}
+   statement=v;statementSignature=JSON.stringify({rows:latest.rows,input,v});exportButton.disabled=false;
+   const s=v.summary;statementOut.innerHTML='<p><b>Saldo atual das notas: '+brl(s.currentNotesCents)+' · Saldo inicial independente (simulado): '+brl(s.independentOpeningCents)+' · Saldo projetado: '+brl(s.projectedCurrentCents)+'</b></p><p>Saldo datado antes do período: '+brl(s.priorDatedCents)+' · Saldo datado ao final do período: '+brl(s.periodEndDatedCents)+' · Saldo de notas sem conciliação por data: '+brl(s.unreconciledBalanceCents)+'</p><p>'+(s.complete?'Histórico local conciliado por data.':'Histórico parcial: '+v.issues.length+' nota(s) a conferir, inclusive se estiverem quitadas.')+'</p>'+v.issues.map(x=>'<p class="sub">Nota '+esc(x.number)+' · '+esc(x.reason)+'</p>').join('');
+   const body=document.createElement('div');statementOut.appendChild(body);let page=0;
+   const draw=()=>{body.replaceChildren();for(const g of v.rows.slice(page,page+20)){
+    const d=document.createElement('details'),sum=document.createElement('summary');sum.textContent=dateFmt(g.date)+' · entradas na conta '+brl(g.debits)+' · abatimentos '+brl(g.credits)+' · saldo '+brl(g.after);d.appendChild(sum);
+    for(const m of g.entries){const p=document.createElement('p');p.textContent='Nota '+m.number+' · '+labels[m.type]+' · '+brl(m.deltaCents)+(m.description?' · '+m.description:'');d.appendChild(p)}body.appendChild(d)}
+    for(const [label,step] of [['Anterior',-20],['Mais datas',20]])if(step<0?page>0:page+20<v.rows.length){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>{page+=step;draw()};body.appendChild(b)}
+   };draw();
+  }catch(_){statementOut.textContent='Não foi possível conciliar o extrato. Nenhum dado foi alterado.'}
+ };
+ exportButton.onclick=()=>{
+  if(!statement||!historyAuthorized9710())return;
+  try{const latest=clientNotes9710(id),input=statementInput(),v=latest.available&&!latest.ambiguous?readClientStatement9773(id,latest.rows,input):null;
+   if(JSON.stringify({rows:latest.rows,input,v})!==statementSignature){resetStatement();return}
+   const money=c=>(c/100).toFixed(2).replace('.',','),lines=[['Data','Nota','Movimento','Valor (R$)','Saldo do dia (R$)','Descrição']];
+   for(const g of v.rows)for(const m of g.entries)lines.push([g.date,m.number,labels[m.type],money(m.deltaCents),money(g.after),m.description||'']);
+   lines.push(['','','Saldo inicial independente (simulado)',money(v.summary.independentOpeningCents),'','Sem data atribuída'],['','','Saldo atual das notas',money(v.summary.currentNotesCents),'',''],['','','Saldo sem conciliação por data',money(v.summary.unreconciledBalanceCents),'','']);
+   for(const issue of v.issues)lines.push(['',issue.number,'Revisão','','',issue.reason]);
+   const url=URL.createObjectURL(new Blob(['\ufeff'+lines.map(l=>l.map(csvCell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='HLGB-extrato-cliente-'+today()+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);
+  }catch(_){resetStatement()}
+ };
  const signature=JSON.stringify(result.rows);
  btn.onclick=()=>{
   if(!historyAuthorized9710())return;
