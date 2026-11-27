@@ -178,3 +178,7 @@ test('grupo duplicado, linhas desatualizadas ou pessoas diferentes não entram n
  ]){const before=JSON.stringify(data),out=acerto.consolidate(data);assert.equal(out.groups.length,0);assert.ok(out.warnings.length);assert.equal(JSON.stringify(data),before)}
  const valid=acerto.consolidate({payments:[a,b],manualGroups:[group]});assert.equal(valid.groups[0].totalCents,4500);
 });
+
+test('resumo por data preserva saldos normais, avulsos e data desconhecida',()=>{
+ const g={totalCents:10000,entries:[{kind:'normal',paymentId:'1',amountCents:4000,date:'2026-11-25'},{kind:'avulso',groupId:'g',amountCents:2000,date:'2026-11-25'},{kind:'normal',paymentId:'2',amountCents:3000,date:'2026-11-26'},{kind:'normal',paymentId:'3',amountCents:1000,date:'2026-02-30'}]};const before=JSON.stringify(g);const x=acerto.dateBreakdown(g,true);assert.equal(x.state,'local-date-summary');assert.deepEqual(x.rows,[{date:'2026-11-25',normalCents:4000,manualCents:2000,totalCents:6000,count:2},{date:'2026-11-26',normalCents:3000,manualCents:0,totalCents:3000,count:1},{date:null,normalCents:1000,manualCents:0,totalCents:1000,count:1}]);assert.equal(x.canWrite,false);assert.equal(acerto.dateBreakdown({...g,totalCents:9999},true).state,'review');assert.equal(acerto.dateBreakdown({...g,entries:[g.entries[0],g.entries[0]],totalCents:8000},true).state,'review');assert.equal(acerto.dateBreakdown(g,false).state,'review');assert.equal(JSON.stringify(g),before);
+});

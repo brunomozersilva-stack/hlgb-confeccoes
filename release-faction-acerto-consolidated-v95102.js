@@ -153,6 +153,26 @@
  }
  function authorized(){try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('pagamentosFaccoes')===true&&canOpenPage('faccoes')===true}catch(_){return false}}
  let signature='';
+ function dateBreakdown(group,allowed){
+  const fail=()=>({state:'review',rows:[],canWrite:false});
+  if(allowed!==true||!Array.isArray(group?.entries)||!Number.isSafeInteger(group.totalCents)||group.totalCents<0)return fail();
+  const dates=new Map(),seen=new Set();let total=0;
+  const validDay=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+  for(const e of group.entries){
+   const key=e.kind==='normal'?'n:'+sid(e.paymentId):'a:'+sid(e.groupId);
+   if(!['normal','avulso'].includes(e.kind)||key.length<=2||seen.has(key)||!Number.isSafeInteger(e.amountCents)||e.amountCents<=0)return fail();
+   seen.add(key);const date=validDay(e.date)?e.date:null;
+   const row=dates.get(date)||{date,normalCents:0,manualCents:0,totalCents:0,count:0};
+   row[e.kind==='normal'?'normalCents':'manualCents']+=e.amountCents;row.totalCents+=e.amountCents;row.count++;total+=e.amountCents;
+   if(!Number.isSafeInteger(total))return fail();dates.set(date,row);
+  }
+  if(total!==group.totalCents)return fail();
+  return {state:'local-date-summary',rows:[...dates.values()].sort((a,b)=>(a.date||'9999-12-31').localeCompare(b.date||'9999-12-31')),totalCents:total,canWrite:false};
+ }
+ function dateSummaryHtml(group){
+  const x=dateBreakdown(group,true);if(x.state!=='local-date-summary')return '<p class="sub">Conferir saldos e datas antes de agrupar.</p>';
+  return '<details><summary>Resumo por data de referência</summary><p class="sub">Saldos pendentes, não pagamentos realizados. Datas ausentes ou inválidas permanecem separadas.</p><div style="overflow-x:auto"><table><thead><tr><th>Data</th><th>Normal</th><th>Avulso</th><th>Saldo</th></tr></thead><tbody>'+x.rows.map(r=>'<tr><td>'+esc(r.date||'Sem data válida')+' · '+r.count+' item(ns)</td><td>'+money(r.normalCents)+'</td><td>'+money(r.manualCents)+'</td><td>'+money(r.totalCents)+'</td></tr>').join('')+'</tbody></table></div></details>';
+ }
  function render(){
   if(typeof document==='undefined')return false;
   if(!authorized()){document.getElementById('hlgb-unified-acertos-v95102')?.remove();signature='';return false}
@@ -180,7 +200,7 @@
       (g.identityAmbiguous?'<div class="sub" style="color:#934">Nome duplicado: conferir identidade</div>':'')+
       '</td><td>'+g.sourceCount+' lançamento(s)</td><td>'+money(g.regularCents)+
       '</td><td>'+money(g.manualCents)+'</td><td><b>'+money(g.totalCents)+'</b></td>'+
-      '<td>'+(g.masterId&&!g.identityAmbiguous?'<button type="button" class="secondary" data-faction-print9777="'+esc(g.key)+'">Imprimir / PDF do acerto</button>':'')+'<details><summary>Ver itens e datas</summary>'+
+      '<td>'+dateSummaryHtml(g)+(g.masterId&&!g.identityAmbiguous?'<button type="button" class="secondary" data-faction-print9777="'+esc(g.key)+'">Imprimir / PDF do acerto</button>':'')+'<details><summary>Ver itens e datas</summary>'+
       g.entries.map(e=>'<div style="padding:5px;border-bottom:1px solid #ddd">'+
        esc(e.kind==='avulso'?'Avulso':'Normal')+' · '+esc(e.label)+' · '+
        esc(e.date||'Sem data')+' · Saldo '+money(e.amountCents)+(e.kind==='normal'?' · Bruto '+money(e.totalCents)+' · Pago '+money(e.paidCents)+' · Desconto '+money(e.discountCents):'')+'<br><small>'+
@@ -202,5 +222,5 @@
   window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,250));
   window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgb-unified-acertos-v95102')?.remove();signature=''});
  }
- return Object.freeze({version:VERSION,consolidate,printablePending,currentData,render,install});
+ return Object.freeze({version:VERSION,consolidate,dateBreakdown,printablePending,currentData,render,install});
 });
