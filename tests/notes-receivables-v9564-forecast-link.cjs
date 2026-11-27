@@ -1,0 +1,17 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const context={window:{db:{},addEventListener(){}},document:{readyState:'complete',getElementById(){return null},addEventListener(){}},setTimeout(){},console,Date};
+vm.createContext(context);vm.runInContext(fs.readFileSync('release-notes-receivables-v9564.js','utf8'),context);
+const api=context.window.hlgbNotesReceivables9564;
+const rec=(module,id,data,revision=1)=>({module,entity_id:id,revision,deleted_at:null,data:{id,...data}});
+const n=rec('projectionInvoices','n',{clientId:'c',value:100,paid:20,remaining:80,status:'Parcial',issueDate:'2026-11-01',dueDate:'2026-12-01',items:[],paymentHistory:[{id:'old',value:20}]},3);
+const t=rec('finance','t',{clientId:'c',projectionInvoiceId:'n',value:100,paid:20,remaining:80,status:'Parcial',dueDate:'2026-12-01'},4);
+const h=rec('hubFinanceEntries','h',{flow:'Entrada',status:'Previsto',value:80,date:'2026-12-01'},2);
+const input={clientId:'c',noteId:'n',hubId:'h',reason:'Origem conferida',evidence:'Documento 123',confirmed:true,pendingObserved:true,pendingIds:[],records:[n,t,h],hubRows:[h.data]};
+const before=JSON.stringify(input),v=api.forecastLinkReview9815(input,true);
+assert.equal(v.state,'link-review-only');assert.equal(v.candidate.amountCents,8000);assert.equal(v.candidate.hubRevision,2);assert.equal(v.canWrite,false);assert.equal(v.hubReconciled,false);assert.equal(JSON.stringify(input),before);
+assert.equal(api.forecastLinkReview9815(input,false).reason,'permission');assert.equal(api.forecastLinkReview9815({...input,confirmed:false},true).reason,'input');assert.equal(api.forecastLinkReview9815({...input,pendingIds:['finance::t']},true).reason,'records-or-sync');
+for(const changes of [{value:70},{status:'Realizado'},{date:'2026-12-02'},{realizedAt:'2026-11-20'}])assert.equal(api.forecastLinkReview9815({...input,records:[n,t,{...h,data:{...h.data,...changes}}]},true).reason,'forecast-shape');
+assert.equal(api.forecastLinkReview9815({...input,hubRows:[h.data,{id:'other',sourceId:'t'}]},true).reason,'competing-link');
+assert.equal(api.forecastLinkReview9815({...input,records:[n,t,{...h,data:{...h.data,sourceId:'t'}}]},true).reason,'already-marked');
+(async()=>{const deps={allowed:()=>true,pending:async()=>[],canonical:()=>[n.data],read:async(m)=>m==='projectionInvoices'?[n]:m==='finance'?[t]:[h],hubs:async()=>[h]};assert.equal((await api.forecastLinkCloud9815(input,deps)).state,'link-review-only');assert.equal((await api.forecastLinkCloud9815(input,{...deps,hubs:async()=>[{...h,revision:3}]})).reason,'hub-changed');console.log('PASS explicit forecast review, no guessed links, no writes')})().catch(e=>{console.error(e);process.exitCode=1});
