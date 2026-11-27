@@ -542,6 +542,26 @@ function mountPlanner(){
     const daily=el('details','',stageOut);el('summary','Metas diárias por setor',daily);for(const d of v.days){el('strong',d.date,daily);for(const s of d.stages)el('p',v.stages.find(x=>x.key===s.key).name+' · '+s.pieces+' pç',daily)}
     el('p','Capacidades e históricos informados manualmente; não valida complexidade de modelos, rotas, estoque ou caixa. Nenhuma alteração gravada.',stageOut);
    });
+   const multi=el('details','',stages);el('summary','Planejamento de metas por setor — até 13 semanas',multi);
+   el('p','Utiliza os mesmos parâmetros de capacidade, equipes e estoque inicial informados acima. Informe uma meta de entregas por semana, separada por vírgulas. Peças em processo passam para a semana seguinte; não são contadas como entregues. Simulação agregada: modelos e etapas precisam ser comparáveis.',multi);
+   const multiTargets=field('Metas semanais (peças, separadas por vírgulas)','text','',multi),multiOut=el('div','',multi);multiOut.setAttribute('aria-live','polite');
+   const multiConfirmedLabel=el('label','Conferi capacidades, históricos e estoques iniciais sem contar a mesma peça em dois setores',multi),multiConfirmed=el('input','',multiConfirmedLabel);multiConfirmed.type='checkbox';
+   const clearMulti=()=>{multiConfirmed.checked=false;multiOut.replaceChildren()};
+   multiTargets.oninput=clearMulti;multiConfirmed.onchange=()=>multiOut.replaceChildren();
+   for(const r of stageRows)for(const f of [r.capacity,r.wip,r.hist,r.teams,r.confirmed].filter(Boolean))f.addEventListener('change',clearMulti);
+   btn('Simular metas e estoques por semana',multi,()=>{
+    multiOut.replaceChildren();if(!active()||!multiConfirmed.checked){el('p','Confira os parâmetros antes de simular.',multiOut);return}
+    const input={start:start.value,asOf:today(),weeklyTargets:multiTargets.value.split(',').map(s=>num(s)),bufferPercent:Number(buffer.value),closedDates:closed.value.split(',').map(x=>x.trim()).filter(Boolean),stages:stageRows.map(r=>({key:r.key,name:r.name,manualCapacity:r.capacity.value.trim()===''?null:num(r.capacity.value),initialWip:r.wip?num(r.wip.value):0,wipConfirmed:r.wip?r.confirmed.checked:true,history:lines(r.hist.value).map(a=>({week:a[0],pieces:a.length===2?num(a[1]):NaN,confirmed:true})),teams:lines(r.teams.value).map(a=>({key:a[0],name:a[0],capacity:a.length===2?num(a[1]):NaN}))}))};
+    const v=api.multiweekStageFlow(input,active());
+    if(v.state!=='local-multiweek-flow'){el('p','Confira metas, datas e capacidades. '+v.state,multiOut);return}
+    el('p','Meta acumulada '+fmt(v.totalTarget)+' pç · Saída da última etapa '+fmt(v.totalFinished)+' · Falta '+fmt(v.remainingTarget)+' · Estoque em processo inicial '+fmt(v.initialWip)+' / final '+fmt(v.endingWip),multiOut);
+    if(v.issues.length)el('p','Dados a revisar: '+v.issues.join(', '),multiOut);
+    for(const w of v.weeks){const section=el('details','',multiOut);el('summary',w.start+' a '+w.end+' · meta '+fmt(w.target)+' · finalizadas '+fmt(w.finished)+' · atraso acumulado '+fmt(w.backlog),section);
+     el('p','Meta acumulada '+fmt(w.cumulativeTarget)+' · finalizado acumulado '+fmt(w.cumulativeFinished)+' · antecipação em peças '+fmt(w.ahead),section);
+     for(const s of w.stages)el('p',s.name+' · capacidade '+fmt(s.capacity)+' · meta simulada '+fmt(s.pieces)+' · estoque inicial '+fmt(s.startWip)+' · estoque final '+fmt(s.endWip)+' · capacidade não usada '+fmt(s.unusedCapacity),section);
+    }
+    el('p','Nenhum prazo, meta ou quantidade comercial foi gravado. Saída da última etapa não confirma expedição ou recebimento.',multiOut);
+   });
    const days=el('details','',output);el('summary','Distribuição diária de produção (simulada)',days);for(const d of p.daily.filter(d=>d.assignments.length)){el('strong',d.date+' · '+d.allocated+' pç',days);for(const a of d.assignments)el('p',a.client+' · '+a.model+' · '+a.pieces+' pç',days)}
   }catch(_){el('p','Fonte da projeção indisponível. Nenhum prazo ou valor foi confirmado.',output)}
  });
