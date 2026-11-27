@@ -41,3 +41,7 @@ jobs:
       - env:
           HLGB_BROWSER: ${{ matrix.browser }}
         run: node tests/hlgb-production-planning-v9661-browser.cjs
+
+      - env:
+          HLGB_BROWSER: ${{ matrix.browser }}
+        run: node tests/hlgb-production-planning-v9661-operational-access.cjs

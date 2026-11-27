@@ -62,6 +62,8 @@ assert.equal(api.filterAll(notes).length,0,'balance range filter');
 api.state.basis='total';api.state.min='';api.state.max='';
 api.state.search='CLIENTE A';
 assert.equal(api.filterAll(notes).length,2,'accent insensitive search');
+api.state.search='a cliente';assert.equal(api.filterAll(notes).length,2,'search terms in any order');
+api.state.search='b cliente';assert.equal(api.filterAll(notes).length,1,'record ID can be searched with client');
 api.state.search='';api.state.client='';
 api.state.tab='paid';
 assert.equal(api.exportRows().length,1,'paid export follows active tab');

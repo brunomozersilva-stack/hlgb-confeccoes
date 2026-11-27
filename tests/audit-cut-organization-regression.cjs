@@ -18,6 +18,8 @@ context.db.materials=[{id:5,name:'Tule Bordado'}];context.db.cutters=[{id:7,name
 const idx=api.cutIndex9709(),meta=api.cutMeta9709(cut,idx);
 for(const q of ['pedido 48','joao liliane','lil-01','tule bordado','jose','cut-48'])assert(api.matchesCut9709(meta,{q}),q);
 assert(!api.matchesCut9709(meta,{q:'pedido 49'}));
+cut.originalGrade=[{productId:11,color:'Rubi',size:'GG',qty:10},{productId:12,color:'Verde',size:'P',qty:4}];
+const gradeMeta=api.cutMeta9709(cut,api.cutIndex9709());assert(api.matchesCut9709(gradeMeta,{q:'rubi gg tule'}));assert(!api.matchesCut9709(gradeMeta,{q:'verde'}));delete cut.originalGrade;
 assert(api.matchesCut9709(meta,{q:'liliane',priority:'Urgente',cutter:'7',date:'2026-11-25'}));
 assert(!api.matchesCut9709(meta,{q:'liliane',date:'2026-11-24'}));
 const row=(id,legacy=false)=>({dataset:legacy?{}:{hlgbCutModelId:id},style:{display:''},children:[],querySelector(){return null},querySelectorAll(){return legacy?[{getAttribute:()=> "editCut('"+id+"')"}]:[]}});

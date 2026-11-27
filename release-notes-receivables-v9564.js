@@ -132,10 +132,11 @@ function weekBounds(offset=0,at=today()){
  return {from:fmt(start),to:fmt(end)};
 }
 function filterAll(rows){
- const needle=norm(state.search),min=state.min===''?null:cent(state.min),max=state.max===''?null:cent(state.max);
+ const needle=norm(state.search).replace(/#/g,'').trim().split(/\s+/).filter(Boolean),min=state.min===''?null:cent(state.min),max=state.max===''?null:cent(state.max);
  return rows.filter(x=>{
   if(state.client&&x.clientKey!==state.client)return false;
-  if(needle&&!norm(x.client+' '+x.number+' '+x.terms+' '+x.source).includes(needle))return false;
+  const searchable=norm([x.client,x.number,x.id,x.terms,x.source].join(' ')).replace(/#/g,'');
+  if(needle.some(term=>!searchable.includes(term)))return false;
   const val=state.basis==='balance'?x.balance:x.total;
   if(min!==null&&val<min)return false;if(max!==null&&val>max)return false;
   const period=state.dateBasis==='issued'?x.issued:x.due;

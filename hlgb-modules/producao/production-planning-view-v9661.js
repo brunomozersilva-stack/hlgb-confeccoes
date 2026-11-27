@@ -24,6 +24,10 @@
   const heading=el('header','',host);heading.style.cssText='border-bottom:1px solid #ddd;padding:6px 0 14px;margin-bottom:14px';
   el('h2','Corte Conjunto — planejamento por matéria-prima',heading);
   el('p','Planeje modelos que utilizam o mesmo material, confira grades e compare enfestos. Não cria corte nem baixa estoque.',heading);
+  const quick=el('div','',heading);quick.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:center';
+  button('Simulação rápida / folhas de corte',quick,()=>{if(!active())return;const open=root.hlgbCutOrganization?.openJointSimulation9837;if(typeof open!=='function'){alert('Simulador rápido indisponível. Atualize a página.');return}open()});
+  button('Consultar histórico real de combinações',quick,()=>{if(!active())return;historyPanel.open=true;historyPanel.scrollIntoView?.({block:'start',behavior:'auto'})});
+  button('Ir à cesta de planejamento',quick,()=>{if(active())basket.scrollIntoView?.({block:'start',behavior:'auto'})});
   const historyPanel=el('details','',host);historyPanel.className='panel';el('summary','Histórico de cortes com grade real de vários modelos',historyPanel);
   const historyBody=el('div','',historyPanel);
   function drawJointHistory(){
@@ -444,11 +448,145 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    if(area.firstChild!==bar)area.insertBefore(bar,area.firstChild);
    button('Corte Conjunto',bar,openJoint);el('p','',bar)}
   bar.children[0].disabled=!allowed;
-  const note=allowed?'Abrir planejamento em uma tela separada.':'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
+  const note=allowed?'Abrir planejamento completo, simulação, impressões e histórico.':'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
   if(bar.children[1].textContent!==note)bar.children[1].textContent=note;
  }
- function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
- document.addEventListener('click',()=>setTimeout(refresh,0),true);document.addEventListener('visibilitychange',()=>{
+
+ // Connect the already-tested planning engines to the existing Metas page.
+ // The observed history is not automatically promoted to verified capacity.
+ function mountDeliveryPlanner9845(){
+  const allowed=()=>['metas','pedidos','producao','corte','produtos','faccoes'].every(can);
+  const ctx=hostFor('metas','hlgbDeliveryPlanner9845',allowed);if(!ctx)return;
+  const {host,active}=ctx,api=root.HLGBProductionPlanning9661;
+  if(!['observedThroughput','productionStageGoals','deliveryCapacityPlan'].every(k=>typeof api[k]==='function')){host.remove();return}
+  el('h2','Planejamento de produção e entregas',host);
+  el('p','Cenários de trabalho, sem alterar pedidos ou metas oficiais. Confira carteira restante e capacidade antes de assumir compromissos.',host);
+  const today=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),v=k=>p.find(x=>x.type===k)?.value;return v('year')+'-'+v('month')+'-'+v('day')};
+  const numeric=(label,parent,defaultValue='',max=10000000)=>{const x=field(label,parent,'number');x.min='0';x.max=String(max);x.step='1';x.value=String(defaultValue);return x};
+  const parse=x=>x.value.trim()!==''&&/^\d+$/.test(x.value)&&Number.isSafeInteger(Number(x.value))?Number(x.value):null;
+  const closed=field('Feriados e dias fechados (AAAA-MM-DD, separados por vírgula)',host);
+  const daysClosed=()=>closed.value.split(/[,;\s]+/).map(s=>s.trim()).filter(Boolean);
+  const start=field('Início do planejamento',host,'date');start.value=today();
+  const buffer=numeric('Margem de segurança (%)',host,10,90);
+  const history=el('details','',host);el('summary','Histórico observado de produção — últimas 12 semanas completas',history);const hist=el('div','',history);
+  button('Consultar produção observada',history,()=>{
+   hist.replaceChildren();if(!active())return;
+   const report=api.observedThroughput(data(),today(),true);
+   if(report.state!=='local-observation'){el('p','Fontes indisponíveis. Confira o acesso e a sincronização.',hist);return}
+   el('p','Semanas com registros não são capacidade garantida; períodos sem registro não são tratados como zero. '+report.issues.length+' ocorrências a conferir.',hist);
+   const sources={cut:'Corte',external:'Retornos de facção',internal:'Produção interna'};
+   for(const source of ['cut','external','internal']){
+    const rows=report.weeks.filter(w=>w.source===source);el('h4',sources[source],hist);
+    el('p',rows.length?rows.map(w=>w.week+': '+fmt(w.pieces)+' pç').join(' · '):'Sem dados datados suficientes.',hist);
+   }
+   const details=el('details','',hist);el('summary','Por modelo e equipe (até 100 registros)',details);
+   for(const r of report.rows.slice(0,100))el('p',sources[r.source]+' · '+r.productName+' · '+r.teamName+' · '+r.observedWeeks+' semanas observadas · média '+fmt(r.averageActiveWeek)+' pç',details);
+  });
+  const flow=el('details','',host);flow.open=true;el('summary','1. Definir objetivo semanal por etapa',flow);
+  const goal=numeric('Objetivo de peças prontas na semana',flow),stageFields=[];
+  for(const [key,name] of [['cut','Corte'],['sew','Costura / facções'],['finish','Acabamento e entrega']]){
+   const row=el('fieldset','',flow);el('legend',name,row);
+   const capacity=numeric('Capacidade informada de '+name+' (peças em 5 dias)',row);
+   const wip=key==='cut'?null:numeric('Peças disponíveis no início — '+name,row,0);
+   const check=wip?el('label','',row):null;let checked=null;if(check){checked=el('input','',check);checked.type='checkbox';el('span',' Conferi o saldo físico desta etapa',check)}
+   stageFields.push({key,name,capacity,wip,checked});
+  }
+  const stageOut=el('div','',flow);
+  button('Calcular divisão da produção',flow,()=>{
+   stageOut.replaceChildren();if(!active())return;
+   const stages=stageFields.map(s=>({key:s.key,name:s.name,manualCapacity:parse(s.capacity),initialWip:s.wip?parse(s.wip):0,wipConfirmed:!!s.checked?.checked,history:[],teams:[]}));
+   const v=api.productionStageGoals({start:start.value,goal:parse(goal),bufferPercent:parse(buffer),closedDates:daysClosed(),stages},true);
+   if(v.state!=='local-stage-goals'){el('p','Confira as datas, metas e capacidades inteiras.',stageOut);return}
+   el('p','Dias de trabalho: '+v.workdays+' · Peças prontas simuladas: '+fmt(v.simulatedDeliveries)+' · Falta para a meta: '+fmt(v.goalGap),stageOut);
+   for(const s of v.stages)el('p',s.name+' · capacidade no período '+fmt(s.periodCapacity)+' · peças simuladas '+fmt(s.simulatedPieces)+' · saldo em processo '+fmt(s.endingWip),stageOut);
+   if(v.bottlenecks.length)el('p','Etapa(s) limitante(s): '+v.bottlenecks.map(s=>s.name).join(' / '),stageOut);
+   const daily=el('details','',stageOut);el('summary','Divisão por dia',daily);
+   for(const d of v.days)el('p',d.date+' · '+d.stages.map(s=>stages.find(x=>x.key===s.key).name+': '+fmt(s.pieces)).join(' / '),daily);
+   if(v.partial)el('p','Cenário parcial: histórico não certificado e saldos não conferidos podem alterar o resultado.',stageOut);
+  });
+  const delivery=el('details','',host);delivery.open=true;el('summary','2. Organizar pedidos, prazos e recebimentos',delivery);
+  el('p','Informe apenas peças ainda pendentes. O valor e a condição de pagamento são referências informadas, não baixa de nota ou previsão bancária confirmada.',delivery);
+  const horizon=numeric('Semanas a planejar',delivery,4,13);horizon.min='1';
+  const weekly=numeric('Capacidade semanal de entregas (peças em 5 dias)',delivery);
+  const proposal=numeric('Quantidade de peças do novo pedido a avaliar',delivery,0);
+  const queue=el('div','',delivery),rows=[];let seq=0;
+  const out=el('div','',delivery);
+  let calculatedPlan=null,calculatedSignature='',cashOut=null;
+  const money=x=>{const s=x.value.trim().replace(',','.');return /^-?\d{1,9}(?:\.\d{1,2})?$/.test(s)?Math.round(Number(s)*100):null};
+  const orderInputs=()=>rows.filter(r=>r.client.value.trim()||r.model.value.trim()||r.due.value||r.pieces.value).map(r=>({key:r.key,client:r.client.value.trim(),model:r.model.value.trim(),dueDate:r.due.value,pieces:parse(r.pieces),paymentMode:r.pay.value,paymentDays:parse(r.term),amountCents:money(r.value)}));
+  const planInput=()=>({start:start.value,asOf:today(),weeks:parse(horizon),weeklyGoal:parse(weekly),bufferPercent:parse(buffer),history:[],orders:orderInputs(),closedDates:daysClosed(),coverageConfirmed:false,newPieces:parse(proposal)});
+  function invalidatePlan(){calculatedPlan=null;calculatedSignature='';out.replaceChildren();cashOut?.replaceChildren()}
+  function addOrder(){
+   if(rows.length>=100)return;
+   const row=el('fieldset','',queue),key='scenario-'+(++seq);el('legend','Pedido '+seq,row);
+   const client=field('Cliente',row),model=field('Modelo / número do pedido',row),due=field('Prazo de entrega',row,'date'),pieces=numeric('Peças ainda pendentes',row),value=field('Valor a receber (R$)',row);
+   const label=el('label','Condição de pagamento ',row),pay=el('select','',label);for(const [k,t] of [['unknown','A conferir'],['cash','À vista'],['term','A prazo']]){const o=el('option',t,pay);o.value=k}
+   const term=numeric('Prazo de pagamento em dias',row,0,365);
+   const item={key,client,model,due,pieces,value,pay,term};rows.push(item);
+   button('Remover pedido da simulação',row,()=>{const i=rows.indexOf(item);if(i>=0)rows.splice(i,1);row.remove();invalidatePlan()});
+  }
+  button('Adicionar pedido à carteira simulada',delivery,addOrder);addOrder();
+  button('Calcular agenda de entregas',delivery,()=>{
+   out.replaceChildren();if(!active())return;
+   invalidatePlan();
+   const input=planInput();
+   if(input.orders.some(r=>!r.client||!r.dueDate||!Number.isSafeInteger(r.pieces)||r.pieces<=0||r.amountCents!==null&&r.amountCents<0||r.paymentMode==='term'&&(!Number.isSafeInteger(r.paymentDays)||r.paymentDays<=0))){el('p','Complete todos os pedidos iniciados: cliente, prazo, peças e condição de pagamento.',out);return}
+   const v=api.deliveryCapacityPlan(input,true);
+   if(v.state!=='local-capacity-simulation'){el('p','Confira início, horizonte, capacidade e quantidades.',out);return}
+   calculatedPlan=v;calculatedSignature=JSON.stringify(input);
+   el('p','Capacidade semanal após margem: '+fmt(v.weeklyTarget)+' · Peças atrasadas / fora do prazo: '+fmt(v.late)+' · Não alocadas: '+fmt(v.unallocated),out);
+   if(v.newPieces)el('p','Novo pedido de '+fmt(v.newPieces)+' peças: '+(v.firstAvailable?'data candidata '+v.firstAvailable:'não cabe no horizonte informado')+' · quantidade sem vaga '+fmt(v.unplacedNewPieces)+'. Não é promessa de entrega.',out);
+   for(const w of v.weeks){const item=el('details','',out);el('summary',w.start+' a '+w.end+' · '+fmt(w.allocated)+' pç alocadas · '+fmt(w.free)+' vagas',item);
+    el('p','À vista: '+fmt(w.cashAtDeliveryCents/100)+' R$ · A prazo: '+fmt(w.termReceiptsCents/100)+' R$ · Peças com condição/valor não confirmado: '+fmt(w.unknownPaymentPieces),item);
+    for(const d of v.daily.filter(d=>d.date>=w.start&&d.date<=w.end&&d.assignments.length))el('p',d.date+' · '+d.assignments.map(a=>a.client+' / '+a.model+': '+fmt(a.pieces)).join(' · '),item);
+   }
+   for(const o of v.orders)el('p',o.client+' / '+o.model+' · entrega '+o.dueDate+' · conclusão simulada '+(o.lastWorkDate||'não alocada')+' · restante '+fmt(o.remaining)+' · recebimento candidato '+(o.receiptDate||'a conferir'),out);
+   if(v.issues.length)el('p','Atenção: carteira e capacidade são manuais e parciais; registros inválidos ou sem confirmação não constituem compromissos. '+v.issues.join(' · '),out);
+  });
+  // Finance scenario is deliberately manual; no import that could duplicate recorded receivables.
+  const cash=el('details','',host);el('summary','3. Avaliar novo pedido e impacto no caixa',cash);
+  el('p','Requer a agenda calculada acima. Informe saldo e compromissos já conhecidos, separados do novo pedido. Não é conciliação bancária.',cash);
+  const financialAllowed=()=>active()&&can('hubFinanceiro')&&can('financeiro');
+  if(!financialAllowed()){el('p','Análise financeira requer acesso ao Hub Financeiro e Financeiro.',cash);return}
+  const opening=field('Saldo disponível no início (R$)',cash),reserve=field('Reserva mínima desejada (R$)',cash);reserve.value='0';
+  const delay=numeric('Atraso de recebimentos para cenário de risco (dias)',cash,14,91);
+  const commitments=el('div','',cash),entries=[];let entrySeq=0;
+  function addCommitment(){if(entries.length>=100)return;const row=el('fieldset','',commitments);el('legend','Compromisso '+(++entrySeq),row);const date=field('Data do compromisso',row,'date'),value=field('Valor do compromisso (R$)',row),l=el('label','Tipo ',row),direction=el('select','',l);for(const [k,t] of [['out','Saída'],['in','Entrada']]){const o=el('option',t,direction);o.value=k}const item={reference:'commitment-'+entrySeq,date,value,direction};entries.push(item);button('Remover compromisso',row,()=>{entries.splice(entries.indexOf(item),1);row.remove();cashOut.replaceChildren()})}
+  button('Adicionar compromisso existente',cash,addCommitment);
+  const proposedClient=field('Cliente do novo pedido',cash),proposedDue=field('Prazo solicitado do novo pedido',cash,'date'),receipt=field('Valor de venda do novo pedido (R$)',cash);
+  const payLabel=el('label','Condição do novo pedido ',cash),pay=el('select','',payLabel);for(const [k,t] of [['cash','À vista'],['term','A prazo']]){const o=el('option',t,pay);o.value=k}
+  const term=numeric('Prazo do novo pedido em dias',cash,0,365);
+  const costs=el('div','',cash),costRows=[];let costSeq=0;
+  function addCost(){if(costRows.length>=50)return;const row=el('fieldset','',costs);el('legend','Custo do novo pedido '+(++costSeq),row);const date=field('Data do custo novo',row,'date'),value=field('Valor do custo novo (R$)',row);const item={reference:'new-cost-'+costSeq,date,value};costRows.push(item);button('Remover custo',row,()=>{costRows.splice(costRows.indexOf(item),1);row.remove();cashOut.replaceChildren()})}
+  button('Adicionar custo do novo pedido',cash,addCost);addCost();
+  const confirmation=el('label','',cash),confirmed=el('input','',confirmation);confirmed.type='checkbox';el('span',' Conferi que os custos e o recebimento deste novo pedido não foram incluídos nos compromissos existentes.',confirmation);
+  cashOut=el('div','',cash);
+  const brl=n=>Number.isSafeInteger(n)?(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Não confirmado';
+  button('Comparar caixa com e sem novo pedido',cash,()=>{
+   cashOut.replaceChildren();if(!financialAllowed())return;
+   if(!calculatedPlan||JSON.stringify(planInput())!==calculatedSignature){el('p','Recalcule a agenda de entregas antes de analisar o caixa.',cashOut);return}
+   const v=api.newOrderDecision(calculatedPlan,{start:start.value,openingCents:money(opening),reserveCents:money(reserve),delayDays:parse(delay),entries:entries.map(e=>({reference:e.reference,date:e.date.value,direction:e.direction.value,amountCents:money(e.value)})),reviewed:confirmed.checked,newCostsAndReceiptNotIncluded:confirmed.checked,proposal:{client:proposedClient.value,pieces:parse(proposal),dueDate:proposedDue.value,receiptCents:money(receipt),paymentMode:pay.value,paymentDays:parse(term),costs:costRows.map(e=>({reference:e.reference,date:e.date.value,amountCents:money(e.value)}))}},true);
+   if(v.state!=='local-order-decision'){el('p','Confira capacidade, prazo, saldo, custos, recebimentos e confirmação de que não existem valores duplicados.',cashOut);return}
+   el('p',v.withinDue?'Prazo comporta a capacidade informada.':'Prazo não comporta a capacidade informada.',cashOut);
+   el('p','Conclusão candidata: '+(v.completion||'sem vaga')+' · Custo informado '+brl(v.costTotalCents)+' · Contribuição indicativa '+brl(v.indicativeContributionCents),cashOut);
+   for(const [label,scenario] of [['Sem novo pedido',v.baseline],['Com novo pedido',v.withOrder],['Com novo pedido e atraso',v.withOrderStress]]){
+    el('p',label+' · menor saldo '+brl(scenario.minimumCents)+' · necessidade adicional de reserva '+brl(scenario.maximumGapCents)+' · primeiro dia abaixo da reserva '+(scenario.firstGap||'nenhum no cenário'),cashOut);
+   }
+   el('p','Diferença de necessidade de reserva: '+brl(v.extraReserveGapCents)+' · no cenário de atraso '+brl(v.extraStressGapCents)+'. Não constitui autorização de venda ou garantia financeira.',cashOut);
+  });
+  for(const x of [start,buffer,closed,horizon,weekly,proposal])x.addEventListener('input',invalidatePlan);
+  queue.addEventListener('input',invalidatePlan);queue.addEventListener('change',invalidatePlan);
+  cash.addEventListener('input',e=>{cashOut.replaceChildren();if(e.target!==confirmed)confirmed.checked=false});
+ }
+
+ function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();mountDeliveryPlanner9845();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
+ let operationalPending9845=false;
+function scheduleOperational9845(){
+ if(operationalPending9845)return;
+ operationalPending9845=true;
+ setTimeout(()=>{operationalPending9845=false;refresh()},0);
+}
+document.addEventListener('click',scheduleOperational9845,true);document.addEventListener('visibilitychange',()=>{
  root.hlgbJointWorkspaceEvidence9714={observed:false};
  const actor=user();
  for(const x of document.querySelectorAll('[data-planning9661]')){
@@ -457,4 +595,64 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
  }
  if(!document.hidden)refresh();
 });root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();refresh()});setTimeout(refresh,1000);
+})(typeof window!=='undefined'?window:null);
+
+
+// Shared quick access to existing panels. No independent query, write or shadow copy.
+(function installOperationalAccess9845(root){
+ if(!root||root.hlgbOperationalAccess9845)return;
+ const sections={
+  folhaPagamento:[['hlgb-live-finance-9656-folhaPagamento','Prévia salarial e calendário'],['hlgbAttendance9658','Ponto e passagem'],['hlgbRHLive9667','Férias, provisões e desligamento'],['hlgbWorkers9659','Diaristas e mensalistas'],['hlgb-settlement-history-9654-funcionario','Histórico de acertos']],
+  hubFinanceiro:[['hlgb-live-finance-9656-hubFinanceiro','Inteligência financeira e prévia salarial']],
+  notas:[['hlgb-settlement-history-9654-cliente','Histórico de acertos por cliente']],
+  pagamentosFaccoes:[['hlgb-settlement-history-9654-faccao','Histórico de acertos por facção']],
+  produtos:[['hlgbRemnant9661','Aproveitamento de sobras']],
+  metas:[['hlgbDeliveryPlanner9845','Planejamento de produção e entregas']]
+ };
+ const prefix='hlgb-operational-access-9845-';
+ let timer=null,pending=false,observer=null;const watched=new Set();
+ const auth=()=>root.__HLGB_AUTH_READY===true;
+ const can=p=>{try{return auth()&&typeof canOpenPage==='function'&&canOpenPage(p)===true}catch(_){return false}};
+ const actor=()=>{try{return String(typeof cloudUser!=='undefined'?cloudUser?.id||'':typeof currentUser==='function'?currentUser()?.id||'':'')}catch(_){return ''}};
+ const access={
+  'hlgb-live-finance-9656-folhaPagamento':['folhaPagamento'],
+  'hlgb-live-finance-9656-hubFinanceiro':['hubFinanceiro','folhaPagamento'],
+  'hlgbAttendance9658':['folhaPagamento'],
+  'hlgbRHLive9667':['folhaPagamento','funcionarios'],
+  'hlgbWorkers9659':['folhaPagamento','funcionarios'],
+  'hlgb-settlement-history-9654-funcionario':['folhaPagamento'],
+  'hlgb-settlement-history-9654-cliente':['notas','financeiro'],
+  'hlgb-settlement-history-9654-faccao':['pagamentosFaccoes','faccoes'],
+  'hlgbRemnant9661':['produtos','materiais'],
+  'hlgbDeliveryPlanner9845':['metas','pedidos','producao','corte','produtos','faccoes']
+ };
+ const panel=(area,id)=>{const target=document.getElementById(id);return target&&area.contains(target)&&access[id]?.every(can)?target:null};
+ function clear(){for(const page of Object.keys(sections))document.getElementById(prefix+page)?.remove()}
+ function refresh(){
+  const owner=actor();if(!auth()||!owner){clear();return}
+  for(const [page,entries] of Object.entries(sections)){
+   const area=document.getElementById(page);let bar=document.getElementById(prefix+page);
+   if(!area?.classList.contains('active')||!can(page)||document.hidden){bar?.remove();continue}
+   const available=entries.filter(([id])=>panel(area,id));
+   const sig=JSON.stringify([owner,available.map(([id])=>id)]);
+   if(!available.length){bar?.remove();continue}
+   if(bar?.dataset.signature9845===sig)continue;
+   if(!bar){bar=document.createElement('nav');bar.id=prefix+page;bar.setAttribute('aria-label','Atalhos de trabalho');bar.className='panel';bar.style.cssText='display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:8px;min-width:0;box-sizing:border-box';const h=area.querySelector('h1');if(h&&h.parentElement===area)h.insertAdjacentElement('afterend',bar);else area.prepend(bar)}
+   bar.dataset.signature9845=sig;bar.replaceChildren();
+   const title=document.createElement('strong');title.textContent='Acesso rápido:';bar.appendChild(title);
+   for(const [id,label] of available){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=label;b.style.cssText='max-width:100%;white-space:normal';
+    b.onclick=()=>{if(!auth()||actor()!==owner||!area.classList.contains('active')||!can(page))return;const target=panel(area,id);if(!target)return;target.setAttribute('tabindex','-1');target.focus?.({preventScroll:true});target.scrollIntoView?.({block:'start',behavior:'auto'})};bar.appendChild(b)}
+  }
+ }
+ function schedule(){if(pending)return;pending=true;timer=setTimeout(()=>{pending=false;timer=null;refresh()},0)}
+ function observe(){
+  if(typeof MutationObserver!=='function')return;
+  if(!observer)observer=new MutationObserver(schedule);
+  for(const page of Object.keys(sections)){const area=document.getElementById(page);if(area&&!watched.has(area)){watched.add(area);observer.observe(area,{attributes:true,attributeFilter:['class'],childList:true})}}
+ }
+ root.hlgbOperationalAccess9845={refresh};
+ function boot(){observe();schedule()}
+ document.addEventListener('click',boot,true);document.addEventListener('visibilitychange',boot);
+ root.addEventListener?.('hlgb:authenticated',boot);root.addEventListener?.('hlgb:logout',()=>{if(timer!==null&&typeof clearTimeout==='function')clearTimeout(timer);timer=null;pending=false;clear()});
+ boot();setTimeout(boot,1000);
 })(typeof window!=='undefined'?window:null);
