@@ -23,6 +23,8 @@ jobs:
         run: node tests/auditor-boot-analysis-v9445.js
       - name: Verificar agendamento pós-login sem duplicação
         run: node tests/after-login-scheduler-v9842.cjs
+      - name: Verificar atualização visual sob demanda
+        run: node tests/visible-report-render-v9843.cjs
       - name: Verificar sintaxe
         run: |
           node --check release-cut-view.js
