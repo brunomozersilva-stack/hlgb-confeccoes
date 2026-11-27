@@ -33,3 +33,7 @@ Mapeamento fictício com active/access conforme shape comercial hlgb_user_access
 
 ## Integração visual de ponta a ponta (v98.35)
 O formulário comercial chama adaptador opcional somente se instalado; o loader comercial não o instala. Em CI a candidata usa o modal real, o contrato de confirmação e PostgreSQL isolado por gateway de teste, com dois navegadores/sessões, gravação por cor, documento e consulta independente. Bloqueia divergência de linhas/grade e conserva impressão sem painel candidato. Anexos são confirmados separadamente do histórico; uma falha intermediária exige retry da mesma operação, sem afirmar sucesso. Não é autenticação Supabase nem armazenamento comercial. Falta paridade abrangente e ambiente de homologação HLGB com auth/storage reais.
+
+
+## Paridade e recuperação (v98.36)
+Conferência de laboratório aceita BOM sem vínculo quando possui dados válidos, usa nome/unidade do catálogo como fallback, normaliza acentos portugueses, ignora grade zerada e bloqueia corte finalizado divergente. A candidata retém operação pendente durante reabertura na mesma sessão, com mesma chave e documentos, e testa falha de upload após commit e retry sem nova versão. Logout limpa rascunhos por cor. Não resolve recuperação após recarregar página, autenticação Supabase ou storage real; não ativar comercialmente.
