@@ -90,11 +90,23 @@
   const provision=block('Provisões por período aquisitivo — total e filtros',host);
   el('p','O quadro antigo de provisões continua disponível. Aqui os períodos e valores de férias são informados/revisados individualmente; admissão ou antecipação em dinheiro não comprovam saldo de férias.',provision);
   const provEmployee=select('Funcionário',provision,[['','Selecione']]),acqStart=field('Início aquisitivo',provision,'date'),acqEnd=field('Fim aquisitivo',provision,'date'),concEnd=field('Fim concessivo',provision,'date'),remain=field('Dias restantes',provision,'number'),provisionValue=field('Valor provisionado do período (R$)',provision,'text'),provChecked=checkbox('Conferi o período, o saldo e o valor com RH',provision);
-  const asOf=field('Data de referência',provision,'date',today()),kind=select('Visualização',provision,Object.entries(labels)),provisionOut=output(provision);
+  const asOf=field('Data de referência',provision,'date',today()),kind=select('Visualização',provision,[['focus','Vencido mais antigo por funcionário'],['open','Todos os direitos em aberto'],...Object.entries(labels)]),provisionOut=output(provision);
   function resetCycle(){editingCycle=null;for(const x of [acqStart,acqEnd,concEnd,remain,provisionValue])x.value='';provChecked.checked=false}
   function drawCycles(){
-   provisionOut.replaceChildren();if(!active())return;try{const source=current();if(source.state!=='local-roster')return;const r=api().provisionCycles(source,cycles,asOf.value,kind.value);if(!active())return;
-    el('strong','Total observado de todos os períodos: '+money(r.observedTotalCents),provisionOut);el('p',labels[kind.value]+': '+money(r.filteredTotalCents)+' · '+r.reviewedCount+' períodos revisados · '+r.unknownCount+' a revisar',provisionOut);
+   provisionOut.replaceChildren();if(!active())return;try{const source=current();if(source.state!=='local-roster')return;const focus=api().provisionFocus(source,cycles,asOf.value,true);if(focus.state!=='local-focus'||!active())return;
+    const t=focus.totals;
+    el('p','Total em aberto observado (exclui saldos zero): '+(t.openCount?money(t.openCents):'Não confirmado')+' · Direito adquirido ainda não vencido: '+(focus.allOpenRows.some(x=>x.status==='acquired')?money(t.acquiredCents):'Sem registro observado')+' · Proporcional: '+(focus.allOpenRows.some(x=>x.status==='proportional')?money(t.proportionalCents):'Sem registro observado'),provisionOut);
+    el('p','Vencido mais antigo: '+(t.oldestCount?money(t.oldestOverdueCents):'Sem registro observado')+' · Outros vencidos: '+t.otherOverdueCount+' período(s), '+money(t.otherOverdueCents)+' · Total vencido identificado: '+money(t.overdueCents),provisionOut);
+    el('p',focus.withoutCycles+' funcionários sem período informado · '+t.unknownCount+' períodos a revisar. Dados locais, não é saldo oficial. Os demais vencidos não são excluídos do total.',provisionOut);
+    if(kind.value==='focus'||kind.value==='open'){
+     const list=kind.value==='focus'?focus.focusRows:focus.allOpenRows;el('h4',kind.value==='focus'?'Período vencido mais antigo por funcionário':'Todos os direitos em aberto',provisionOut);
+     if(!list.length)el('p','Nenhum período correspondente informado. Isso não comprova ausência de direito.',provisionOut);
+     const holder=el('div','',provisionOut);let offset=0;
+     const draw=()=>{holder.replaceChildren();if(!active())return;for(const row of list.slice(offset,offset+20)){const item=el('article','',holder);item.className='panel';const p=focus.people.find(x=>x.employeeId===row.employeeId);el('strong',row.name+' · '+labels[row.status],item);el('p',row.acquisitionStart+' a '+row.acquisitionEnd+' · Concessivo até '+row.concessionEnd+' · '+row.remainingDays+' dias · '+money(row.provisionCents),item);if(kind.value==='focus'&&p?.otherOverdueCount)el('p','Outros vencidos: '+p.otherOverdueCount+' · '+money(p.otherOverdueCents)+' (consulte todos os direitos)',item)}
+     if(offset>0)button('Anteriores',holder,()=>{offset-=20;draw()});if(offset+20<list.length)button('Próximos',holder,()=>{offset+=20;draw()})};draw();el('p','Para editar ou remover um período informado, use Todos os períodos.',provisionOut);return;
+    }
+    const r=api().provisionCycles(source,cycles,asOf.value,kind.value);if(!active())return;
+    el('strong','Total histórico informado (inclui saldo zero): '+money(r.observedTotalCents),provisionOut);el('p',labels[kind.value]+': '+money(r.filteredTotalCents)+' · '+r.reviewedCount+' períodos revisados · '+r.unknownCount+' a revisar',provisionOut);
     for(const [k,v] of Object.entries(r.totals))el('p',labels[k]+': '+money(v)+' · '+r.groups[k].length+' período(s)',provisionOut);
     for(const row of r.rows){const card=el('article','',provisionOut);card.className='panel';el('strong',row.name+' · '+labels[row.status],card);el('p',row.acquisitionStart+' a '+row.acquisitionEnd+' · Concessivo até '+row.concessionEnd+' · '+money(row.provisionCents),card);
      button('Editar período',card,()=>{if(!active())return;const x=cycles.find(c=>c.cycleId===row.cycleId);if(!x)return;editingCycle=x.cycleId;provEmployee.value=x.employeeId;acqStart.value=x.acquisitionStart;acqEnd.value=x.acquisitionEnd;concEnd.value=x.concessionEnd;remain.value=String(x.remainingDays);provisionValue.value=inputMoney(x.provisionCents);provChecked.checked=false});

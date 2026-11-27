@@ -1,0 +1,10 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/financeiro/rh-planning-v9636.js');
+const people=[{id:'a',name:'Pessoa A',company:'A',signature:'a'},{id:'b',name:'Pessoa B',company:'B',signature:'b'},{id:'c',name:'Pessoa C',signature:'c'}],source={state:'local-roster',rows:people};
+const cycle=(k,p,start,end,concession,days,value)=>({cycleId:k,employeeId:p,signature:p,acquisitionStart:start,acquisitionEnd:end,concessionEnd:concession,remainingDays:days,provisionCents:value,reviewed:true});
+const rows=[cycle('a1','a','2022-01-01','2022-12-31','2023-12-31',30,200000),cycle('a2','a','2023-01-01','2023-12-31','2024-12-31',10,80000),cycle('a3','a','2025-01-01','2025-12-31','2026-12-31',20,150000),cycle('b1','b','2022-01-01','2022-12-31','2023-12-31',0,30000),cycle('b2','b','2026-01-01','2026-12-31','2027-12-31',15,90000)];
+const before=JSON.stringify({source,rows}),r=api.provisionFocus(source,rows,'2026-11-26',true);
+assert.equal(r.state,'local-focus');assert.equal(r.focusRows.length,1);assert.equal(r.focusRows[0].cycleId,'a1');assert.equal(r.totals.oldestOverdueCents,200000);assert.equal(r.totals.otherOverdueCents,80000);assert.equal(r.totals.overdueCents,280000);assert.equal(r.totals.openCents,520000);assert.equal(r.totals.usedReportedCents,30000);assert.equal(r.allOpenRows.length,4);assert.equal(r.withoutCycles,1);assert.equal(r.partial,true);assert.equal(r.people.find(x=>x.employeeId==='c').openCents,null);assert.equal(r.canPublish,false);assert.equal(r.officialTotalCents,null);assert.equal(JSON.stringify({source,rows}),before);
+assert.equal(api.provisionFocus(source,rows,'2026-11-26',false).state,'forbidden');
+const duplicate=api.provisionFocus(source,[...rows,rows[0]],'2026-11-26',true);assert.equal(duplicate.totals.unknownCount,2);assert.equal(duplicate.focusRows[0].cycleId,'a2');
+console.log('PASS oldest overdue per employee, complete open liabilities, used balances and duplicate protection');
