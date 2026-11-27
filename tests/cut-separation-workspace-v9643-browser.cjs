@@ -65,6 +65,25 @@
  await p.evaluate(()=>{const card=document.querySelector('[data-hlgb-cut-model-id="19"]');const canonical=document.createElement('button');canonical.className='secondary hlgbAdjustSplitGradeBtn';canonical.textContent='Ajustar grade';canonical.onclick=()=>window.hlgbOpenSplitGradeAdjust('19');const collapsed=document.createElement('details');collapsed.appendChild(canonical);card.appendChild(collapsed);window.__originalGradeButton=canonical;window.hlgbCutOrganization.apply()});assert.equal(await splitGrade.count(),1,'canonical control replaces only our fallback');assert.equal(await splitGrade.isVisible(),true,'canonical control is moved out of collapsed details');assert.equal(await p.evaluate(()=>window.__originalGradeButton===document.querySelector('[data-hlgb-cut-model-id="19"] .hlgbAdjustSplitGradeBtn')),true);
  await p.evaluate(()=>{const tr=document.createElement('tr');tr.innerHTML='<td>Sem identidade</td>';document.querySelector('#cutTable tbody').appendChild(tr);window.hlgbCutOrganization.apply()});
  assert.equal(await p.locator('.hlgb-cut-unified9712').count(),0,'unknown rows restore original layout');assert.equal(await p.locator('[data-hlgb-cut-summary9761]').count(),0);assert.equal(await p.locator('#scheduleFixture9761').isVisible(),true);
+
+ await p.evaluate(()=>{
+  db.cuts.push({id:31,orderId:1,productId:10,status:'Finalizado',pieces:30,finishedAt:'2026-11-20',actualCutGrade:[{productId:10,color:'Preto',size:'P',qty:30}]},{id:32,orderId:2,productId:11,status:'Finalizado',modelSplitChildV1:true,pieces:50,finishedAt:'2026-11-21',actualCutGrade:[{productId:11,color:'Branco',size:'M',qty:50}]},{id:33,orderId:1,status:'Finalizado',modelSplitParentV1:true,pieces:80},{id:34,orderId:999,productId:10,status:'Finalizado',pieces:20},{id:35,status:'Finalizado',deleted:true},{id:36,status:'Finalizado'},{id:36,status:'Finalizado'});
+  window.__historyBefore=JSON.stringify(db);window.hlgbCutOrganization.apply();
+ });
+ await p.locator('#hlgbCutStatus9770').selectOption('completed');
+ assert.equal(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id]').count(),3);
+ assert.equal(await p.locator('#cutTable').isVisible(),false);
+ assert.equal(await p.locator('#hlgbCutSplitPanel').isVisible(),false);
+ assert.match(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id="34"]').innerText(),/Pedido original não encontrado/);
+ assert.match(await p.locator('#hlgbCompletedHistory9770').innerText(),/2 registros com identidade a conferir/);
+ await p.locator('#hlgbCutFrom9712').fill('2026-11-21');assert.equal(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id]').count(),1);
+ await p.locator('#hlgbCutFrom9712').fill('');
+ await p.locator('#hlgbCutSearch').fill('Calcinha');assert.equal(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id]').count(),1);
+ await p.locator('#hlgbCutSearch').fill('');
+ await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id]').count(),3);
+ assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__historyBefore),true);
+ await p.locator('#hlgbCutStatus9770').selectOption('');assert.equal(await p.locator('#hlgbCompletedHistory9770').count(),0);assert.equal(await p.locator('#cutTable').isVisible(),true);
+ await p.evaluate(()=>{db.cuts=db.cuts.filter(c=>Number(c.id)<31);window.hlgbCutOrganization.apply()});
  // Merchandise projection uses explicit model coverage, not status or payment.
  await p.evaluate(()=>{
   const host=document.getElementById('openCutOrdersTable');host.innerHTML='<table><tr><th>Pedido</th><th>Ações</th></tr><tr id="merch1"><td>12</td><td><button onclick="editOpenMerchandise(1)">Editar</button></td></tr></table>';
