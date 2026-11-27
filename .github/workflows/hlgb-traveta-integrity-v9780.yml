@@ -1,0 +1,21 @@
+name: HLGB Travetada - integridade de pontos e tarifas
+on:
+  pull_request:
+    paths:
+      - 'release-faction-operations-v9520.js'
+      - 'release-faction-service-rates-v9577.js'
+      - 'tests/traveta-integrity-v9780.cjs'
+      - '.github/workflows/hlgb-traveta-integrity-v9780.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-faction-operations-v9520.js && node --check release-faction-service-rates-v9577.js
+      - run: node tests/traveta-integrity-v9780.cjs

@@ -103,7 +103,10 @@ function histories(f){
  const uuids=new Set();
  for(const e of list){
   if(!(Number.isInteger(Number(e?.quantity))&&Number(e.quantity)>0)||!sid(e.requestId)||uuids.has(sid(e.requestId)))throw new Error('Histórico de travetada inconsistente');
-  total+=Number(e.quantity);uuids.add(sid(e.requestId));
+  const points=Number(e.pointsPerPiece),recorded=Number(e.pointsTotal),qty=Number(e.quantity);
+  if(!Number.isSafeInteger(qty)||!Number.isInteger(points)||points<1||points>100||!Number.isSafeInteger(recorded)||recorded!==qty*points)
+   throw new Error('Pontos de travetada divergem do histórico. Confira a baixa original.');
+  total+=qty;if(!Number.isSafeInteger(total))throw new Error('Quantidade de travetadas excede o limite seguro.');uuids.add(sid(e.requestId));
  }
  if(f?.travetaDonePiecesV9520!=null&&Number(f.travetaDonePiecesV9520)!==total)
   throw new Error('Total de travetada diverge do histórico. Baixa bloqueada até conferência.');
@@ -116,7 +119,7 @@ function capacity(f){
  return Math.min(sent,Math.max(done,returned));
 }
 function status(f){
- const prog=histories(f),limit=capacity(f),p=product(f.productId),points=int(p?.travetadas||0);
+ const prog=histories(f),limit=capacity(f),p=product(f.productId),raw=p?.travetadas,points=raw!=null&&sid(raw).trim()!==''&&Number.isInteger(Number(raw))&&Number(raw)>=0&&Number(raw)<=100?Number(raw):0;
  return {factionId:sid(f.id),model:modelName(f),faction:sid(f.name),sent:int(f.sent),eligible:limit,
    done:prog.total,remaining:Math.max(0,limit-prog.total),pointsPerPiece:points,
    recordedPoints:prog.list.reduce((n,e)=>n+Number(e?.pointsTotal||0),0),entries:prog.list.length,
@@ -223,6 +226,8 @@ async function submitTraveta(){
   if(!sameOperationalFields(current,remoteFac))throw new Error('A alocação mudou na nuvem. Reabra para evitar baixa sobre dados antigos.');
   if(int(remoteProd.data?.travetadas||0)!==int(prod.travetadas||0))throw new Error('A ficha técnica de travetada mudou na nuvem. Atualize antes de continuar.');
   const latest=status(remoteFac.data),h=histories(remoteFac.data);
+  const rawPoints=remoteProd.data?.travetadas;
+  if(rawPoints==null||sid(rawPoints).trim()===''||!Number.isInteger(Number(rawPoints))||Number(rawPoints)<1||Number(rawPoints)>100||latest.pointsPerPiece!==Number(rawPoints))throw new Error('Quantidade de pontos da ficha técnica inválida. Nenhuma baixa realizada.');
   if(latest.done>latest.eligible)throw new Error('Histórico de travetada excedeu a capacidade; bloqueado.');
   if(!state.requestId)state.requestId=window.crypto?.randomUUID?.()||'';
   if(!state.requestId)throw new Error('Identificador seguro de baixa indisponível.');
