@@ -1,0 +1,20 @@
+name: HLGB Bot - evidencias de falha por etapa
+on:
+  pull_request:
+    paths:
+      - 'release-health-monitor-panel-v9541.js'
+      - 'tests/health-failure-evidence-v9790.cjs'
+      - '.github/workflows/hlgb-health-failure-evidence-v9790.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-health-monitor-panel-v9541.js
+      - run: node tests/health-failure-evidence-v9790.cjs
