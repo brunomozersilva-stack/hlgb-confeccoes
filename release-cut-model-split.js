@@ -139,8 +139,9 @@ function gradeMini(c,o,ambiguous){
  const sizes=[...new Set(grade.map(g=>g.size).filter(Boolean))],colors=[...new Set(grade.map(g=>g.color||'-'))];
  const rows=colors.map(color=>'<tr><td>'+escSafe(color)+'</td>'+sizes.map(sz=>'<td>'+q(grade.filter(g=>String(g.color||'-')===String(color)&&String(g.size||'')===String(sz)).reduce((a,g)=>a+q(g.qty),0))+'</td>').join('')+'</tr>').join('');
  const print='<button type="button" class="secondary hlgb-native-cut-print9822" onclick="hlgbPrintSplitCut9822(\''+escSafe(c.id)+'\')">Imprimir folha de pedido do corte</button>';
+ const checklist='<button type="button" class="secondary hlgb-native-cut-checklist9823" onclick="hlgbOpenSplitChecklist9823(\''+escSafe(c.id)+'\')">Checklist completo da peça</button>';
  const edit=done?'':'<button type="button" class="secondary hlgbAdjustSplitGradeBtn" '+(ambiguous?'disabled title="Corte duplicado: conferência necessária" ':'')+'onclick="hlgbOpenSplitGradeAdjust(\''+escSafe(c.id)+'\')">Ajustar grade</button>';
- return '<div data-hlgb-grade-group9711="1" style="margin-top:6px;min-width:0"><div class="toolbar">'+edit+print+'</div><details><summary>'+(done?'📐 Ver grade realmente cortada':'📐 Grade do modelo')+'</summary>'+
+ return '<div data-hlgb-grade-group9711="1" style="margin-top:6px;min-width:0"><div class="toolbar">'+edit+print+checklist+'</div><details><summary>'+(done?'📐 Ver grade realmente cortada':'📐 Grade do modelo')+'</summary>'+
  (sizes.length?'<div style="overflow:auto"><table><thead><tr><th>Cor</th>'+sizes.map(sz=>'<th>'+escSafe(sz)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="sub">Grade não disponível para conferência.</div>')+
  '</details></div>';
 }
@@ -343,6 +344,7 @@ function printSplitCut9822(id){
  alert('Rotina de impressão ainda indisponível. Atualize a página.');return false
 }
 window.hlgbPrintSplitCut9822=printSplitCut9822;
+window.hlgbOpenSplitChecklist9823=id=>{const fn=window.hlgbCutOrganization?.openFullCutChecklist9820;if(typeof fn!=='function'){alert('Rotina do checklist ainda indisponível. Atualize a página.');return false}return fn(id)};
 window.hlgbToggleCutCompleted9519=toggleCompletedModels9519;
 window.hlgbPostCutMaterialsPreview9519=postCutMaterialsPreview9519;
 window.hlgbSplitOrderCuts=confirmSplit;
