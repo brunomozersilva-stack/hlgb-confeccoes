@@ -72,7 +72,15 @@ function openFullCutChecklist9820(id){
 function printRequiredCut9820(id){
  if(!requiredCutAllowed9820())return false;
  const idx=cutIndex9709(),v=cutActionProof9820(idx.cuts.get(sid(id)),idx);
- if(!v||typeof window.printCuttingSheet!=='function'){alert('Folha indisponível: confira a identificação do corte ou recarregue a rotina de impressão.');return false}
+ if(!v){alert('Folha indisponível: confira a identificação do corte.');return false}
+ // The required action refers to the exact model, not the order-level
+ // heuristic used by legacy print callers. Keep the complete existing sheet.
+ const api=window.hlgbCutterSheetV9523;
+ if(typeof api?.printSheet==='function'){
+  const order=idx.orders.get(v.orderId),cut=idx.cuts.get(v.cutId);
+  try{return api.printSheet(order,cut)}catch(e){alert('Não foi possível abrir a folha completa: '+sid(e?.message||e));return false}
+ }
+ if(typeof window.printCuttingSheet!=='function'){alert('Folha indisponível: recarregue a rotina de impressão.');return false}
  return window.printCuttingSheet(v.orderId,v.cutId);
 }
 function ensureRequiredCutActions9820(row,c,model){

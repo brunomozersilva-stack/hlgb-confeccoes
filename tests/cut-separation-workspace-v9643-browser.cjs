@@ -24,6 +24,17 @@
  assert.equal(await p.locator('.hlgb-cut-unified9712').count(),1);
  const singleGrade=p.locator('#legacy9712').getByRole('button',{name:'Ajustar grade',exact:true}),splitGrade=p.locator('[data-hlgb-cut-model-id="19"]').getByRole('button',{name:'Ajustar grade',exact:true});
  const required=p.locator('#legacy9712 [data-hlgb-required-cut9820]');assert.equal(await required.count(),1);await required.getByRole('button',{name:'Checklist completo da peça'}).click();const full=p.locator('#hlgbFullCutChecklist9820');assert.match(await full.innerText(),/Camisola/);assert.match(await full.innerText(),/Preto · P · 100 peças/);assert.match(await full.innerText(),/Malha/);await full.getByRole('button',{name:'Fechar checklist'}).click();await required.getByRole('button',{name:'Imprimir folha de pedido do corte'}).click();assert.deepEqual(await p.evaluate(()=>window.__print),['1','9']);await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await required.count(),1);
+ // Exercise the real complete renderer from the restored row button, not
+ // just the recording stub. Block the popup to verify Safari-safe preview.
+ await p.addScriptTag({path:'release-cutter-sheet-materials-v9523.js'});
+ await p.evaluate(()=>{window.__printDbBefore=JSON.stringify(db);window.__originalOpen9821=window.open;window.open=()=>null;window.printCuttingSheet=()=>{throw Error('Legacy route must not replace exact model print')}});
+ await required.getByRole('button',{name:'Imprimir folha de pedido do corte'}).click();
+ const preview=p.locator('#hlgbCutterSheetPreview9523');await preview.waitFor();
+ const printed=await preview.locator('iframe').evaluate(x=>x.srcdoc);
+ assert.match(printed,/FOLHA DE GRADE DO CORTADOR/);assert.match(printed,/Camisola/);assert.match(printed,/Malha/);assert.match(printed,/Peso total \(kg\)/);assert.match(printed,/Assinatura do Cortador 1/);assert.doesNotMatch(printed,/Calcinha/);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();assert.equal(await preview.count(),0);
+ assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__printDbBefore),true);
+ await p.evaluate(()=>{window.open=window.__originalOpen9821;window.hlgbCutterSheetV9523.ensurePrintRoute9523()});
  assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);await singleGrade.click();await splitGrade.click();assert.deepEqual(await p.evaluate(()=>window.__gradeOpens),[['single','9'],['split','19']]);
  await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);
 
