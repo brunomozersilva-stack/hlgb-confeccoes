@@ -121,6 +121,7 @@ function plannerAllowed(){try{return mode==='admin'&&window.__HLGB_AUTH_READY===
 function clearPlanner(){document.getElementById('hlgbDeliveryCapacityPlanner')?.remove()}
 function mountPlanner(){
  if(!plannerAllowed()){clearPlanner();return}
+ const today=()=>{const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return ['year','month','day'].map(k=>parts.find(p=>p.type===k).value).join('-')};
  const api=window.HLGBProductionPlanning9661,area=document.getElementById('projecao');if(!api?.deliveryCapacityPlan||!area)return;
  const prev=document.getElementById('hlgbDeliveryCapacityPlanner');if(prev?.dataset.actor===plannerActor())return;prev?.remove();
  const el=(tag,t,host)=>{const x=document.createElement(tag);x.textContent=t;host.appendChild(x);return x};
@@ -135,10 +136,10 @@ function mountPlanner(){
  el('p','Confira se a semana está completa e se a data da projeção corresponde à entrega realizada. Sem confirmação, a semana não entra na média. Uma semana de zero entregas pode ser confirmada explicitamente.',history);
  const histHost=el('div','',history),termHost=el('details','',host);el('summary','Condições de recebimento para simulação',termHost);el('p','Confirme a condição por cliente apenas para este cenário. Se houver condições diferentes por pedido, deixe desconhecida até a conciliação. Valores não representam saldo a receber ou recebimento confirmado.',termHost);
  const coverageLabel=el('label','Conferi a carteira inteira e as datas, inclusive pedidos sem projeção.',host),coverage=el('input','',coverageLabel);coverage.type='checkbox';
- const output=el('div','',host);output.setAttribute('aria-live','polite');let hist=[],terms=new Map();
+ const output=el('div','',host);output.setAttribute('aria-live','polite');let hist=[],terms=new Map(),orderTerms=new Map();
  function buildHistory(){
   histHost.replaceChildren();hist=[];coverage.checked=false;output.replaceChildren();if(!active()||!start.value)return;
-  const base=Date.parse(start.value+'T00:00:00Z');if(!Number.isFinite(base))return;
+  const base=Date.parse((start.value<today()?start.value:today())+'T00:00:00Z');if(!Number.isFinite(base))return;
   const day=86400000,m=base-((new Date(base).getUTCDay()+6)%7)*day,rows=[];
   try{if(typeof window.projectionDeliveredRows==='function'&&window.projectionDeliveredRows.__hlgbProjectionDeliveryIntegrityV1)rows.push(...window.projectionDeliveredRows('0000-01-01','9999-12-31'))}catch(_){}
   for(let i=1;i<=12;i++){const t=m-i*7*day,week=new Date(t).toISOString().slice(0,10),end=new Date(t+6*day).toISOString().slice(0,10);
@@ -150,7 +151,7 @@ function mountPlanner(){
  function getOrders(){if(typeof allProjectionRows!=='function'||typeof projectionDeliverableQty!=='function')throw Error('source');const raw=allProjectionRows();if(!Array.isArray(raw))throw Error('source');return raw.filter(r=>r.order&&r.item&&projectionDeliverableQty(r.order,r.item)>0).map(({order,item})=>{
   const client=sid(item.clientName||order.client||'Sem cliente'),qty=projectionDeliverableQty(order,item),rawValue=typeof projectionDeliverableValue==='function'?projectionDeliverableValue(order,item):null,amount=typeof rawValue==='number'&&Number.isFinite(rawValue)&&rawValue>=0?Math.round(rawValue*100):null;
   const key=order.id!=null&&item.key!=null?JSON.stringify([sid(order.id),sid(item.key)]):'';
-  return {key,client,model:sid(item.name||'Produto'),dueDate:sid(item.date).slice(0,10),pieces:qty,amountCents:amount};
+  return {key,orderId:sid(order.id),orderNumber:sid(order.orderNumber||order.id),paymentTerms:order.paymentTerms,paymentDays:order.paymentDays,client,model:sid(item.name||'Produto'),dueDate:sid(item.date).slice(0,10),pieces:qty,amountCents:amount};
  })}
  function buildTerms(){if(!active())return;terms.clear();while(termHost.children.length>2)termHost.lastChild.remove();let clients=[];try{clients=[...new Set(getOrders().map(r=>r.client))].sort()}catch(_){return}
   for(const c of clients){const row=el('div','',termHost);el('strong',c,row);const select=el('select','',row);
@@ -158,14 +159,31 @@ function mountPlanner(){
    const days=field('Prazo em dias corridos','number','',row);days.min='1';days.max='365';select.onchange=days.oninput=()=>output.replaceChildren();terms.set(c,{select,days});
   }
  }
+
+ const perOrder=el('details','',host);el('summary','Condições diferentes por pedido',perOrder);
+ el('p','Condição registrada no pedido tem prioridade sobre a hipótese do cliente. Use o ajuste individual quando necessário; não altera cadastro ou título.',perOrder);
+ const orderSearch=field('Buscar cliente ou número do pedido','search','',perOrder),orderTermList=el('div','',perOrder);let orderTermPage=0;
+ function drawOrderTerms(){
+  orderTermList.replaceChildren();if(!active())return;let rows;try{rows=[...new Map(getOrders().map(o=>[o.orderId,o])).values()]}catch(_){return}
+  const query=orderSearch.value.toLocaleLowerCase('pt-BR');rows=rows.filter(o=>(o.client+' '+o.orderNumber).toLocaleLowerCase('pt-BR').includes(query));
+  for(const o of rows.slice(orderTermPage,orderTermPage+20)){
+   const row=el('div','',orderTermList);el('strong','Pedido '+o.orderNumber+' · '+o.client,row);
+   el('p','Condição cadastrada: '+(o.paymentTerms||'Não informada'),row);
+   const select=el('select','',row);for(const [v,t] of [['inherit','Usar condição registrada ou hipótese do cliente'],['unknown','Condição não confirmada'],['cash','À vista (simulação)'],['term','A prazo (simulação)']]){const x=el('option',t,select);x.value=v}
+   const days=field('Dias corridos para pagamento','number','',row),prior=orderTerms.get(o.orderId);select.value=prior?.mode||'inherit';days.value=prior?.days??'';
+   const save=()=>{orderTerms.set(o.orderId,{mode:select.value,days:Number(days.value)});output.replaceChildren()};select.onchange=days.oninput=save;
+  }
+  if(orderTermPage>0)btn('Anterior',orderTermList,()=>{orderTermPage-=20;drawOrderTerms()});if(orderTermPage+20<rows.length)btn('Mais pedidos',orderTermList,()=>{orderTermPage+=20;drawOrderTerms()});
+ }
+ orderSearch.oninput=()=>{orderTermPage=0;drawOrderTerms()};drawOrderTerms();
  start.onchange=buildHistory;for(const f of [goal,buffer,horizon,newPieces,closed])f.oninput=()=>output.replaceChildren();coverage.onchange=()=>output.replaceChildren();
- btn('Atualizar dados de pedidos e histórico',host,()=>{buildHistory();buildTerms()});
+ btn('Atualizar dados de pedidos e histórico',host,()=>{orderTerms.clear();buildHistory();buildTerms();orderTermPage=0;drawOrderTerms()});
  btn('Simular capacidade, entregas e recebimentos',host,()=>{
   output.replaceChildren();if(!active())return;
   try{
-   const orders=getOrders().map(o=>{const t=terms.get(o.client);return {...o,paymentMode:t?.select.value||'unknown',paymentDays:Number(t?.days.value||0)}});
+   const orders=getOrders().map(o=>{const t=terms.get(o.client),v=api.orderPaymentCondition(o,orderTerms.get(o.orderId),{mode:t?.select.value||'unknown',days:Number(t?.days.value||0)},true);return {...o,paymentMode:v.mode,paymentDays:v.days}});
    const missing=orders.filter(o=>!o.dueDate||!o.key).length;
-   const p=api.deliveryCapacityPlan({start:start.value,weeks:Number(horizon.value),weeklyGoal:goal.value===''?null:Number(goal.value),bufferPercent:Number(buffer.value),newPieces:Number(newPieces.value),closedDates:closed.value.split(',').map(x=>x.trim()).filter(Boolean),coverageConfirmed:coverage.checked&&missing===0,history:hist.map(h=>({week:h.week,pieces:Number(h.pieces.value),confirmed:h.check.checked})),orders},true);
+   const p=api.deliveryCapacityPlan({start:start.value,asOf:today(),weeks:Number(horizon.value),weeklyGoal:goal.value===''?null:Number(goal.value),bufferPercent:Number(buffer.value),newPieces:Number(newPieces.value),closedDates:closed.value.split(',').map(x=>x.trim()).filter(Boolean),coverageConfirmed:coverage.checked&&missing===0,history:hist.map(h=>({week:h.week,pieces:Number(h.pieces.value),confirmed:h.check.checked})),orders},true);
    if(p.state!=='local-capacity-simulation'){el('p','Confira datas, metas, histórico e limites da simulação.',output);return}
    const fmt=n=>n===null?'Não confirmado':n.toLocaleString('pt-BR');
    el('h3','Capacidade semanal e carteira',output);el('p','Semanas conferidas: '+p.sampleCount+' · Média entregue: '+fmt(p.average)+' · Referência conservadora: '+fmt(p.conservative)+' · Meta após reserva: '+fmt(p.weeklyTarget)+' peças/semana.',output);
@@ -174,7 +192,8 @@ function mountPlanner(){
    if(p.newPieces)el('p','Novo pedido: '+fmt(p.newPieces)+' peças · primeira conclusão hipotética '+(p.firstAvailable||'não cabe no horizonte')+' · '+p.unplacedNewPieces+' ainda sem capacidade. Não é data de entrega confirmada.',output);
    const wrap=el('div','',output);wrap.style.cssText='overflow:auto;max-width:100%';const table=el('table','',wrap),head=el('tr','',el('thead','',table));for(const h of ['Semana','Capacidade','Entregas previstas (pç)','Carga alocada','Vagas (pç)','À vista*','A prazo*','Pç sem condição'])el('th',h,head);
    const body=el('tbody','',table);for(const w of p.weeks){const tr=el('tr','',body);for(const v of [w.start,fmt(w.capacity),fmt(w.committed),fmt(w.allocated),fmt(w.free),money(w.cashAtDeliveryCents/100),money(w.termReceiptsCents/100),fmt(w.unknownPaymentPieces)])el('td',String(v),tr)}
-   el('p','* Datas de recebimento simuladas a partir das entregas prometidas, não caixa líquido. Não inclui contas a pagar, saldo bancário, atrasos, parcelas ou valores já pagos.',output);
+   el('p','Peças sem estimativa de recebimento: '+fmt(p.excludedReceiptPieces)+'.',output);
+   el('p','* Recebimentos brutos hipotéticos somente para lotes concluídos na simulação, na data mais tardia entre prazo prometido e conclusão, acrescida do prazo de pagamento. Não são saldos de títulos nem caixa líquido; não incluem parcelas ou pagamentos anteriores.',output);
    const details=el('details','',output);el('summary','Entregas por cliente, pedido e data',details);
    for(const o of p.orders)el('p',o.dueDate+' · '+o.client+' · '+o.model+' · '+o.pieces+' pç · '+(o.paymentMode==='cash'?'À vista':o.paymentMode==='term'?'Prazo '+o.paymentDays+' dias':'Condição não conferida')+' · previsão de conclusão '+(o.lastWorkDate||'sem alocação')+(o.remaining?' · '+o.remaining+' pç pendentes':''),details);
 
