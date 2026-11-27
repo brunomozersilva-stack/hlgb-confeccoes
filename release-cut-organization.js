@@ -437,39 +437,46 @@ function merchandiseEvidence9755(orders,invoices,pairs){
  const out=new Map();if(!Array.isArray(orders)||!Array.isArray(invoices)||!(pairs instanceof Set))return out;
  const live=x=>x&&!x.deletedAt&&!x.deleted_at&&x.deleted!==true&&!x._deleted&&!/cancelad|excluid|estornad|arquivad/.test(norm(x.status));
  const count=rows=>{const m=new Map();for(const x of rows.filter(live)){const id=sid(x.id);if(id)m.set(id,(m.get(id)||0)+1)}return m};
- const oc=count(orders),ic=count(invoices),billed=new Map(),uncertain=new Set();
+ const integer=v=>((typeof v==='number'||typeof v==='string'&&/^\d+$/.test(v))&&Number.isSafeInteger(Number(v))&&Number(v)>=0)?Number(v):null;
+ const oc=count(orders),ic=count(invoices),billed=new Map(),uncertain=new Set(),orderModels=new Map();
  for(const inv of invoices.filter(live)){
   if(inv.manualNote===true||inv.noteOnly===true)continue;
   for(const row of Array.isArray(inv.items)?inv.items:[]){
-   const oid=sid(row?.orderId),pid=sid(row?.productId||row?.itemKey);if(!oid||row?.noteOnly===true)continue;
-   const qty=Number(row?.qty),k=JSON.stringify([oid,pid]);
-   if(!pid||!sid(inv.id)||ic.get(sid(inv.id))!==1||!Number.isSafeInteger(qty)||qty<=0){uncertain.add(oid);continue}
-   billed.set(k,(billed.get(k)||0)+qty);
+   if(row?.noteOnly===true||['manual_note','note_adjustment'].includes(row?.sourceType))continue;
+   const oid=sid(row?.orderId),pid=sid(row?.productId||row?.itemKey);
+   if(!oid){if(sid(inv.orderId))uncertain.add(sid(inv.orderId));continue}
+   const qty=integer(row?.qty),k=JSON.stringify([oid,pid]);
+   if(!pid||!sid(inv.id)||ic.get(sid(inv.id))!==1||qty===null||qty===0||(row.productId!=null&&row.itemKey!=null&&sid(row.productId)!==sid(row.itemKey))){uncertain.add(oid);continue}
+   const n=(billed.get(k)||0)+qty;if(!Number.isSafeInteger(n)){uncertain.add(oid);continue}billed.set(k,n);
+   const models=orderModels.get(oid)||new Set();models.add(pid);orderModels.set(oid,models);
   }
  }
  for(const o of orders.filter(live)){
   const id=sid(o.id);if(!id||oc.get(id)!==1)continue;
   const grade=new Map(),seen=new Set();let valid=Array.isArray(o.grade)&&o.grade.length>0;
   for(const g of Array.isArray(o.grade)?o.grade:[]){
-   const pid=sid(g?.productId),qty=Number(g?.qty),key=JSON.stringify([pid,sid(g?.color),sid(g?.size)]);
-   if(!pid||!sid(g?.color)||!sid(g?.size)||g?.qty==null||!Number.isSafeInteger(qty)||qty<0||seen.has(key)){valid=false;continue}
-   seen.add(key);if(qty>0)grade.set(pid,(grade.get(pid)||0)+qty);
+   const pid=sid(g?.productId),qty=integer(g?.qty),key=JSON.stringify([pid,sid(g?.color),sid(g?.size)]);
+   if(!pid||!sid(g?.color)||!sid(g?.size)||qty===null||seen.has(key)){valid=false;continue}
+   seen.add(key);if(qty>0){const n=(grade.get(pid)||0)+qty;if(!Number.isSafeInteger(n))valid=false;grade.set(pid,n)}
   }
-  if(!valid||!grade.size||uncertain.has(id)){out.set(id,{hide:false,reason:'review'});continue}
-  let all=true,partial=false,ambiguous=false;
+  if(!valid||!grade.size||uncertain.has(id)||[...(orderModels.get(id)||[])].some(pid=>!grade.has(pid))){out.set(id,{hide:false,reason:'review',models:[],remainingPieces:null});continue}
+  let all=true,partial=false,ambiguous=false,remainingPieces=0;const models=[];
   for(const [pid,qty] of grade){
    const amount=billed.get(JSON.stringify([id,pid]))||0,written=pairs.has(id+'|'+pid);
-   if(amount>qty){ambiguous=true;all=false;continue}
-   if(!written&&amount!==qty)all=false;
+   if(amount>qty){ambiguous=true;all=false;models.push({productId:pid,ordered:qty,billed:amount,writtenOff:written,remaining:null});continue}
+   const remaining=written?0:qty-amount;
+   if(remaining>0)all=false;
    if(written||amount>0)partial=true;
+   remainingPieces+=remaining;models.push({productId:pid,ordered:qty,billed:amount,writtenOff:written,remaining});
   }
-  out.set(id,{hide:all&&!ambiguous,reason:ambiguous?'review':all?'covered':partial?'partial':'open'});
+  if(!Number.isSafeInteger(remainingPieces))ambiguous=true;
+  out.set(id,{hide:all&&!ambiguous,reason:ambiguous?'review':all?'covered':partial?'partial':'open',models,remainingPieces:ambiguous?null:remainingPieces});
  }
  return out;
 }
 function organizeMerchandise9755(){
  const host=document.getElementById('openCutOrdersTable');if(!host)return;
- const restore=()=>{Array.from(host.querySelectorAll('tbody tr')).forEach(row=>setFilterVisible9709(row,true));document.getElementById('hlgbMerchandiseEvidence9755')?.remove();const cards=document.getElementById('cutSummaryCards');const card=Array.from(cards?.querySelectorAll?.('.card')||[]).find(c=>norm(c.querySelector('small')?.textContent)==='mercadoria sem nota pronta');for(const node of [card?.querySelector('strong'),card?.querySelector('div')])if(node?.hasAttribute('data-hlgb-merch-original9755')){node.textContent=node.getAttribute('data-hlgb-merch-original9755');node.removeAttribute('data-hlgb-merch-original9755')}};
+ const restore=()=>{host.querySelectorAll('[data-hlgb-merch-detail9772]').forEach(n=>n.remove());Array.from(host.querySelectorAll('tbody tr')).forEach(row=>setFilterVisible9709(row,true));document.getElementById('hlgbMerchandiseEvidence9755')?.remove();const cards=document.getElementById('cutSummaryCards');const card=Array.from(cards?.querySelectorAll?.('.card')||[]).find(c=>norm(c.querySelector('small')?.textContent)==='mercadoria sem nota pronta');for(const node of [card?.querySelector('strong'),card?.querySelector('div')])if(node?.hasAttribute('data-hlgb-merch-original9755')){node.textContent=node.getAttribute('data-hlgb-merch-original9755');node.removeAttribute('data-hlgb-merch-original9755')}};
  if(window.__HLGB_AUTH_READY!==true||typeof canOpenPage!=='function'||!canOpenPage('corte')||typeof window.hlgbCanonicalProjectionInvoices!=='function'||typeof window.hlgbWriteoffIntegrity9391?.pairIndex!=='function'){restore();return}
  let evidence;try{const invoices=window.hlgbCanonicalProjectionInvoices(),pairs=window.hlgbWriteoffIntegrity9391.pairIndex();if(!Array.isArray(invoices)||!(pairs instanceof Set)){restore();return}evidence=merchandiseEvidence9755(arr('orders'),invoices,pairs)}catch(_){restore();return}
  // The actual legacy table puts its TH header in an implicit TBODY.
@@ -479,14 +486,23 @@ function organizeMerchandise9755(){
   identified.push({row,id:ids.size===1?[...ids][0]:''});
  }
  if(identified.some(x=>!x.id)||new Set(identified.map(x=>x.id)).size!==identified.length){restore();return}
- const orders=new Map(arr('orders').filter(o=>o&&o.id!=null).map(o=>[sid(o.id),o]));
- let hidden=0,qty=0,value=0,known=true,review=0;
- for(const {row,id} of identified){const e=evidence.get(id),hide=e?.hide===true;setFilterVisible9709(row,!hide);if(hide){hidden++;continue}if(e?.reason==='review'||!e)review++;const o=orders.get(id);let n;try{n=typeof qtyOfOrder==='function'?Number(qtyOfOrder(o)):Number(o?.qty??o?.totalQty)}catch(_){n=NaN}
- const amount=Number(o?.total);if(!Number.isFinite(n)||!Number.isFinite(amount)||o?.total==null){known=false}else{qty+=n;value+=amount}}
+ const products=cutIndex9709().products;
+ let hidden=0,qty=0,known=true,review=0;
+ for(const {row,id} of identified){
+  row.querySelectorAll('[data-hlgb-merch-detail9772]').forEach(n=>n.remove());
+  const e=evidence.get(id),hide=e?.hide===true;setFilterVisible9709(row,!hide);if(hide){hidden++;continue}
+  if(e?.reason==='review'||!e){review++;known=false}
+  else if(Number.isSafeInteger(e.remainingPieces))qty+=e.remainingPieces;else known=false;
+  const hostCell=row.lastElementChild;if(!hostCell)continue;
+  const details=document.createElement('details');details.dataset.hlgbMerchDetail9772='1';
+  const summary=document.createElement('summary');summary.textContent=e?.remainingPieces==null?'Conferir vínculo e saldo da nota':e.remainingPieces+' peças do pedido sem cobertura de nota/baixa';details.appendChild(summary);
+  for(const m of e?.models||[]){const p=document.createElement('p');p.className='sub';p.textContent=(products.get(m.productId)?.name||m.productId)+' · pedido '+m.ordered+' pç · nota '+m.billed+' pç · '+(m.writtenOff?'baixa registrada':m.remaining===null?'divergência':'sem cobertura '+m.remaining+' pç');details.appendChild(p)}
+  const note=document.createElement('p');note.className='sub';note.textContent='Saldo do pedido, não quantidade fisicamente pronta. Nenhuma baixa automática.';details.appendChild(note);hostCell.appendChild(details);
+ }
  const cards=document.getElementById('cutSummaryCards');const card=Array.from(cards?.querySelectorAll?.('.card')||[]).find(c=>norm(c.querySelector('small')?.textContent)==='mercadoria sem nota pronta');
- if(card){const n=card.querySelector('strong'),v=card.querySelector('div');for(const node of [n,v])if(node&&!node.hasAttribute('data-hlgb-merch-original9755'))node.setAttribute('data-hlgb-merch-original9755',node.textContent);if(n)n.textContent=known?qty.toLocaleString('pt-BR')+' peças':'Conferir quantidade';if(v)v.textContent=known?value.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Conferir valor'}
+ if(card){const n=card.querySelector('strong'),v=card.querySelector('div');for(const node of [n,v])if(node&&!node.hasAttribute('data-hlgb-merch-original9755'))node.setAttribute('data-hlgb-merch-original9755',node.textContent);if(n)n.textContent=known?qty.toLocaleString('pt-BR')+' pç sem cobertura':qty.toLocaleString('pt-BR')+' pç identificadas + revisão';if(v)v.textContent='Valor pendente de conciliação'}
  let info=document.getElementById('hlgbMerchandiseEvidence9755');if(!info){info=document.createElement('p');info.id='hlgbMerchandiseEvidence9755';info.className='sub';host.insertAdjacentElement('afterend',info)}
- info.textContent=(identified.length-hidden)+' pedidos na lista · '+hidden+' com todos os modelos cobertos por nota ou baixa local · '+review+' para conferência. Pedidos parciais permanecem; totais representam o pedido inteiro, não saldo. Nenhuma baixa foi realizada.';
+ info.textContent=(identified.length-hidden)+' pedidos na lista · '+hidden+' com todos os modelos cobertos por nota ou baixa local · '+review+' para conferência. Pedidos parciais permanecem com saldo por modelo. Quantidades representam peças do pedido sem cobertura, não estoque pronto; valor não inferido. Nenhuma baixa foi realizada.';
 }
 function secondaryPanels(){
   const page=document.getElementById('corte');if(!page)return [];
