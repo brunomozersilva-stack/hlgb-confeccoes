@@ -107,6 +107,20 @@ const edit={
  assert.equal(api.receiptGroups().find(x=>x.id==='pending').total,65);
  assert.equal(api.correctionRemainingV9590(credit),5);
  const afterCredit=writes.length;
+ // A missing source link can only be recovered for the original amount/target.
+ const snapshot=deep(db.factionPayments),srcRow=snapshot.find(x=>x.id==='src');
+ const correction=srcRow.manualCorrectionsV9590.find(x=>x.id===credit.id);
+ correction.applications=[];
+ assert.equal(api.compensationProof9811(snapshot,'source',credit.id,'pending',1000).recoveryOnly,true);
+ const newRow=row('new','newGroup',20);snapshot.push(newRow);
+ assert.match(api.compensationProof9811(snapshot,'source',credit.id,'newGroup',500).reason,/sem vínculo/);
+ correction.applications=[{id:'fm90-app-'+credit.id+'-pending',targetGroupId:'pending',amount:10}];
+ assert.equal(api.compensationProof9811(snapshot,'source',credit.id,'newGroup',500).ok,true);
+ newRow.factionMasterId=2;assert.match(api.compensationProof9811(snapshot,'source',credit.id,'newGroup',500).reason,/Identidade/);newRow.factionMasterId=1;
+ correction.applications[0].amount=9;assert.match(api.compensationProof9811(snapshot,'source',credit.id,'newGroup',500).reason,/sem destino/);correction.applications[0].amount=10;
+ const duplicateApp=deep(snapshot.find(x=>x.id==='p1').manualApplicationsV9590[0]);snapshot.find(x=>x.id==='p2').manualApplicationsV9590=[duplicateApp];
+ assert.match(api.compensationProof9811(snapshot,'source',credit.id,'newGroup',500).reason,/duplicada/);
+ assert.equal(writes.length,afterCredit);
  await api.applyCorrectionV9590('source',credit.id,'pending',10);
  assert.equal(writes.length,afterCredit,'reapply same correction-to-target must be idempotent');
  await api.applyCorrectionV9590('source',under.id,'pending',7);
