@@ -90,7 +90,9 @@ function ensureRequiredCutActions9820(row,c,model){
  const host=model?(Array.from(row.querySelectorAll('.toolbar')).find(n=>!n.closest('details'))||row):Array.from(row.children).filter(x=>!x.hasAttribute('data-hlgb-cut-summary9761')).at(-1);
  if(!host)return;
  let actions=existing[0];if(!actions){actions=document.createElement('div');actions.dataset.hlgbRequiredCut9820=sid(c.id);actions.className='toolbar';actions.style.cssText='display:flex;flex-wrap:wrap;gap:6px';host.appendChild(actions);
- for(const [label,fn] of [['Checklist completo da peça',openFullCutChecklist9820],['Imprimir folha de pedido do corte',printRequiredCut9820]]){const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=label;button.onclick=()=>{if(!row.isConnected||cutIdentity9709(row)!==sid(c.id))return;fn(c.id)};actions.appendChild(button)}
+ const required=[['Checklist completo da peça',openFullCutChecklist9820]];
+ if(!row.querySelector('.hlgb-native-cut-print9822,.hlgbSheetMaterials9523'))required.push(['Imprimir folha de pedido do corte',printRequiredCut9820]);
+ for(const [label,fn] of required){const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=label;if(fn===printRequiredCut9820)button.dataset.hlgbPrintRequired9822='1';button.onclick=()=>{if(!row.isConnected||cutIdentity9709(row)!==sid(c.id))return;fn(c.id)};actions.appendChild(button)}
  }
  existing.slice(1).forEach(x=>x.remove());
 }

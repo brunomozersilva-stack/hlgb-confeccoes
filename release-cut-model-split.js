@@ -138,11 +138,11 @@ function gradeMini(c,o,ambiguous){
  const done=isFinal(c),grade=(Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:c.originalGrade)||[];
  const sizes=[...new Set(grade.map(g=>g.size).filter(Boolean))],colors=[...new Set(grade.map(g=>g.color||'-'))];
  const rows=colors.map(color=>'<tr><td>'+escSafe(color)+'</td>'+sizes.map(sz=>'<td>'+q(grade.filter(g=>String(g.color||'-')===String(color)&&String(g.size||'')===String(sz)).reduce((a,g)=>a+q(g.qty),0))+'</td>').join('')+'</tr>').join('');
- const print=typeof printCuttingSheet==='function'?'<button type="button" class="secondary" onclick="printCuttingSheet(\''+escSafe(o.id)+'\',\''+escSafe(c.id)+'\')">Imprimir ficha</button>':'';
+ const print='<button type="button" class="secondary hlgb-native-cut-print9822" onclick="hlgbPrintSplitCut9822(\''+escSafe(c.id)+'\')">Imprimir folha de pedido do corte</button>';
  const edit=done?'':'<button type="button" class="secondary hlgbAdjustSplitGradeBtn" '+(ambiguous?'disabled title="Corte duplicado: conferência necessária" ':'')+'onclick="hlgbOpenSplitGradeAdjust(\''+escSafe(c.id)+'\')">Ajustar grade</button>';
- return '<div data-hlgb-grade-group9711="1" style="margin-top:6px;min-width:0"><div class="toolbar">'+edit+'</div><details><summary>'+(done?'📐 Ver grade realmente cortada':'📐 Grade do modelo')+'</summary>'+
+ return '<div data-hlgb-grade-group9711="1" style="margin-top:6px;min-width:0"><div class="toolbar">'+edit+print+'</div><details><summary>'+(done?'📐 Ver grade realmente cortada':'📐 Grade do modelo')+'</summary>'+
  (sizes.length?'<div style="overflow:auto"><table><thead><tr><th>Cor</th>'+sizes.map(sz=>'<th>'+escSafe(sz)+'</th>').join('')+'</tr></thead><tbody>'+rows+'</tbody></table></div>':'<div class="sub">Grade não disponível para conferência.</div>')+
- '<div class="toolbar">'+print+'</div></details></div>';
+ '</details></div>';
 }
 // v95.19: somente visual; nenhum status é alterado ou removido do banco de dados.
 let showCompletedModels9519=false;
@@ -326,6 +326,23 @@ function installTrackingHook(){
  const filter=window.filterCutTracking9173;
  if(typeof filter==='function'&&!filter.__hlgbModelIndependent9412){const w=function(){const r=filter.apply(this,arguments);setTimeout(decorateTrackingSelection,0);return r};w.__hlgbModelIndependent9412=true;w.__original=filter;window.filterCutTracking9173=w}
 }
+// Native action is always rendered outside the collapsed grade. Existing
+// Corte access permits printing the same sheet formerly available in details.
+function printSplitCut9822(id){
+ if(window.__HLGB_AUTH_READY!==true||typeof canOpenPage!=='function'||canOpenPage('corte')!==true){alert('Acesso ao Corte não confirmado.');return false}
+ const live=x=>x&&!x.deletedAt&&!x.deleted_at&&x.deleted!==true&&!x._deleted&&!norm(x.status).includes('cancel');
+ const rows=arr('cuts').filter(x=>live(x)&&sid(x.id)===sid(id));
+ const c=rows[0];if(rows.length!==1||!c.modelSplitChildV1||!c.productId||competingModelCuts(c).length>1){alert('Confira a identidade do corte antes de imprimir.');return false}
+ const orders=arr('orders').filter(x=>live(x)&&sid(x.id)===sid(c.orderId));
+ if(orders.length!==1){alert('Pedido original não localizado com segurança.');return false}
+ try{
+  const api=window.hlgbCutterSheetV9523;
+  if(typeof api?.printSheet==='function')return api.printSheet(orders[0],c);
+  if(typeof window.printCuttingSheet==='function')return window.printCuttingSheet(c.orderId,c.id);
+ }catch(e){alert('Não foi possível abrir a folha: '+sid(e?.message||e));return false}
+ alert('Rotina de impressão ainda indisponível. Atualize a página.');return false
+}
+window.hlgbPrintSplitCut9822=printSplitCut9822;
 window.hlgbToggleCutCompleted9519=toggleCompletedModels9519;
 window.hlgbPostCutMaterialsPreview9519=postCutMaterialsPreview9519;
 window.hlgbSplitOrderCuts=confirmSplit;
