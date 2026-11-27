@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/assistente/evidence-query-v9655.js'),planning=require('../hlgb-modules/producao/production-planning-v9661.js');
+let active=true,denied=new Set(),reads=0;const deps={auth:()=>active,can:p=>!denied.has(p),today:()=> '2026-11-23',planningApi:planning,read:()=>{reads++;throw Error('no commercial reads')}};
+const raw={reviewed:true,weeklyGoal:'1000',buffer:'10',pieces:'500',dueDate:'2026-12-04',receipt:'5000,00',paymentDays:'0',cost:'3000,00',costDate:'2026-11-24',opening:'4000',reserve:'2000',delay:'14',queue:'2026-11-27 | 500',cash:'2026-11-24 | saída | 1000',closed:''},before=JSON.stringify(raw);
+const x=api.simulateOrder(raw,deps);assert.equal(x.state,'observed');assert.equal(x.canWrite,false);assert.match(x.rows[0].detail,/900 peças/);assert.match(x.rows[1].detail,/Cabe na data solicitada/);assert.match(x.rows[2].detail,/À vista/);assert.match(x.rows[4].detail,/2\.000,00/);assert.match(x.message,/não autoriza aceite/);assert.equal(reads,0);
+const term=api.simulateOrder({...raw,paymentDays:'30'},deps);assert.match(term.rows[2].detail,/2027-01-03/);
+const late=api.simulateOrder({...raw,pieces:'5000',dueDate:'2026-11-24'},deps);assert.match(late.rows[1].detail,/Não cabe na data solicitada/);
+for(const bad of [{reviewed:false},{opening:''},{queue:'bad'},{cash:'2026-11-24 | saída | -10'},{closed:'2026-02-30'},{paymentDays:'-1'},{dueDate:'2027-11-24'}])assert.equal(api.simulateOrder({...raw,...bad},deps).state,'unsupported');
+denied.add('folhaPagamento');assert.equal(api.simulateOrder(raw,deps).state,'forbidden');denied.clear();
+assert.equal(api.simulateOrder(raw,{...deps,today:()=>{active=false;return '2026-11-23'}}).state,'forbidden');active=true;
+assert.equal(JSON.stringify(raw),before);assert.equal(reads,0);console.log('PASS manual order scenario, real cores, no double inclusion or commercial writes');

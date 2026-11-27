@@ -25,6 +25,31 @@ function mount(){
  }
  host.append(b,help,out);input.closest('.hlgb-assistant-input')?.insertAdjacentElement('afterend',host);if(!host.isConnected)input.insertAdjacentElement('afterend',host);
  b.onclick=()=>{out.replaceChildren();if(!active())return;const x=api.ask(input.value,deps);if(!active())return;const p=document.createElement('p');p.textContent=x.message;out.appendChild(p);for(const row of x.rows){const item=document.createElement('p');item.textContent=row.label+' · '+row.detail+' · Origem: '+row.source+' / '+row.id;out.appendChild(item)}};
+ // Manual, ephemeral scenario; no local storage or database writes.
+ if(['pedidos','corte','producao','faccoes','produtos','hubFinanceiro','folhaPagamento'].every(can)){
+  const details=document.createElement('details'),heading=document.createElement('summary');heading.textContent='Simular novo pedido — prazo e caixa';details.appendChild(heading);
+  const info=document.createElement('p');info.textContent='Cenário manual de até 13 semanas. Informe capacidade de saída final, carteira restante e caixa revisados; não é aceite nem promessa de entrega.';details.appendChild(info);
+  const fields=Object.create(null);
+  const field=(key,label,type,placeholder)=>{const wrap=document.createElement('label');wrap.style.cssText='display:block;margin:6px 0;min-width:0';const title=document.createElement('span');title.textContent=label;const el=document.createElement(type==='textarea'?'textarea':'input');if(type!=='textarea')el.type=type;el.style.cssText='display:block;width:100%;max-width:100%;box-sizing:border-box';if(placeholder)el.placeholder=placeholder;wrap.append(title,el);details.appendChild(wrap);fields[key]=el;return el};
+  field('weeklyGoal','Capacidade semanal de saída final (peças)','text','1000');
+  field('buffer','Margem de segurança (%)','text','10');
+  field('pieces','Peças do novo pedido','text','500');
+  field('dueDate','Data solicitada','date');
+  field('receipt','Valor total a receber (R$)','text','5000,00');
+  field('paymentDays','Prazo em dias corridos após entrega prevista (0 = à vista)','text','0');
+  field('cost','Custo adicional total estimado (R$)','text','3000,00');
+  field('costDate','Data de pagamento do custo estimado','date');
+  field('opening','Saldo inicial de caixa revisado (R$)','text','10000,00');
+  field('reserve','Reserva mínima desejada (R$)','text','2000,00');
+  field('delay','Atraso adicional de recebimentos no cenário de estresse (dias)','text','14');
+  field('queue','Carteira existente restante: uma linha por compromisso, AAAA-MM-DD | peças (vazio somente se não houver)','textarea','2026-12-04 | 300');
+  field('cash','Compromissos financeiros existentes: AAAA-MM-DD | entrada ou saída | valor em R$ (vazio somente se não houver)','textarea','2026-12-04 | saída | 2000,00');
+  field('closed','Feriados e dias sem expediente: uma data AAAA-MM-DD por linha; sábados e domingos já excluídos','textarea','2026-12-25');
+  const check=document.createElement('input');check.type='checkbox';const checkLabel=document.createElement('label');checkLabel.append(check,document.createTextNode(' Revisei as premissas; custo e recebimento do novo pedido não constam dos compromissos existentes.'));details.appendChild(checkLabel);
+  const submit=document.createElement('button');submit.type='button';submit.className='secondary';submit.textContent='Calcular cenário';const answer=document.createElement('div');answer.setAttribute('aria-live','polite');details.append(submit,answer);host.appendChild(details);
+  const invalidate=()=>{answer.replaceChildren();check.checked=false};for(const el of Object.values(fields))el.addEventListener('input',invalidate);check.addEventListener('change',()=>answer.replaceChildren());
+  submit.onclick=()=>{answer.replaceChildren();if(!active())return;const raw=Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,v.value]));const x=api.simulateOrder({...raw,reviewed:check.checked},deps);if(!active())return;const p=document.createElement('p');p.textContent=x.message;answer.appendChild(p);for(const row of x.rows){const line=document.createElement('p');line.textContent=row.label+' · '+row.detail;answer.appendChild(line)}};
+ }
  if(!boundInputs.has(input)){boundInputs.add(input);input.addEventListener('input',()=>document.getElementById('hlgbEvidenceQuery9655')?.querySelector('[data-evidence-output]')?.replaceChildren(),{passive:true})}
 }
 if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeout(mount,0),true);document.addEventListener('focusin',mount);root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();mount()});document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)mount()});}
@@ -57,12 +82,44 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   }
   return allowed()?result('observed',message,rows):result('forbidden','Sessão ou acesso alterado.');
  }
+ function simulateOrder(raw,deps){
+  const areas=['pedidos','corte','producao','faccoes','produtos','hubFinanceiro','folhaPagamento'],allowed=()=>deps.auth()===true&&areas.every(p=>deps.can(p)===true);
+  if(!allowed())return result('forbidden','Simulação não autorizada para todos os módulos necessários.');
+  if(raw?.reviewed!==true)return result('unsupported','Revise e confirme as premissas antes de simular.');
+  const date=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+  const integer=(v,max)=>typeof v==='string'&&/^\d{1,8}$/.test(v.trim())&&Number(v)<=max?Number(v):null;
+  const cents=v=>{if(typeof v!=='string'||!/^[-]?\d{1,9}(?:[.,]\d{1,2})?$/.test(v.trim()))return null;const n=Math.round(Number(v.replace(',','.'))*100);return Number.isSafeInteger(n)?n:null};
+  const lines=v=>typeof v==='string'&&v.length<=50000?v.split(/\r?\n/).map(x=>x.trim()).filter(Boolean):null;
+  try{
+   const start=deps.today(),planApi=deps.planningApi;if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+   if(!date(start)||typeof planApi?.deliveryCapacityPlan!=='function'||typeof planApi?.newOrderDecision!=='function')return result('unavailable','Planejador indisponível.');
+   const weeklyGoal=integer(raw.weeklyGoal,10000000),pieces=integer(raw.pieces,10000000),bufferPercent=integer(raw.buffer,90),paymentDays=integer(raw.paymentDays,365),delayDays=integer(raw.delay,91),receiptCents=cents(raw.receipt),costCents=cents(raw.cost),openingCents=cents(raw.opening),reserveCents=cents(raw.reserve);
+   const queue=lines(raw.queue),cash=lines(raw.cash),closedDates=lines(raw.closed);
+   if(!weeklyGoal||!pieces||bufferPercent===null||paymentDays===null||delayDays===null||!receiptCents||receiptCents<0||costCents===null||costCents<0||openingCents===null||reserveCents===null||reserveCents<0||!date(raw.dueDate)||raw.dueDate<start||!date(raw.costDate)||raw.costDate<start||!queue||!cash||!closedDates||queue.length>500||cash.length>500||closedDates.length>366||closedDates.some(d=>!date(d)))return result('unsupported','Informe datas e valores válidos, sem separador de milhar. Confira todos os campos.');
+   const D=86400000,at=Date.parse(start+'T00:00:00Z'),end=at-((new Date(at).getUTCDay()+6)%7)*D+90*D,cashEnd=at+90*D,endDate=new Date(end).toISOString().slice(0,10),cashEndDate=new Date(cashEnd).toISOString().slice(0,10);
+   if(raw.dueDate>endDate||raw.costDate>cashEndDate)return result('unsupported','Prazo ou custo fora das 13 semanas simuladas.');
+   const orders=[],entries=[];
+   for(const [i,line] of queue.entries()){const a=line.split('|').map(x=>x.trim()),q=integer(a[1],10000000);if(a.length!==2||!date(a[0])||!q)return result('unsupported','Carteira: confira linha '+(i+1)+'.');orders.push({key:'manual-queue-'+i,client:'Compromisso '+(i+1),dueDate:a[0],pieces:q,paymentMode:'unknown'});}
+   for(const [i,line] of cash.entries()){const a=line.split('|').map(x=>x.trim()),v=cents(a[2]),direction=norm(a[1])==='entrada'?'in':norm(a[1])==='saida'?'out':null;if(a.length!==3||!date(a[0])||a[0]<start||!direction||!v||v<0)return result('unsupported','Caixa: confira linha '+(i+1)+'.');entries.push({reference:'manual-cash-'+i,date:a[0],direction,amountCents:v});}
+   if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+   const plan=planApi.deliveryCapacityPlan({start,asOf:start,weeks:13,weeklyGoal,bufferPercent,history:[],orders,closedDates,coverageConfirmed:false,newPieces:pieces},true);
+   if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+   const x=planApi.newOrderDecision(plan,{start,openingCents,reserveCents,delayDays,entries,reviewed:true,newCostsAndReceiptNotIncluded:true,proposal:{pieces,dueDate:raw.dueDate,receiptCents,paymentMode:paymentDays===0?'cash':'term',paymentDays,costs:[{reference:'manual-new-cost',date:raw.costDate,amountCents:costCents}]}},true);
+   if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+   if(x?.state!=='local-order-decision')return result('unavailable','Não foi possível calcular com estas premissas. Nenhum pedido foi gravado.');
+   const fmt=n=>Number.isSafeInteger(n)?n.toLocaleString('pt-BR'):'Não confirmado',money=n=>Number.isSafeInteger(n)?(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Não confirmado',receiptDate=x.completion?new Date(Math.max(Date.parse(x.completion+'T00:00:00Z'),Date.parse(raw.dueDate+'T00:00:00Z'))+paymentDays*D).toISOString().slice(0,10):null;
+   const rows=[{source:'deliveryCapacityPlan',id:start,label:'Capacidade semanal após margem',detail:fmt(plan.weeklyTarget)+' peças; carteira informada tem '+fmt(plan.late)+' peças em atraso simulado'},{source:'newOrderDecision',id:start,label:'Prazo simulado',detail:(x.completion||'Não cabe no horizonte')+' · '+(x.withinDue?'Cabe na data solicitada':'Não cabe na data solicitada')+' · saldo de capacidade até o prazo '+fmt(x.freeByDue)+' peças'},{source:'newOrderDecision',id:start,label:'Condição de recebimento',detail:(paymentDays===0?'À vista':paymentDays+' dias')+' · '+(receiptDate?(receiptDate>cashEndDate?receiptDate+' (fora do horizonte financeiro)':receiptDate):'Recebimento não incluído')},{source:'newOrderDecision',id:start,label:'Caixa sem novo pedido',detail:'Maior falta de reserva '+money(x.baseline.maximumGapCents)},{source:'newOrderDecision',id:start,label:'Caixa com novo pedido',detail:'Maior falta de reserva '+money(x.withOrder.maximumGapCents)+' · variação '+money(x.extraReserveGapCents)},{source:'newOrderDecision',id:start,label:'Estresse de recebimentos',detail:'Maior falta de reserva '+money(x.withOrderStress.maximumGapCents)+' · variação '+money(x.extraStressGapCents)},{source:'newOrderDecision',id:start,label:'Contribuição indicativa',detail:money(x.indicativeContributionCents)+' antes de custos não informados; não é lucro líquido'}];
+   if(x.withOrder.outside||x.withOrderStress.outside)rows.push({source:'newOrderDecision',id:start,label:'Atenção',detail:'Há lançamentos fora do horizonte em um ou mais cenários.'});
+   return result('observed','Cenário manual, carteira e caixa não sincronizados nem confirmados; não autoriza aceite. '+(!x.withinDue?'Revisar prazo ou quantidade. ':'')+(x.extraReserveGapCents>0||x.extraStressGapCents>0?'Revisar risco de caixa e condição de pagamento. ':'')+'Sem gravação.',rows);
+  }catch(_){return result('unavailable','Não foi possível conferir a simulação. Nenhuma alteração foi feita.')}
+ }
  function ask(raw,deps){
   if(deps.auth()!==true)return result('forbidden','Entre no programa para consultar.');
   const q=String(raw??'').trim();if(!q||q.length>180)return result('unsupported','Informe uma consulta curta.');
   const m=q.match(/^(?:(?:status|andamento|situa[cç][aã]o)(?: do)? |como est[aá] (?:o )?)?pedido\s*#?\s*([A-Za-z0-9_-]{1,80})\??$/i),product=q.match(/^(?:hist[oó]rico(?: do)? produto|produto|modelo)\s+(.+)$/i),material=q.match(/^(?:material|mat[eé]ria.prima)\s+(.+)$/i),settlement=q.match(/^acertos?\s+(fac[cç][aã]o|cliente|funcion[aá]rio)\s+(.+)$/i),finance=/^(?:financeiro semana|previs[aã]o financeira semanal|como est[aá] o financeiro)\??$/i.test(q);
   const permitted=p=>deps.auth()===true&&deps.can(p)===true;
   try{
+   if(/^(?:simular novo pedido|avaliar novo pedido|simula[cç][aã]o de pedido)\??$/i.test(q))return result('unsupported','Abra “Simular novo pedido — prazo e caixa” na consulta com evidências e revise as premissas.');
    if(/^(?:resumo opera[cç][aã]o|resumo gerencial|vis[aã]o geral da opera[cç][aã]o)\??$/i.test(q))return operationOverview(deps,true);
    if(/^(?:produ[cç][aã]o hist[oó]rico|hist[oó]rico (?:da )?produ[cç][aã]o|m[eé]dia (?:de )?produ[cç][aã]o)\??$/i.test(q))return operationOverview(deps,false);
    if(material){
@@ -135,5 +192,5 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
    return result('unsupported','Use “pedido 125”, “histórico produto Camisola”, “material malha”, “acertos facção Roseli” “financeiro semana”, “produção histórico” ou “resumo operação”. Para as demais funções, utilize o Assistente original.');
   }catch(_){return result('unavailable','Não foi possível conferir a consulta. Nenhuma alteração foi feita.')}
  }
- return {ask};
+ return {ask,simulateOrder};
 })());

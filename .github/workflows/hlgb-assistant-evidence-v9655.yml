@@ -6,6 +6,7 @@ on:
       - 'hlgb-modules/engenharia/search-inventory-v9655.json'
       - 'tests/hlgb-assistant-evidence-v9655.cjs'
       - 'tests/hlgb-assistant-operation-overview-v9794.cjs'
+      - 'tests/hlgb-assistant-order-simulation-v9795.cjs'
       - 'hlgb-modules/producao/production-planning-v9661.js'
       - 'tests/hlgb-search-inventory-v9655.cjs'
       - 'app-stable3.html'
@@ -25,5 +26,6 @@ jobs:
         with: {node-version: '22'}
       - run: node tests/hlgb-assistant-evidence-v9655.cjs
       - run: node tests/hlgb-assistant-operation-overview-v9794.cjs
+      - run: node tests/hlgb-assistant-order-simulation-v9795.cjs
       - run: node tests/hlgb-search-inventory-v9655.cjs
       - run: node tests/hlgb-integration-v9651.cjs
