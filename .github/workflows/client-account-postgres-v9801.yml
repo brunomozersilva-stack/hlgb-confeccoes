@@ -36,3 +36,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/contract.sql
       - name: Verify two simultaneous sessions and exact replay
         run: bash tests/client-account-postgres-v9801/concurrency.sh
+      - name: Verify noncash opening and adjustment history
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/balance-events.sql
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/balance-events-contract.sql
