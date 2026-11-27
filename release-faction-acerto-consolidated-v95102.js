@@ -138,9 +138,24 @@
    masters:Array.isArray(d.factionMasters)?d.factionMasters:[],
    manualGroups:typeof api?.receiptGroups==='function'?api.receiptGroups():[]};
  }
+ function printablePending(data,key,allowed){
+  if(allowed!==true||data?.scope!=='apenas_visual_sem_baixa'||!Array.isArray(data.groups)||!Array.isArray(data.warnings))throw Error('Consulta indisponível');
+  const matches=data.groups.filter(g=>g.key===key),g=matches[0];
+  if(matches.length!==1||!g.masterId||g.identityAmbiguous||!Array.isArray(g.entries)||!g.entries.length||g.entries.length>500||g.sourceCount!==g.entries.length)throw Error('Identidade ou quantidade de registros a conferir');
+  const valid=n=>Number.isSafeInteger(n)&&n>=0,ids=new Set();let total=0,normal=0,manual=0;
+  for(const e of g.entries){const id=e.kind==='normal'?'n:'+sid(e.paymentId):'a:'+sid(e.groupId);if(!['normal','avulso'].includes(e.kind)||id.length<=2||ids.has(id)||!valid(e.amountCents)||e.amountCents===0)throw Error('Linha inválida');ids.add(id);
+   if(e.kind==='normal'){if(![e.totalCents,e.paidCents,e.discountCents].every(valid)||e.totalCents-e.paidCents-e.discountCents!==e.amountCents)throw Error('Saldo divergente');normal+=e.amountCents}else manual+=e.amountCents;total+=e.amountCents;
+  }
+  if(![total,normal,manual].every(valid)||total!==g.totalCents||normal!==g.regularCents||manual!==g.manualCents)throw Error('Totais divergentes');
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB — Conferência de acerto</title><style>@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#222;margin:0}h1{font-size:17px;margin:0 0 6px}h2{font-size:14px;margin:6px 0}p{margin:5px 0}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border-bottom:1px solid #bbb;padding:5px 3px;vertical-align:top;overflow-wrap:anywhere}th{text-align:left;background:#eee}thead{display:table-header-group}tr{break-inside:avoid}td:nth-child(n+3),th:nth-child(n+3){text-align:right}.muted{color:#555;font-size:10px}.total{font-weight:bold;border-top:2px solid #333;padding-top:6px}@media print{button{display:none}}</style></head><body><h1>HLGB Confecções — Conferência de acerto</h1><h2>'+esc(g.factionName)+' · cadastro '+esc(g.masterId)+'</h2><p>Consulta dos saldos locais disponíveis. Não é recibo, não confirma pagamento e não dá baixa.</p><p>'+g.entries.length+' lançamento(s) · '+data.warnings.length+' alerta(s) na consulta geral (registros excluídos ou a revisar).</p><table><colgroup><col style="width:43%"><col style="width:13%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:11%"></colgroup><thead><tr><th>Serviço / referência</th><th>Data de origem</th><th>Bruto</th><th>Pago</th><th>Desconto</th><th>Saldo</th></tr></thead><tbody>'+
+  g.entries.map(e=>'<tr><td>'+esc(e.label)+'<br><span class="muted">'+esc(e.kind==='normal'?'Normal · '+e.paymentId:'Avulso · '+e.groupId)+' · '+esc((e.lineIds||[]).join(', '))+'</span></td><td>'+esc(e.date||'Não informada')+'</td>'+ (e.kind==='normal'?'<td>'+money(e.totalCents)+'</td><td>'+money(e.paidCents)+'</td><td>'+money(e.discountCents)+'</td>':'<td colspan="3">Total líquido do grupo</td>')+'<td>'+money(e.amountCents)+'</td></tr>').join('')+
+  '</tbody></table><p class="total">Normal: '+money(normal)+' · Avulso: '+money(manual)+' · Saldo identificado: '+money(total)+'</p><p class="muted">As datas podem representar programação ou serviço, não data de pagamento. Avulsos têm ajustes já incorporados. Confira a origem e os alertas antes de pagar.</p><button type="button" onclick="window.print()">Imprimir / salvar PDF</button></body></html>';
+ }
+ function authorized(){try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('pagamentosFaccoes')===true&&canOpenPage('faccoes')===true}catch(_){return false}}
  let signature='';
  function render(){
   if(typeof document==='undefined')return false;
+  if(!authorized()){document.getElementById('hlgb-unified-acertos-v95102')?.remove();signature='';return false}
   const anchor=document.getElementById('factionPaymentTable');
   if(!anchor)return false;
   const data=consolidate(currentData()),json=JSON.stringify(data);
@@ -165,7 +180,7 @@
       (g.identityAmbiguous?'<div class="sub" style="color:#934">Nome duplicado: conferir identidade</div>':'')+
       '</td><td>'+g.sourceCount+' lançamento(s)</td><td>'+money(g.regularCents)+
       '</td><td>'+money(g.manualCents)+'</td><td><b>'+money(g.totalCents)+'</b></td>'+
-      '<td><details><summary>Ver itens e datas</summary>'+
+      '<td>'+(g.masterId&&!g.identityAmbiguous?'<button type="button" class="secondary" data-faction-print9777="'+esc(g.key)+'">Imprimir / PDF do acerto</button>':'')+'<details><summary>Ver itens e datas</summary>'+
       g.entries.map(e=>'<div style="padding:5px;border-bottom:1px solid #ddd">'+
        esc(e.kind==='avulso'?'Avulso':'Normal')+' · '+esc(e.label)+' · '+
        esc(e.date||'Sem data')+' · Saldo '+money(e.amountCents)+(e.kind==='normal'?' · Bruto '+money(e.totalCents)+' · Pago '+money(e.paidCents)+' · Desconto '+money(e.discountCents):'')+'<br><small>'+
@@ -173,6 +188,11 @@
       '</details></td></tr>').join('')+'</tbody></table></div>':
     '<div class="sub">Nenhum acerto pendente nos dados disponíveis neste computador.</div>')+
    '<p class="sub">A conferência da mesma pessoa usa o cadastro e o nome normalizado. Se houver homônimos ou pagamento parcial, revise os registros antes de pagar. Para registrar uma única saída bancária, será necessário homologar uma transação financeira unificada com confirmação remota; as baixas atuais continuam separadas e protegidas.</p>';
+  host.querySelectorAll('[data-faction-print9777]').forEach(b=>b.onclick=()=>{
+   if(!authorized()||!host.isConnected)return;
+   const fresh=consolidate(currentData());if(JSON.stringify(fresh)!==signature){render();return alert('Os acertos mudaram. Confira os valores e solicite a impressão novamente.')}
+   let w;try{const html=printablePending(fresh,b.dataset.factionPrint9777,true);w=window.open('','_blank');if(!w)return alert('Permita pop-ups para imprimir.');if(!authorized()){w.close();return}w.opener=null;w.document.open();w.document.write(html);w.document.close();w.focus()}catch(_){try{w?.close()}catch(e){}alert('Relatório indisponível. Confira a identidade e os saldos.')}
+  });
   return true;
  }
  function install(){return render()}
@@ -180,6 +200,7 @@
   [0,600,1800].forEach(ms=>setTimeout(install,ms));
   try{window.hlgbAfterLogin?.(()=>setTimeout(install,300),0)}catch(e){}
   window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,250));
+  window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgb-unified-acertos-v95102')?.remove();signature=''});
  }
- return Object.freeze({version:VERSION,consolidate,currentData,render,install});
+ return Object.freeze({version:VERSION,consolidate,printablePending,currentData,render,install});
 });
