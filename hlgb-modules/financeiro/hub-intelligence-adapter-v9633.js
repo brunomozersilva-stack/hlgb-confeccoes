@@ -100,6 +100,38 @@
   if(missing)add('review-coverage',{missingWeeks:missing,totalWeeks:history.weeks.length},'Conferir semanas sem registros; ausência de lançamento não comprova gasto zero.');
   return {state:'partial-local',asOf,targetWeek:target,actions,aboveRangeCount:unusual.length,officialDiagnosis:null,canPublish:false};
  }
+ // User-supplied balance is a scenario input, never a verified bank balance.
+ function reserveScenario(source,input,allowed){
+  const no=state=>({state,canPublish:false,bankConfirmed:false,officialFundingCents:null});
+  if(allowed!==true)return no('permission');
+  if(source?.state!=='partial-local'||source.asOf!==input?.asOf||!date(input.asOf)||!Array.isArray(source.entries)||!Array.isArray(source.overdueReceipts)||source.entries.length>100000||source.overdueReceipts.length>100000)return no('source-unavailable');
+  const limit=Math.floor(Number.MAX_SAFE_INTEGER/100000),valid=n=>Number.isSafeInteger(n)&&Math.abs(n)<=limit;
+  const opening=input.openingCents,reserve=input.reserveCents,delay=input.delayDays;
+  if(input.reviewed!==true||!valid(opening)||!valid(reserve)||reserve<0||!Number.isInteger(delay)||delay<0||delay>91)return no('parameters-unreviewed');
+  const seen=new Set(),entries=[];
+  for(const e of source.entries){
+   if(typeof e.reference!=='string'||!e.reference.startsWith('hub:')||seen.has(e.reference)||!date(e.date)||e.date<input.asOf||!['in','out'].includes(e.direction)||!valid(e.amountCents)||e.amountCents<=0)return no('invalid-obligation');
+   seen.add(e.reference);entries.push({...e});
+  }
+  let overdueExcludedCents=0;for(const e of source.overdueReceipts){if(typeof e.reference!=='string'||!e.reference.startsWith('hub:')||seen.has(e.reference)||!date(e.date)||e.date>=input.asOf||!valid(e.amountCents)||e.amountCents<=0)return no('invalid-overdue');seen.add(e.reference);overdueExcludedCents+=e.amountCents}
+  if(!Number.isSafeInteger(overdueExcludedCents))return no('amount-limit');
+  const start=Date.parse(input.asOf+'T00:00:00Z'),DAY=86400000;
+  const scenario=lag=>{
+   const days=Array.from({length:91},(_,i)=>({date:new Date(start+i*DAY).toISOString().slice(0,10),incomingCents:0,outgoingCents:0}));
+   let outsideIncomingCents=0,outsideOutgoingCents=0;
+   for(const e of entries){const i=(Date.parse(e.date+'T00:00:00Z')-start)/DAY+(e.direction==='in'?lag:0);
+    if(i>=91){if(e.direction==='in')outsideIncomingCents+=e.amountCents;else outsideOutgoingCents+=e.amountCents;continue}
+    days[i][e.direction==='in'?'incomingCents':'outgoingCents']+=e.amountCents;
+   }
+   let balance=opening,peak=Math.max(0,reserve-opening),first=opening<reserve?input.asOf:null;
+   for(const d of days){d.beforeReceiptsCents=balance-d.outgoingCents;balance=d.beforeReceiptsCents+d.incomingCents;d.closingCents=balance;d.lowestCents=Math.min(d.beforeReceiptsCents,balance);d.reserveGapCents=Math.max(0,reserve-d.lowestCents);peak=Math.max(peak,d.reserveGapCents);if(d.reserveGapCents>0&&!first)first=d.date;
+    if(![d.incomingCents,d.outgoingCents,d.beforeReceiptsCents,balance,peak].every(Number.isSafeInteger))throw Error('overflow');
+   }
+   const weeks=Array.from({length:13},(_,i)=>{const w=days.slice(i*7,i*7+7);return {start:w[0].date,end:w[6].date,incomingCents:w.reduce((s,d)=>s+d.incomingCents,0),outgoingCents:w.reduce((s,d)=>s+d.outgoingCents,0),closingCents:w[6].closingCents,lowestCents:Math.min(i===0?opening:days[i*7-1].closingCents,...w.map(d=>d.lowestCents)),reserveGapCents:Math.max(i===0?Math.max(0,reserve-opening):0,...w.map(d=>d.reserveGapCents))}});
+   return {weeks,firstReserveBreach:first,peakReserveGapCents:peak,outsideIncomingCents,outsideOutgoingCents};
+  };
+  try{return {...no('scenario-only'),openingCents:opening,reserveCents:reserve,delayDays:delay,base:scenario(0),delayed:scenario(delay),overdueExcludedCents,overdueExcludedCount:source.overdueReceipts.length,omitted:source.omitted??null,pendingState:source.pendingState,coverageVerified:false}}catch(_){return no('amount-limit')}
+ }
  function commitmentReview(projection){
   const horizons=[7,14,30,91];
   function scenario(days){
@@ -161,5 +193,5 @@
   if(categories.size>maxCategories)actions.push({code:'review-category-count',count:categories.size});
   return {state:'observed-incomplete',weeks:allWeeks,categories:categoryRows,categoryCount:categories.size,observedWeeks,overdue,actions,officialBaseline:null,canPublish:false};
  }
- return {inspect};
+ return {inspect,reserveScenario};
 });
