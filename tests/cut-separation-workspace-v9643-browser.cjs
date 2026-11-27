@@ -266,11 +266,11 @@
  await joint.getByLabel('Restrição de corte (ou nenhuma)',{exact:true}).fill('Nenhuma');
  await joint.getByLabel(/Conferi o mesmo lote/).check();
  await joint.getByRole('button',{name:'Registrar combinação nesta sessão'}).click();
- assert.match(await joint.locator('[data-joint-comparison9839]').innerText(),/1 combinação\(ões\) · aproveitamento ponderado 80% · 11 peças\/kg/);
+ assert.ok((await joint.locator('[data-joint-comparison9839]').innerText()).includes('1 combinação(ões) · aproveitamento ponderado 80% · 11 peças/kg'));
  await joint.getByLabel('Peso total da combinação (kg)',{exact:true}).fill('20');
  await joint.getByLabel('Peso aproveitado (kg)',{exact:true}).fill('10');
  await joint.getByRole('button',{name:'Registrar combinação nesta sessão'}).click();
- assert.match(await joint.locator('[data-joint-comparison9839]').innerText(),/2 combinação\(ões\) · aproveitamento ponderado 60%/);
+ assert.ok((await joint.locator('[data-joint-comparison9839]').innerText()).includes('2 combinação(ões) · aproveitamento ponderado 60%'));
  await joint.getByLabel('Lote de tecido',{exact:true}).fill('Outro lote');
  assert.equal(await joint.getByLabel(/Conferi o mesmo lote/).isChecked(),false);
  await joint.getByLabel(/Conferi o mesmo lote/).check();
