@@ -124,7 +124,7 @@ function normalTravetaReview9781(data,allowed){
  const payments=data.factionPayments.filter(p=>live(p)&&p.manual!==true&&['pendente','parcial'].includes(norm(p.status))&&(!p.serviceModeV9577||p.serviceModeV9577==='faccao'));
  if(payments.length>5000)return {...result,state:'source-limit'};
  for(const p of payments){
-  const row={id:sid(p.id),serviceId:sid(p.factionServiceId),model:sid(p.productName||p.description||'Modelo a conferir'),faction:sid(p.factionName||'Facção a conferir'),quantity:int(p.quantity),points:null,rateCents:null,grossCents:cents(p.value),existingDiscountCents:cents(p.discountAmount),suggestedCents:null,netCents:null,reason:''};
+  const row={id:sid(p.id),serviceId:sid(p.factionServiceId),model:sid(p.productName||p.description||'Modelo a conferir'),faction:sid(p.factionName||'Facção a conferir'),quantity:int(p.quantity),points:null,rateCents:null,grossCents:cents(p.value),existingDiscountCents:cents(p.discountAmount),suggestedCents:null,netCents:null,recordedPricingCents:null,recordedUnitDiscountCents:null,pricingSource:null,reason:''};
   const add=reason=>{row.reason=reason;result.rows.push(row)};
   if(!exact(data.factionPayments,p.id)){add('Identidade do pagamento a conferir');continue}
   const f=exact(data.factions,p.factionServiceId),prod=f&&exact(data.production,f.productionId);
@@ -141,6 +141,19 @@ function normalTravetaReview9781(data,allowed){
   const servicePayments=data.factionPayments.filter(x=>live(x)&&x.manual!==true&&sid(x.factionServiceId)===sid(f.id)&&(!x.serviceModeV9577||x.serviceModeV9577==='faccao'));
   const quantities=servicePayments.map(x=>int(x.quantity)),ids=new Set(servicePayments.map(x=>sid(x.id))),deliveryKeys=servicePayments.map(x=>sid(x.deliveryId)).filter(Boolean);
   if(quantities.some(n=>n===null||n<=0)||ids.has('')||ids.size!==servicePayments.length||new Set(deliveryKeys).size!==deliveryKeys.length||int(f.done)===null||quantities.reduce((a,b)=>a+b,0)>int(f.done)){add('Quantidade entregue ou pagamentos do serviço a conferir');continue}
+  // Stored service pricing is already the net labor rate in the delivery flow.
+  // Never treat a net title as gross and subtract the current catalog rate again.
+  const snapshotFields=['baseUnitPrice','payableUnitPrice','travetaDeductionUnit','travetaPricingVersion','travetaPricingUpdatedAt','travetaPointsPerPieceV9592','travetaPricePerPointV9592','travetaDiscountOriginV9592'];
+  if(snapshotFields.some(k=>f[k]!=null&&sid(f[k]).trim()!=='')){
+   const base=cents(f.baseUnitPrice),net=cents(f.payableUnitPrice),discount=cents(f.travetaDeductionUnit),servicePrice=cents(f.price);
+   if(!sid(f.travetaPricingVersion)||typeof f.doesTraveta!=='boolean'||[base,net,discount,servicePrice].some(v=>v===null)||base<=0||net<=0||base-discount!==net||net!==servicePrice||f.doesTraveta&&discount!==0||cents(p.unitPrice)!==net||!Number.isSafeInteger(base*row.quantity)||!Number.isSafeInteger(discount*row.quantity)){
+    add('Preço histórico da alocação ou título divergente: não aplicar novo desconto');continue;
+   }
+   row.pricingSource='service-snapshot';row.recordedPricingCents=base*row.quantity;row.recordedUnitDiscountCents=discount;
+   row.grossCents=base*row.quantity;row.netCents=net*row.quantity;row.suggestedCents=0;
+   row.points=int(f.travetaPointsPerPieceV9592);row.rateCents=cents(f.travetaPricePerPointV9592);
+   add('Valor líquido histórico já está no título. Não descontar novamente; cadastro atual não altera este preço.');continue;
+  }
   row.points=int(model.travetadas);
   if(typeof m.doesTraveta!=='boolean'){add('Definir no cadastro se a facção faz travetada');continue}
   if(m.doesTraveta===true){row.suggestedCents=0;row.netCents=row.grossCents;add('Facção faz travetada');continue}
@@ -169,7 +182,7 @@ function renderTravetaReview9781(){
  el('p','Somente simulação do cadastro atual. Não altera valores anteriores, não confirma desconto nem autoriza pagamento. Configure facção/modelo antes da próxima baixa.');
  if(review.state!=='local-review'){el('p','Consulta indisponível. Confira a sincronização.');return}
  const output=el('div','');let offset=0;
- function draw(){output.replaceChildren();for(const row of review.rows.slice(offset,offset+20)){const d=el('details','',output);el('summary',row.faction+' · '+row.model+' · '+(row.quantity??'—')+' pç',d);el('p',row.reason,d);el('p','Bruto '+money(row.grossCents)+' · desconto existente '+money(row.existingDiscountCents)+' · simulação '+money(row.suggestedCents)+' · líquido simulado '+money(row.netCents),d);el('p','Pagamento '+row.id+' · Serviço '+row.serviceId+' · pontos por peça '+(row.points??'A conferir')+' · tarifa '+money(row.rateCents),d)}
+ function draw(){output.replaceChildren();for(const row of review.rows.slice(offset,offset+20)){const d=el('details','',output);el('summary',row.faction+' · '+row.model+' · '+(row.quantity??'—')+' pç',d);el('p',row.reason,d);el('p','Bruto '+money(row.grossCents)+' · desconto registrado no título '+money(row.existingDiscountCents)+(row.pricingSource==='service-snapshot'?' · desconto já embutido por peça '+money(row.recordedUnitDiscountCents)+' · desconto adicional '+money(row.suggestedCents)+' · líquido do título '+money(row.netCents):' · simulação '+money(row.suggestedCents)+' · líquido simulado '+money(row.netCents)),d);el('p','Pagamento '+row.id+' · Serviço '+row.serviceId+' · pontos por peça '+(row.points??'A conferir')+' · tarifa '+money(row.rateCents),d)}
  for(const [label,step] of [['Anterior',-20],['Próximos',20]])if(step<0?offset>0:offset+20<review.rows.length){const b=el('button',label,output);b.type='button';b.onclick=()=>{if(!travetaReviewAllowed9781()){host.remove();return}offset+=step;draw()}}}
  draw();
 }

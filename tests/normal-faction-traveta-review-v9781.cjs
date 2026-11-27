@@ -16,3 +16,15 @@ x=clone();x.factions[0].done=99;assert.match(run(x).reason,/Quantidade entregue/
 x=clone();x.factionPayments.push({...x.factionPayments[0],id:'p2'});assert.equal(run(x).suggestedCents,null);
 assert.equal(ctx.normalTravetaReview9781(data,false).rows.length,0);assert.equal(ctx.normalTravetaReview9781(data,true).canWrite,false);assert.equal(JSON.stringify(data),before);
 console.log('PASS prospective normal traveta review, identity, quantities, no double discount, no write');
+
+// Existing service snapshot takes precedence over today's rate and points.
+const historical=clone();Object.assign(historical.factions[0],{baseUnitPrice:2,payableUnitPrice:1.85,price:1.85,travetaDeductionUnit:.15,doesTraveta:false,travetaPricingVersion:'94.24',travetaPointsPerPieceV9592:3,travetaPricePerPointV9592:.05,travetaDiscountOriginV9592:'ficha-tecnica'});
+Object.assign(historical.factionPayments[0],{unitPrice:1.85,value:185});
+historical.products[0].travetadas=8;historical.factionSettings[0].travetaUnitValue=.10;historical.factionMasters[0].doesTraveta=true;
+const saved=JSON.stringify(historical),h=run(historical);
+assert.equal(h.pricingSource,'service-snapshot');assert.equal(h.grossCents,20000);assert.equal(h.netCents,18500);assert.equal(h.suggestedCents,0);assert.equal(h.recordedUnitDiscountCents,15);assert.equal(h.points,3);assert.equal(h.rateCents,5);assert.match(h.reason,/Não descontar novamente/);assert.equal(JSON.stringify(historical),saved);
+const changed=JSON.parse(saved);changed.factionPayments[0].unitPrice=2;changed.factionPayments[0].value=200;assert.equal(run(changed).suggestedCents,null);assert.match(run(changed).reason,/histórico/);
+const partial=JSON.parse(saved);delete partial.factions[0].baseUnitPrice;assert.equal(run(partial).suggestedCents,null);
+const invalid=JSON.parse(saved);invalid.factions[0].price=1.8;assert.equal(run(invalid).suggestedCents,null);
+const noSnapshot=clone();noSnapshot.factions[0].travetaPricingVersion='94.24';assert.equal(run(noSnapshot).suggestedCents,null);
+console.log('PASS historical net price protected from second traveta deduction');
