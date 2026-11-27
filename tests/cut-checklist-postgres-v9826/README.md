@@ -21,3 +21,7 @@ Substitui bloqueio global do laboratório por advisory lock transacional por cor
 
 ## Consulta e confirmação de gravação (v98.31)
 Consulta histórica por corte/pedido/modelo e versão exata; listagem paginada, leitura em nova transação e autorização simulada. Contrato cliente em laboratório requer ACK e releitura independente idêntica, valida identidade, versão, revisão e quantidade por cor, impede confirmação de resposta inconsistente e mantém mesma chave na falha de transporte. Não carregado no app comercial; ainda requer transporte autenticado real, paridade de cálculo, integração visual e anexos.
+
+
+## Anexos por versão (v98.32)
+Laboratório bytea somente para testar conteúdo real, SHA-256, prefixo PDF/JPEG/PNG/WebP, limite de 3 arquivos de 5 MiB por versão, replay e autorização simulada. Vincula corte/pedido/modelo/versão exatos e mantém checklist imutável; leitura de bytes e metadados por função autorizada, sem acesso direto. Prefixo não é validação completa nem antivírus. Produção requer armazenamento privado, política real, verificação confiável do objeto, upload/commit/releitura, testes concorrentes e interface. Nenhuma instalação comercial.
