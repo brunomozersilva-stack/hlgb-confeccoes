@@ -140,6 +140,48 @@
   const all=[...people.values()],withoutCycles=all.filter(p=>!p.hasEvidence).length;
   return {...empty('local-focus'),people:all,focusRows,totals,withoutCycles,partial:withoutCycles>0||totals.unknownCount>0,sourceCoverage:'local-manually-reviewed',allOpenRows:[...report.groups.overdue,...report.groups.acquired,...report.groups.proportional]};
  }
+ // Existing termination records must agree with their independent downstream records.
+ // A local match is not proof of bank payment or cloud synchronization.
+ function terminationReview(data,asOf,pending,allowed){
+  const empty=state=>({state,rows:[],summary:null,canPublish:false,bankConfirmed:false});
+  if(allowed!==true)return empty('forbidden');
+  const modules=['terminations','employees','formerEmployees','hubFinanceEntries','payroll'];
+  if(date(asOf)===null||!data||modules.some(k=>!Array.isArray(data[k]))||data.terminations.length>10000)return empty('unavailable');
+  const live=x=>x&&!x.deletedAt&&!x.deleted_at&&x.deleted!==true&&x._deleted!==true;
+  const sid=v=>String(v??'').trim(),rows=Object.fromEntries(modules.map(k=>[k,data[k].filter(live)]));
+  const keyset=new Set(Array.isArray(pending?.ids)?pending.ids.map(sid):[]);
+  const isPending=(module,x)=>keyset.has(module+'::'+sid(x.id))||keyset.has(module+'|'+sid(x.id));
+  const counts=new Map(),employeeDates=new Map();
+  for(const t of rows.terminations){const k=sid(t.id),ek=JSON.stringify([sid(t.employeeId),t.date]);counts.set(k,(counts.get(k)||0)+1);employeeDates.set(ek,(employeeDates.get(ek)||0)+1)}
+  const out=[];
+  for(const t of rows.terminations){
+   const tid=sid(t.id),pid=sid(t.employeeId),issues=[],termDate=t.date,paidAt=t.paidAt;
+   const row={id:tid,employeeId:pid,name:text(t.employeeName,160)||pid,company:text(t.companyName,160),date:date(termDate)===null?null:termDate,paidAt:date(paidAt)===null?null:paidAt,employeeCents:null,chargeCents:null,expectedHubCents:null,observedHubCents:null,issues};
+   if(!tid||!pid||counts.get(tid)!==1||employeeDates.get(JSON.stringify([pid,termDate]))!==1)issues.push('duplicate-or-unknown-termination');
+   if(date(termDate)===null||termDate>asOf||t.paid!==true||date(paidAt)===null||paidAt>asOf)issues.push('payment-date-or-status');
+   const amounts=[t.value,t.fgtsPaid,t.fgtsFine,t.otherCharges].map(toCents);
+   if(amounts.some(x=>x===null))issues.push('amount-incomplete');
+   else {row.employeeCents=amounts[0];row.chargeCents=amounts.slice(1).reduce((a,b)=>a+b,0);row.expectedHubCents=row.employeeCents+row.chargeCents}
+   const emps=rows.employees.filter(x=>sid(x.id)===pid),former=rows.formerEmployees.filter(x=>sid(x.employeeId)===pid),hub=rows.hubFinanceEntries.filter(x=>x.sourceType==='termination'&&sid(x.sourceId)===tid);
+   if(emps.length!==1||emps[0].active!==false||sid(emps[0].terminationId)!==tid||emps[0].terminationDate!==termDate)issues.push('employee-link');
+   if(former.length!==1||former[0].terminationDate!==termDate||toCents(former[0].terminationValue)!==row.employeeCents)issues.push('former-link');
+   if(hub.length!==1)issues.push('hub-count');
+   else {const h=hub[0];row.observedHubCents=toCents(h.value);if(h.flow!=='Saída'||h.category!=='Funcionários'||h.status!=='Realizado'||h.date!==paidAt||h.realizedAt!==paidAt||row.expectedHubCents===null||row.observedHubCents!==row.expectedHubCents)issues.push('hub-divergence')}
+   const th=toCents(t.thirteenthSettled);
+   if(th===null)issues.push('thirteenth-unconfirmed');
+   else if(emps.length===1){
+    const hist=Array.isArray(emps[0].provisionPaidHistory)?emps[0].provisionPaidHistory.filter(h=>h.sourceType==='termination'&&sid(h.sourceId)===tid&&h.type==='13º'):[];
+    if(th>0?(hist.length!==1||toCents(hist[0].value)!==th||hist[0].date!==paidAt):hist.length>0)issues.push('thirteenth-divergence');
+   }
+   if(rows.payroll.some(p=>sid(p.employeeId)===pid&&p.paid!==true&&typeof p.month==='string'&&row.date&&p.month>=row.date.slice(0,7)))issues.push('open-payroll-review');
+   if(isPending('terminations',t)||emps.some(x=>isPending('employees',x))||former.some(x=>isPending('formerEmployees',x))||hub.some(x=>isPending('hubFinanceEntries',x)))issues.push('pending-sync');
+   if(pending?.state!=='observed')issues.push('queue-unconfirmed');
+   row.state=issues.length?'review':'local-match';out.push(row);
+  }
+  const orphanHub=rows.hubFinanceEntries.filter(h=>h.sourceType==='termination'&&!rows.terminations.some(t=>sid(t.id)===sid(h.sourceId))).length;
+  const summary={count:out.length,localMatch:out.filter(r=>r.state==='local-match').length,review:out.filter(r=>r.state==='review').length,orphanHub,pendingObserved:pending?.state==='observed'};
+  return {...empty('local-review'),rows:out.sort((a,b)=>(b.date||'').localeCompare(a.date||'')||a.id.localeCompare(b.id)),summary};
+ }
  function reviewedNotice(source,input){
   if(source?.state!=='local-roster')throw Error('roster-unavailable');
   const e=source.rows.find(x=>x.id===employeeId(input?.employeeId));
@@ -147,5 +189,5 @@
   const result=notice({hireDate:input.hireDate,noticeDate:input.noticeDate,type:input.type,mode:input.mode,salaryCents:input.salaryCents,approvedItems:input.approvedItems||[]});
   return {...result,employeeId:e.id,name:e.name,observedItemsDifferenceCents:result.items.some(x=>x.status==='open'&&['credit','discount'].includes(x.kind))?result.observedCreditsCents-result.observedDiscountsCents:null,canPublish:false};
  }
- return {vacations,provisions,notice,roster,selectRoster,reviewedVacations,provisionCycles,provisionFocus,reviewedNotice};
+ return {vacations,provisions,notice,roster,selectRoster,reviewedVacations,provisionCycles,provisionFocus,terminationReview,reviewedNotice};
 })());

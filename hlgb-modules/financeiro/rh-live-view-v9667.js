@@ -132,6 +132,35 @@
   for(const x of [hire,noticeDate,salary,type,mode])x.addEventListener('change',()=>{noticeChecked.checked=false;noticeOut.replaceChildren()});
   button('Adicionar verba conferida',notice,()=>{if(!active()||!noticeEmployee.value)return;const v=cents(itemValue.value),label=itemLabel.value.trim();if(!label||label.length>120||v===null||noticeItems.length>=100){noticeOut.replaceChildren();el('p','Informe descrição e valor válidos.',noticeOut);return}noticeItems.push({id:'verba-'+(++itemSequence),label,kind:itemKind.value,status:itemStatus.value,amountCents:v,verified:true});itemLabel.value='';itemValue.value='';noticeOut.replaceChildren();drawItems()});
   button('Simular desligamento',notice,()=>{noticeOut.replaceChildren();if(!active())return;try{const x=api().reviewedNotice(current(),{employeeId:noticeEmployee.value,signature:noticeSignature,reviewed:noticeChecked.checked,hireDate:hire.value,noticeDate:noticeDate.value,type:type.value,mode:mode.value,salaryCents:cents(salary.value),approvedItems:noticeItems});if(!active())return;el('h4',x.name+' · '+x.completedYears+' anos completos',noticeOut);el('p','Aviso de referência: '+(x.referenceDays===null?'A revisar':x.referenceDays+' dias')+' · Fim projetado candidato: '+(x.projectedEnd||'A revisar'),noticeOut);el('p','Indenização de referência: '+money(x.referenceIndemnityCents)+' (não somada automaticamente às verbas)',noticeOut);el('p','Créditos informados em aberto: '+money(x.items.length?x.observedCreditsCents:null)+' · Descontos: '+money(x.items.length?x.observedDiscountsCents:null)+' · Encargos: '+money(x.items.length?x.observedEmployerChargesCents:null),noticeOut);el('strong','Diferença das verbas informadas: '+money(x.observedItemsDifferenceCents),noticeOut);el('p','Não é valor líquido da rescisão. Conferir aviso, projeções, CCT, férias, 13º, FGTS e demais verbas antes do lançamento original.',noticeOut)}catch(_){el('p','Confira o cadastro atualizado, admissão, data, modalidade, salário e revisão. Nenhum desligamento registrado.',noticeOut)}});
+  const termReview=block('Conferir rescisões registradas e vínculos com o Hub',host);
+  el('p','Consulta de integridade local. Não comprova pagamento bancário, não exclui folha, não baixa provisões nem altera a rescisão.',termReview);
+  const termOut=output(termReview),termQuery=field('Buscar funcionário, confecção ou rescisão',termReview,'search');
+  const termFilter=select('Situação de conferência',termReview,[['all','Todas'],['review','A revisar'],['local-match','Vínculos locais correspondentes']]);
+  const termAllowed=()=>active()&&can('hubFinanceiro');
+  const termLabels={'duplicate-or-unknown-termination':'Identidade duplicada ou inválida','payment-date-or-status':'Data ou situação de pagamento a conferir','amount-incomplete':'Valores da rescisão incompletos','employee-link':'Desligamento no cadastro divergente','former-link':'Histórico de ex-funcionário divergente','hub-count':'Quantidade de lançamentos no Hub divergente','hub-divergence':'Valor/data/situação do Hub divergente','thirteenth-unconfirmed':'Baixa de 13º não informada','thirteenth-divergence':'Histórico de 13º divergente','open-payroll-review':'Folha em aberto na competência da saída ou posterior: conferir, não excluir','pending-sync':'Sincronização pendente','queue-unconfirmed':'Fila local não confirmada'};
+  let termReport=null,termOffset=0;
+  function drawTerms(){termOut.replaceChildren();if(!termAllowed()){termReport=null;el('p','A conferência exige também acesso ao Hub Financeiro.',termOut);return}if(!termReport)return;
+   const s=termReport.summary;el('p',s.count+' rescisões · '+s.localMatch+' com vínculos locais correspondentes · '+s.review+' a revisar · '+s.orphanHub+' lançamentos no Hub sem rescisão vinculada.',termOut);
+   const q=termQuery.value.trim().toLocaleLowerCase('pt-BR'),rows=termReport.rows.filter(r=>(termFilter.value==='all'||termFilter.value===r.state)&&[r.name,r.company,r.id].join(' ').toLocaleLowerCase('pt-BR').includes(q));
+   if(termOffset>=rows.length)termOffset=Math.max(0,Math.floor((rows.length-1)/20)*20);
+   for(const row of rows.slice(termOffset,termOffset+20)){const d=block(row.name+' · '+(row.date||'Data a conferir')+' · '+(row.state==='review'?'A revisar':'Correspondência local'),termOut);
+    el('p','Rescisão '+row.id+' · '+row.company+' · Pagamento informado '+(row.paidAt||'Não confirmado'),d);
+    el('p','Valor ao funcionário '+money(row.employeeCents)+' · Encargos informados '+money(row.chargeCents)+' · Total esperado no Hub '+money(row.expectedHubCents)+' · Hub observado '+money(row.observedHubCents),d);
+    for(const issue of row.issues)el('p',termLabels[issue]||issue,d);
+   }
+   if(termOffset>0)button('Anteriores',termOut,()=>{termOffset-=20;drawTerms()});if(termOffset+20<rows.length)button('Próximas',termOut,()=>{termOffset+=20;drawTerms()});
+  }
+  termQuery.oninput=()=>{termOffset=0;drawTerms()};termFilter.onchange=()=>{termOffset=0;drawTerms()};
+  button('Consultar rescisões e conciliar vínculos',termReview,async()=>{
+   termReport=null;termOut.replaceChildren();if(!termAllowed()){drawTerms();return}
+   try{await root.hlgbWalIdbGuard9536?.probe?.()}catch(_){}
+   if(!termAllowed())return;
+   const guard=root.hlgbWalIdbGuard9536,status=guard?.status?.(),ids=new Set();let observed=false;
+   try{for(const key of guard?.ids?.()||[])ids.add(String(key));for(const key of root.hlgbRecordPendingIdentitySet9535?.()||[])ids.add(String(key));const age=Date.now()-Date.parse(status?.lastProbeAt||'');observed=!!status&&status.probes>0&&status.readFailed===false&&status.localReadFailed===false&&status.unsupported===false&&typeof root.hlgbRecordPendingIdentitySet9535==='function'&&Number.isFinite(age)&&age>=0&&age<=120000}catch(_){}
+   const d=typeof db!=='undefined'?db:root.db,source={};for(const key of ['terminations','employees','formerEmployees','hubFinanceEntries','payroll']){if(!termAllowed())return;source[key]=d?.[key]}
+   const v=api().terminationReview(source,today(),{state:observed?'observed':'incomplete',ids:[...ids]},termAllowed());
+   if(!termAllowed())return;if(v.state!=='local-review'){el('p','Fontes indisponíveis. Confira sincronização e acesso.',termOut);return}termReport=v;termOffset=0;drawTerms();
+  });
   function rosterOptions(){
    if(!active())return;roster=current();overview.replaceChildren();if(roster.state!=='local-roster'){clearResults();choices.replaceChildren();reviewHost.replaceChildren();provEmployee.replaceChildren();noticeEmployee.replaceChildren();noticeSignature='';noticeItems=[];drawItems();noticeChecked.checked=false;hire.value='';salary.value='';el('p','Cadastro de funcionários indisponível nesta sessão. Atualize para continuar.',overview);return}
    el('p',roster.rows.length+' funcionários ativos disponíveis · '+roster.issues.length+' tipos de lacunas no cadastro.',overview);

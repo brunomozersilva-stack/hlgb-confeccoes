@@ -1,0 +1,21 @@
+name: HLGB RH - conferência rescisões
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/rh-planning-v9636.js'
+      - 'hlgb-modules/financeiro/rh-live-view-v9667.js'
+      - 'tests/rh-termination-review-v9785.cjs'
+      - '.github/workflows/hlgb-rh-termination-review-v9785.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check hlgb-modules/financeiro/rh-live-view-v9667.js
+      - run: node tests/rh-termination-review-v9785.cjs
