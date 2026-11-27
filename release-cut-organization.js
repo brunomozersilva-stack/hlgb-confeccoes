@@ -55,6 +55,25 @@ function cutActionProof9820(c,idx){
  return {cutId:sid(c.id),orderId:sid(order.id),productId:sid(product.id),orderNumber:sid(order.orderNumber||order.id),client:sid(order.client||order.clientName||''),model:sid(product.name||c.product),pieces,grade,materials,gradeSource:source===ordered?'pedido':source===c.actualCutGrade?'realizada':'corte',canWrite:false};
 }
 function requiredCutAllowed9820(){try{return window.__HLGB_AUTH_READY===true&&canOpenPage('corte')===true&&canOpenPage('pedidos')===true&&canOpenPage('produtos')===true}catch(_){return false}}
+// Same compact grade/material columns used by the existing Facção checklist.
+function cutChecklistMatrix9824(v){
+ const sizes=[...new Set(v.grade.map(g=>g.size))],colors=[...new Set(v.grade.map(g=>g.color))];
+ let sorted=[];try{if(typeof hlgbSortedSizes==='function')sorted=hlgbSortedSizes(db.sizes)||[]}catch(_){}
+ const ss=[...new Set([...sorted.filter(x=>sizes.includes(x)),...sizes])];
+ const esc=x=>sid(x).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+ // Reuse the original renderer if all grade sizes are known to it; otherwise never omit a size.
+ const api=window.hlgbFactionChecklistGrade;
+ if(typeof api?.matrix==='function'&&sizes.every(x=>sorted.includes(x))){
+  try{return api.matrix({productId:v.productId,qty:v.pieces,gradeV9198:v.grade.map(g=>({...g,productId:v.productId}))})}catch(_){}
+ }
+ const qty=(color,size)=>v.grade.filter(g=>g.color===color&&g.size===size).reduce((n,g)=>n+g.qty,0);
+ return '<div class="hlgbChecklistMatrix" style="overflow:auto"><table><thead><tr><th>Cor</th>'+ss.map(x=>'<th>'+esc(x)+'</th>').join('')+'<th>Total</th></tr></thead><tbody>'+colors.map(color=>'<tr><td>'+esc(color)+'</td>'+ss.map(sz=>'<td>'+qty(color,sz)+'</td>').join('')+'<td>'+ss.reduce((n,sz)=>n+qty(color,sz),0)+'</td></tr>').join('')+'<tr><th>Total da grade</th>'+ss.map(sz=>'<th>'+colors.reduce((n,color)=>n+qty(color,sz),0)+'</th>').join('')+'<th>'+v.pieces+'</th></tr></tbody></table></div>';
+}
+function printCutChecklist9824(id){
+ if(!openFullCutChecklist9820(id))return false;
+ const host=document.getElementById('hlgbFullCutChecklist9820'),btn=host?.querySelector('[data-hlgb-print-checklist9824]');
+ if(!btn)return false;btn.click();return true;
+}
 function openFullCutChecklist9820(id){
  if(!requiredCutAllowed9820()){alert('Checklist indisponível: confira as permissões de Corte, Pedidos e Produtos.');return false}
  const idx=cutIndex9709(),v=cutActionProof9820(idx.cuts.get(sid(id)),idx);
@@ -64,25 +83,35 @@ function openFullCutChecklist9820(id){
  const el=(tag,text,parent=host)=>{const x=document.createElement(tag);x.textContent=text;parent.appendChild(x);return x};
  el('h2','Checklist completo da peça');el('p','Pedido #'+v.orderNumber+' · '+v.client+' · '+v.model+' · '+v.pieces+' peças');el('p','Grade: '+v.gradeSource+' · Corte '+v.cutId);
  const close=el('button','Fechar checklist');close.type='button';close.onclick=()=>host.remove();
- el('h3','Grade por cor e tamanho');for(const g of v.grade)el('p',g.color+' · '+g.size+' · '+g.qty+' peças');
+ const top=el('div','');top.className='toolbar';top.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin:8px 0';
+ top.appendChild(close);close.className='secondary';
+ el('h3','Grade por cor e tamanho');const matrix=el('div','');matrix.innerHTML=cutChecklistMatrix9824(v);
+ for(const table of matrix.querySelectorAll('table'))table.style.cssText='width:100%;border-collapse:collapse';
  el('h3','Matérias-primas e aviamentos da ficha técnica');
  el('p','Marcação de conferência somente nesta janela, sem baixa ou gravação. Quantidades estimadas para esta grade; confira fisicamente.');
  const fmt=n=>n===null?'A conferir':n.toLocaleString('pt-BR',{maximumFractionDigits:4});
  const mark=el('button','Marcar todos os materiais',host);mark.type='button';
- const grid=el('div','');grid.dataset.cutChecklistLines9823='1';
- for(const m of v.materials){const group=el('section','',grid);group.style.cssText='border:1px solid #ddd;border-radius:6px;padding:8px;margin:6px 0';el('strong',m.name+' · '+fmt(m.amount)+' '+m.unit+(m.rolls===null?'':' · '+m.rolls+' rolo(s) estimados'),group);
-  if(m.category)el('p',m.category,group);
-  for(const color of m.byColor){const lab=el('label','',group);lab.style.cssText='display:block;padding:5px 0';const check=el('input','',lab);check.type='checkbox';check.disabled=color.amount===null;lab.appendChild(document.createTextNode(' '+color.color+' · '+color.pieces+' pç · '+fmt(color.amount)+' '+m.unit+(color.rolls===null?'':' · '+color.rolls+' rolo(s)')))}
+ const grid=el('div','');grid.dataset.cutChecklistLines9823='1';grid.style.overflowX='auto';
+ const table=el('table','',grid);table.style.cssText='width:100%;border-collapse:collapse';const head=el('tr','',el('thead','',table));
+ for(const label of ['OK','Material','Categoria','Cor','Quantidade','Unidade','Rolos'])el('th',label,head);
+ const tbody=el('tbody','',table);
+ for(const m of v.materials){
+  const splits=m.color?m.byColor.filter(x=>norm(x.color)===norm(m.color)):m.byColor;
+  const lines=splits.length?splits:[{color:m.color||'A conferir',pieces:0,amount:null,rolls:null}];
+  for(const color of lines){const row=el('tr','',tbody),cell=el('td','',row),check=el('input','',cell);check.type='checkbox';check.disabled=color.amount===null;check.setAttribute('aria-label',m.name+' '+color.color);
+   el('td',m.name,row);el('td',m.category||'-',row);el('td',color.color,row);el('td',fmt(color.amount),row);el('td',m.unit||'-',row);el('td',color.rolls===null?'-':String(color.rolls),row);
+  }
  }
+ for(const cell of host.querySelectorAll('th,td'))cell.style.cssText='border:1px solid #aaa;padding:5px;text-align:left;font-size:12px';
  mark.onclick=()=>{for(const cb of grid.querySelectorAll('input[type=checkbox]:not(:disabled)'))cb.checked=true};
  if(!v.materials.length)el('p','Nenhuma matéria-prima cadastrada. Confira a ficha técnica antes da separação.');
  const compose=el('div','');try{const order=idx.orders.get(v.orderId);if(typeof compositionTableForProduct==='function'){compose.innerHTML=compositionTableForProduct({...order,grade:v.grade.map(g=>({...g,productId:v.productId}))},v.productId,true)||''}}catch(_){el('p','Composição indisponível: confira a ficha técnica.',compose)}
  const print=el('button','Imprimir folha de pedido do corte');print.type='button';print.onclick=()=>printRequiredCut9820(v.cutId);
- const checklistPrint=el('button','Imprimir checklist de separação');checklistPrint.type='button';checklistPrint.onclick=()=>{
+ const checklistPrint=el('button','Imprimir checklist de separação',top);checklistPrint.type='button';checklistPrint.className='primary';checklistPrint.dataset.hlgbPrintChecklist9824='1';top.insertBefore(checklistPrint,close);checklistPrint.onclick=()=>{
   if(!requiredCutAllowed9820()||!host.isConnected)return;
   const freshIdx=cutIndex9709(),fresh=cutActionProof9820(freshIdx.cuts.get(v.cutId),freshIdx);if(JSON.stringify(fresh)!==JSON.stringify(v)){alert('A grade ou ficha mudou. Reabra o checklist.');return}
   const html=host.cloneNode(true);html.querySelectorAll('button').forEach(n=>n.remove());const original=[...host.querySelectorAll('input[type=checkbox]')];[...html.querySelectorAll('input[type=checkbox]')].forEach((n,i)=>{const text=document.createTextNode(original[i]?.checked?'☑ ':'☐ ');n.replaceWith(text)});html.removeAttribute('style');
-  const page='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Checklist de separação</title><style>@page{size:A4;margin:10mm}body{font:12px Arial;color:#222}section{break-inside:avoid}h2,h3{margin:8px 0}p{margin:4px 0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:4px}</style><body>'+html.innerHTML+'<p>Responsável: _____________________ Data: ____/____/____</p><p>Faltas / observações: __________________________________________</p></body></html>';
+  const page='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Checklist de separação</title><style>@page{size:A4;margin:10mm}body{font:12px Arial;color:#222}h2{font-size:19px}h3{font-size:14px}h2,h3{margin:8px 0}p{margin:4px 0}table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #aaa;padding:4px}th{background:#eee}tr{break-inside:avoid}thead{display:table-header-group}</style><body><h1 style="font-size:20px;margin:0 0 8px">HLGB Confecções</h1>'+html.innerHTML+'<p>Responsável: _____________________ Data: ____/____/____</p><p>Faltas / observações: __________________________________________</p></body></html>';
   let popup;try{popup=window.open('','_blank')}catch(_){}
   if(popup){try{popup.document.open();popup.document.write(page);popup.document.close();popup.focus?.();popup.print?.();return}catch(_){try{popup.close()}catch(_){}}}
   if(typeof window.hlgbCutterSheetV9523?.previewOnPage9523==='function'){host.remove();window.hlgbCutterSheetV9523.previewOnPage9523(page)}else alert('Permita a abertura da janela para imprimir o checklist.');
@@ -119,6 +148,7 @@ function ensureRequiredCutActions9820(row,c,model){
  if(!host)return;
  let actions=existing[0];if(!actions){actions=document.createElement('div');actions.dataset.hlgbRequiredCut9820=sid(c.id);actions.className='toolbar';actions.style.cssText='display:flex;flex-wrap:wrap;gap:6px';host.appendChild(actions);
  const required=[];if(!row.querySelector('.hlgb-native-cut-checklist9823'))required.push(['Checklist completo da peça',openFullCutChecklist9820]);
+ if(!row.querySelector('.hlgb-native-cut-checklist-print9824'))required.push(['Imprimir checklist',printCutChecklist9824]);
  if(!row.querySelector('.hlgb-native-cut-print9822,.hlgbSheetMaterials9523'))required.push(['Imprimir folha de pedido do corte',printRequiredCut9820]);
  for(const [label,fn] of required){const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=label;if(fn===printRequiredCut9820)button.dataset.hlgbPrintRequired9822='1';button.onclick=()=>{if(!row.isConnected||cutIdentity9709(row)!==sid(c.id))return;fn(c.id)};actions.appendChild(button)}
  }
@@ -644,7 +674,7 @@ function applyExtraState(){
   secondaryPanels().forEach(p=>{if(!p.dataset.hlgbCutOriginalDisplay)p.dataset.hlgbCutOriginalDisplay=p.style.display||'';p.style.display=open?p.dataset.hlgbCutOriginalDisplay:'none'});
 }
 function toggleExtra(){let open=false;try{open=localStorage.getItem('hlgb_cut_extra_open_v1')==='1';localStorage.setItem('hlgb_cut_extra_open_v1',open?'0':'1')}catch(e){}applyExtraState()}
-window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,cutActionProof9820,openFullCutChecklist9820,printRequiredCut9820,completedCutHistory,historyPage9799,cutWorkVisible9799,secondaryPanels,merchandiseEvidence9755,organizeMerchandise9755,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,compareCut9712,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,scheduleMaterials:scheduleMaterials9711,materialsStatus9711:()=>({...materialsEvidence9711}),separationDockStatus9715:()=>({...separationDockEvidence9715}),dockSeparation9715,openModelSeparation9715};
+window.hlgbCutApplyFilters=apply;window.hlgbCutClearFilters=clearFilters;window.hlgbCutToggleExtra=toggleExtra;window.hlgbCutOrganization={apply,cutActionProof9820,openFullCutChecklist9820,printCutChecklist9824,printRequiredCut9820,completedCutHistory,historyPage9799,cutWorkVisible9799,secondaryPanels,merchandiseEvidence9755,organizeMerchandise9755,cutIdentity9709,cutMeta9709,cutIndex9709,matchesCut9709,compareCut9712,status:()=>({...filterEvidence9709}),renderMaterials:renderSeparationWorkspace9643,scheduleMaterials:scheduleMaterials9711,materialsStatus9711:()=>({...materialsEvidence9711}),separationDockStatus9715:()=>({...separationDockEvidence9715}),dockSeparation9715,openModelSeparation9715};
 const old=window.renderCuts;if(typeof old==='function'&&!old.__hlgbOrgV1){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{apply();applyExtraState();scheduleMaterials9711();organizeMerchandise9755()},0);return r};w.__hlgbOrgV1=true;w.__original=old;window.renderCuts=w}
 function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643();organizeMerchandise9755()}catch(e){console.warn('[HLGB corte organização]',e)}}try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(boot,1000),0)}catch(e){}setTimeout(boot,1700);
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
