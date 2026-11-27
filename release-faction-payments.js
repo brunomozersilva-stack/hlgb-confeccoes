@@ -110,10 +110,74 @@ function repairPaymentWarnings(){
 const oldRenderFactions=window.renderFactions;
 if(typeof oldRenderFactions==='function')window.renderFactions=function(){const r=oldRenderFactions.apply(this,arguments);setTimeout(repairFactionButtons,0);setTimeout(repairFactionButtons,120);return r};
 const oldRenderPayments=window.renderFactionPayments;
-if(typeof oldRenderPayments==='function')window.renderFactionPayments=function(){const r=oldRenderPayments.apply(this,arguments);setTimeout(repairPaymentWarnings,0);setTimeout(repairPaymentWarnings,120);return r};
-function repair(){repairFactionButtons();repairPaymentWarnings()}
+if(typeof oldRenderPayments==='function')window.renderFactionPayments=function(){const r=oldRenderPayments.apply(this,arguments);setTimeout(()=>{repairPaymentWarnings();renderTravetaReview9781()},0);setTimeout(()=>{repairPaymentWarnings();renderTravetaReview9781()},120);return r};
+/* Normal service payments: prospective discount review, never a payment edit. */
+function normalTravetaReview9781(data,allowed){
+ const result={state:allowed===true?'local-review':'forbidden',rows:[],canWrite:false,financiallyApplied:false};
+ if(allowed!==true)return result;
+ const modules=['factionPayments','factions','production','factionMasters','products','factionSettings'];
+ if(!data||modules.some(k=>!Array.isArray(data[k])))return {...result,state:'source-unavailable'};
+ const live=x=>x&&!x.deleted_at&&!x.deletedAt&&x.deleted!==true&&!x._deleted&&!x.manualCanceledV9590&&!/cancelad|excluid/.test(norm(x.status));
+ const exact=(rows,id)=>{const xs=rows.filter(x=>live(x)&&sid(x.id)===sid(id));return sid(id)&&xs.length===1?xs[0]:null};
+ const cents=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(?:[.,]\d{1,2})?$/.test(v.trim())))return null;const n=Number(sid(v).replace(',','.')),k=Math.round(n*100);return Number.isSafeInteger(k)&&n>=0&&Math.abs(n*100-k)<.00001?k:null};
+ const int=v=>v!=null&&sid(v).trim()!==''&&Number.isSafeInteger(Number(v))&&Number(v)>=0?Number(v):null;
+ const payments=data.factionPayments.filter(p=>live(p)&&p.manual!==true&&['pendente','parcial'].includes(norm(p.status))&&(!p.serviceModeV9577||p.serviceModeV9577==='faccao'));
+ if(payments.length>5000)return {...result,state:'source-limit'};
+ for(const p of payments){
+  const row={id:sid(p.id),serviceId:sid(p.factionServiceId),model:sid(p.productName||p.description||'Modelo a conferir'),faction:sid(p.factionName||'Facção a conferir'),quantity:int(p.quantity),points:null,rateCents:null,grossCents:cents(p.value),existingDiscountCents:cents(p.discountAmount),suggestedCents:null,netCents:null,reason:''};
+  const add=reason=>{row.reason=reason;result.rows.push(row)};
+  if(!exact(data.factionPayments,p.id)){add('Identidade do pagamento a conferir');continue}
+  const f=exact(data.factions,p.factionServiceId),prod=f&&exact(data.production,f.productionId);
+  if(!f||!prod||!sid(f.orderId)||!sid(f.productId)||sid(f.orderId)!==sid(prod.orderId)||sid(f.productId)!==sid(prod.productId)){add('Vínculo serviço/produção a conferir');continue}
+  if(p.productId!=null&&sid(p.productId)&&sid(p.productId)!==sid(f.productId)){add('Modelo do pagamento divergente');continue}
+  const masterIds=new Set([p.factionMasterId,f.factionId,prod.factionId].map(sid).filter(Boolean));
+  if(masterIds.size!==1){add('Identidade da facção a conferir');continue}
+  const m=exact(data.factionMasters,[...masterIds][0]),model=exact(data.products,f.productId);
+  if(!m||m.active===false||!model){add('Cadastro de facção ou modelo não confirmado');continue}
+  row.faction=sid(m.name);row.model=sid(model.name);
+  if(p.factionName&&norm(p.factionName)!==norm(m.name)){add('Nome do pagamento diverge do cadastro atual');continue}
+  if(row.quantity===null||row.quantity<=0||row.grossCents===null||row.grossCents<=0||cents(p.unitPrice)===null||cents(p.unitPrice)*row.quantity!==row.grossCents){add('Valor bruto ou quantidade a conferir');continue}
+  if(row.existingDiscountCents===null||row.existingDiscountCents!==0||cents(p.paidAmount)!==0||norm(p.status)!=='pendente'||p.paymentHistory!=null&&(!Array.isArray(p.paymentHistory)||p.paymentHistory.length)||p.travetaDiscountTotalV9577!=null||p.grossValueV9577!=null){add('Pagamento ou abatimento existente: preservar e revisar');continue}
+  const servicePayments=data.factionPayments.filter(x=>live(x)&&x.manual!==true&&sid(x.factionServiceId)===sid(f.id)&&(!x.serviceModeV9577||x.serviceModeV9577==='faccao'));
+  const quantities=servicePayments.map(x=>int(x.quantity)),ids=new Set(servicePayments.map(x=>sid(x.id))),deliveryKeys=servicePayments.map(x=>sid(x.deliveryId)).filter(Boolean);
+  if(quantities.some(n=>n===null||n<=0)||ids.has('')||ids.size!==servicePayments.length||new Set(deliveryKeys).size!==deliveryKeys.length||int(f.done)===null||quantities.reduce((a,b)=>a+b,0)>int(f.done)){add('Quantidade entregue ou pagamentos do serviço a conferir');continue}
+  row.points=int(model.travetadas);
+  if(typeof m.doesTraveta!=='boolean'){add('Definir no cadastro se a facção faz travetada');continue}
+  if(m.doesTraveta===true){row.suggestedCents=0;row.netCents=row.grossCents;add('Facção faz travetada');continue}
+  if(row.points===null||row.points>100){add('Quantidade de pontos do modelo a conferir');continue}
+  if(row.points===0){row.suggestedCents=0;row.netCents=row.grossCents;add('Modelo sem pontos cadastrados (zero explícito)');continue}
+  const setting=exact(data.factionSettings,'traveta'),raw=m.travetaDeductionUnit!=null&&sid(m.travetaDeductionUnit).trim()!==''?m.travetaDeductionUnit:setting?.travetaUnitValue;
+  row.rateCents=cents(raw);
+  if(row.rateCents===null||row.rateCents>100000){add('Tarifa por ponto a conferir');continue}
+  const total=row.quantity*row.points*row.rateCents;
+  if(!Number.isSafeInteger(total)||total>row.grossCents){add('Desconto supera valor bruto ou limite seguro');continue}
+  row.suggestedCents=total;row.netCents=row.grossCents-total;add('Simulação com cadastro atual; confirmar regra do período');
+ }
+ return result;
+}
+function travetaReviewAllowed9781(){try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&['pagamentosFaccoes','faccoes','produtos','producao'].every(k=>canOpenPage(k)===true)}catch(_){return false}}
+function renderTravetaReview9781(){
+ const old=document.getElementById('hlgbNormalTraveta9781'),table=document.getElementById('factionPaymentTable');
+ if(!table||!travetaReviewAllowed9781()){old?.remove();return}
+ const data={};for(const k of ['factionPayments','factions','production','factionMasters','products','factionSettings'])data[k]=arr(k);
+ const review=normalTravetaReview9781(data,true),sig=JSON.stringify(review);
+ if(old?.__signature9781===sig)return;
+ const host=old||document.createElement('details');host.id='hlgbNormalTraveta9781';host.className='panel';host.__signature9781=sig;
+ if(!old)table.insertAdjacentElement('afterend',host);
+ host.replaceChildren();const el=(tag,t,p=host)=>{const n=document.createElement(tag);n.textContent=t;p.appendChild(n);return n},money=v=>v===null?'A conferir':(v/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+ el('summary','Conferir travetadas nos acertos normais ('+review.rows.length+')');
+ el('p','Somente simulação do cadastro atual. Não altera valores anteriores, não confirma desconto nem autoriza pagamento. Configure facção/modelo antes da próxima baixa.');
+ if(review.state!=='local-review'){el('p','Consulta indisponível. Confira a sincronização.');return}
+ const output=el('div','');let offset=0;
+ function draw(){output.replaceChildren();for(const row of review.rows.slice(offset,offset+20)){const d=el('details','',output);el('summary',row.faction+' · '+row.model+' · '+(row.quantity??'—')+' pç',d);el('p',row.reason,d);el('p','Bruto '+money(row.grossCents)+' · desconto existente '+money(row.existingDiscountCents)+' · simulação '+money(row.suggestedCents)+' · líquido simulado '+money(row.netCents),d);el('p','Pagamento '+row.id+' · Serviço '+row.serviceId+' · pontos por peça '+(row.points??'A conferir')+' · tarifa '+money(row.rateCents),d)}
+ for(const [label,step] of [['Anterior',-20],['Próximos',20]])if(step<0?offset>0:offset+20<review.rows.length){const b=el('button',label,output);b.type='button';b.onclick=()=>{if(!travetaReviewAllowed9781()){host.remove();return}offset+=step;draw()}}}
+ draw();
+}
+function repair(){repairFactionButtons();repairPaymentWarnings();renderTravetaReview9781()}
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(repair,500);setTimeout(repair,1800)},0)}catch(e){}
 setTimeout(repair,1200);
+window.addEventListener?.('hlgb:logout',()=>document.getElementById('hlgbNormalTraveta9781')?.remove());
+window.hlgbNormalTravetaReview9781=normalTravetaReview9781;
 window.HLGB_FACTION_PAYMENT_GUARD='v3';
 window.hlgbFactionPaymentOverAccounted=overAccounted;
 window.hlgbFactionPaymentBadGroup=badGroup;
