@@ -167,6 +167,17 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(await page.locator('#legacyPaid').isVisible(),true,'reopened note returns to active list');
   assert.equal(await page.locator('[data-hlgb-paid-legacy9710]').count(),0);
   assert.equal(await page.evaluate(()=>window.__writes),3,'visual archive and client history do not write');
+  await page.evaluate(()=>{
+   window.hlgbPrintNote9411=id=>window.__actions.push('print:'+id);
+   const box=document.createElement('div');box.id='projectionNotes9214';box.innerHTML='<table><tbody><tr><td><button data-acerto9214="2">Acerto</button><button data-na9411="view">Ver</button><button data-na9411="pdf">PDF</button><button data-na9411="print">Imprimir</button></td></tr></tbody></table>';
+   document.querySelector('#notas').appendChild(box);window.hlgbNotesReceivables9564.paint();
+  });
+  const fallback=page.locator('#hlgbDeliveryFallback9848');await fallback.waitFor();assert.equal(await page.locator('#projectionNotes9214').isVisible(),false);
+  await fallback.click();assert.equal(await page.locator('#projectionNotes9214').isVisible(),true);
+  await fallback.click();assert.equal(await page.locator('#projectionNotes9214').isVisible(),false);
+  await page.evaluate(()=>document.querySelector('#projectionNotes9214 tbody').insertAdjacentHTML('beforeend','<tr><td><button data-acerto9214="missing">Acerto</button></td></tr>'));
+  await page.locator('#projectionNotes9214').waitFor({state:'visible'});assert.equal(await fallback.count(),0,'unknown record restores original list');
+  await page.evaluate(()=>document.querySelector('#projectionNotes9214').remove());
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.locator('#nr-client').isVisible(),true);
   assert.equal(await page.locator('#nr-tabs button[data-tab="paid"]').isVisible(),true);

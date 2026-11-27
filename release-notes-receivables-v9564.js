@@ -305,6 +305,37 @@ function clientHistory(all){
  values.map(v=>'<tr><td>'+esc(v.name)+'</td><td>'+v.notes+'</td><td>'+v.open+'</td><td>'+v.paid+'</td><td class="nr-money">'+brl(v.balance)+'</td><td><button type="button" class="secondary" data-action="history" data-client="'+esc(v.key)+'">Ver histórico</button></td></tr>').join('')+'</tbody></table></div>':
  '<div class="empty">Nenhum cliente com notas registradas.</div>')+'</details>';
 }
+// Collapse only a proven redundant delivery table, keeping every old action accessible.
+const deliveryCoverage9848={observed:false,covered:0,reason:'not-observed'};
+let deliveryObserver9848=null,deliveryBox9848=null,deliveryOpen9848=false;
+function organizeDelivery9848(){
+ const box=document.getElementById('projectionNotes9214'),root=document.getElementById(ID);
+ const toggle=document.getElementById('hlgbDeliveryFallback9848');
+ const restore=reason=>{if(box?.dataset.hlgbDeliveryFold9848==='1'){box.style.display=box.dataset.hlgbDeliveryOriginal9848||'';delete box.dataset.hlgbDeliveryFold9848;delete box.dataset.hlgbDeliveryOriginal9848}toggle?.remove();Object.assign(deliveryCoverage9848,{observed:!!box,covered:0,reason});return false};
+ if(!box||!root||!root.isConnected||window.__HLGB_AUTH_READY!==true||typeof canOpenPage!=='function'||canOpenPage('notas')!==true)return restore('permission-or-panel');
+ if(!['hlgbViewNote9411','hlgbDownloadNotePdf9411','hlgbPrintNote9411','openProjectionAcerto9214'].every(k=>typeof window[k]==='function'))return restore('actions-unavailable');
+ const records=canonical(),counts=new Map();for(const n of records){const id=sid(n?.id);counts.set(id,(counts.get(id)||0)+1)}
+ const notes=new Map(allNotes().filter(n=>n.type==='projection').map(n=>[n.id,n]));
+ const rows=[...box.querySelectorAll('tbody tr')],ids=new Set();
+ if(!rows.length||box.querySelector('input,select,textarea,a,[contenteditable]'))return restore('no-proof');
+ for(const row of rows){
+  const acertos=[...row.querySelectorAll('[data-acerto9214]')],id=acertos.length===1?sid(acertos[0].getAttribute('data-acerto9214')):'';
+  if(!id||ids.has(id)||counts.get(id)!==1||!notes.has(id))return restore('identity');
+  if([...row.querySelectorAll('button')].some(b=>b!==acertos[0]&&!['view','pdf','print'].includes(b.getAttribute('data-na9411'))))return restore('unknown-action');
+  ids.add(id);
+ }
+ if([...box.querySelectorAll('button')].some(b=>!b.closest('tbody tr')))return restore('other-action');
+ if(!toggle){
+  const control=document.createElement('button');control.type='button';control.id='hlgbDeliveryFallback9848';control.className='secondary';
+  control.onclick=()=>{deliveryOpen9848=!deliveryOpen9848;organizeDelivery9848()};box.insertAdjacentElement('beforebegin',control);
+ }
+ const b=document.getElementById('hlgbDeliveryFallback9848');b.textContent=deliveryOpen9848?'Recolher listagem antiga de entregas':'Mostrar listagem antiga de entregas ('+ids.size+')';b.setAttribute('aria-expanded',String(deliveryOpen9848));
+ if(!box.dataset.hlgbDeliveryFold9848){box.dataset.hlgbDeliveryOriginal9848=box.style.display;box.dataset.hlgbDeliveryFold9848='1'}
+ box.style.display=deliveryOpen9848?box.dataset.hlgbDeliveryOriginal9848:'none';
+ Object.assign(deliveryCoverage9848,{observed:true,covered:ids.size,reason:'covered'});
+ if(deliveryBox9848!==box&&typeof MutationObserver==='function'){deliveryObserver9848?.disconnect();deliveryObserver9848=new MutationObserver(()=>organizeDelivery9848());deliveryObserver9848.observe(box,{childList:true,subtree:true});deliveryBox9848=box}
+ return true;
+}
 function paint(){
  const root=ensure();if(!root)return false;
  const now=today(),all=allNotes();clientOptions(root,all);
@@ -333,7 +364,7 @@ function paint(){
  root.querySelector('#nr-agenda').innerHTML=agenda(base,now)+byClient(base)+clientHistory(all);
  const s=window.hlgbNotesLiveSync9563?.status?.();
  root.querySelector('#nr-sync').textContent=state.lastCloud||(s?.unverified?'⚠ Última leitura da nuvem sem confirmação.':s?.lastAt?'Nuvem conferida: '+new Date(s.lastAt).toLocaleString('pt-BR'):'Sem prova de atualização da nuvem nesta sessão.');
- state.draws++;return true;
+ organizeDelivery9848();state.draws++;return true;
 }
 function exportRows(){return sortRows(filterAll(allNotes()).filter(x=>matchTab(x,state.tab,today())))}
 function csvCell(v){let t=sid(v);if(/^[=+\-@\t\r]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"'}
@@ -766,7 +797,7 @@ function installClients9710(){
  decorateClients9710();
 }
 function install(){
- ensure();paint();installClients9710();organizeLegacyNotes9710();
+ ensure();paint();installClients9710();organizeLegacyNotes9710();organizeDelivery9848();
  const old=window.renderOrderNotes;
  if(typeof old==='function'&&!hasPanelWrapper(old)){
   const wrapper=function(){const result=old.apply(this,arguments);setTimeout(()=>{paint();organizeLegacyNotes9710()},0);return result};
@@ -776,11 +807,11 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,globalPaymentPreflight9775,globalCloudCheck9812,hubLegacyReview9814,forecastLinkReview9815,forecastLinkCloud9815,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
+window.hlgbNotesReceivables9564={version:V,organizeDelivery9848,deliveryCoverage9848:()=>({...deliveryCoverage9848}),globalPaymentPreflight9775,globalCloudCheck9812,hubLegacyReview9814,forecastLinkReview9815,forecastLinkCloud9815,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,350));
-window.addEventListener?.('hlgb:logout',()=>{archiveEvidence9710={observed:false,legacyPaid:null,projectionPaid:null};document.querySelectorAll?.('[data-hlgb-client-notes9710],[data-hlgb-client-account9759]').forEach(x=>x.remove())});
+window.addEventListener?.('hlgb:logout',()=>{deliveryOpen9848=false;organizeDelivery9848();deliveryObserver9848?.disconnect();deliveryObserver9848=null;deliveryBox9848=null;archiveEvidence9710={observed:false,legacyPaid:null,projectionPaid:null};document.querySelectorAll?.('[data-hlgb-client-notes9710],[data-hlgb-client-account9759]').forEach(x=>x.remove())});
 console.info('[HLGB] notas v'+V+' organização/recebíveis somente leitura');
 })();
