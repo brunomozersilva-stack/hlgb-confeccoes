@@ -645,6 +645,47 @@ function matchingPendingGroupsV9590(sourceGroupId){
   (first.factionMasterId==null||g.rows[0]?.factionMasterId==null||
    sid(first.factionMasterId)===sid(g.rows[0].factionMasterId)));
 }
+// Local link proof is not a cross-session lock. Preserve incomplete links for
+// exact recovery only; never spend the same correction in a different target.
+function compensationProof9811(rows,sourceGroupId,correctionId,targetGroupId,amountCents){
+ const blocked=reason=>({ok:false,reason,canWrite:false});
+ const src=sid(sourceGroupId),cid=sid(correctionId),dst=sid(targetGroupId);
+ if(!Array.isArray(rows)||!src||!cid||!dst||src===dst||!Number.isSafeInteger(amountCents)||amountCents<=0)return blocked('Identificação inválida');
+ const exact=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(?:\.\d{1,2})?$/.test(v)))return null;const n=Number(v),c=Math.round(n*100);return Number.isSafeInteger(c)&&c>0&&Math.abs(n*100-c)<.00001?c:null};
+ const all=rows.filter(r=>r?.manual===true),groups=key=>all.filter(r=>sid(r.manualGroupId)===key),identity=key=>{
+  const g=groups(key).filter(r=>!isCanceledV9590(r));const ids=new Set(g.map(r=>sid(r.factionMasterId))),names=new Set(g.map(r=>norm(r.factionName)));
+  return g.length&&ids.size===1&&!ids.has('')&&names.size===1&&!names.has('')?JSON.stringify([[...ids][0],[...names][0]]):null;
+ };
+ const owner=identity(src);if(!owner||identity(dst)!==owner)return blocked('Identidade da mesma facção não confirmada');
+ const corrections=[];
+ for(const r of all)for(const c of Array.isArray(r.manualCorrectionsV9590)?r.manualCorrectionsV9590:[])if(sid(c?.id)===cid)corrections.push({row:r,event:c});
+ if(corrections.length!==1||sid(corrections[0].row.manualGroupId)!==src)return blocked('Identificação de acerto duplicada ou ausente');
+ const event=corrections[0].event,limit=exact(event.amount);
+ if(sid(event.sourceGroupId)!==src||!['a_mais','a_menos'].includes(event.kind)||limit===null||!Array.isArray(event.applications))return blocked('Acerto de origem inconsistente');
+ const links=new Map(),applications=new Map();
+ for(const l of event.applications){
+  const key=sid(l?.id),target=sid(l?.targetGroupId),value=exact(l?.amount);
+  if(!key||!target||target===src||key!=='fm90-app-'+cid+'-'+target||links.has(key)||value===null)return blocked('Vínculo de origem inconsistente');
+  links.set(key,{target,value});
+ }
+ for(const r of all)for(const a of Array.isArray(r.manualApplicationsV9590)?r.manualApplicationsV9590:[]){
+  if(sid(a?.correctionId)!==cid)continue;
+  const key=sid(a.id),target=sid(a.targetGroupId),value=exact(a.amount);
+  if(!target||target===src||key!=='fm90-app-'+cid+'-'+target||sid(r.manualGroupId)!==target||sid(a.sourceGroupId)!==src||a.kind!==event.kind||value===null||applications.has(key)||identity(target)!==owner)return blocked('Compensação de destino inconsistente ou duplicada');
+  applications.set(key,{target,value});
+ }
+ for(const [key,l] of links){const a=applications.get(key);if(!a||a.target!==l.target||a.value!==l.value)return blocked('Vínculo de origem sem destino confirmado; conferir antes de compensar');}
+ const wanted='fm90-app-'+cid+'-'+dst,old=applications.get(wanted);
+ let spent=0;
+ for(const [key,a] of applications){
+  spent+=a.value;
+  if(!links.has(key)&&(key!==wanted||a.value!==amountCents))return blocked('Compensação anterior sem vínculo confirmado; conclua a conferência no destino original');
+ }
+ if(!Number.isSafeInteger(spent)||spent>limit)return blocked('Compensações ultrapassam o saldo do acerto');
+ if(old&&old.value!==amountCents)return blocked('Este acerto já foi aplicado ao pagamento escolhido com outro valor.');
+ if(!old&&amountCents>limit-spent)return blocked('A compensação ultrapassa o saldo do acerto.');
+ return {ok:true,remainingCents:limit-spent,recoveryOnly:!!old&&!links.has(wanted),canWrite:false};
+}
 async function applyCorrectionV9590(sourceGroupId,correctionId,targetGroupId,amount){
  if(state.status===STATUS.saving)throw Error('Outra gravação de pagamento está em andamento.');
  state.status=STATUS.saving;state.lastError='';let targetSaved=false;
@@ -665,9 +706,13 @@ async function applyCorrectionV9590(sourceGroupId,correctionId,targetGroupId,amo
   if(!oldApp&&cents(value)>cents(remaining))throw Error('A compensação ultrapassa o saldo do acerto.');
   if(event.kind==='a_mais'&&!oldApp&&cents(value)>cents(netGroupV9590(target)))
    throw Error('Crédito maior que o valor a pagar. Utilize compensação parcial ou outro lançamento.');
+  const proof=compensationProof9811(arr('factionPayments'),sourceGroupId,correctionId,targetGroupId,cents(value));
+  if(!proof.ok)throw Error(proof.reason);
   // Readback+WAL guard before any write. Target first: idempotent retries see
   // the same applicationId and cannot multiply the effect.
-  await preflightGroup(sourceGroupId,source);await preflightGroup(targetGroupId,target);
+  const sourceHub=await preflightGroup(sourceGroupId,source),targetHub=await preflightGroup(targetGroupId,target);
+  if(!sourceHub||sid(sourceHub.status)!=='Realizado'||targetHub)throw Error('Confirme o pagamento original e a ausência de saída no destino antes de compensar.');
+  const refreshed=compensationProof9811(arr('factionPayments'),sourceGroupId,correctionId,targetGroupId,cents(value));if(!refreshed.ok)throw Error(refreshed.reason);
   const ts=new Date().toISOString();
   if(!oldApp){
    const anchor=activeGroupRowsV9590(target)[0],
@@ -1962,7 +2007,7 @@ document.addEventListener('click',e=>{
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
  productPrice,pointsPerPieceV9592,autoTravetaV9592,travetaUnitV9592,saveTravetaPointsV9592,
   validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
- registerCorrectionV9590,applyCorrectionV9590,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
+ registerCorrectionV9590,applyCorrectionV9590,compensationProof9811,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
  correctionRemainingV9590,netGroupV9590,directAdjustmentsV9591,validateDirectInputV9591,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
  status:()=>({...state}),editEvidenceStatusV95101,maxPdfBytes:MAX_PDF};
 install();
