@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/producao/production-planning-v9661.js');
+const plan=api.deliveryCapacityPlan({start:'2026-11-30',asOf:'2026-11-26',weeks:2,weeklyGoal:100,bufferPercent:0,newPieces:0,closedDates:[],coverageConfirmed:true,history:[],orders:[{key:'existing',client:'Cliente A',model:'Modelo A',pieces:60,dueDate:'2026-12-02',amountCents:10000,paymentMode:'cash'}]},true);
+assert.equal(plan.state,'local-capacity-simulation');
+const input={start:'2026-11-30',openingCents:100000,reserveCents:50000,delayDays:7,entries:[],reviewed:true,newCostsAndReceiptNotIncluded:true,proposal:{client:'B',pieces:40,dueDate:'2026-12-04',receiptCents:80000,paymentMode:'cash',costs:[{reference:'material',date:'2026-11-30',amountCents:60000}]}};
+const before=JSON.stringify({plan,input}),r=api.newOrderDecision(plan,input,true);
+assert.equal(r.state,'local-order-decision');assert.equal(r.withinDue,true);assert.equal(r.freeByDue,40);assert.equal(r.completion,'2026-12-04');assert.equal(r.receiptIncluded,true);assert.equal(r.costTotalCents,60000);assert.equal(r.indicativeContributionCents,20000);assert.equal(r.baseline.maximumGapCents,0);assert.equal(r.withOrder.maximumGapCents,10000);assert.equal(r.canPromise,false);assert.equal(r.canWrite,false);
+const large=api.newOrderDecision(plan,{...input,proposal:{...input.proposal,pieces:200}},true);assert.equal(large.withinDue,false);assert.equal(large.remaining,60);assert.equal(large.receiptIncluded,false);assert.equal(large.withOrder.weeks.reduce((s,w)=>s+w.incomingCents,0),0);
+assert.equal(api.newOrderDecision(plan,{...input,newCostsAndReceiptNotIncluded:false},true).state,'invalid-proposal');
+assert.equal(api.newOrderDecision(plan,input,false).state,'forbidden');assert.equal(JSON.stringify({plan,input}),before);
+console.log('PASS new order capacity, incremental costs and cash risk without changing existing queue');
