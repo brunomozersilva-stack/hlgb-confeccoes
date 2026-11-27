@@ -106,7 +106,7 @@
     },
     {
       "path": "hlgb-modules/engenharia/README-mobile-real-pages-v9640.md",
-      "sha": "4d7309fc67136006ed3a47409d531ebd2a3ae40c",
+      "sha": "46220be2e370633f5a4071b9d9c0053a52e711d0",
       "origin": 317
     },
     {
@@ -645,6 +645,18 @@
         "path": "tests/cut-separation-workspace-v9643.cjs",
         "previousSha": "3f050cb2829ee4b007587559ff65bb055bb0cc05",
         "sha": "c5132c2066b46eee8716c4715e25bff4f38a453b"
+      }
+    ]
+  },
+  "followupMobile9853": {
+    "pr": 524,
+    "merge": "b837a6251bed698eb5bf0d95039bd4cf3c451f9b",
+    "reason": "Documented mobile change approved 21/21 workflows; exact fingerprint updated with provenance, no gate removed.",
+    "files": [
+      {
+        "path": "hlgb-modules/engenharia/README-mobile-real-pages-v9640.md",
+        "previousSha": "4d7309fc67136006ed3a47409d531ebd2a3ae40c",
+        "sha": "46220be2e370633f5a4071b9d9c0053a52e711d0"
       }
     ]
   }
