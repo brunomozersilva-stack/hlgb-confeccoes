@@ -135,11 +135,11 @@ test('assignment modal refreshes loaded catalogs without writing or selecting a 
  assert(api.decorateSelector9713());assert.equal(api.selectorStatus9713().classification,'no-compatible');
  const button=host.children.find(x=>x.tag==='button');db.factionMasters.push({id:200,name:'Cris'});
  const before=JSON.stringify(db);button.onclick();assert.equal(api.selectorStatus9713().compatible,1);assert.equal(dest.value,'');
- dest.value='F:200';button.onclick();assert.equal(dest.value,'F:200');assert.equal(JSON.stringify(db),before);
- db.factionMasters=[];button.onclick();assert.equal(dest.value,'');assert.equal(api.selectorStatus9713().classification,'no-compatible');
+ dest.value='F:200';const firstOption=dest.children[1];button.onclick();assert.equal(dest.value,'F:200');assert.equal(dest.children[1],firstOption,'unchanged options keep DOM identity');assert.equal(JSON.stringify(db),before);
+ db.factionMasters=[];api.refreshOpenDestination9846();assert.equal(dest.value,'');assert.equal(api.selectorStatus9713().classification,'no-compatible');
  service.value='';button.onclick();assert.equal(api.selectorStatus9713().compatible,1,'unrestricted internal option remains');
  assert.equal(dest.children[1].value,'L:101');assert.equal(dest.value,'');
- db.production.find(p=>p.id===5).factionId=200;button.onclick();assert.equal(api.selectorStatus9713().classification,'stale-production');
+ dest.value='L:101';db.production.find(p=>p.id===5).factionId=200;api.refreshOpenDestination9846();assert.equal(api.selectorStatus9713().classification,'stale-production');assert.equal(dest.value,'');assert.equal(dest.children.length,1);
  ctx.__HLGB_AUTH_READY=false;assert.equal(api.decorateSelector9713(),false);
 });
 

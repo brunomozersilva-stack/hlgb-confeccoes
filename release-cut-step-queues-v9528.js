@@ -141,7 +141,7 @@ if(typeof oldQueue==='function'&&!oldQueue.__hlgbStepQueue9528){
   // Atualiza a segunda lista após atribuição salva, sem alterar o estado de produção.
   try{if(document.getElementById('cutTracking9173')&&
     typeof window.filterCutTracking9173==='function')
-    window.filterCutTracking9173()}catch(e){console.warn('[HLGB '+V+'] atualizar lista',e)}
+    window.filterCutTracking9173();refreshOpenDestination9846()}catch(e){console.warn('[HLGB '+V+'] atualizar lista',e)}
   return out;
  };
  wrapped.__hlgbStepQueue9528=true;wrapped.__original=oldQueue;
@@ -157,41 +157,63 @@ function assignmentModal9713(){
  if(!modal?.classList?.contains('show')||!id||!service||!dest||![id,service,dest].every(x=>modal.contains(x)))return null;
  return {modal,id,service,dest};
 }
+// Compare current options before touching the selects; do not steal focus or reset a valid choice.
+function options9846(select,rows){
+ const current=Array.from(select.options||select.children||[]);
+ if(current.length===rows.length&&current.every((x,i)=>sid(x.value)===rows[i][0]&&sid(x.textContent)===rows[i][1]))return false;
+ const old=select.value,option=(value,label)=>{const e=document.createElement('option');e.value=value;e.textContent=label;return e};
+ select.replaceChildren(...rows.map(([value,label])=>option(value,label)));
+ select.value=rows.some(([value])=>value===old)?old:'';
+ return true;
+}
 function refreshSelector9713(ctx){
  const current=assignmentModal9713();
  if(!ctx||!current||current.id!==ctx.id||current.dest!==ctx.dest)return false;
  const {id,service,dest,modal}=current;
  const rows=arr('production').filter(p=>sid(p?.id)===sid(id.value));
  const status=modal.querySelector('[data-hlgb-destination-status9713]');
- const report=(classification,compatible=null,services=null)=>{selectorEvidence9713={observed:true,classification,compatible,services,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};if(status)status.textContent=classification==='compatible'?(compatible+' destino(s) compatível(is) na consulta local.'):classification==='no-compatible'?'Nenhum destino compatível no cadastro carregado. Confira o tipo de serviço e os cadastros.':classification==='service-required'?'Selecione o tipo de serviço. As opções não serão preenchidas por suposição.':classification==='stale-production'?'Produção mudou ou não está mais disponível. Confira a fila antes de confirmar.':'Não foi possível verificar os cadastros nesta sessão.';return classification==='compatible'};
- if(rows.length!==1||!isAwaiting(rows[0]))return report('stale-production');
+ const report=(classification,compatible=null,services=null)=>{selectorEvidence9713={observed:true,classification,compatible,services,source:'local-observation',remoteConfirmed:false,at:new Date().toISOString()};if(status){const message=classification==='compatible'?(compatible+' destino(s) compatível(is) na consulta local.'):classification==='no-compatible'?'Nenhum destino compatível no cadastro carregado. Confira o tipo de serviço e os cadastros.':classification==='service-required'?'Selecione o tipo de serviço. As opções não serão preenchidas por suposição.':classification==='stale-production'?'Produção mudou ou não está mais disponível. Confira a fila antes de confirmar.':'Não foi possível verificar os cadastros nesta sessão.';if(status.textContent!==message)status.textContent=message}return classification==='compatible'};
+ if(rows.length!==1||!isAwaiting(rows[0])){options9846(dest,[['','Selecione']]);return report('stale-production')}
  if(!['serviceTypes','productionLocations','factionMasters'].every(k=>Array.isArray(db?.[k]))||typeof window.hlgb916EligibleDestinations!=='function')return report('catalog-unavailable');
  const names=[...new Set(arr('serviceTypes').map(x=>sid(x?.name).trim()).filter(Boolean))],chosen=service.value,oldDest=dest.value;
  const known=names.some(n=>norm(n)===norm(chosen));
  // Preserve chosen service; if absent from refreshed catalogue do not substitute another.
- const option=(value,label)=>{const e=document.createElement('option');e.value=value;e.textContent=label;return e};
- service.replaceChildren(option('','Selecione'),...names.map(n=>option(n,n)));
+ const serviceChanged=options9846(service,[['','Selecione'],...names.map(n=>[n,n])]);
  service.value=names.includes(chosen)?chosen:known?names.find(n=>norm(n)===norm(chosen)):'';
  // Unrestricted internal locations are valid even if the service is not yet selected.
- if(chosen&&!known){dest.replaceChildren(option('','Selecione'));return report('service-required',0,names.length)}
+ if(chosen&&!known){options9846(dest,[['','Selecione']]);return report('service-required',0,names.length)}
  let eligible;try{eligible=window.hlgb916EligibleDestinations(service.value)}catch(_){return report('catalog-unavailable',null,names.length)}
  if(!Array.isArray(eligible))return report('catalog-unavailable',null,names.length);
  const keyed=new Map();for(const d of eligible){if(!d||!['F','L'].includes(d.type)||!sid(d.id)||!Number.isSafeInteger(Number(d.id))||Number(d.id)<=0)continue;const k=d.type+':'+d.id;keyed.set(k,keyed.has(k)?null:d)}
  const options=[...keyed].filter(([,d])=>d);
- dest.replaceChildren(option('','Selecione'),...options.map(([k,d])=>option(k,(d.type==='F'?'Facção':'Local')+' — '+sid(d.name))));
+ const destChanged=options9846(dest,[['','Selecione'],...options.map(([k,d])=>[k,(d.type==='F'?'Facção':'Local')+' — '+sid(d.name)])]);
  dest.value=options.some(([k])=>k===oldDest)?oldDest:'';
- try{window.updateCutAssignmentPreview?.()}catch(_){}
+ if(serviceChanged||destChanged||dest.value!==oldDest)try{window.updateCutAssignmentPreview?.()}catch(_){}
  return report(options.length?'compatible':service.value?'no-compatible':'service-required',options.length,names.length);
+}
+let destinationWatch9846=null;
+function refreshOpenDestination9846(){
+ if(document.hidden)return false;
+ const ctx=assignmentModal9713();return ctx&&ctx.modal.querySelector('[data-hlgb-destination-status9713]')?refreshSelector9713(ctx):false;
+}
+function stopDestinationWatch9846(){if(destinationWatch9846!==null&&typeof clearInterval==='function')clearInterval(destinationWatch9846);destinationWatch9846=null}
+function watchDestination9846(ctx){
+ if(destinationWatch9846!==null||typeof setInterval!=='function')return;
+ destinationWatch9846=setInterval(()=>{
+  const current=assignmentModal9713();
+  if(!current||current.id!==ctx.id||current.dest!==ctx.dest){stopDestinationWatch9846();return}
+  refreshOpenDestination9846();
+ },1500);
 }
 function decorateSelector9713(){
  const ctx=assignmentModal9713();if(!ctx)return false;
- if(ctx.modal.querySelector('[data-hlgb-destination-status9713]'))return true;
+ if(ctx.modal.querySelector('[data-hlgb-destination-status9713]')){watchDestination9846(ctx);return true}
  const host=ctx.dest.parentElement;if(!host)return false;
  const status=document.createElement('div');status.className='sub';status.dataset.hlgbDestinationStatus9713='1';status.setAttribute('role','status');
  const retry=document.createElement('button');retry.type='button';retry.className='secondary';retry.textContent='Atualizar opções de destino';retry.onclick=()=>refreshSelector9713(ctx);
  host.appendChild(retry);host.appendChild(status);
  ctx.service.addEventListener('change',()=>refreshSelector9713(ctx));
- refreshSelector9713(ctx);return true;
+ refreshSelector9713(ctx);stopDestinationWatch9846();watchDestination9846(ctx);return true;
 }
 const oldOpen9713=window.openCutAssignment;
 if(typeof oldOpen9713==='function'&&!oldOpen9713.__hlgbDestination9713){
@@ -200,11 +222,12 @@ if(typeof oldOpen9713==='function'&&!oldOpen9713.__hlgbDestination9713){
 }
 window.hlgbCutStepQueues9528={version:V,hasDestination,assigned,isAwaiting,
  pendingTrackingRow,trackingSources,waitingTrackingRows,pendingAssignedByCut,pendingProductionRows,updateTrackingTitle,
- status:()=>({...queueEvidence9709}),selectorStatus9713:()=>({...selectorEvidence9713}),decorateSelector9713,
+ status:()=>({...queueEvidence9709}),selectorStatus9713:()=>({...selectorEvidence9713}),decorateSelector9713,refreshOpenDestination9846,
  showAssigned:()=>showAlreadyAssigned,originalPending:oldPending};
 try{if(typeof window.hlgbAfterLogin==='function')window.hlgbAfterLogin(()=>{
  try{window.renderCutAssignmentQueue?.();window.renderCutTracking9173?.()}catch(_){}
 },0)}catch(_){}
-window.addEventListener?.('hlgb:logout',()=>{queueEvidence9709={observed:false,waiting:null,missingProduction:null,source:'local-observation',remoteConfirmed:false};showAlreadyAssigned=false;selectorEvidence9713={observed:false,compatible:null,services:null,classification:'not-observed'}});
+window.addEventListener?.('focus',refreshOpenDestination9846);document.addEventListener?.('visibilitychange',refreshOpenDestination9846);
+window.addEventListener?.('hlgb:logout',()=>{stopDestinationWatch9846();queueEvidence9709={observed:false,waiting:null,missingProduction:null,source:'local-observation',remoteConfirmed:false};showAlreadyAssigned=false;selectorEvidence9713={observed:false,compatible:null,services:null,classification:'not-observed'}});
 console.info('[HLGB] '+V+' avanço automático das filas ativo (histórico preservado)');
 })();
