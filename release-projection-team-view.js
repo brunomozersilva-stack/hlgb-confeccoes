@@ -245,6 +245,37 @@ function mountPlanner(){
     el('p','Não usar como confirmação de caixa disponível. Nenhum pedido, título ou data foi modificado.',cashOut);
    });
 
+
+   const recv=el('details','',output);el('summary','Clientes, condições e títulos a receber',recv);
+   el('p','Consulta as notas canônicas e seus títulos financeiros vinculados. Saldos divergentes ou pendentes ficam em revisão. Nota compartilhada entre pedidos aparece uma vez nos totais do cliente. Condição de nota anterior não garante a condição de nova entrega.',recv);
+   const recvSearch=field('Buscar cliente, pedido ou nota','search','',recv),recvOut=el('div','',recv);let recvData=null,recvPage=0;
+   const recvAllowed=()=>active()&&typeof canOpenPage==='function'&&canOpenPage('notas')===true&&canOpenPage('hubFinanceiro')===true;
+   function drawReceivables(){
+    recvOut.replaceChildren();if(!recvAllowed()||recvData?.state!=='local-receivables-review')return;
+    const query=recvSearch.value.toLocaleLowerCase('pt-BR'),match=(...values)=>values.join(' ').toLocaleLowerCase('pt-BR').includes(query),term=v=>v==='cash'?'À vista':v==='term'?'A prazo / modalidade registrada':'Não confirmada',brl=v=>v===null?'Não confirmado':money(v/100);
+    el('p',recvData.titles.length+' notas consultadas · '+recvData.issues.length+' ocorrências a conferir · '+recvData.orders.length+' pedidos. Não é conciliação bancária nem saldo disponível.',recvOut);
+    const groups=el('details','',recvOut);el('summary','Saldos conciliados localmente por cliente',groups);
+    for(const g of recvData.clients.filter(g=>match(g.clientName)))el('p',g.clientName+' · '+g.noteCount+' notas · recebido '+brl(g.paidCents)+' · saldo '+brl(g.balanceCents)+' · à vista '+brl(g.cashOpenCents)+' · a prazo '+brl(g.termOpenCents)+' · vencido '+brl(g.overdueCents),groups);
+    const rows=recvData.orders.filter(o=>match(o.clientName,o.number,o.orderId));
+    el('h4','Pedidos e condição registrada',recvOut);
+    for(const o of rows.slice(recvPage,recvPage+25))el('p','Pedido '+o.number+' · '+o.clientName+' · '+term(o.terms)+(o.termsSource==='linked-note-history'?' (histórico de nota, não confirmação do pedido)':o.termsSource==='order'?' (pedido)':'')+' · '+o.noteCount+' notas vinculadas · '+o.sharedNotes+' compartilhadas · '+o.reviewNotes+' em revisão · saldo de notas exclusivas '+brl(o.exclusiveNoteBalanceCents),recvOut);
+    if(recvPage>0)btn('Anterior',recvOut,()=>{recvPage-=25;drawReceivables()});if(recvPage+25<rows.length)btn('Mais pedidos',recvOut,()=>{recvPage+=25;drawReceivables()});
+    const notes=el('details','',recvOut);el('summary','Notas e títulos vinculados',notes);
+    for(const t of recvData.titles.filter(t=>match(t.clientName,t.noteId,t.titleId,...t.orderIds)).slice(0,100))el('p',t.clientName+' · nota '+t.noteId+' · título '+(t.titleId||'ausente')+' · '+term(t.terms)+' · vencimento '+(t.due||'não confirmado')+' · '+(t.status==='review'?'Revisar: '+t.reason:'saldo '+brl(t.balanceCents))+(t.shared?' · nota compartilhada':''),notes);
+    const review=el('details','',recvOut);el('summary','Ocorrências de conciliação',review);for(const x of recvData.issues.slice(0,100))el('p',x.key+' · '+x.reason,review);
+    el('p','Não soma esses valores ao Hub nem prevê recebimento de pedido sem título conciliado. Nenhuma alteração gravada.',recvOut);
+   }
+   btn('Consultar títulos e pedidos existentes',recv,()=>{
+    recvOut.replaceChildren();recvData=null;if(!recvAllowed())return;
+    try{
+     const source=typeof db!=='undefined'?db:window.db,guard=window.hlgbWalIdbGuard9536,status=guard?.status?.(),canonical=window.hlgbCanonicalProjectionInvoices;
+     if(typeof canonical!=='function'||typeof guard?.ids!=='function'||typeof window.hlgbRecordPendingIdentitySet9535!=='function')throw Error('source');
+     const age=Date.now()-Date.parse(status?.lastProbeAt||''),pendingObserved=!!status&&status.probes>0&&status.readFailed===false&&status.localReadFailed===false&&status.unsupported===false&&Number.isFinite(age)&&age>=0&&age<=120000;
+     const rows=canonical();if(!Array.isArray(rows))throw Error('canonical');
+     recvData=api.orderReceivablesReview(source,{asOf:today(),canonicalIds:rows.map(n=>sid(n.id)),pendingIds:[...new Set([...guard.ids(),...window.hlgbRecordPendingIdentitySet9535()].map(String))],pendingObserved},recvAllowed());
+     recvPage=0;drawReceivables();if(recvData.state!=='local-receivables-review')el('p','Consulta indisponível. Confira fonte canônica e fila de sincronização.',recvOut);
+    }catch(_){el('p','Não foi possível consultar as notas e títulos com segurança.',recvOut)}
+   });recvSearch.oninput=()=>{recvPage=0;drawReceivables()};
    const stages=el('details','',output);el('summary','Metas por setor, equipes e facções',stages);
    el('p','Simule uma semana de produção em sequência, com capacidade de cada setor e peças já disponíveis para a próxima etapa. Sem transferência no mesmo dia; só use capacidade e estoque conferidos. Não é distribuição oficial nem reserva de produção.',stages);
    const target=field('Meta de entrega para os próximos 7 dias (peças)','number',String(p.weeklyTarget??''),stages),stageRows=[];

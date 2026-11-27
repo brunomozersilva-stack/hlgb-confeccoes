@@ -1024,5 +1024,55 @@
   const evaluated=[...first.values()].filter(r=>r.status==='avaliada'),n=evaluated.length;
   return {...empty('local-forecast-journal'),entries,rows,issues:[...issues,...history.issues],added,summary:{records:entries.length,lots:first.size,evaluated:n,onTimePercent:n?Math.round(evaluated.filter(r=>r.errorDays<=0).length*1000/n)/10:null,meanAbsoluteErrorDays:n?Math.round(evaluated.reduce((s,r)=>s+Math.abs(r.errorDays),0)*10/n)/10:null},format:'hlgb-forecast-journal-v1'};
  }
- return {forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Review note/title identity without treating a sale amount as available cash.
+ function orderReceivablesReview(db,input,allowed){
+  const empty=(state,issues=[])=>({state,issues,orders:[],titles:[],clients:[],canWrite:false,cashVerified:false,canScheduleReceipts:false});
+  if(allowed!==true)return empty('forbidden');
+  if(!['orders','projectionInvoices','finance','clients'].every(k=>Array.isArray(db?.[k]))||!Array.isArray(input?.canonicalIds)||!Array.isArray(input?.pendingIds)||input.pendingObserved!==true)return empty('source-unavailable');
+  const date=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?s:null;
+  const asOf=date(input.asOf);if(!asOf)return empty('invalid-date');
+  const cents=v=>{if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(?:\.\d{1,2})?$/.test(v)))return null;const n=Number(v),c=Math.round(n*100);return Number.isSafeInteger(c)&&c>=0&&c<=100000000000&&Math.abs(n*100-c)<0.00001?c:null};
+  const index=rows=>{const m=new Map();for(const r of rows.filter(live)){const k=id(r.id);if(k)m.set(k,m.has(k)?null:r)}return m};
+  const orders=index(db.orders),notes=index(db.projectionInvoices),clients=index(db.clients),finance=index(db.finance),pending=new Set(input.pendingIds.map(String)),canonical=new Set(input.canonicalIds.map(id)),issues=[],titles=[],byOrder=new Map(),seenFinance=new Set();
+  if(canonical.has('')||canonical.size!==input.canonicalIds.length)return empty('canonical-conflict');
+  const blocked=(m,k)=>pending.has(m+'::'+k)||pending.has(m+'|'+k);
+  const condition=v=>{const s=norm(v).trim();return /^(a vista|avista)$/.test(s)?'cash':/^(a prazo|prazo|cheque|parcelado|boleto|\d+\s*dias?)$/.test(s)?'term':'unknown'};
+  const report=(key,reason)=>issues.push({key,reason});
+  const links=new Map();for(const f of db.finance.filter(live)){const k=id(f.projectionInvoiceId);if(k){const a=links.get(k)||[];a.push(f);links.set(k,a)}}
+  for(const k of canonical){
+   const n=notes.get(k);if(!n){report(k,'nota-a-conferir');continue}
+   if(/cancelad|excluid|estornad/.test(norm(n.status)))continue;
+   const frows=links.get(k)||[],f=frows.length===1?frows[0]:null,fid=id(f?.id),cid=id(n.clientId),client=clients.get(cid);
+   const orderIds=[...new Set([id(n.orderId),...(Array.isArray(n.items)?n.items:[]).map(i=>id(i?.orderId))].filter(Boolean))];
+   // A shared note is never apportioned to each order as a whole.
+   const total=cents(n.value),paid=cents(n.paid),balance=cents(n.remaining),credits=Array.isArray(n.acertoReturnsV9565)?n.acertoReturnsV9565.filter(x=>!x?.reversedAt).map(x=>cents(x?.value)):[];
+   const credit=credits.every(x=>x!==null)?credits.reduce((a,b)=>a+b,0):null,issued=date(n.issueDate||n.date),due=date(n.dueDate),terms=condition(n.terms||n.paymentTerms);
+   const validHistory=Array.isArray(n.paymentHistory)&&n.paymentHistory.length? n.paymentHistory.every(x=>cents(x?.value)!==null)&&n.paymentHistory.reduce((a,x)=>a+cents(x.value),0)===paid:true;
+   let status='reconciled-local',reason=null;
+   if(!f||!fid||finance.get(fid)!==f||seenFinance.has(fid))reason='titulo-ausente-ou-duplicado';
+   else if(!cid||!client||id(f.clientId)!==cid||orderIds.some(o=>!orders.get(o)))reason='identidade-cliente-ou-pedido';
+   else if(blocked('projectionInvoices',k)||blocked('finance',fid)||blocked('clients',cid)||orderIds.some(o=>blocked('orders',o)))reason='sincronizacao-pendente';
+   else if([total,paid,balance,credit].some(x=>x===null)||total<=0||paid+credit+balance!==total||!validHistory||cents(f.value)!==total||cents(f.paid)!==paid||cents(f.remaining)!==balance)reason='saldo-divergente';
+   else if(!issued||!due||date(f.dueDate)!==due||date(f.issueDate||f.date)!==issued||terms!==condition(f.paymentTerms)||terms==='unknown'||!['pago','pendente'].includes(norm(n.status))||!['pago','pendente'].includes(norm(f.status))||(norm(n.status)==='pago')!==(balance===0)||(norm(f.status)==='pago')!==(balance===0))reason='data-condicao-ou-status-divergente';
+   if(fid)seenFinance.add(fid);
+   if(reason){status='review';report(k,reason)}
+   const row={noteId:k,titleId:fid||null,clientId:cid||null,clientName:id(client?.name||n.client||n.clientName)||'Sem cliente',orderIds,issued,due,terms,status,reason,totalCents:status==='reconciled-local'?total:null,paidCents:status==='reconciled-local'?paid:null,creditCents:status==='reconciled-local'?credit:null,balanceCents:status==='reconciled-local'?balance:null,overdue:status==='reconciled-local'&&balance>0?due<asOf:null,shared:orderIds.length>1};
+   titles.push(row);
+   for(const oid of orderIds){const list=byOrder.get(oid)||[];list.push(row);byOrder.set(oid,list)}
+  }
+  for(const f of db.finance.filter(live))if(!seenFinance.has(id(f.id)))report(id(f.id),'titulo-fora-da-base-canonica');
+  const output=[];
+  for(const [oid,o] of orders){
+   if(!o){report(oid,'pedido-duplicado');continue}if(/cancelad|excluid/.test(norm(o.status)))continue;
+   const rows=byOrder.get(oid)||[],own=rows.filter(t=>t.orderIds.length===1&&t.status==='reconciled-local'),cid=id(o.clientId),terms=condition(o.paymentTerms);
+   const modes=[...new Set(rows.filter(t=>t.status==='reconciled-local').map(t=>t.terms))];
+   const mode=terms!=='unknown'?terms:modes.length===1&&rows.every(t=>t.status==='reconciled-local'&&!t.shared)?modes[0]:'unknown';
+   output.push({orderId:oid,number:id(o.orderNumber)||oid,clientName:id(clients.get(cid)?.name||o.client)||'Sem cliente',clientId:cid,terms:mode,termsSource:terms!=='unknown'?'order':mode!=='unknown'?'linked-note-history':'unknown',noteCount:rows.length,sharedNotes:rows.filter(t=>t.shared).length,reviewNotes:rows.filter(t=>t.status==='review').length,exclusiveNoteBalanceCents:own.length?own.reduce((s,t)=>s+t.balanceCents,0):null,orderRemainingCents:null,status:rows.length?'linked-notes':'no-linked-note'});
+  }
+  const groups=new Map();
+  for(const t of titles){if(t.status!=='reconciled-local')continue;const g=groups.get(t.clientId)||{clientId:t.clientId,clientName:t.clientName,noteCount:0,totalCents:0,paidCents:0,balanceCents:0,cashOpenCents:0,termOpenCents:0,overdueCents:0};g.noteCount++;g.totalCents+=t.totalCents;g.paidCents+=t.paidCents;g.balanceCents+=t.balanceCents;g[t.terms==='cash'?'cashOpenCents':'termOpenCents']+=t.balanceCents;if(t.overdue)g.overdueCents+=t.balanceCents;groups.set(t.clientId,g)}
+  return {...empty('local-receivables-review',issues),titles,orders:output,clients:[...groups.values()].sort((a,b)=>b.balanceCents-a.balanceCents),coverageVerified:false};
+ }
+ return {orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
