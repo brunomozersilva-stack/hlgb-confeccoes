@@ -34,7 +34,8 @@ jobs:
       - name: Existing regression
         run: node --test tests/faction-flow-material-review-v9529.cjs
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.55 does not support ubuntu26.04; retain both browser tests.
+    runs-on: ubuntu-24.04
     timeout-minutes: 18
     strategy:
       fail-fast: false
