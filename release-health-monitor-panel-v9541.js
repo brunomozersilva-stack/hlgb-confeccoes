@@ -65,10 +65,26 @@ function classifyFailureEvidence978A(run,payload){
    return 'unknown-step';
   });
   const classification=kinds.length&&kinds.every(k=>k===kinds[0])?kinds[0]:'unknown-step';
-  rows.push({id:j.id,name:sid(j.name).slice(0,120),classification,failedSteps:steps.slice(0,20).map(s=>({number:Number(s.number)||null,name:sid(s.name).slice(0,160)})),link:'https://github.com/'+REPO+'/actions/runs/'+Number(run.id)+'/job/'+j.id});
+  rows.push({id:j.id,name:sid(j.name).slice(0,120),classification,failedSteps:steps.slice(0,20).map((s,i)=>({number:Number(s.number)||null,name:sid(s.name).slice(0,160),moduleCoverage:moduleCoverage978B(s.name,kinds[i])})),link:'https://github.com/'+REPO+'/actions/runs/'+Number(run.id)+'/job/'+j.id});
  }
  const kinds=new Set(rows.map(j=>j.classification)),classification=rows.length&&kinds.size===1?[...kinds][0]:rows.length?'mixed-evidence':'unclassified';
  return {...empty(rows.length?'observed-failed-steps':'no-failed-job-observed'),classification,jobs:rows,attempt:run.attempt,commit:run.commit};
+}
+// Snapshot of hlgb-modules/engenharia/test-matrix-v9638.json; CI rejects drift. Coverage is not root cause.
+function moduleMatrix978B(){return {"base-infraestrutura":["tests/audit-canonical-routing-v9316.cjs","tests/audit-app-stable3-restored-render-regression.cjs","tests/hlgb-integration-v9651.cjs","tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs"],"sincronizacao-wal":["tests/audit-wal-idb-only-regression.cjs","tests/audit-wal-equivalent-production-regression.cjs","tests/audit-record-integrity-regression.cjs"],"pedidos-projecao":["tests/audit-projection-delivery-integrity-regression.cjs","tests/audit-projection-missing-behavior-regression.cjs","tests/hlgb-product-history-search-v9652.cjs","tests/hlgb-assistant-integrated-v9670.cjs"],"corte-cortadores":["tests/audit-cutter-planner-regression.cjs","tests/audit-cut-material-usage-regression.cjs","tests/hlgb-live-cut-weight-core-v9623.cjs","tests/hlgb-production-planning-v9661.cjs","tests/hlgb-production-planning-v9661-browser.cjs","tests/hlgb-production-planning-v9661-selection-view.cjs"],"producao-separacao":["tests/audit-production-assignment-behavior-regression.cjs","tests/audit-production-reconcile-regression.cjs","tests/cut-separation-workspace-v9643.cjs","tests/cut-separation-checklist-v9644.cjs"],"faccoes-acertos":["tests/audit-faction-manual-payment-regression.cjs","tests/audit-faction-master-integrity-regression.cjs","tests/hlgb-settlement-history-v9653.cjs","tests/hlgb-settlement-history-view-v9654.cjs","tests/hlgb-operations-history-attendance-v9669.cjs"],"financeiro-hub-notas":["tests/audit-hub-period-detail-regression.cjs","tests/audit-hub-integrity-regression.cjs","tests/audit-note-integrity-regression.cjs","tests/hlgb-hub-intelligence-adapter-v9633.cjs","tests/hlgb-live-finance-integrated-v9657.cjs","tests/hlgb-rh-finance-v9667-browser.cjs"],"folha-pessoal":["tests/audit-payroll-integrity-regression.cjs","tests/hub-payroll-paid-date-v9515.cjs","tests/audit-payroll-provision-sort-total-regression.cjs","tests/hlgb-attendance-transport-v9658.cjs","tests/hlgb-rh-planning-v9636.cjs","tests/hlgb-rh-live-view-v9667.cjs","tests/hlgb-worker-registry-v9659.cjs","tests/hlgb-worker-registry-v9659-browser.cjs","tests/hlgb-operations-history-attendance-v9669.cjs","tests/hlgb-rh-finance-v9667-browser.cjs"],"compras-estoque":["tests/audit-material-tools-regression.cjs","tests/audit-purchase-checkers-regression.cjs","tests/hlgb-production-planning-v9661-selection-view.cjs"],"utilidades-etiquetas":["tests/audit-canonical-routing-v9316.cjs","tests/audit-ui-stability-regression.cjs"],"auditor-monitor":["tests/audit-internal-auditor-regression.cjs","tests/auditor-rapid-learning-v9437-webkit.js","tests/auditor-smart-ready-v9639.cjs","tests/auditor-smart-ready-v9639-browser.cjs","tests/hlgb-health-monitor-coverage-v9670.cjs","tests/hlgb-ci-evidence-v9671.cjs"],"assistente-ia":["tests/audit-assistant-query-regression.cjs","tests/audit-assistant-system-wide-regression.cjs","tests/hlgb-assistant-evidence-v9655.cjs","tests/hlgb-assistant-integrated-v9670.cjs"],"impressora-3d":["tests/boot-printer3d-recover-payroll-dedupe-v9596.cjs"],"interface-mobile":["tests/audit-ui-stability-regression.cjs","tests/mobile-friendly-v9512-browser.js","tests/mobile-real-pages-v9640.cjs","tests/hlgb-mobile-menu-v9670.cjs","tests/hlgb-rh-finance-v9667-browser.cjs"]}}
+function moduleCoverage978B(name,kind){
+ const empty=state=>({state,testPath:null,modules:[],rootCauseConfirmed:false,canRepair:false});
+ if(kind!=='test-step-failed')return empty('not-test-step');
+ const match=/^Run node (?:--test )?(tests\/[A-Za-z0-9_.\/-]+\.(?:cjs|js|mjs))$/.exec(sid(name).trim());
+ if(!match||match[1].split('/').some(x=>!x||x==='.'||x==='..'))return empty('test-path-unconfirmed');
+ const path=match[1],modules=Object.entries(moduleMatrix978B()).filter(([,paths])=>paths.includes(path)).map(([key])=>key).sort();
+ return {...empty(modules.length?'mapped-test-coverage':'unmapped-test'),testPath:path,modules};
+}
+function moduleCoverageLabel978B(e){
+ if(e?.state==='mapped-test-coverage')return 'Módulos cobertos pelo teste (não identifica o culpado): '+e.modules.join(', ');
+ if(e?.state==='unmapped-test')return 'Teste sem módulo cadastrado na matriz.';
+ if(e?.state==='test-path-unconfirmed')return 'Não foi possível identificar um teste individual pela etapa.';
+ return '';
 }
 const failureLabels978A={'setup-step-failed':'Falha em etapa de preparação/instalação; causa não confirmada','test-step-failed':'Falha durante execução de testes; consultar logs para distinguir código/ambiente','unknown-step':'Etapa sem classificação segura','mixed-evidence':'Etapas de falha diferentes','unclassified':'Sem evidência suficiente'};
 let failureProbeBusy978A=false;
@@ -367,7 +383,7 @@ function paint(){
   }
   const inspect=E('button','secondary',failureProbeBusy978A?'Consultando etapas…':'Conferir etapas com falha (até 5 execuções)');inspect.type='button';inspect.disabled=failureProbeBusy978A||!!busy||!!error||Date.now()-fetchedAt>=MAX_AGE;inspect.onclick=()=>probeFailures978A();list.append(inspect);
   const ev=latest.failureEvidence;
-  if(ev){list.append(E('p','sub','Etapas consultadas: '+ev.reviewedRuns+' de '+ev.totalFailed+' execuções com falha. A causa não foi comprovada.'));for(const row of ev.rows){const item=E('details','');item.append(E('summary','',row.runId+' · '+failureLabels978A[row.classification]));for(const job of row.jobs){const link=E('a','',job.name+' — '+failureLabels978A[job.classification]);link.href=job.link;link.target='_blank';link.rel='noopener noreferrer';item.append(link);for(const step of job.failedSteps)item.append(E('p','sub',step.name))}list.append(item)}}
+  if(ev){list.append(E('p','sub','Etapas consultadas: '+ev.reviewedRuns+' de '+ev.totalFailed+' execuções com falha. A causa não foi comprovada.'));for(const row of ev.rows){const item=E('details','');item.append(E('summary','',row.runId+' · '+failureLabels978A[row.classification]));for(const job of row.jobs){const link=E('a','',job.name+' — '+failureLabels978A[job.classification]);link.href=job.link;link.target='_blank';link.rel='noopener noreferrer';item.append(link);for(const step of job.failedSteps){item.append(E('p','sub',step.name));const coverage=moduleCoverageLabel978B(step.moduleCoverage);if(coverage)item.append(E('p','sub',coverage))}}list.append(item)}}
   result.append(list);
  }else if(ci.completed===0){
   result.append(E('div','sub','Os testes do commit atual ainda não foram concluídos ou não foram encontrados.'));
@@ -399,7 +415,7 @@ function humanSummary(data){
   'Publicação: '+(!p.checked?'não comprovada':p.current?'mesmo commit do main':'não corresponde ao main'),
   'Safari ↔ Chrome reais: NÃO COMPROVADO'];
  for(const f of ci.failingWorkflows)lines.push('FALHA — '+f.name+' — '+f.url);
- if(data.failureEvidence){lines.push('ETAPAS DE FALHA — '+data.failureEvidence.reviewedRuns+' de '+data.failureEvidence.totalFailed+' execuções; causa não confirmada.');for(const r of data.failureEvidence.rows){lines.push('Execução '+r.runId+' · '+failureLabels978A[r.classification]);for(const j of r.jobs)lines.push(j.name+' · '+j.failedSteps.map(s=>s.name).join(', ')+' · '+j.link)}}
+ if(data.failureEvidence){lines.push('ETAPAS DE FALHA — '+data.failureEvidence.reviewedRuns+' de '+data.failureEvidence.totalFailed+' execuções; causa não confirmada.');for(const r of data.failureEvidence.rows){lines.push('Execução '+r.runId+' · '+failureLabels978A[r.classification]);for(const j of r.jobs)lines.push(j.name+' · '+j.failedSteps.map(s=>[s.name,moduleCoverageLabel978B(s.moduleCoverage)].filter(Boolean).join(' — ')).join(', ')+' · '+j.link)}}
  if(l)lines.push('Execução do monitor: '+l.link);
  return lines.filter(Boolean).join('\n');
 }
@@ -488,7 +504,7 @@ function openStandalone(){
  return onOpen();
 }
 window.hlgbHourlyHealthPanel9541={
- version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,parse,classifyFailureEvidence978A,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
+ version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,parse,classifyFailureEvidence978A,moduleCoverage978B,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
  status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,accessEvidence,retryAfterAt,latest:report()})
 };
 })();
