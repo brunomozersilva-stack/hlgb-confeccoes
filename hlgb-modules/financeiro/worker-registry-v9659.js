@@ -63,6 +63,29 @@
   const r=reconcile.inspect({authenticated:ctx?.authenticated===true,payrollAllowed:ctx?.payrollAllowed===true,financeAllowed:ctx?.financeAllowed===true,rows:ctx?.rows,pendingOrigins:[],snapshotVerified:false,coverageVerified:false,pendingVerified:false},{kind:'worker-month',personId:x.worker_id,competence:input.competence,dueDate:input.contractDate,amountCents:v.observedGrossCents,sourceVerified:false,calendarVerified:false});
   return {...v,reconciliation:r.state,canPublish:false};
  }
+ // Dated weekly scenario supports admission during the week and separate
+ // planned/actual commutes. Does not turn a partial week into a saved payment.
+ function datedWeek(profileRow,input,ctx){
+  const p=profile(profileRow),friday=input?.friday,asOf=input?.asOf;
+  if(!p.active||p.mode!=='daily'||!date(friday)||new Date(friday+'T00:00:00Z').getUTCDay()!==5||!date(asOf)||friday<p.start_date)throw Error('invalid-week');
+  const day=86400000,finish=Date.parse(friday+'T00:00:00Z'),start=new Date(finish-4*day).toISOString().slice(0,10);
+  const calendar=Array.from({length:5},(_,i)=>new Date(finish-(4-i)*day).toISOString().slice(0,10));
+  const valid=(a,nullable=false)=>{if(nullable&&a===null)return null;if(!Array.isArray(a)||a.length>5||new Set(a).size!==a.length||a.some(d=>!calendar.includes(d)||d<p.start_date))throw Error('invalid-dates');return [...a].sort()};
+  const planned=valid(input.plannedDates),plannedCommute=valid(input.plannedCommuteDates),worked=valid(input.workedDates,true),commute=valid(input.commuteDates,true),closed=input.closedDates||[];
+  if(!Array.isArray(closed)||new Set(closed).size!==closed.length||closed.some(d=>!calendar.includes(d)))throw Error('invalid-closed-days');
+  const subset=(a,b)=>a.every(d=>b.includes(d));
+  if(!subset(plannedCommute,planned)||!p.transport_enabled&&plannedCommute.length||worked===null&&commute!==null||worked&&worked.some(d=>d>asOf)||commute&&(!subset(commute,worked)||!p.transport_enabled&&commute.length))throw Error('invalid-commute-or-future');
+  if(planned.some(d=>closed.includes(d)))throw Error('planned-on-closed-day');
+  const issues=[];if(worked?.some(d=>closed.includes(d)))issues.push('worked-on-closed-day-review');
+  if(worked?.some(d=>!planned.includes(d)))issues.push('worked-outside-plan-review');
+  if(input.reviewed!==true)issues.push('parameters-unreviewed');
+  if(asOf<friday)issues.push('week-not-ended');
+  const plan=planned.length*p.rate_cents+plannedCommute.length*p.transport_cents,actual=worked===null||p.transport_enabled&&commute===null?null:worked.length*p.rate_cents+(commute?.length||0)*p.transport_cents;
+  const due=[...calendar].reverse().find(d=>!closed.includes(d)&&d>=p.start_date)||null;
+  const identity='worker_week_forecast_v1|'+p.worker_id+':'+friday;
+  let state='incomplete-forecast';if(due&&typeof reconcile?.inspect==='function')state=reconcile.inspect({authenticated:ctx?.authenticated===true,payrollAllowed:ctx?.payrollAllowed===true,financeAllowed:ctx?.financeAllowed===true,rows:ctx?.rows,pendingOrigins:[],snapshotVerified:false,coverageVerified:false,pendingVerified:false},{kind:'worker-week',personId:p.worker_id,friday,dueDate:due,amountCents:actual??plan,sourceVerified:false,calendarVerified:false}).state;
+  return {state:'dated-week-preview',identity,start,friday,partialFirstWeek:p.start_date>start,plannedDays:planned.length,plannedCommuteDays:plannedCommute.length,workedDays:worked?.length??null,commuteDays:commute?.length??null,plannedCents:plan,actualCents:actual,differenceCents:actual===null?null:actual-plan,scheduledCandidate:due,issues,benefits:p.benefits,requiresRegularizationReview:p.relationship==='review-required',reconciliation:state,officialAmountCents:null,canPublish:false};
+ }
  function reviewedWeek(p,old,friday){
   const x=profile(p);if(!date(friday)||new Date(friday+'T00:00:00Z').getUTCDay()!==5)throw Error('invalid-friday');
   if(old&&(old.worker_id!==x.worker_id||old.week_friday!==friday||!integer(old.revision,1,2147483647)))throw Error('invalid-week-record');
@@ -73,5 +96,5 @@
   if(!reviewed||reviewed.worker_id!==x.worker_id||reviewed.worker_revision!==x.revision||reviewed.friday!==v.friday||!integer(reviewed.expectedRevision,0,2147483646))throw Error('review-required');
   return draft(x,{...v,revision:reviewed.expectedRevision+1});
  }
- return {profile,review,draft,save,forecast,monthly,reviewedWeek,nextWeek};
+ return {profile,review,draft,save,forecast,monthly,datedWeek,reviewedWeek,nextWeek};
 });

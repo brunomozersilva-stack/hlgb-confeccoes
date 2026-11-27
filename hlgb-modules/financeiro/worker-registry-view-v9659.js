@@ -44,6 +44,36 @@
   loadWeek.onclick=()=>guard(async()=>{if(!enabled()||!current)return say('Reabra o cadastro.');if(pending)return say('Há cadastro não confirmado. Confirme a operação original antes de carregar a semana.');if(weekPending)return say('Há tentativa pendente. Repita a operação original ou reabra o cadastro e confira a revisão.');const day=friday.value;const old=await transport.latest('week',{worker_id:current.worker_id,week_friday:day});if(!active()||day!==friday.value)return;reviewed=api.reviewedWeek(current,old,day);worked.value=old?String(old.worked_days):'';commute.value=old?String(old.commute_days):'';note.value=old?.note||'';say('Revisão carregada: '+reviewed.expectedRevision+'. Confira antes de salvar nova versão.')});
   friday.addEventListener('change',()=>{reviewed=null;out.replaceChildren()});
   monthPreview.onclick=()=>{if(!active())return;try{const n=monthCommute.value===''?null:Number(monthCommute.value);if(n!==null&&(!Number.isInteger(n)||n<0||n>31))throw Error('days');const x=api.monthly(current||payload(),{competence:competence.value,asOf:today(),contractDate:contractDate.value,commuteDays:n},hubContext());say('Base: '+money(x.baseCents)+' · Passagem: '+money(x.transportCents)+' · Bruto observado: '+money(x.observedGrossCents)+' · Hub: '+x.reconciliation+' · Data e valor não confirmados; sem lançamento.')}catch(_){say('Confira os campos mensais, o vínculo e a competência.')}}
+  const dated=el('details','',host);el('summary','Conferência semanal por dia — inclusive primeira semana',dated);
+  el('p','Marque os dias previstos, trabalhados e de passagem separadamente. Use a sexta de referência acima. Simulação local, sem gravação ou pagamento.',dated);
+  const dayHost=el('div','',dated),dayOut=el('div','',dated),reviewLabel=el('label','Conferi as datas e os valores do cadastro',dated),reviewCheck=el('input','',reviewLabel);reviewCheck.type='checkbox';
+  const actualLabel=el('label','Conferi os dias efetivos (desmarcado: ainda não apurados)',dated),actualCheck=el('input','',actualLabel);actualCheck.type='checkbox';actualCheck.onchange=()=>{reviewCheck.checked=false;dayOut.replaceChildren()};
+  const make=el('button','Carregar dias da semana',dated);make.type='button';make.className='secondary';
+  const calc=el('button','Calcular semana por dia',dated);calc.type='button';calc.className='secondary';
+  let dayRows=[],loaded=null;const reset=()=>{dayRows=[];loaded=null;dayHost.replaceChildren();dayOut.replaceChildren();reviewCheck.checked=false;actualCheck.checked=false};
+  for(const x of [friday,name,role,sector,start,mode,relationship,rate,vt,fare,days,status,...benefits])x.addEventListener('change',reset);
+  make.onclick=()=>{reset();if(!active())return;try{
+   const p=current||payload(),f=friday.value,n=Date.parse(f+'T00:00:00Z');if(!Number.isFinite(n)||new Date(n).getUTCDay()!==5||p.mode!=='daily'||f<p.start_date||!p.active)throw Error('week');
+   loaded={friday:f,profile:JSON.stringify(p),workerId:p.worker_id};
+   for(let i=4;i>=0;i--){const date=new Date(n-i*86400000).toISOString().slice(0,10);if(date<p.start_date)continue;
+    const row=el('fieldset','',dayHost);el('legend',date.split('-').reverse().join('/'),row);const flags={date};
+    for(const [key,label] of [['closed','Sem expediente'],['plan','Previsto'],['planCommute','Passagem prevista'],['worked','Trabalhou'],['commute','Deslocou']]){
+     const l=el('label',label,row),x=el('input','',l);x.type='checkbox';x.disabled=(key==='worked'||key==='commute')&&date>today()||key.toLowerCase().includes('commute')&&!p.transport_enabled;flags[key]=x;x.onchange=()=>{reviewCheck.checked=false;dayOut.replaceChildren()};
+    }dayRows.push(flags);
+   }
+  }catch(_){el('p','Confira cadastro e sexta de referência.',dayOut)}};
+  calc.onclick=()=>{dayOut.replaceChildren();if(!active()||!loaded||!reviewCheck.checked){el('p','Carregue e confira os dias antes de calcular.',dayOut);return}
+   try{const p=current||payload();if(!current){p.worker_id=loaded.workerId;const stored=JSON.parse(loaded.profile);p.operation_id=stored.operation_id}
+    if(friday.value!==loaded.friday||JSON.stringify(p)!==loaded.profile)throw Error('changed');
+    const pick=k=>dayRows.filter(r=>r[k].checked).map(r=>r.date);
+    const x=api.datedWeek(p,{friday:friday.value,asOf:today(),plannedDates:pick('plan'),plannedCommuteDates:pick('planCommute'),workedDates:actualCheck.checked?pick('worked'):null,commuteDates:actualCheck.checked?pick('commute'):null,closedDates:pick('closed'),reviewed:true},hubContext());
+    el('p','Previsto '+money(x.plannedCents)+' · Efetivo informado '+money(x.actualCents)+' · Diferença '+money(x.differenceCents),dayOut);
+    el('p',x.plannedDays+' dias previstos · '+(x.workedDays??'A conferir')+' trabalhados · '+(x.commuteDays??'A conferir')+' deslocamentos · Data candidata '+(x.scheduledCandidate||'A revisar')+' · Hub: '+x.reconciliation,dayOut);
+    if(x.partialFirstWeek)el('p','Primeira semana parcial: somente dias a partir do início do cadastro.',dayOut);
+    if(x.issues.length)el('p','Conferir: '+x.issues.join(' · '),dayOut);
+    el('p','Benefícios: '+(x.benefits.join(', ')||'Não informados')+' · '+(x.requiresRegularizationReview?'Vínculo exige revisão de RH.':'Vínculo informado como revisado.')+' Nenhum valor lançado.',dayOut);
+   }catch(_){el('p','Confira datas, deslocamentos e cadastro. Alterações exigem recarregar os dias.',dayOut)}
+  };
   async function list(){if(!enabled())return say('Cadastro remoto desabilitado.');const rows=await get('current','select=*&order=name.asc,worker_id.asc&limit=31&offset='+offset);if(!active())return;out.replaceChildren();el('p','Página '+(offset/30+1)+' · '+Math.min(rows.length,30)+' cadastros.',out);for(const row of rows.slice(0,30)){const x=api.profile(row),b=el('button',x.name+' · '+x.role_name+' · '+(x.active?'Ativo':'Inativo'),out);b.type='button';b.className='secondary';b.onclick=()=>{if(!active()||busy)return;if((pending||weekPending)&&!confirm('Descartar tentativa local e reabrir cadastro selecionado?'))return;fill(x);say('Cadastro observado · revisão '+x.revision)}}next.disabled=rows.length<=30;previous.disabled=offset===0}
   listBtn.onclick=()=>guard(async()=>{offset=0;await list()});previous.onclick=()=>guard(async()=>{offset=Math.max(0,offset-30);await list()});next.onclick=()=>guard(async()=>{offset+=30;await list()});
   historyBtn.onclick=()=>guard(async()=>{if(!current||!enabled())return say('Reabra um cadastro.');const key=filter('worker_id',current.worker_id),profiles=await get('profile',key+'&order=revision.desc&limit=50'),weeks=await get('week',key+'&order=week_friday.desc,revision.desc&limit=50');if(!active())return;out.replaceChildren();el('h4','Últimas 50 revisões de cadastro',out);for(const p of profiles)el('p','Rev. '+p.revision+' · '+p.created_at+' · '+money(p.rate_cents)+' · '+(p.active?'Ativo':'Inativo'),out);el('h4','Últimas 50 revisões semanais (não somar versões)',out);for(const w of weeks)el('p',w.week_friday+' · Rev. '+w.revision+' · cadastro rev. '+w.worker_revision+' · '+w.worked_days+' dias trabalhados · '+w.commute_days+' deslocamentos · '+w.note,out)});
