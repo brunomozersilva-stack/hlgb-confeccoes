@@ -169,7 +169,7 @@ function pdfDownload(receipt){
  a.href=url;a.download=receipt.name||'comprovante.pdf';a.style.display='none';document.body.appendChild(a);a.click();a.remove();
  setTimeout(()=>URL.revokeObjectURL(url),15000);
 }
-async function assertRecordNotPending(module,id){
+async function pendingPaymentIdentities(){
  const guard=window.hlgbWalIdbGuard9536;
  if(!guard?.probe||!guard?.ids)throw Error('Proteção de sincronização IndexedDB indisponível. Nenhum dado será substituído.');
  if(guard?.probe){
@@ -181,8 +181,25 @@ async function assertRecordNotPending(module,id){
   for(const x of guard?.ids?.()||[])identities.add(sid(x));
   for(const x of window.hlgbRecordPendingIdentitySet9535?.()||[])identities.add(sid(x));
  }catch(e){throw Error('Erro ao consultar pendências: '+sid(e.message||e))}
- if(identities.has(module+'::'+sid(id))||identities.has(module+'|'+sid(id)))
-  throw Error('Este pagamento ainda possui alteração local pendente. Não reenvie até sincronizar.');
+ return identities;
+}
+const pendingIdentity=(ids,module,id)=>ids.has(module+'::'+sid(id))||ids.has(module+'|'+sid(id));
+async function assertRecordNotPending(module,id){
+ const ids=await pendingPaymentIdentities();
+ if(pendingIdentity(ids,module,id))throw Error('Este pagamento ainda possui alteração local pendente. Não reenvie até sincronizar. Use Conferir sincronização deste acerto.');
+}
+async function checkPaymentSync(groupId){
+ if(window.__HLGB_AUTH_READY!==true)throw Error('Sessão não autenticada.');
+ if(state.status===STATUS.saving)throw Error('Existe uma operação de pagamento em andamento.');
+ state.status=STATUS.saving;
+ try{
+  const rows=assertGroup(groupId),targets=[...rows.map(r=>({module:'factionPayments',id:sid(r.id),label:sid(r.description||'Serviço')})),{module:'hubFinanceEntries',id:sid(hubId(groupId)),label:'Saída no Hub Financeiro'}];
+  const before=await pendingPaymentIdentities(),blocked=targets.filter(t=>pendingIdentity(before,t.module,t.id));
+  let checked={removed:0};
+  if(blocked.length){const authority=window.hlgbWalSingleAuthority9339;if(typeof authority?.pruneConfirmedFor!=='function')throw Error('Conferência específica indisponível. Nenhuma alteração foi removida.');checked=await authority.pruneConfirmedFor(blocked.map(({module,id})=>({module,id})));}
+  const after=await pendingPaymentIdentities(),remaining=targets.filter(t=>pendingIdentity(after,t.module,t.id));
+  return {state:remaining.length?'pending':'clear',before:blocked.length,removed:checked.removed||0,remaining:remaining.map(t=>t.label),skipped:!!checked.skipped};
+ }finally{state.status=STATUS.idle}
 }
 async function saveRecord(module,record){
  if(!record?.id)throw Error('Lançamento sem ID.');
@@ -773,6 +790,8 @@ async function markGroupPaid(groupId,date,method,receipt,options={}){
   if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||
     cents(x.paidAmount)!==cents(allocations[rows.indexOf(x)])))
    throw Error('Parte deste pagamento já foi registrada com outros dados. Não duplicar; revisar histórico.');
+  const linkedLocal=arr('hubFinanceEntries').filter(x=>x&&!x.deleted&&!x.deleted_at&&!x.deletedAt&&!['cancelado','cancelada','excluido','excluida'].includes(norm(x.status))&&sid(x.sourceId)===sid(groupId));
+  if(linkedLocal.length>1||linkedLocal.some(x=>sid(x.id)!==sid(hubId(groupId))||x.sourceType!=='faction_manual_payment'))throw Error('Existe lançamento financeiro vinculado fora do ID esperado. Confira o Hub antes de registrar outra saída.');
   const oldHub=await preflightGroup(groupId,allRows);
   if(options.requireExistingHub===true&&(!oldHub||oldHub.sourceType!=='faction_manual_payment'||sid(oldHub.id)!==sid(hubId(groupId))))throw Error('Pagamento anterior sem saída vinculada confirmada na nuvem. Nenhuma baixa ou saída nova será criada.');
   if(oldHub&&(cents(oldHub.value)!==cents(total)||sid(oldHub.date)!==date||sid(oldHub.paymentMethod)!==method||sid(oldHub.status)!=='Realizado'))
@@ -1753,7 +1772,7 @@ function openPayModal(groupId,options={}){
  if(!open)throw Error('Janela de pagamento indisponível.');
  const html='<div id="fm88-pay-modal" class="panel" style="padding:12px">'+
   '<p><b>'+esc(group.factionName)+'</b> · '+group.items+' serviço(s) · <b>'+money(total)+'</b></p>'+
-  (existingOnly?'<p class="sub"><b>Pagamento anterior:</b> só conclui a baixa quando a saída deste grupo já existe e coincide com data, valor e forma na nuvem. Não cria saída financeira.</p>':'<p class="sub">A baixa registra o total já ajustado no Hub Financeiro. Para abater ou acrescentar agora, use o botão abaixo antes de confirmar. Nenhuma alteração será feita automaticamente.</p>')+
+  (existingOnly?'<p class="sub"><b>Pagamento anterior:</b> só conclui a baixa quando a saída deste grupo já existe e coincide com data, valor e forma na nuvem. Não cria saída financeira.</p>':'<p class="sub">Use somente após realizar o pagamento de verdade. Este formulário registra a saída no Hub e marca os serviços como pagos; não realiza Pix ou transferência. Se já registrou a saída em outro lugar, confira o vínculo antes de confirmar. Para abater ou acrescentar, use o botão abaixo.</p>')+
    '<p class="sub">Serviços: '+money(group.nominal)+' · Ajustes diretos: '+money(sumDirectCentsV9591(group.directAdjustments||[])/100)+
    ' · Total líquido: <b>'+money(total)+'</b></p>'+
    (existingOnly?'':'<button type="button" class="secondary" id="fm91-pay-adjust">➖ Abater / ➕ Acrescentar antes de pagar</button>')+
@@ -1763,6 +1782,7 @@ function openPayModal(groupId,options={}){
   '<div class="field"><label>Forma de pagamento</label><input id="fm88-paid-method" placeholder="Pix, dinheiro, transferência" value="'+esc(suggestedMethod)+'"></div></div>'+
   (group.receipt?'<p class="sub">PDF existente: '+esc(group.receipt.name)+' — será preservado.</p>':
    '<div class="field"><label>Comprovante PDF (opcional, máximo 750 KB)</label><input type="file" id="fm88-paid-pdf" accept=".pdf,application/pdf"></div>')+
+  '<button type="button" class="secondary" id="fm9871-check-sync">Conferir sincronização deste acerto</button>'+
   '<div id="fm88-paid-feedback" role="status" class="sub"></div>'+
   '<button type="button" class="primary modalSave">✅ Confirmar como pago</button></div>';
  open('Dar baixa no pagamento avulso',html,async()=>{
@@ -1781,6 +1801,12 @@ function openPayModal(groupId,options={}){
    if(btn){btn.disabled=false;btn.textContent='✅ Confirmar como pago'}
    return false;
   }
+ });
+ document.getElementById('fm9871-check-sync')?.addEventListener('click',async()=>{
+  const check=document.getElementById('fm9871-check-sync'),pay=document.querySelector('#fm88-pay-modal .modalSave'),feedback=document.getElementById('fm88-paid-feedback');if(!check||check.disabled||pay?.disabled)return;
+  check.disabled=true;if(pay)pay.disabled=true;if(feedback)feedback.textContent='Conferindo apenas as pendências deste acerto com a nuvem…';
+  try{const x=await checkPaymentSync(groupId);if(feedback)feedback.textContent=x.state==='clear'?'✓ Nenhuma pendência deste acerto na fila consultada. Confira data e valor antes de confirmar; nenhuma baixa foi feita.':'⚠ Ainda pendente: '+x.remaining.join('; ')+'. '+(x.skipped?'Outra sincronização está em andamento. ':'')+'Nenhuma pendência divergente foi removida. Aguarde a sincronização normal; não repita a baixa.'}
+  catch(e){if(feedback)feedback.textContent='⚠ '+sid(e?.message||e)}finally{check.disabled=false;if(pay)pay.disabled=false}
  });
  document.getElementById('fm91-pay-adjust')?.addEventListener('click',()=>{
   openForm(groupId);
@@ -2008,7 +2034,7 @@ document.addEventListener('click',e=>{
 },true);
 window.hlgbFactionManual9566={version:V,openForm,searchFactions,searchProducts,factionDirectory,productDirectory,
  productPrice,pointsPerPieceV9592,autoTravetaV9592,travetaUnitV9592,saveTravetaPointsV9592,
-  validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
+  validate,grandTotal,readReceipt,pdfIsValid,persistDraft,receiptGroups,groupRows,groupState,saveGroupEdits,markGroupPaid,openPayModal,checkPaymentSync,remoteRecord,attachReceiptToGroup,renderReceipts,download:pdfDownload,install,
  registerCorrectionV9590,applyCorrectionV9590,compensationProof9811,matchingPendingGroupsV9590,groupCorrectionsV9590,groupApplicationsV9590,
  correctionRemainingV9590,netGroupV9590,directAdjustmentsV9591,validateDirectInputV9591,buildSummaryPdfV9590,summaryLinesV9590,downloadSummaryPdfV9590,
  status:()=>({...state}),editEvidenceStatusV95101,maxPdfBytes:MAX_PDF};

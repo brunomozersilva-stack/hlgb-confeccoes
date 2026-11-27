@@ -33,5 +33,13 @@ store.set('hlgb_durable_wal_v1',JSON.stringify({version:1,entries:{'production|1
   assert.strictEqual(result.removed,1,'WAL equivalente confirmado deveria ser podado');
   assert.strictEqual(result.equivalent.length,1,'Poda deve registrar substituição equivalente');
   assert.strictEqual(store.has('hlgb_durable_wal_v1'),false,'WAL local deve ficar vazio após confirmação equivalente');
-  console.log('OK wal equivalent production regression');
+  window.__HLGB_AUTH_READY=true;
+  const payment={id:'p1',status:'Pendente',value:155},entry=(id,data)=>({key:'factionPayments|'+id,opId:'op-'+id,module:'factionPayments',id,data,deleted:false});
+  const a=entry('p1',payment),b=entry('p2',{id:'p2',status:'Pendente',value:10}),other=entry('p3',{id:'p3',value:9});
+  store.set('hlgb_durable_wal_v1',JSON.stringify({entries:{[a.key]:a,[b.key]:b,[other.key]:other}}));
+  let queries=0;window.cloudRequest=async(q,o)=>{queries++;assert.equal(o.method,'GET');const id=q.includes('entity_id=eq.p1')?'p1':'p2';return [{module:'factionPayments',entity_id:id,deleted_at:null,data:id==='p1'?payment:{...b.data,value:99}}]};
+  const target=await api.pruneConfirmedFor([{module:'factionPayments',id:'p1'},{module:'factionPayments',id:'p2'}]);
+  assert.equal(target.removed,1);assert.equal(queries,2);assert.deepEqual(Object.keys(JSON.parse(store.get('hlgb_durable_wal_v1')).entries).sort(),[b.key,other.key].sort());
+  window.__HLGB_AUTH_READY=false;assert.equal((await api.pruneConfirmedFor([{module:'factionPayments',id:'p2'}])).skipped,true);assert.equal(queries,2);
+  console.log('OK wal equivalent production and targeted payment proof regression');
 })().catch(err=>{console.error(err);process.exitCode=1});
