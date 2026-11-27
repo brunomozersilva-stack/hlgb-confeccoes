@@ -291,7 +291,7 @@
  await p.evaluate(()=>{window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set()}});
  await p.getByRole('button',{name:'Simular corte conjunto',exact:true}).click();
  await joint.getByRole('button',{name:'Limpar seleção'}).click();assert.equal(await joint.locator('input:checked').count(),0);
- await joint.getByRole('searchbox').fill('Calcinha');assert.equal(await joint.locator('input[type=checkbox]').count(),1);
+ await joint.getByRole('searchbox').fill('Calcinha');assert.equal(await joint.locator('[data-joint-candidates9837] input[type=checkbox]').count(),1);
  await joint.getByRole('button',{name:'Fechar simulação'}).click();assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__jointSnapshot),true);
  await p.evaluate(()=>{for(const k of Object.keys(db))delete db[k];Object.assign(db,window.__jointBefore);});
  await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!!document.querySelector('#pedidos #originalSep')&&!document.getElementById('hlgbSeparationOperation9715'));

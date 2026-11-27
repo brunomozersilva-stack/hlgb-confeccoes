@@ -307,7 +307,7 @@ function openJointSimulation9837(){
  const groups=snapshot.groups;for(const g of groups){const o=el('option',g.materialName+' · '+g.orderedPieces+' peças pedidas',material);o.value=g.materialId}
  if(!groups.length){el('p','Nenhum grupo de pedidos compatível por matéria-prima encontrado. O caderno desta sessão permanece disponível.');material.disabled=true;}
  const search=el('input','');search.type='search';search.placeholder='Buscar modelo, pedido ou cor';search.setAttribute('aria-label','Buscar modelos para corte conjunto');search.style.cssText='width:100%;margin:8px 0';
- const list=el('div','');list.style.cssText='max-height:235px;overflow:auto;border:1px solid #ddd;padding:6px';
+ const list=el('div','');list.dataset.jointCandidates9837='1';list.style.cssText='max-height:235px;overflow:auto;border:1px solid #ddd;padding:6px';
  const result=el('section',''),status=el('p','');status.setAttribute('role','status');
  const chosen=new Set();let candidates=[],group=null;
  const orderMetadata=new Map([...cutIndex9709().orders].filter(([,o])=>o).map(([oid,o])=>[oid,{number:sid(o.orderNumber||o.number||oid),client:sid(o.client||o.clientName||'')}]));
