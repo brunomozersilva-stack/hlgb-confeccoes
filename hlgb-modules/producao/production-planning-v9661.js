@@ -570,8 +570,9 @@
   const start=dt(input?.start),horizon=input?.weeks,manual=input?.weeklyGoal,buffer=input?.bufferPercent;
   if(start===null||!Number.isSafeInteger(horizon)||horizon<1||horizon>13||manual!==null&&!qty(manual)||!Number.isSafeInteger(buffer)||buffer<0||buffer>90||
    !Array.isArray(input?.history)||input.history.length>52||!Array.isArray(input?.orders)||input.orders.length>5000||!Array.isArray(input?.closedDates)||input.closedDates.length>366)return empty('invalid-input');
-  const issues=[],hist=new Map(),curWeek=monday(start);
-  for(const x of input.history){const t=dt(x?.week);if(t===null||monday(t)!==t||t+6*D>=curWeek||!qty(x?.pieces)||hist.has(t))return empty('invalid-history');if(x.confirmed!==true)continue;hist.set(t,x.pieces)}
+  const asOf=input.asOf===undefined?start:dt(input.asOf);if(asOf===null||asOf>start)return empty('invalid-as-of');
+  const issues=[],hist=new Map(),seenWeeks=new Set(),curWeek=monday(start),historicalWeek=monday(asOf);
+  for(const x of input.history){const t=dt(x?.week);if(t===null||monday(t)!==t||t+6*D>=historicalWeek||!qty(x?.pieces)||seenWeeks.has(t))return empty('invalid-history');seenWeeks.add(t);if(x.confirmed!==true)continue;hist.set(t,x.pieces)}
   const samples=[...hist].sort((a,b)=>b[0]-a[0]).slice(0,12).map(x=>x[1]),sorted=samples.slice().sort((a,b)=>a-b);
   const average=samples.length?Math.round(samples.reduce((a,b)=>a+b,0)/samples.length):null;
   const conservative=samples.length>=4?sorted[Math.floor((sorted.length-1)*.25)]:null;
@@ -585,7 +586,7 @@
    if(!key||keys.has(key)||!qty(x?.pieces)||!x.pieces||due===null||!id(x.client)){issues.push('pedido-invalido-ou-duplicado');continue}keys.add(key);
    const term=x.paymentMode,days=x.paymentDays,amount=Number.isSafeInteger(x.amountCents)&&x.amountCents>=0?x.amountCents:null;
    const paymentMode=term==='cash'?'cash':term==='term'&&Number.isSafeInteger(days)&&days>0&&days<=365?'term':'unknown';
-   const receipt=paymentMode==='cash'?due:paymentMode==='term'?due+days*D:null;
+   const receipt=null; // derive only after simulated completion
    orders.push({key,client:id(x.client),model:id(x.model),dueDate:iso(due),due,pieces:x.pieces,remaining:x.pieces,paymentMode,paymentDays:paymentMode==='term'?days:null,amountCents:amount,receiptDate:receipt===null?null:iso(receipt),allocations:[],lastWorkDate:null,latePieces:0});
   }
   orders.sort((a,b)=>a.due-b.due||a.key.localeCompare(b.key));
@@ -597,16 +598,22 @@
     if(capacity!==null){let left=capacity;for(const o of orders){if(!left)break;if(o.remaining===0)continue;const take=Math.min(left,o.remaining);o.remaining-=take;left-=take;row.allocated+=take;o.lastWorkDate=row.date;if(d>o.due)o.latePieces+=take;o.allocations.push({date:row.date,pieces:take});row.assignments.push({key:o.key,client:o.client,model:o.model,pieces:take})}row.free=left}
     daily.push(row);days.push(row);
    }
-   const due=orders.filter(o=>o.due>=t&&o.due<t+7*D),receipts=orders.filter(o=>o.receiptDate&&dt(o.receiptDate)>=t&&dt(o.receiptDate)<t+7*D);
-   const amount=(rows,mode)=>rows.filter(o=>o.paymentMode===mode&&o.amountCents!==null).reduce((s,o)=>s+o.amountCents,0);
-   weeks.push({start:iso(t),end:iso(t+6*D),capacity:weeklyTarget===null?null:days.reduce((s,d)=>s+d.capacity,0),committed:due.reduce((s,o)=>s+o.pieces,0),allocated:days.reduce((s,d)=>s+d.allocated,0),free:weeklyTarget===null?null:days.reduce((s,d)=>s+d.free,0),due:due.map(o=>o.key),cashAtDeliveryCents:amount(receipts,'cash'),termReceiptsCents:amount(receipts,'term'),unknownPaymentPieces:due.filter(o=>o.paymentMode==='unknown'||o.amountCents===null).reduce((s,o)=>s+o.pieces,0)});
+   const due=orders.filter(o=>o.due>=t&&o.due<t+7*D);
+   weeks.push({start:iso(t),end:iso(t+6*D),capacity:weeklyTarget===null?null:days.reduce((s,d)=>s+d.capacity,0),committed:due.reduce((s,o)=>s+o.pieces,0),allocated:days.reduce((s,d)=>s+d.allocated,0),free:weeklyTarget===null?null:days.reduce((s,d)=>s+d.free,0),due:due.map(o=>o.key),cashAtDeliveryCents:0,termReceiptsCents:0,unknownPaymentPieces:due.filter(o=>o.paymentMode==='unknown'||o.amountCents===null).reduce((s,o)=>s+o.pieces,0)});
+  }
+  let excludedReceiptPieces=0;
+  for(const o of orders){
+   if(o.remaining>0||!o.lastWorkDate||o.paymentMode==='unknown'||o.amountCents===null){excludedReceiptPieces+=o.pieces;continue}
+   const receipt=Math.max(start,o.due,dt(o.lastWorkDate))+(o.paymentMode==='term'?o.paymentDays*D:0);
+   o.receiptDate=iso(receipt);const week=weeks.find(w=>w.start<=o.receiptDate&&o.receiptDate<=w.end);
+   if(week)week[o.paymentMode==='cash'?'cashAtDeliveryCents':'termReceiptsCents']+=o.amountCents;
   }
   const overdue=orders.filter(o=>o.due<start).reduce((s,o)=>s+o.pieces,0),unallocated=orders.reduce((s,o)=>s+o.remaining,0);
   const late=orders.reduce((s,o)=>s+o.latePieces+(o.due<=end?o.remaining:0),0);
   const proposed=input?.newPieces??0;if(!qty(proposed))return empty('invalid-proposal');
   // Earliest hypothetical capacity after preserving the entire existing queue.
   let firstAvailable=null,needed=proposed;if(weeklyTarget!==null&&proposed>0)for(const d of daily){needed-=Math.min(needed,d.free);if(needed===0){firstAvailable=d.date;break}}
-  return {...empty('local-capacity-simulation',issues),sampleCount:samples.length,average,conservative,weeklyGoal:manual,weeklyTarget,overdue,unallocated,late,orders:orders.map(({due,...o})=>o),weeks,daily,firstAvailable,newPieces:proposed,unplacedNewPieces:needed,model:'entregas-observadas-como-referencia',cashVerified:false};
+  return {...empty('local-capacity-simulation',issues),sampleCount:samples.length,average,conservative,weeklyGoal:manual,weeklyTarget,overdue,unallocated,late,excludedReceiptPieces,orders:orders.map(({due,...o})=>o),weeks,daily,firstAvailable,newPieces:proposed,unplacedNewPieces:needed,model:'entregas-observadas-como-referencia',cashVerified:false};
  }
 
  // Explicit scenario inputs only: never combine unverified order values with live receivables.
@@ -1074,5 +1081,21 @@
   for(const t of titles){if(t.status!=='reconciled-local')continue;const g=groups.get(t.clientId)||{clientId:t.clientId,clientName:t.clientName,noteCount:0,totalCents:0,paidCents:0,balanceCents:0,cashOpenCents:0,termOpenCents:0,overdueCents:0};g.noteCount++;g.totalCents+=t.totalCents;g.paidCents+=t.paidCents;g.balanceCents+=t.balanceCents;g[t.terms==='cash'?'cashOpenCents':'termOpenCents']+=t.balanceCents;if(t.overdue)g.overdueCents+=t.balanceCents;groups.set(t.clientId,g)}
   return {...empty('local-receivables-review',issues),titles,orders:output,clients:[...groups.values()].sort((a,b)=>b.balanceCents-a.balanceCents),coverageVerified:false};
  }
- return {orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+
+ // Explicit order terms outrank a client-level scenario, never historical note inference.
+ function orderPaymentCondition(order,override,clientScenario,allowed){
+  const unknown={mode:'unknown',days:null,source:'unknown'};
+  if(allowed!==true)return unknown;
+  const parse=(mode,days,source)=>mode==='cash'?{mode:'cash',days:0,source}:mode==='term'&&Number.isSafeInteger(days)&&days>0&&days<=365?{mode:'term',days,source}:null;
+  if(override&&override.mode!=='inherit')return parse(override.mode,override.days,'order-scenario')||{...unknown,source:'order-scenario'};
+  const term=norm(order?.paymentTerms).trim(),m=term.match(/^(\d{1,3})\s*dias?$/),direct=Number.isSafeInteger(order?.paymentDays)?order.paymentDays:null;
+  if(/^(a vista|avista)$/.test(term))return parse('cash',0,'order-recorded');
+  if(m||/^(a prazo|prazo|cheque|boleto|parcelado)$/.test(term)){
+   const days=m?Number(m[1]):direct;
+   return parse('term',days,'order-recorded')||{...unknown,source:'order-recorded-incomplete'};
+  }
+  if(term&&term!=='-')return {...unknown,source:'order-recorded-incomplete'};
+  return parse(clientScenario?.mode,clientScenario?.days,'client-scenario')||unknown;
+ }
+ return {orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
