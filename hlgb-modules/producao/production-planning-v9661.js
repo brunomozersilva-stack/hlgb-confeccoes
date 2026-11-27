@@ -768,6 +768,40 @@
   return {...empty('local-stage-goals',issues),goal,workdays:workDates.length,stages:result.map((s,i)=>({...s,periodCapacity:limits[i],simulatedPieces:unknown?null:s.done,remainingGoal:unknown?null:Math.max(0,goal-s.done),endingWip:unknown?null:wip[i]})),days,bottlenecks:unknown?[]:known.filter(s=>s.capacity===bottleneck),simulatedDeliveries:final,goalGap:final===null?null:Math.max(0,goal-final),partial:issues.length>0||unknown};
  }
 
+ // Multiweek sequential flow. Carry WIP forward; never sum output of successive sectors as finished pieces.
+ function multiweekStageFlow(input,allowed){
+  const no=(state,issues=[])=>({state,issues,weeks:[],canWrite:false,canPromise:false});
+  if(allowed!==true)return no('forbidden');
+  const D=86400000,dt=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?Date.parse(s+'T00:00:00Z'):null,iso=n=>new Date(n).toISOString().slice(0,10),qty=n=>Number.isSafeInteger(n)&&n>=0&&n<=10000000;
+  const start=dt(input?.start),asOf=dt(input?.asOf),targets=input?.weeklyTargets;
+  if(start===null||asOf===null||asOf>start||!Array.isArray(targets)||!targets.length||targets.length>13||targets.some(n=>!qty(n))||!Array.isArray(input.stages)||!Array.isArray(input.closedDates)||input.closedDates.length>366)return no('invalid-input');
+  const monday=n=>n-((new Date(n).getUTCDay()+6)%7)*D;
+  if(input.stages.some(s=>!Array.isArray(s?.history)||s.history.some(h=>dt(h?.week)===null||dt(h.week)+6*D>=monday(asOf))))return no('future-history');
+  const closed=new Set();for(const d of input.closedDates){const n=dt(d);if(n===null)return no('invalid-calendar');closed.add(n)}
+  const base=productionStageGoals({...input,goal:0,closedDates:[]},true);
+  if(base.state!=='local-stage-goals')return no(base.state);
+  if(base.stages.some(s=>s.capacity===null))return no('unknown-capacity',base.issues);
+  const total=targets.reduce((a,b)=>a+b,0),wip=base.stages.map(s=>s.initialWip),initialWip=wip.reduce((a,b)=>a+b,0),releaseBudget=Math.max(0,total-initialWip),issues=[...base.issues];
+  if(initialWip>total)issues.push('estoque-inicial-supera-meta');
+  const origin=monday(start),weeks=[],daily=[];let released=0,finished=0,demand=0;
+  for(let i=0;i<targets.length;i++){
+   const t=origin+i*7*D,stageRows=base.stages.map((s,j)=>({key:s.key,name:s.name,capacity:0,pieces:0,startWip:wip[j],endWip:wip[j],unusedCapacity:0})),before=finished;
+   for(let j=0;j<7;j++){
+    const n=t+j*D;if(n<start||j>=5||closed.has(n))continue;
+    const cap=base.stages.map(s=>Math.floor(s.capacity/5)+(j<s.capacity%5?1:0));
+    const done=cap.map((c,k)=>Math.min(c,k===0?releaseBudget-released:wip[k],k===cap.length-1?total-finished:total));
+    // No same-day transfer: each stage works only on beginning-of-day WIP.
+    for(let k=0;k<done.length;k++){if(k===0)released+=done[k];else wip[k]-=done[k];if(k===done.length-1)finished+=done[k];else wip[k+1]+=done[k];stageRows[k].pieces+=done[k];stageRows[k].capacity+=cap[k]}
+    daily.push({date:iso(n),stages:done.map((pieces,k)=>({key:stageRows[k].key,pieces,capacity:cap[k],wipAfter:wip[k]}))});
+   }
+   demand+=targets[i];
+   for(let k=0;k<stageRows.length;k++){stageRows[k].endWip=wip[k];stageRows[k].unusedCapacity=stageRows[k].capacity-stageRows[k].pieces}
+   weeks.push({start:iso(t),end:iso(t+6*D),target:targets[i],finished:finished-before,cumulativeTarget:demand,cumulativeFinished:finished,backlog:Math.max(0,demand-finished),ahead:Math.max(0,finished-demand),stages:stageRows});
+  }
+  const endingWip=wip.reduce((a,b)=>a+b,0);
+  if(initialWip+released!==finished+endingWip)return no('flow-divergence');
+  return {...no('local-multiweek-flow',issues),weeks,daily,totalTarget:total,totalFinished:finished,remainingTarget:Math.max(0,total-finished),initialWip,endingWip,released,partial:issues.length>0,capacityVerified:false};
+ }
  // Observe actual events, separately for cuts, external returns and internal completions.
  // Never equate a return date with hours worked, or absence of records with zero capacity.
  function observedThroughput(db,start,allowed){
@@ -1206,5 +1240,5 @@
    return empty(unconfirmed.length?'partial-cloud-capture':'cloud-capture-confirmed',{entries:after.entries,report:after,confirmed,unconfirmed,issues:draft.issues,cloudVerified:true});
   }catch(_){return empty('read-unconfirmed',{confirmed,unconfirmed})}
  }
- return {newOrderDecision,forecastCloudJournal,orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointCombinationHistory,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {multiweekStageFlow,newOrderDecision,forecastCloudJournal,orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointCombinationHistory,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
