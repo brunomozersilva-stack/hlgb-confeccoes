@@ -1,0 +1,21 @@
+name: HLGB RH - diária por dia e passagem
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/worker-registry-v9659.js'
+      - 'hlgb-modules/financeiro/worker-registry-view-v9659.js'
+      - 'tests/worker-dated-week-v9786.cjs'
+      - '.github/workflows/hlgb-worker-dated-week-v9786.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check hlgb-modules/financeiro/worker-registry-view-v9659.js
+      - run: node tests/worker-dated-week-v9786.cjs
