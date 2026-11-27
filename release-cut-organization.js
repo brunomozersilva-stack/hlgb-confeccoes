@@ -210,6 +210,15 @@ function openFullCutChecklist9820(id){
     }catch(_){if(current())message.textContent='Não foi possível verificar o arquivo.'}finally{selecting=false;picker.disabled=false}
    });
    paintFiles();
+   // Optional isolated persistence adapter. No commercial loader installs it.
+   // A missing adapter never disables the existing local conference or printing.
+   if(window.HLGBCutChecklistPersistence9835?.mount&&sessionOwner){
+    try{window.HLGBCutChecklistPersistence9835.mount({
+     panel,source:v,current,
+     fields:()=>({responsible:fields[0]?.value||'',note:fields[1]?.value||'',lines:conferenceRows.map(({row,m,color},i)=>({name:m.name,color:color.color,unit:m.unit,pieces:color.pieces,required:m.linkOK?color.amount:null,actual:fields[2+i*2]?.value||'',note:fields[3+i*2]?.value||'',checked:!!row.querySelector('input[type=checkbox]')?.checked}))}),
+     documents:()=>selected.slice()
+    })}catch(_){}
+   }
    grid.addEventListener('change',capture);mark.addEventListener('click',capture);
    const discard=el('button','Descartar rascunho desta sessão',panel);discard.type='button';discard.className='secondary';
    discard.onclick=()=>{if(!host.isConnected||conferenceIdentity9828()!==sessionOwner||!confirm('Descartar somente os valores da conferência desta sessão?'))return;conferenceDrafts9828.delete(cacheKey);panel.remove();grid.removeEventListener('change',capture);mark.removeEventListener('click',capture);detailed.disabled=false;};
@@ -222,7 +231,7 @@ function openFullCutChecklist9820(id){
   if(!requiredCutAllowed9820()||!host.isConnected)return;
   if(host.querySelector('[data-hlgb-color-conference9827]')&&conferenceIdentity9828()!==sessionOwner){alert('Sessão alterada. Reabra o checklist.');host.remove();return}
   const freshIdx=cutIndex9709(),fresh=cutActionProof9820(freshIdx.cuts.get(v.cutId),freshIdx);if(JSON.stringify(fresh)!==JSON.stringify(v)){alert('A grade ou ficha mudou. Reabra o checklist.');return}
-  const html=host.cloneNode(true);html.querySelectorAll('button,[data-hlgb-conference-docs9834] input,[data-hlgb-conference-docs9834] label,[data-hlgb-conference-docs9834] [role=status]').forEach(n=>n.remove());const original=[...host.querySelectorAll('input[type=checkbox]')];[...html.querySelectorAll('input[type=checkbox]')].forEach((n,i)=>{const text=document.createTextNode(original[i]?.checked?'☑ ':'☐ ');n.replaceWith(text)});const inputs=[...host.querySelectorAll('[data-hlgb-color-conference9827] input:not([type=file])')];[...html.querySelectorAll('[data-hlgb-color-conference9827] input')].forEach((n,i)=>{const input=inputs[i];n.replaceWith(document.createTextNode(input?.getAttribute('aria-invalid')==='true'?'Valor inválido':input?.value||'________________'))});html.removeAttribute('style');
+  const html=host.cloneNode(true);html.querySelectorAll('[data-hlgb-persistence9835],button,[data-hlgb-conference-docs9834] input,[data-hlgb-conference-docs9834] label,[data-hlgb-conference-docs9834] [role=status]').forEach(n=>n.remove());const original=[...host.querySelectorAll('input[type=checkbox]')];[...html.querySelectorAll('input[type=checkbox]')].forEach((n,i)=>{const text=document.createTextNode(original[i]?.checked?'☑ ':'☐ ');n.replaceWith(text)});const inputs=[...host.querySelectorAll('[data-hlgb-color-conference9827] input:not([type=file])')];[...html.querySelectorAll('[data-hlgb-color-conference9827] input')].forEach((n,i)=>{const input=inputs[i];n.replaceWith(document.createTextNode(input?.getAttribute('aria-invalid')==='true'?'Valor inválido':input?.value||'________________'))});html.removeAttribute('style');
   const page='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Checklist de separação</title><style>@page{size:A4;margin:10mm}body{font:12px Arial;color:#222}h2{font-size:19px}h3{font-size:14px}h2,h3{margin:8px 0}p{margin:4px 0}table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #aaa;padding:4px}th{background:#eee}tr{break-inside:avoid}thead{display:table-header-group}</style><body><h1 style="font-size:20px;margin:0 0 8px">HLGB Confecções</h1>'+html.innerHTML+'<p>Responsável: _____________________ Data: ____/____/____</p><p>Faltas / observações: __________________________________________</p></body></html>';
   let popup;try{popup=window.open('','_blank')}catch(_){}
   if(popup){try{popup.document.open();popup.document.write(page);popup.document.close();popup.focus?.();popup.print?.();return}catch(_){try{popup.close()}catch(_){}}}

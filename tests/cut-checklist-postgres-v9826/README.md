@@ -29,3 +29,7 @@ Laboratório bytea somente para testar conteúdo real, SHA-256, prefixo PDF/JPEG
 
 ## Autorização por funcionário (v98.33)
 Mapeamento fictício com active/access conforme shape comercial hlgb_user_access. Exige Corte, Pedidos, Produtos e Materiais; decisão conservadora até validar as permissões operacionais reais. Dois operadores compartilham histórico com autoria distinta; desativação e retirada de área bloqueiam leitura, gravação e anexos. Identidade SET ROLE é exclusiva do laboratório, não deve ser usada em produção. Banco comercial consultado apenas para metadados: nenhum bucket configurado. Produção exige auth.uid() validado no servidor, RLS real e armazenamento privado; não publicar automaticamente.
+
+
+## Integração visual de ponta a ponta (v98.35)
+O formulário comercial chama adaptador opcional somente se instalado; o loader comercial não o instala. Em CI a candidata usa o modal real, o contrato de confirmação e PostgreSQL isolado por gateway de teste, com dois navegadores/sessões, gravação por cor, documento e consulta independente. Bloqueia divergência de linhas/grade e conserva impressão sem painel candidato. Anexos são confirmados separadamente do histórico; uma falha intermediária exige retry da mesma operação, sem afirmar sucesso. Não é autenticação Supabase nem armazenamento comercial. Falta paridade abrangente e ambiente de homologação HLGB com auth/storage reais.
