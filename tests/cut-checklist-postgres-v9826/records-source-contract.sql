@@ -8,12 +8,20 @@ do $$ declare s jsonb; begin
  begin update checklist_lab.source_records set revision=99;raise exception 'source-write-allowed';exception when insufficient_privilege then null;end;
 end$$;
 reset role;
-update checklist_lab.source_records set revision=11,data=jsonb_set(data,'{name}','Papiro novo') where module='materials' and entity_id='m1';
+update checklist_lab.source_records set revision=11,data=jsonb_set(data,'{name}',to_jsonb('Papiro novo'::text)) where module='materials' and entity_id='m1';
 set role checklist_lab_operator;
 do $$ declare s jsonb; begin
  s:=checklist_lab.record_source('c1','o1','p1');
  if s->'revisions'->'materials'->>'m1'<>'11' or exists(select 1 from jsonb_array_elements(s->'lines') l where l->>'required' is not null) then raise exception 'material-revision';end if;
 end$$;
+reset role;
+-- A fixed material color missing from the grade must not disappear silently.
+update checklist_lab.source_records set revision=12,data=jsonb_set(data,'{materials,0,color}',to_jsonb('Azul'::text)) where module='products' and entity_id='p1';
+set role checklist_lab_operator;
+do $ declare s jsonb; begin
+ s:=checklist_lab.record_source('c1','o1','p1');
+ if not exists(select 1 from jsonb_array_elements(s->'lines') l where l->>'name'='Papiro' and l->>'color'='Azul' and l->>'required' is null and l->>'pieces'='0') then raise exception 'fixed-color-omitted';end if;
+end$;
 reset role;
 update checklist_lab.source_records set deleted_at=clock_timestamp() where module='products' and entity_id='p1';
 set role checklist_lab_operator;

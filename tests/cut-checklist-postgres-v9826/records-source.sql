@@ -15,7 +15,7 @@ insert into checklist_lab.source_records values
 create function checklist_lab.record_source(p_cut text,p_order text,p_product text)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare c checklist_lab.source_records%rowtype;o checklist_lab.source_records%rowtype;p checklist_lab.source_records%rowtype; m checklist_lab.source_records%rowtype;
- grade jsonb; colors jsonb; row_material jsonb; row_color jsonb; line jsonb; lines jsonb:='[]'; refs jsonb; i integer:=0; q numeric; loss numeric; amount numeric; verified boolean; mode text; material_ref text;
+ grade jsonb; colors jsonb; row_material jsonb; row_color jsonb; line jsonb; lines jsonb:='[]'; refs jsonb; i integer:=0; q numeric; loss numeric; amount numeric; verified boolean; mode text; material_ref text; matched boolean;
 begin
  select * into c from checklist_lab.source_records where module='cuts' and entity_id=p_cut and deleted_at is null;
  select * into o from checklist_lab.source_records where module='orders' and entity_id=p_order and deleted_at is null;
@@ -35,12 +35,17 @@ begin
   q:=null;loss:=null;mode:=coalesce(row_material->>'calcMode','consumption');
   if coalesce(row_material->>'qty','')~'^[0-9]{1,9}(\.[0-9]{1,6})?$' then q:=(row_material->>'qty')::numeric;end if;
   if coalesce(row_material->>'loss','0')~'^[0-9]{1,6}(\.[0-9]{1,6})?$' then loss:=coalesce(row_material->>'loss','0')::numeric;end if;
+  matched:=false;
   for row_color in select value from jsonb_array_elements(colors) loop
    if coalesce(row_material->>'color','')<>'' and lower(trim(row_material->>'color'))<>lower(trim(row_color->>'color')) then continue;end if;
+   matched:=true;
    amount:=case when verified is true and q>0 and loss is not null and mode in ('consumption','yield') then round((case when mode='yield' then (row_color->>'pieces')::numeric/q else (row_color->>'pieces')::numeric*q end)*(1+loss/100),6) else null end;
    line:=jsonb_build_object('key',jsonb_build_array(i,material_ref,row_color->>'color')::text,'materialId',material_ref,'name',row_material->>'name','color',row_color->>'color','pieces',row_color->'pieces','unit',row_material->>'unit','required',amount);
    lines:=lines||jsonb_build_array(line);
   end loop;
+  if not matched then
+   lines:=lines||jsonb_build_array(jsonb_build_object('key',jsonb_build_array(i,material_ref,row_material->>'color')::text,'materialId',material_ref,'name',row_material->>'name','color',row_material->>'color','pieces',0,'unit',row_material->>'unit','required',null));
+  end if;
  end loop;
  return jsonb_build_object('cutId',p_cut,'orderId',p_order,'productId',p_product,'revisions',refs,'grade',grade,'lines',lines);
 end$$;
