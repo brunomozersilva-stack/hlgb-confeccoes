@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'release-payroll-wal-race-v9346.js'
+      - 'release-hub-integrity.js'
+      - 'release-hub-tombstone-online.js'
+      - 'tests/audit-hub-integrity-regression.cjs'
+      - 'tests/audit-hub-tombstone-online-regression.cjs'
       - 'tests/hub-finance-wal-edicao-concorrente-v9696.cjs'
       - '.github/workflows/hub-finance-wal-edicao-concorrente-v9696.yml'
 permissions:
@@ -19,3 +23,5 @@ jobs:
       - run: node tests/hub-finance-wal-v9451-runtime.js
       - run: node tests/payroll-remote-noop-v9487.cjs
       - run: node tests/payroll-save-chain-single-guard-v9493.cjs
+      - run: node tests/audit-hub-integrity-regression.cjs
+      - run: node tests/audit-hub-tombstone-online-regression.cjs

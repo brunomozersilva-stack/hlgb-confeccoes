@@ -78,8 +78,10 @@ function syncQueuedInBackground(id,payload){
   }catch(err){console.info('[HLGB hub integrity '+V+'] alteração salva localmente; sincronização seguirá pendente:',String(err?.message||err))}
  },0);
 }
+const accountLinked9817=x=>x?.clientForecastLinkV9815!=null||['client_note_forecast_v9815','client_global_receipt_v9815'].includes(x?.sourceType);
 async function saveEntry(row,deleted=false){
  if(!row)throw new Error('Lançamento inválido.');const id=localId(row);if(id==='')throw new Error('Lançamento sem identificação.');
+ if(accountLinked9817(row)||accountLinked9817(findEntry(id))||accountLinked9817(snap(id)?.data))throw Error('Vínculo financeiro protegido. Use o acerto específico; nenhuma alteração foi enviada.');
  const payload=deleted?{...clone(row),__hlgb_explicit_delete:true}:clone(row);if(payload.id==null&&payload.__hlgbId==null)payload.__hlgbId=id;
  if(!deleted){
   upsertLocal(payload);try{if(typeof localSaveOnly==='function')localSaveOnly()}catch(e){}
@@ -89,6 +91,14 @@ async function saveEntry(row,deleted=false){
   return {applied:true,queued:true,localFirst:true,data:clone(payload),deleted_at:null};
  }
  await online();
+ // A stale computer may not yet know a forecast has been linked.
+ // Check authoritative identity before passing deletion to legacy transport.
+ const read=window.hlgbHubDelivery9324?.cloudRow;
+ if(typeof read!=='function')throw Error('Conferência remota indisponível. Exclusão não enviada.');
+ const remote=await read(id);
+ if(!remote||remote.module!=='hubFinanceEntries'||sid(remote.entity_id)!==id||remote.deleted_at||!Number.isSafeInteger(Number(remote.revision))||Number(remote.revision)<1||!remote.data)throw Error('Não foi possível confirmar o lançamento original. Exclusão não enviada.');
+ if(accountLinked9817(remote.data))throw Error('Vínculo financeiro protegido. Use o acerto específico.');
+ const snapshot=snap(id);if(snapshot&&Number(snapshot.revision)!==Number(remote.revision))throw Error('Conflito: lançamento alterado em outro computador. Atualize antes de excluir.');
  const out=await window.hlgbRecordSaveWithRetry('hubFinanceEntries',id,payload,true);
  if(!out||out.applied!==true)throw new Error(out?.reason||'A nuvem não confirmou a alteração.');
  if(!out.deleted_at)throw new Error('A nuvem respondeu sem confirmar a exclusão.');

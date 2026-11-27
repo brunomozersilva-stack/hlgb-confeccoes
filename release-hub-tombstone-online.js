@@ -113,7 +113,9 @@ function deleteIntent(module,data,deleted){return module===MODULE&&(deleted===tr
 function confirmed(res){return !!(res&&(res.applied===true||res.ok===true||truthy(res.deleted_at)||truthy(res.deletedAt)))}
 const original=window.hlgbRecordSaveWithRetry;
 if(typeof original==='function'&&!original.__hlgbHubTombstoneOnlineV9410){
+const accountLinked9817=x=>x?.clientForecastLinkV9815!=null||['client_note_forecast_v9815','client_global_receipt_v9815'].includes(x?.sourceType);
  const wrapped=async function(module,id,data,deleted=false){
+  if(module===MODULE&&(accountLinked9817(data)||accountLinked9817(snapshot(module,id)?.data)))throw Error('Vínculo financeiro protegido: operação legada não enviada.');
   const deleting=deleteIntent(module,data,deleted);
   try{
    const out=await original.apply(this,arguments);

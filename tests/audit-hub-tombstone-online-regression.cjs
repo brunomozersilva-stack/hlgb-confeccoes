@@ -48,5 +48,9 @@ function fixture({module='hubFinanceEntries',withSnapshot=true}={}){
  const noSnap=fixture({withSnapshot:false});
  await assert.rejects(noSnap.ctx.window.hlgbRecordSaveWithRetry('hubFinanceEntries','1790118449369',noSnap.row,false),e=>e.code==='HLGB_TOMBSTONE_BLOCK','without authoritative tombstone snapshot, do not mask the error');
 
+ const linked=fixture();linked.ctx.hlgbRecordSnapshots.hubFinanceEntries.set('1790118449369',{revision:3,deleted_at:null,data:{...linked.row,sourceType:'client_note_forecast_v9815'}});
+ await assert.rejects(linked.ctx.window.hlgbRecordSaveWithRetry('hubFinanceEntries','1790118449369',linked.row,true),/Vínculo financeiro protegido/);
+ await assert.rejects(linked.ctx.window.hlgbRecordSaveWithRetry('hubFinanceEntries','1790118449369',linked.row,false),/Vínculo financeiro protegido/);
+ assert.equal(linked.calls.length,0);assert(linked.store.has('hlgb_records_pending_v91'));assert.equal(linked.ctx.db.hubFinanceEntries.length,1);
  console.log('PASS Hub v94.10 tombstone reconciliation: only confirmed finance tombstones are pruned locally.');
 })().catch(e=>{console.error(e);process.exit(1)});
