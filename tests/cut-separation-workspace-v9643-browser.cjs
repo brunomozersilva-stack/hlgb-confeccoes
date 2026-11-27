@@ -34,6 +34,13 @@
  assert.match(printed,/FOLHA DE GRADE DO CORTADOR/);assert.match(printed,/Camisola/);assert.match(printed,/Malha/);assert.match(printed,/Peso total \(kg\)/);assert.match(printed,/Assinatura do Cortador 1/);assert.doesNotMatch(printed,/Calcinha/);
  await preview.getByRole('button',{name:'Fechar',exact:true}).click();assert.equal(await preview.count(),0);
  assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__printDbBefore),true);
+ // Exercise direct checklist print, including the real Safari blocked-popup fallback.
+ await required.getByRole('button',{name:'Imprimir checklist',exact:true}).click();
+ await preview.waitFor();
+ const checklistPrinted=await preview.locator('iframe').evaluate(x=>x.srcdoc);
+ assert.match(checklistPrinted,/Checklist completo da peça/);assert.match(checklistPrinted,/Camisola/);assert.match(checklistPrinted,/Malha/);assert.match(checklistPrinted,/Total da grade/);assert.match(checklistPrinted,/Rolos/);assert.doesNotMatch(checklistPrinted,/Calcinha/);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();
+ assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__printDbBefore),true);
  await p.evaluate(()=>{window.open=window.__originalOpen9821;window.hlgbCutterSheetV9523.ensurePrintRoute9523()});
  assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);await singleGrade.click();await splitGrade.click();assert.deepEqual(await p.evaluate(()=>window.__gradeOpens),[['single','9'],['split','19']]);
  await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);

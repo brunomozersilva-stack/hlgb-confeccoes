@@ -47,10 +47,16 @@ function cutActionProof9820(c,idx){
   const cat=idx.materials.get(sid(m?.materialId)),name=sid(m?.name||cat?.name||'Material sem identificação'),unit=sid(m?.unit||cat?.unit||''),raw=m?.qty,loss=Number(m?.loss??0),q=Number(raw),mode=m?.calcMode||'consumption';
   const valid=(typeof raw==='number'||typeof raw==='string'&&/^\d+(\.\d+)?$/.test(raw))&&q>0&&Number.isFinite(q)&&Number.isFinite(loss)&&loss>=0&&!!unit&&['yield','consumption'].includes(mode);
   const amount=valid?(mode==='yield'?pieces/q:pieces*q)*(1+loss/100):null;
+  const issues=[];
+  if(!valid)issues.push(q===0&&raw!=null&&String(raw).trim()!==''?'Consumo zerado: informar quantidade na ficha técnica':'Consumo, perda ou unidade a conferir');
+  if(m?.materialId!=null&&!cat)issues.push('Material vinculado não localizado ou duplicado no cadastro');
+  if(m?.name&&cat?.name&&norm(m.name)!==norm(cat.name))issues.push('Vínculo divergente no cadastro: '+sid(cat.name));
+  if(m?.unit&&cat?.unit&&norm(m.unit)!==norm(cat.unit))issues.push('Unidade divergente no cadastro: '+sid(cat.unit));
+  const linkOK=!issues.some(x=>/vinculado|Vínculo|Unidade divergente/.test(x));
   const byColor=new Map();for(const g of grade)byColor.set(g.color,(byColor.get(g.color)||0)+g.qty);
   const conversion=((norm(cat?.purchaseUnit).includes('rolo')||norm(cat?.purchaseMode).includes('rolo'))?Number(cat?.purchaseConversion):norm(cat?.packageName).includes('rolo')?Number(cat?.packageAvg):0);
-  const roll=n=>Number.isFinite(n)&&Number.isFinite(conversion)&&conversion>0?Math.ceil(n/conversion-1e-9):null;
-  return {name,unit,amount:Number.isFinite(amount)?amount:null,category:sid(m?.category||m?.cat||cat?.category||cat?.cat||''),color:sid(m?.color||''),rolls:roll(amount??NaN),byColor:[...byColor].map(([color,count])=>{const a=valid?(mode==='yield'?count/q:count*q)*(1+loss/100):null;return {color,pieces:count,amount:Number.isFinite(a)?a:null,rolls:roll(a??NaN)}})};
+  const roll=n=>linkOK&&Number.isFinite(n)&&Number.isFinite(conversion)&&conversion>0?Math.ceil(n/conversion-1e-9):null;
+  return {name,unit,issues,linkOK,amount:Number.isFinite(amount)?amount:null,category:sid(m?.category||m?.cat||cat?.category||cat?.cat||''),color:sid(m?.color||''),rolls:roll(amount??NaN),byColor:[...byColor].map(([color,count])=>{const a=valid?(mode==='yield'?count/q:count*q)*(1+loss/100):null;return {color,pieces:count,amount:Number.isFinite(a)?a:null,rolls:roll(a??NaN)}})};
  });
  return {cutId:sid(c.id),orderId:sid(order.id),productId:sid(product.id),orderNumber:sid(order.orderNumber||order.id),client:sid(order.client||order.clientName||''),model:sid(product.name||c.product),pieces,grade,materials,gradeSource:source===ordered?'pedido':source===c.actualCutGrade?'realizada':'corte',canWrite:false};
 }
@@ -95,11 +101,13 @@ function openFullCutChecklist9820(id){
  const table=el('table','',grid);table.style.cssText='width:100%;border-collapse:collapse';const head=el('tr','',el('thead','',table));
  for(const label of ['OK','Material','Categoria','Cor','Quantidade','Unidade','Rolos'])el('th',label,head);
  const tbody=el('tbody','',table);
+ const warnings=v.materials.filter(m=>m.issues.length);
+ if(warnings.length){const warning=el('div','');warning.setAttribute('role','note');warning.style.cssText='border:1px solid #a86a18;padding:8px;margin:8px 0';el('strong','Pendências da ficha técnica — conferir antes de separar',warning);for(const m of warnings)el('p',m.name+': '+m.issues.join('; '),warning);}
  for(const m of v.materials){
   const splits=m.color?m.byColor.filter(x=>norm(x.color)===norm(m.color)):m.byColor;
   const lines=splits.length?splits:[{color:m.color||'A conferir',pieces:0,amount:null,rolls:null}];
-  for(const color of lines){const row=el('tr','',tbody),cell=el('td','',row),check=el('input','',cell);check.type='checkbox';check.disabled=color.amount===null;check.setAttribute('aria-label',m.name+' '+color.color);
-   el('td',m.name,row);el('td',m.category||'-',row);el('td',color.color,row);el('td',fmt(color.amount),row);el('td',m.unit||'-',row);el('td',color.rolls===null?'-':String(color.rolls),row);
+  for(const color of lines){const row=el('tr','',tbody),cell=el('td','',row),check=el('input','',cell);check.type='checkbox';check.disabled=color.amount===null||!m.linkOK;check.setAttribute('aria-label',m.name+' '+color.color);
+   el('td',m.name,row);el('td',m.category||'-',row);el('td',color.color,row);el('td',fmt(color.amount)+(!m.linkOK&&color.amount!==null?' (estimativa; conferir vínculo)':''),row);el('td',m.unit||'-',row);el('td',color.rolls===null?'-':String(color.rolls),row);
   }
  }
  for(const cell of host.querySelectorAll('th,td'))cell.style.cssText='border:1px solid #aaa;padding:5px;text-align:left;font-size:12px';
