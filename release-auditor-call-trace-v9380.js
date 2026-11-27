@@ -40,12 +40,13 @@ function wrapName(name,kind){
  const w=function(){
   const st=stack(),t0=now();
   const blockedByEarlyGate=window.__HLGB_AUTH_READY!==true&&name==='syncFinalizedCutsToProduction'&&chainHasMarker(cur,'__hlgb9306EarlyBoot');
-  mark(kind+':start',name,{stack:st,argsCount:arguments.length,blockedByEarlyGate});
+  const callId=seq+1;
+  mark(kind+':start',name,{callId,stack:st,argsCount:arguments.length,blockedByEarlyGate});
   let out;
-  try{out=cur.apply(this,arguments)}catch(err){mark(kind+':throw',name,{durationMs:+(now()-t0).toFixed(2),error:sid(err?.message||err),blockedByEarlyGate});throw err}
-  const sync=+(now()-t0).toFixed(2);mark(kind+':return',name,{syncDurationMs:sync,promise:!!out&&typeof out.then==='function',blockedByEarlyGate});
+  try{out=cur.apply(this,arguments)}catch(err){mark(kind+':throw',name,{callId,durationMs:+(now()-t0).toFixed(2),error:sid(err?.message||err),blockedByEarlyGate});throw err}
+  const sync=+(now()-t0).toFixed(2);mark(kind+':return',name,{callId,syncDurationMs:sync,promise:!!out&&typeof out.then==='function',blockedByEarlyGate});
   if(out&&typeof out.then==='function'){
-   Promise.resolve(out).then(()=>mark(kind+':resolve',name,{totalDurationMs:+(now()-t0).toFixed(2),blockedByEarlyGate}),err=>mark(kind+':reject',name,{totalDurationMs:+(now()-t0).toFixed(2),error:sid(err?.message||err),blockedByEarlyGate}));
+   Promise.resolve(out).then(()=>mark(kind+':resolve',name,{callId,totalDurationMs:+(now()-t0).toFixed(2),blockedByEarlyGate}),err=>mark(kind+':reject',name,{callId,totalDurationMs:+(now()-t0).toFixed(2),error:sid(err?.message||err),blockedByEarlyGate}));
   }
   return out;
  };
@@ -54,7 +55,7 @@ function wrapName(name,kind){
  window[name]=w;wrapped.set(name,w);mark('install',name,{kind,originalName:cur.name||''});return true;
 }
 function install(){for(const [name,kind] of Object.entries(TARGETS))wrapName(name,kind);return wrapped.size}
-function snapshot(){return {kind:'hlgb_call_trace',version:V,build:BUILD,generatedAt:wall(),eventCount:events.length,wrapped:[...wrapped.keys()],events:events.slice(),coverage:{startedWall:startWall,authReady:window.__HLGB_AUTH_READY===true}}}
+function snapshot(){return {kind:'hlgb_call_trace',version:V,build:BUILD,generatedAt:wall(),eventCount:events.length,wrapped:[...wrapped.keys()],events:events.slice(),coverage:{startedWall:startWall,authReady:window.__HLGB_AUTH_READY===true,droppedEvents:Math.max(0,seq-events.length),callCorrelation:true}}}
 function loadScriptOnce(src,key,dataKey,onload){
  try{
   if(key&&window[key]){onload?.();return false}
