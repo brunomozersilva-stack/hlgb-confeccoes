@@ -20,7 +20,7 @@
  const output=host=>{const x=el('div','',host);x.setAttribute('aria-live','polite');return x};
  const block=(label,host)=>{const x=el('details','',host);x.className='panel';el('summary',label,x);return x};
  const labels={all:'Todos os períodos',acquired:'Direito adquirido',overdue:'Concessivo vencido',proportional:'Em aquisição',used:'Saldo zero informado',unknown:'A revisar'};
- const issueText={'annual-period-history-unverified':'Histórico anual de férias coletivas não informado','annual-period-limit':'Limite de períodos anuais a revisar','calendar-unverified':'Calendário e convenção não verificados','start-date-review':'Data de início a revisar','employee-entitlement-incomplete':'Saldo/direito incompleto','proportional-cycle-recalculation':'Novo ciclo aquisitivo proporcional exige revisão','insufficient-balance':'Saldo insuficiente para o período'};
+ const issueText={'annual-period-history-unverified':'Histórico anual de férias coletivas não informado','annual-period-limit':'Limite de períodos anuais a revisar','calendar-unverified':'Calendário e convenção não verificados','start-date-review':'Data de início a revisar','employee-entitlement-incomplete':'Saldo/direito incompleto','proportional-cycle-recalculation':'Novo ciclo aquisitivo proporcional exige revisão','insufficient-balance':'Saldo insuficiente para o período','period-before-admission':'Período começa antes da admissão'};
  function clear(){document.getElementById('hlgbRHLive9667')?.remove()}
  function mount(){
   const page=document.getElementById('folhaPagamento');
@@ -82,6 +82,9 @@
     for(const t of r.totals){el('h4',t.start+' a '+t.end+' · '+t.days+' dias',vacOut);el('p','Férias + 1/3 observadas: '+money(t.grossVacationCents)+' · Licença informada: '+money(t.paidLeaveCents)+' · Prazo candidato: '+t.paymentCandidate+(t.partial?' · Total parcial / revisão necessária':''),vacOut)}
     el('strong','Total bruto observado: '+money(r.observedGrossCents),vacOut);for(const x of r.issues)el('p',issueText[x]||x,vacOut);
     for(const x of r.reviewIssues)el('p',(selected.get(x.employeeId)?.name||x.employeeId)+' · '+(x.reason==='roster-changed'?'Cadastro mudou; selecione novamente.':'Revisão de direito/saldo pendente.'),vacOut);
+    const companyDetail=block('Totais por confecção e período',vacOut);
+    for(const g of r.companyTotals||[]){el('h4',(g.company||'Confecção não identificada')+' · '+g.selectedCount+' selecionados',companyDetail);for(const t of g.periods){el('p',t.start+' a '+t.end+' · '+t.completeCount+' de '+g.selectedCount+' valores completos · '+t.reviewCount+' a revisar · Férias + 1/3 '+money(t.grossVacationCents)+' · Licença '+money(t.paidLeaveCents)+' · Bruto observado '+money(t.observedGrossCents)+(t.partial?' (parcial)':''),companyDetail)}}
+    el('p','Valores completos significam apenas os componentes brutos revisados da simulação; não incluem encargos ou descontos.',companyDetail);
     const detail=block('Detalhamento por funcionário e período',vacOut);for(const row of r.people){el('h4',selected.get(row.id)?.name||row.id,detail);for(const z of row.periods)el('p',z.start+' · '+(z.vacationDays??'a revisar')+' dias · Férias + 1/3 '+money(z.grossVacationCents)+' · Saldo '+(z.remainingDays??'a revisar')+' · '+(z.status==='review'?'Revisão necessária':'Estimativa'),detail)}
    }catch(_){el('p','Confira datas, seleção, histórico anual e campos de revisão. Nenhum valor foi lançado.',vacOut)}
   });

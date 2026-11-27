@@ -85,13 +85,29 @@
    const k=employeeId(r?.employeeId),e=current.get(k);
    if(!k||seen.has(k))throw Error('duplicate-review');seen.add(k);
    if(!e||r.signature!==e.signature){issues.push({employeeId:k,reason:'roster-changed'});continue}
+   if(e.hireDate&&Array.isArray(input.periods)&&input.periods.some(p=>date(p?.start)!==null&&p.start<e.hireDate)){issues.push({employeeId:k,reason:'period-before-admission'});continue}
    if(r.reviewed!==true||!money(r.baseCents)||!days(r.availableDays)||!['acquired','proportional'].includes(r.entitlement)){issues.push({employeeId:k,reason:'entitlement-review-required'});continue}
    valid.push({id:k,baseCents:r.baseCents,availableDays:r.availableDays,entitlement:r.entitlement,entitlementVerified:true,paidLeaveApproved:r.paidLeaveApproved===true});
   }
   const result=vacations({periods:input.periods,employees:valid,priorPeriodsByYear:input.priorPeriodsByYear||{},calendarVerified:false,closedDays:[]});
   const partial=result.people.some(x=>x.periods.some(p=>p.status==='review'));
   const totals=result.totals.map((t,i)=>{const rows=result.people.map(p=>p.periods[i]),grossCount=rows.filter(x=>Number.isSafeInteger(x?.grossVacationCents)).length,leaveCount=rows.filter(x=>Number.isSafeInteger(x?.paidLeaveCents)).length;return {...t,grossVacationCents:grossCount?t.grossVacationCents:null,paidLeaveCents:leaveCount?t.paidLeaveCents:null,grossCount,leaveCount,partial:grossCount<input.reviews.length||leaveCount<input.reviews.length||rows.some(x=>x?.status==='review')}});
-  return {...result,totals,selectedCount:input.reviews.length,reviewedCount:valid.length,reviewIssues:issues,observedGrossCents:valid.length?result.observedGrossCents:null,coverage:!issues.length&&!partial?'reviewed-local-input':'partial-review',canPublish:false};
+  // Separate known values from fully valued employees, by company and period.
+  const byEmployee=new Map(result.people.map(p=>[p.id,p])),companies=new Map();
+  for(const review of input.reviews){const k=employeeId(review.employeeId),e=current.get(k),company=e?.company||null;
+   const group=companies.get(company)||{company,selectedCount:0,periods:result.totals.map(t=>({start:t.start,end:t.end,days:t.days,paymentCandidate:t.paymentCandidate,completeCount:0,reviewCount:0,grossVacationCents:null,paidLeaveCents:null,observedGrossCents:null}))};
+   group.selectedCount++;
+   for(const [i,t] of group.periods.entries()){
+    const p=byEmployee.get(k)?.periods[i];const hasGross=Number.isSafeInteger(p?.grossVacationCents),hasLeave=Number.isSafeInteger(p?.paidLeaveCents);
+    if(hasGross)t.grossVacationCents=(t.grossVacationCents??0)+p.grossVacationCents;
+    if(hasLeave)t.paidLeaveCents=(t.paidLeaveCents??0)+p.paidLeaveCents;
+    if(hasGross||hasLeave)t.observedGrossCents=(t.observedGrossCents??0)+(hasGross?p.grossVacationCents:0)+(hasLeave?p.paidLeaveCents:0);
+    if(hasGross&&hasLeave&&p.status==='estimate')t.completeCount++;else t.reviewCount++;
+   }
+   companies.set(company,group);
+  }
+  const companyTotals=[...companies.values()].sort((a,b)=>(a.company||'').localeCompare(b.company||'','pt-BR')).map(g=>({...g,periods:g.periods.map(p=>({...p,partial:p.reviewCount>0})),partial:g.periods.some(p=>p.reviewCount>0)}));
+  return {...result,totals,companyTotals,selectedCount:input.reviews.length,reviewedCount:valid.length,reviewIssues:issues,observedGrossCents:valid.length?result.observedGrossCents:null,coverage:!issues.length&&!partial?'reviewed-local-input':'partial-review',canPublish:false};
  }
  // Multiple acquisition cycles per person. Overlapping cycles and duplicate identifiers are not counted.
  function provisionCycles(source,rows,asOf,filter='all'){
