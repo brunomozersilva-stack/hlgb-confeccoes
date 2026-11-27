@@ -312,6 +312,15 @@ function validateJointNotebook9840(doc,owner){
   return {kind:h.kind,at:new Date(h.at).toISOString(),materialId:text(h.materialId,120,true),materialName:text(h.materialName,200,true),rows,weight:{physical,totalKg:total,usedKg:used,wasteKg:waste,remainderKg:Math.max(0,+(total-used-waste).toFixed(3)),usedPercent:+(100*used/total).toFixed(2),wastePercent:+(100*waste/total).toFixed(2),actualPieces:qty,piecesPerKg:w.kind==='measured'&&qty!==null?+(qty/total).toFixed(3):null,widthCm:width,lot,note,kind:w.kind}};
  });
 }
+// A proportional batch is arithmetic only: exact integer grades, no geometry or stock claims.
+function jointProportional9841(rows,sizes){
+ if(!Array.isArray(rows)||rows.length<2||!sizes.length)return null;
+ const gcd=(a,b)=>{while(b){const r=a%b;a=b;b=r}return a};
+ let repeat=0;const vectors=rows.map(x=>sizes.map(s=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0)));
+ for(const v of vectors)for(const n of v){if(!Number.isSafeInteger(n)||n<0)return null;repeat=gcd(repeat,n)}
+ if(!repeat)return null;
+ return {repeat,base:vectors.map(v=>v.map(n=>n/repeat)),vectors};
+}
 function jointAllowed9837(){try{return requiredCutAllowed9820()&&canOpenPage('materiais')===true}catch(_){return false}}
 function jointSnapshot9837(){
  if(!jointAllowed9837()||typeof window.HLGBJointCutDiscovery9629?.discover!=='function')return null;
@@ -335,7 +344,7 @@ function openJointSimulation9837(){
  const search=el('input','');search.type='search';search.placeholder='Buscar modelo, pedido ou cor';search.setAttribute('aria-label','Buscar modelos para corte conjunto');search.style.cssText='width:100%;margin:8px 0';
  const list=el('div','');list.dataset.jointCandidates9837='1';list.style.cssText='max-height:235px;overflow:auto;border:1px solid #ddd;padding:6px';
  const result=el('section',''),status=el('p','');status.setAttribute('role','status');
- const chosen=new Set();let candidates=[],group=null;
+ const chosen=new Set(),proportional=new Map();let candidates=[],group=null;
  const orderMetadata=new Map([...cutIndex9709().orders].filter(([,o])=>o).map(([oid,o])=>[oid,{number:sid(o.orderNumber||o.number||oid),client:sid(o.client||o.clientName||'')}]));
  const orderMeta=oid=>orderMetadata.get(oid)||{number:oid,client:''};
  const selectedRows=()=>candidates.filter(x=>chosen.has(x.key));
@@ -459,6 +468,16 @@ function openJointSimulation9837(){
    const foot=add('tr','',body);add('th','Total pedido',foot);add('td','—',foot);for(const n of totals)add('td',String(n),foot);add('td',String(totals.reduce((a,b)=>a+b,0)),foot);
    if(!individual){
     for(const color of new Set(items.map(x=>x.color))){const same=items.filter(x=>x.color===color);if(same.length<2)continue;const common=sizeOrder.map(s=>Math.min(...same.map(x=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0))));add('p','Grade comum aritmética — '+color+': '+sizeOrder.map((s,i)=>s+' '+common[i]).join(' · '),section);for(const x of same){const dif=sizeOrder.map((s,i)=>x.lines.filter(l=>l.size===s).reduce((n,l)=>n+l.ordered,0)-common[i]);add('p',x.name+' / Pedido '+orderMeta(x.orderId).number+' — fora da grade comum: '+sizeOrder.map((s,i)=>s+' '+dif[i]).join(' · '),section)}}
+    for(const color of new Set(items.map(x=>x.color))){
+     const groupRows=items.filter(x=>x.color===color),plan=jointProportional9841(groupRows,sizeOrder),repeat=proportional.get(color);
+     if(!plan||!Number.isSafeInteger(repeat)||repeat<1||repeat>plan.repeat)continue;
+     add('h2','Alternativa proporcional — '+color,section);
+     add('p','Repetições simuladas: '+repeat+' de '+plan.repeat+'. Quantidades inteiras; encaixe físico não verificado.',section);
+     for(let i=0;i<groupRows.length;i++){
+      const x=groupRows[i],v=plan.base[i].map(n=>n*repeat),rest=plan.vectors[i].map((n,j)=>n-v[j]);
+      add('p',x.name+' / Pedido '+orderMeta(x.orderId).number+' — lote simulado: '+sizeOrder.map((s,j)=>s+' '+v[j]).join(' · ')+' | restante do pedido: '+sizeOrder.map((s,j)=>s+' '+rest[j]).join(' · '),section);
+     }
+    }
     add('p','Lote: __________ Largura: __________ Peso total (kg): ______ Peso utilizado (kg): ______ Sobras (kg): ______',section);
     add('p','Cortador 1: __________________ Cortador 2: __________________ Data: ____/____/____',section);
    }else{add('p','Quantidade separada: ______ Faltas: ______ Responsável: __________________',section);}
@@ -487,7 +506,7 @@ function openJointSimulation9837(){
   }
  }
  function compare(){
-  result.replaceChildren();if(!jointAllowed9837()){host.remove();return}
+  result.replaceChildren();proportional.clear();if(!jointAllowed9837()){host.remove();return}
   const rows=selectedRows();printCombined.disabled=printIndividual.disabled=rows.length<2;resetTrialForSelection();updateTrial();
   if(!rows.length){status.textContent='Selecione os modelos e cores que deseja testar.';return}
   const pieces=rows.reduce((n,x)=>n+x.lines.reduce((a,l)=>a+l.ordered,0),0);
@@ -508,6 +527,27 @@ function openJointSimulation9837(){
    const local=indexes.map(i=>vectors[i]),common=sizes.map((_,i)=>Math.min(...local.map(v=>v[i]))),equal=local.every(v=>JSON.stringify(v)===JSON.stringify(local[0]));
    el('p',equal?'As grades pedidas coincidem em todos os tamanhos — '+color+'.':'As grades são diferentes — '+color+'. Quantidade comum por tamanho (comparação aritmética): '+sizes.map((s,i)=>s+' '+common[i]).join(' · ')+'.',result);
    if(!equal){for(const i of indexes){const x=rows[i],rest=vectors[i].map((n,j)=>n-common[j]);el('p',x.name+' / '+orderMeta(x.orderId).number+' — quantidades fora da grade comum: '+sizes.map((s,j)=>s+' '+rest[j]).join(' · '),result)}}
+  }
+  const options=el('details','',result);el('summary','Testar lotes proporcionais sem mudar a grade',options);
+  el('p','Divisão aritmética das quantidades pedidas por cor, mantendo as proporções de cada modelo. Não calcula encaixe, número de folhas ou saldo disponível.',options);
+  for(const color of new Set(rows.map(x=>x.color))){
+   const groupRows=rows.filter(x=>x.color===color),plan=jointProportional9841(groupRows,sizes);if(!plan)continue;
+   const block=el('section','',options);el('h4',color+' — '+plan.repeat+' repetição(ões) inteiras possíveis',block);
+   const field=el('label','Repetições simuladas — '+color+' ',block),qty=el('input','',field);qty.type='number';qty.min='1';qty.max=String(plan.repeat);qty.step='1';qty.value=String(plan.repeat);qty.setAttribute('aria-label','Repetições simuladas — '+color);qty.style.maxWidth='100%';
+   const checkLabel=el('label','',block),include=el('input','',checkLabel);include.type='checkbox';el('span',' Incluir alternativa '+color+' na folha conjunta',checkLabel);
+   const out=el('div','',block);out.dataset.jointProportional9841=color;
+   function update(){
+    const count=Number(qty.value);out.replaceChildren();proportional.delete(color);
+    if(!/^\d+$/.test(qty.value)||!Number.isSafeInteger(count)||count<1||count>plan.repeat){el('p','Informe um número inteiro entre 1 e '+plan.repeat+'.',out);return}
+    if(include.checked)proportional.set(color,count);
+    const amount=plan.base.reduce((n,v)=>n+v.reduce((a,b)=>a+b,0)*count,0),full=plan.vectors.flat().reduce((a,b)=>a+b,0);
+    el('p',amount+' peças no lote simulado · '+(full-amount)+' peças restantes do pedido.',out);
+    for(let i=0;i<groupRows.length;i++){
+     const x=groupRows[i],v=plan.base[i].map(n=>n*count),rest=plan.vectors[i].map((n,j)=>n-v[j]);
+     el('p',x.name+' / Pedido '+orderMeta(x.orderId).number+' — lote: '+sizes.map((s,j)=>s+' '+v[j]).join(' · ')+' | restante: '+sizes.map((s,j)=>s+' '+rest[j]).join(' · '),out);
+    }
+   }
+   qty.addEventListener('input',update);include.addEventListener('change',update);update();
   }
   el('p','Compatibilidade física depende de lote, largura, elasticidade, sentido e moldes. Não há cálculo de encaixe ou economia comprovado. Nenhuma grade foi alterada.',result);
  }
