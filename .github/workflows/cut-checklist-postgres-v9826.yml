@@ -57,6 +57,7 @@ jobs:
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium webkit
+          psql -v ON_ERROR_STOP=1 -c "update checklist_lab.user_access set active=true,access='[\"corte\",\"pedidos\",\"produtos\",\"materiais\"]' where role_name='checklist_lab_operator2';"
           for browser in chromium webkit; do
             HLGB_BROWSER=$browser node tests/cut-checklist-postgres-v9826/candidate-browser.cjs
             psql -v ON_ERROR_STOP=1 -c 'delete from checklist_lab.record_attachments; delete from checklist_lab.record_history;'
