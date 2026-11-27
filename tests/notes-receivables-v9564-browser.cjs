@@ -97,6 +97,21 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.match(await page.locator('#modal').innerText(),/97001/);
   assert.doesNotMatch(await page.locator('#modal').innerText(),/97002/);
 
+
+  const statement=await page.evaluate(()=>{
+   const api=window.hlgbNotesReceivables9564,clientKey='id:1',base={clientKey,key:'projection:a',id:'a',number:'A',issued:'2026-11-01',total:10000,paid:4000,credit:1000,balance:5000};
+   const notes=[base,{...base,key:'projection:b',id:'b',number:'B',issued:'2026-11-02',total:3000,paid:3000,credit:0,balance:0}];
+   const event=(id,type,date,amountCents,extra={})=>({id,ownerId:'1',noteKey:base.key,type,date,amountCents,...extra});
+   const events=[event('p','payment-recorded','2026-11-04',4000),event('r','return-active','2026-11-05',1000),event('s','return-reversed','2026-11-06',2000,{reversedAt:'2026-11-07'})];
+   const report={state:'local-events',events,eventTotal:events.length,issues:['eventos-sem-conciliacao:projection:b']};
+   const input={clientKey,openingCents:-2000,independentOpening:true,reason:'Crédito anterior',from:'2026-11-04',to:'2026-11-06'};
+   const before=JSON.stringify({notes,report,input}),v=api.clientAccountStatement9773(notes,report,input,true);
+   return {v,unchanged:before===JSON.stringify({notes,report,input}),blocked:api.clientAccountStatement9773(notes,report,{...input,independentOpening:false},true).state,forbidden:api.clientAccountStatement9773(notes,report,input,false).state,duplicate:api.clientAccountStatement9773(notes,{...report,events:[...events,events[0]],eventTotal:4},input,true).state};
+  });
+  assert.equal(statement.v.state,'local-statement');assert.equal(statement.v.summary.currentNotesCents,5000);assert.equal(statement.v.summary.projectedCurrentCents,3000);
+  assert.equal(statement.v.summary.priorDatedCents,10000);assert.equal(statement.v.summary.periodEndDatedCents,3000);assert.equal(statement.v.summary.complete,false);
+  assert.equal(statement.v.issues.length,1,'undated paid note is explicitly disclosed even with zero balance');
+  assert.equal(statement.v.rows.length,3);assert.equal(statement.v.canWrite,false);assert.equal(statement.unchanged,true);assert.equal(statement.blocked,'unavailable');assert.equal(statement.forbidden,'forbidden');assert.equal(statement.duplicate,'event-review');
   // An overpayment or contradictory history cannot be hidden as a settled note
   // just because the display projection clamps paid to total.
   const proof=await page.evaluate(()=>{
@@ -111,6 +126,17 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.evaluate(()=>{window.db.orders[0].received=100;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
   assert.equal(await page.locator('#legacyPaid').isVisible(),false);
   await page.evaluate(()=>window.closeModal());await page.locator('[data-hlgb-client-account9759]').click();await page.locator('#ca9759-payment').fill('25');await page.locator('#ca9759-preview').click();assert.match(await page.locator('#ca9759-result').innerText(),/Nenhum valor foi gravado/);assert.match(await page.locator('#ca9759-result').innerText(),/Saldo projetado/);assert.equal(await page.evaluate(()=>window.__writes),3);
+
+  await page.addScriptTag({path:'hlgb-modules/financeiro/settlement-history-v9653.js'});
+  await page.locator('#ca9773-statement summary').click();
+  await page.locator('#ca9773-load').click();
+  assert.match(await page.locator('#ca9773-output').innerText(),/Histórico parcial/);
+  assert.equal(await page.locator('#ca9773-export').isEnabled(),true);
+  const statementDownload=page.waitForEvent('download');await page.locator('#ca9773-export').click();const statementFile=await statementDownload;
+  assert.match(statementFile.suggestedFilename(),/^HLGB-extrato-cliente-/);
+  assert.match(await fs.readFile(await statementFile.path(),'utf8'),/Saldo inicial independente/);
+  await page.locator('#ca9759-opening').fill('-20');assert.equal(await page.locator('#ca9773-export').isEnabled(),false);
+  assert.equal(await page.evaluate(()=>window.__writes),3);
   await page.evaluate(()=>{window.closeModal();window.db.orders[0].received=40;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
   assert.equal(await page.locator('#legacyPaid').isVisible(),true,'reopened note returns to active list');
   assert.equal(await page.locator('[data-hlgb-paid-legacy9710]').count(),0);
