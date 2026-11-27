@@ -3,9 +3,9 @@
 create function records_lab.cents(v jsonb) returns bigint language plpgsql immutable set search_path='' as $$
 declare n numeric;
 begin
- if jsonb_typeof(v) not in ('number','string') or (v#>>'{}') !~ '^[0-9]{1,10}(\.[0-9]{1,2})?$' then raise exception 'money-format';end if;
+ if jsonb_typeof(v) is distinct from 'number' and (jsonb_typeof(v) is distinct from 'string' or (v#>>'{}') !~ '^[0-9]{1,10}(\.[0-9]{1,2})?$') then raise exception 'money-format';end if;
  n:=(v#>>'{}')::numeric*100;
- if n is null then raise exception 'money-format';end if;
+ if n is null or n<0 or n>1000000000000 or n<>trunc(n) then raise exception 'money-format';end if;
  return n::bigint;
 end$$;
 create function records_lab.pay(p_client text,p_ref text,p_day date,p_method text,p_amount bigint,p_selected jsonb)
