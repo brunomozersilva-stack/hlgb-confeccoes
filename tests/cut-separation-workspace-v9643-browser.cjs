@@ -66,13 +66,19 @@
  await conference.getByLabel('Quantidade separada — Aviamento teste — Branco').fill('40');
  await conference.getByLabel('Quantidade separada — Aviamento teste — Rubi').fill('96');
  await conference.getByLabel('Observação — Aviamento teste — Branco').fill('Faltam 8 metros');
+ const docs=conference.locator('[data-hlgb-conference-docs9834]');
+ await docs.locator('input[type=file]').setInputFiles({name:'folha-cor.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7 per color fixture')});
+ await docs.getByText('Arquivo selecionado apenas nesta sessão. Ainda não enviado.').waitFor();
+ await docs.locator('input[type=file]').setInputFiles({name:'duplicado.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7 per color fixture')});
+ await docs.getByText('Limite de arquivos ou conteúdo repetido.').waitFor();
+ assert.equal(await docs.getByRole('button',{name:'Remover arquivo selecionado'}).count(),1);
  const white=conference.locator('tbody tr').filter({hasText:'Aviamento teste'}).filter({hasText:'Branco'});
  assert.equal(await white.locator('td').nth(4).innerText(),'8 m');
  await conference.getByLabel('Quantidade separada — Tule teste — Preto').fill('3');
  assert.equal(await conference.locator('tbody tr').filter({hasText:'Tule teste'}).filter({hasText:'Preto'}).locator('td').nth(4).innerText(),'A conferir');
  await full.getByRole('button',{name:'Imprimir checklist de separação'}).click();await preview.waitFor();
  const conferencePrint=await preview.locator('iframe').evaluate(x=>{const doc=new DOMParser().parseFromString(x.srcdoc,'text/html');return doc.querySelector('[data-hlgb-color-conference9827]').textContent});
- assert.match(conferencePrint,/Operador teste/);assert.match(conferencePrint,/Faltam 8 metros/);assert.match(conferencePrint,/8 m/);
+ assert.match(conferencePrint,/Operador teste/);assert.match(conferencePrint,/Faltam 8 metros/);assert.match(conferencePrint,/8 m/);assert.match(conferencePrint,/folha-cor.pdf/);
  await preview.getByRole('button',{name:'Fechar',exact:true}).click();
  assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__colorFixtureSnapshot),true);
  // Closing/printing the modal must not discard detailed conference within the same session.
@@ -81,11 +87,13 @@
  assert.equal(await full.getByLabel('Responsável pela conferência').inputValue(),'Operador teste');
  assert.equal(await full.getByLabel('Quantidade separada — Aviamento teste — Branco').inputValue(),'40');
  assert.equal(await full.getByLabel('Observação — Aviamento teste — Branco').inputValue(),'Faltam 8 metros');
+ await full.getByText('folha-cor.pdf · 1 KB · somente selecionado',{exact:false}).waitFor();
  await full.getByRole('button',{name:'Fechar checklist'}).click();
  await p.evaluate(()=>{window.currentUser=()=>({id:'other-fixture-user',active:true})});
  await required.getByRole('button',{name:'Checklist completo da peça'}).click();
  await full.getByRole('button',{name:'Conferir quantidades por cor'}).click();
  assert.equal(await full.getByLabel('Responsável pela conferência').inputValue(),'');
+ assert.equal(await full.getByRole('button',{name:'Remover arquivo selecionado'}).count(),0);
  await full.getByRole('button',{name:'Fechar checklist'}).click();
  await p.evaluate(()=>{window.currentUser=()=>({id:'fixture-user',active:true})});
  await p.evaluate(()=>{for(const k of Object.keys(db))delete db[k];Object.assign(db,window.__colorFixtureBefore);window.open=window.__originalOpen9821;window.hlgbCutterSheetV9523.ensurePrintRoute9523()});
