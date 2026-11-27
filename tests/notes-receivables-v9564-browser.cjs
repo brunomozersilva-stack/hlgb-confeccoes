@@ -96,6 +96,20 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.match(await page.locator('#modal').innerText(),/Histórico de notas do cadastro/);
   assert.match(await page.locator('#modal').innerText(),/97001/);
   assert.doesNotMatch(await page.locator('#modal').innerText(),/97002/);
+
+  // An overpayment or contradictory history cannot be hidden as a settled note
+  // just because the display projection clamps paid to total.
+  const proof=await page.evaluate(()=>{
+   const api=window.hlgbNotesReceivables9564;
+   const base={id:'proof',value:100,paid:100,remaining:0,status:'Pago'};
+   const cases=[base,{...base,paid:120},{...base,paymentHistory:[{value:120}]},{...base,paymentHistory:[{value:80}]},{...base,remaining:.01},{...base,paid:'invalid'},{...base,acertoReturnsV9565:[{value:10}]}];
+   return cases.map(n=>api.settledForArchive9710(api.projectionView(n)));
+  });
+  assert.deepEqual(proof,[true,false,false,false,false,false,false]);
+  await page.evaluate(()=>{window.closeModal();window.db.orders[0].received=120;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
+  assert.equal(await page.locator('#legacyPaid').isVisible(),true,'overpayment stays visible for review');
+  await page.evaluate(()=>{window.db.orders[0].received=100;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
+  assert.equal(await page.locator('#legacyPaid').isVisible(),false);
   await page.evaluate(()=>window.closeModal());await page.locator('[data-hlgb-client-account9759]').click();await page.locator('#ca9759-payment').fill('25');await page.locator('#ca9759-preview').click();assert.match(await page.locator('#ca9759-result').innerText(),/Nenhum valor foi gravado/);assert.match(await page.locator('#ca9759-result').innerText(),/Saldo projetado/);assert.equal(await page.evaluate(()=>window.__writes),3);
   await page.evaluate(()=>{window.closeModal();window.db.orders[0].received=40;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
   assert.equal(await page.locator('#legacyPaid').isVisible(),true,'reopened note returns to active list');
