@@ -243,6 +243,41 @@
   out.rows.sort((a,b)=>b.date.localeCompare(a.date)||a.cutId.localeCompare(b.cutId,'pt-BR',{numeric:true}));
   return out;
  }
+
+ // Compare actual combinations, never duplicate collective weight across their constituent models.
+ function jointCombinationHistory(db,filters,allowed){
+  const empty=state=>({state,groups:[],rows:[],summary:null,canWrite:false,geometryVerified:false,savings:null,completeCloud:false});
+  if(allowed!==true)return empty('forbidden');
+  const h=jointHistory9757(db,true);if(h.state!=='local-observation')return empty(h.state);
+  const date=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(s+'T00:00:00Z').toISOString().slice(0,10)===s?s:null;
+  const from=filters?.from||'',to=filters?.to||'',pid=id(filters?.productId),query=norm(filters?.query).trim().split(/\s+/).filter(Boolean);
+  if(from&&!date(from)||to&&!date(to)||from&&to&&from>to)return empty('invalid-period');
+  const rows=h.rows.filter(r=>{
+   const d=date(r.date.slice(0,10));if((from||to)&&!d||from&&d<from||to&&d>to||pid&&!r.models.some(m=>m.productId===pid))return false;
+   return query.every(q=>norm([r.cutId,...r.models.flatMap(m=>[m.productName,m.orderNumber,m.client]),...r.materials.map(m=>m.name)].join(' ')).includes(q));
+  });
+  const groups=new Map();
+  const totals=()=>({cuts:0,pieces:0,weighedCuts:0,weighedPieces:0,missingWeightCuts:0,totalG:0,usedG:0,wasteG:0,unclassifiedG:0});
+  function add(a,r){
+   a.cuts++;a.pieces+=r.pieces;
+   const w=r.weights,values=w&&[w.totalKg,w.usedKg,w.wasteKg,w.unclassifiedKg].map(n=>Math.round(n*1000));
+   if(!values||!values.every(n=>Number.isSafeInteger(n)&&n>=0)||values[0]<=0||Math.abs(values[0]-values[1]-values[2]-values[3])>2){a.missingWeightCuts++;return}
+   a.weighedCuts++;a.weighedPieces+=r.pieces;
+   for(const [i,k] of ['totalG','usedG','wasteG','unclassifiedG'].entries())a[k]+=values[i];
+  }
+  const aggregate=totals();
+  for(const r of rows){
+   const modelMap=new Map(r.models.map(m=>[m.productId,m.productName])),ids=[...modelMap.keys()].sort(),key=JSON.stringify(ids);
+   const g=groups.get(key)||{key,models:ids.map(productId=>({productId,productName:modelMap.get(productId)})),...totals(),rows:[],materials:new Map()};
+   g.rows.push(r);for(const m of r.materials)if(m.materialId)g.materials.set(m.materialId,m.name||m.materialId);
+   add(g,r);add(aggregate,r);groups.set(key,g);
+  }
+  function finish(a){
+   const {totalG,usedG,wasteG,unclassifiedG,...rest}=a,valid=a.weighedCuts>0&&[totalG,usedG,wasteG,unclassifiedG].every(Number.isSafeInteger)&&totalG>0;
+   return {...rest,totalKg:valid?totalG/1000:null,usedKg:valid?usedG/1000:null,wasteKg:valid?wasteG/1000:null,unclassifiedKg:valid?unclassifiedG/1000:null,usedPct:valid?100*usedG/totalG:null,wastePct:valid?100*wasteG/totalG:null,gramsPerPiece:valid&&a.weighedPieces>0?totalG/a.weighedPieces:null,weightCoveragePct:a.cuts?100*a.weighedCuts/a.cuts:null};
+  }
+  return {...empty('local-combination-history'),rows,summary:{...finish(aggregate),review:h.review},groups:[...groups.values()].map(({materials,...g})=>({...finish(g),materials:[...materials].map(([materialId,name])=>({materialId,name}))})).sort((a,b)=>b.cuts-a.cuts||b.pieces-a.pieces||a.key.localeCompare(b.key))};
+ }
  // Historical observations are whole-cut weight records, NOT material-level marker efficiency.
  function cutEvidence(db,allowed){
   const empty=state=>({state,byProduct:new Map(),canWrite:false});
@@ -1097,5 +1132,5 @@
   if(term&&term!=='-')return {...unknown,source:'order-recorded-incomplete'};
   return parse(clientScenario?.mode,clientScenario?.days,'client-scenario')||unknown;
  }
- return {orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
+ return {orderPaymentCondition,orderReceivablesReview,forecastJournal,factionForecastBacktest,distributeFactionOrder,factionQueueScenario,factionLeadTimes,factionLeadTimePreview,observedThroughput,productionStageGoals,deliveryCashScenario,deliveryCapacityPlan,gradeAdjustmentPreview,orderMaterialCompatibility,jointCombinationHistory,jointHistory9757,selectedGradePlan,scenarioSummary,unpairedModels,compareGradeOptions,jointPrintDraft,discover,combine,workspaceOverview9714,gradeSuggestions,gradeMatches9726,catalogGroups,candidates,weights,cutEvidence,groupEvidence,remnantCoverage9727,materialHistory,materialEstimate,forecastDraft,materialBacktest,materialCostEstimate,prepareRemnantChange,modelSignature,planSelection,materialDemand,preview:(source,input,products,catalog)=>{const valid=fabrics(catalog);if(input?.eligible?.some(x=>!valid.has(id(x.materialId))))throw Error('fabric-not-confirmed');return remnant.preview(source,input,products)}};
 });
