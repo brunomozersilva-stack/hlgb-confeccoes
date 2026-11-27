@@ -486,13 +486,15 @@ function organizeMerchandise9755(){
   identified.push({row,id:ids.size===1?[...ids][0]:''});
  }
  if(identified.some(x=>!x.id)||new Set(identified.map(x=>x.id)).size!==identified.length){restore();return}
- const products=cutIndex9709().products;
- let hidden=0,qty=0,known=true,review=0;
+ const idx=cutIndex9709(),products=idx.products;
+ let hidden=0,qty=0,known=true,review=0,gross=0,grossKnown=true;
  for(const {row,id} of identified){
   row.querySelectorAll('[data-hlgb-merch-detail9772]').forEach(n=>n.remove());
   const e=evidence.get(id),hide=e?.hide===true;setFilterVisible9709(row,!hide);if(hide){hidden++;continue}
   if(e?.reason==='review'||!e){review++;known=false}
   else if(Number.isSafeInteger(e.remainingPieces))qty+=e.remainingPieces;else known=false;
+  const order=idx.orders.get(id),amount=order?.total;
+  if(amount==null||String(amount).trim()===''||!Number.isFinite(Number(amount))||Number(amount)<0)grossKnown=false;else gross+=Number(amount);
   const hostCell=row.lastElementChild;if(!hostCell)continue;
   const details=document.createElement('details');details.dataset.hlgbMerchDetail9772='1';
   const summary=document.createElement('summary');summary.textContent=e?.remainingPieces==null?'Conferir vínculo e saldo da nota':e.remainingPieces+' peças do pedido sem cobertura de nota/baixa';details.appendChild(summary);
@@ -500,7 +502,7 @@ function organizeMerchandise9755(){
   const note=document.createElement('p');note.className='sub';note.textContent='Saldo do pedido, não quantidade fisicamente pronta. Nenhuma baixa automática.';details.appendChild(note);hostCell.appendChild(details);
  }
  const cards=document.getElementById('cutSummaryCards');const card=Array.from(cards?.querySelectorAll?.('.card')||[]).find(c=>norm(c.querySelector('small')?.textContent)==='mercadoria sem nota pronta');
- if(card){const n=card.querySelector('strong'),v=card.querySelector('div');for(const node of [n,v])if(node&&!node.hasAttribute('data-hlgb-merch-original9755'))node.setAttribute('data-hlgb-merch-original9755',node.textContent);if(n)n.textContent=known?qty.toLocaleString('pt-BR')+' pç sem cobertura':qty.toLocaleString('pt-BR')+' pç identificadas + revisão';if(v)v.textContent='Valor pendente de conciliação'}
+ if(card){const n=card.querySelector('strong'),v=card.querySelector('div');for(const node of [n,v])if(node&&!node.hasAttribute('data-hlgb-merch-original9755'))node.setAttribute('data-hlgb-merch-original9755',node.textContent);if(n)n.textContent=known?qty.toLocaleString('pt-BR')+' pç sem cobertura':qty.toLocaleString('pt-BR')+' pç identificadas + revisão';if(v)v.textContent=grossKnown?'Valor integral dos pedidos: '+gross.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+' · saldo em valor a conferir':'Valor a conferir'}
  let info=document.getElementById('hlgbMerchandiseEvidence9755');if(!info){info=document.createElement('p');info.id='hlgbMerchandiseEvidence9755';info.className='sub';host.insertAdjacentElement('afterend',info)}
  info.textContent=(identified.length-hidden)+' pedidos na lista · '+hidden+' com todos os modelos cobertos por nota ou baixa local · '+review+' para conferência. Pedidos parciais permanecem com saldo por modelo. Quantidades representam peças do pedido sem cobertura, não estoque pronto; valor não inferido. Nenhuma baixa foi realizada.';
 }
