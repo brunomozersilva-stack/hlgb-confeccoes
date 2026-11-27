@@ -19,6 +19,7 @@ const document={
 const window={
  db,
  renderHubFinance(){return true},
+ hlgbHubDelivery9324:{cloudRow:async id=>{const v=snaps.get(String(id));return v?{...v,module:'hubFinanceEntries',entity_id:String(id)}:null}},
  hlgbRecordSaveWithRetry:async(module,id,data,deleted)=>{
    calls.push({module,id,data,deleted});
    if(id==='123'&&deleted)return {applied:true,data,deleted_at:null,revision:3};
@@ -86,5 +87,11 @@ vm.createContext(context);vm.runInContext(src,context);
  assert(removed>=1,'local copies of tombstoned Hub rows must be purged');
  assert.equal(db.hubFinanceEntries.some(x=>String(x.id)==='123'),false);
 
+ const linked={id:'linked',description:'Previsão vinculada',flow:'Entrada',value:10,status:'Previsto',sourceType:'client_note_forecast_v9815',clientForecastLinkV9815:{reference:'link-1'}};
+ db.hubFinanceEntries.push({...linked});snaps.set('linked',{revision:1,deleted_at:null,data:{...linked}});
+ calls=[];timers=[];assert.equal(await window.toggleHubFinanceEntry('linked'),false);assert.equal(await window.deleteHubFinanceEntry('linked'),false);assert.equal(calls.length,0);assert.equal(timers.length,0);assert.equal(db.hubFinanceEntries.find(x=>x.id==='linked').status,'Previsto');
+ const stale={id:'stale',description:'Previsão antiga',value:20,status:'Previsto'};db.hubFinanceEntries.push(stale);snaps.set('stale',{revision:1,deleted_at:null,data:stale});
+ const originalRead=window.hlgbHubDelivery9324.cloudRow;window.hlgbHubDelivery9324.cloudRow=async id=>id==='stale'?{module:'hubFinanceEntries',entity_id:id,revision:2,deleted_at:null,data:{...stale,sourceType:'client_note_forecast_v9815'}}:originalRead(id);
+ assert.equal(await window.deleteHubFinanceEntry('stale'),false);assert.equal(calls.length,0);assert(db.hubFinanceEntries.some(x=>x.id==='stale'));
  console.log('PASS Hub integrity v2-local-first: confirmed delete, guarded failed delete, immediate local save, queued write and background cloud confirmation verified.');
 })().catch(e=>{console.error(e);process.exit(1)});
