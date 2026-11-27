@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const s=fs.readFileSync('release-faction-payments.js','utf8'),a=s.indexOf('function normalTravetaReview9781('),b=s.indexOf('function travetaReviewAllowed9781(',a);assert.ok(a>=0&&b>a);
+const ctx={sid:v=>String(v??''),norm:v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()};vm.createContext(ctx);vm.runInContext(s.slice(a,b),ctx);
+const data={factionPayments:[{id:'p',factionServiceId:'f',factionName:'A',quantity:100,unitPrice:2,value:200,discountAmount:0,paidAmount:0,status:'Pendente'}],factions:[{id:'f',productionId:'r',orderId:'o',productId:'m',done:100}],production:[{id:'r',orderId:'o',productId:'m',factionId:'a'}],factionMasters:[{id:'a',name:'A',doesTraveta:false}],products:[{id:'m',name:'Modelo',travetadas:3}],factionSettings:[{id:'traveta',travetaUnitValue:.05}]};
+const clone=()=>JSON.parse(JSON.stringify(data)),run=x=>ctx.normalTravetaReview9781(x,true).rows[0],before=JSON.stringify(data);
+assert.equal(run(data).suggestedCents,1500);assert.equal(run(data).netCents,18500);
+let x=clone();delete x.factionMasters[0].doesTraveta;assert.equal(run(x).suggestedCents,null);assert.match(run(x).reason,/Definir/);
+x=clone();x.factionMasters[0].doesTraveta=true;assert.equal(run(x).suggestedCents,0);
+x=clone();delete x.products[0].travetadas;assert.equal(run(x).suggestedCents,null);
+x=clone();x.factionPayments[0].discountAmount=5;assert.equal(run(x).suggestedCents,null);assert.match(run(x).reason,/preservar/);
+x=clone();x.factionPayments[0].paidAmount=5;assert.equal(run(x).suggestedCents,null);
+x=clone();x.factionPayments[0].factionMasterId='wrong';assert.match(run(x).reason,/Identidade/);
+x=clone();x.factionSettings[0].travetaUnitValue='';assert.equal(run(x).suggestedCents,null);
+x=clone();x.factions[0].done=99;assert.match(run(x).reason,/Quantidade entregue/);
+x=clone();x.factionPayments.push({...x.factionPayments[0],id:'p2'});assert.equal(run(x).suggestedCents,null);
+assert.equal(ctx.normalTravetaReview9781(data,false).rows.length,0);assert.equal(ctx.normalTravetaReview9781(data,true).canWrite,false);assert.equal(JSON.stringify(data),before);
+console.log('PASS prospective normal traveta review, identity, quantities, no double discount, no write');
