@@ -1,0 +1,20 @@
+name: HLGB Facções - saldo parcial v97.76
+on:
+  pull_request:
+    paths:
+      - 'release-faction-acerto-consolidated-v95102.js'
+      - 'tests/faction-partial-balance-v9776.cjs'
+      - '.github/workflows/hlgb-faction-partial-balance-v9776.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-faction-acerto-consolidated-v95102.js
+      - run: node tests/faction-partial-balance-v9776.cjs

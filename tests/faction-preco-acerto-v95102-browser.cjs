@@ -27,6 +27,7 @@ async function submit(page,{name,qty,price}){
   const errors=[];page.on('pageerror',x=>errors.push(x.message));
   await page.goto('http://127.0.0.1:4173/tests/faction-manual-v9566-fixture.html',
    {waitUntil:'domcontentloaded'});
+  await page.evaluate(()=>{window.__factionReportAllowed=true;window.canOpenPage=area=>window.__factionReportAllowed&&['faccoes','pagamentosFaccoes'].includes(area)});
   await page.addScriptTag({url:'http://127.0.0.1:4173/release-faction-acerto-consolidated-v95102.js'});
   await submit(page,{name:'Camisola avulsa sem preço comercial',qty:10,price:1.2});
   await submit(page,{name:'Conjunto avulso sem cadastro comercial',qty:5,price:3});
@@ -58,6 +59,13 @@ async function submit(page,{name,qty,price}){
    /Acerto consolidado por pessoa/);
   assert.match(await page.locator('#hlgb-unified-acertos-v95102').innerText(),/R\$\s?35,00/);
   assert.equal(await page.locator('#hlgb-unified-acertos-v95102 tbody tr').count(),1);
+
+  const popupPromise=page.waitForEvent('popup');await page.locator('[data-faction-print9777]').click();const report=await popupPromise;
+  await report.waitForLoadState('domcontentloaded');assert.match(await report.locator('body').innerText(),/Conferência de acerto/);assert.match(await report.locator('body').innerText(),/35,00/);await report.close();
+  await page.evaluate(()=>{window.__factionReportAllowed=false;window.hlgbFactionAcertoUnified95102.render()});
+  assert.equal(await page.locator('#hlgb-unified-acertos-v95102').count(),0);
+  await page.evaluate(()=>{window.__factionReportAllowed=true;window.hlgbFactionAcertoUnified95102.render()});
+  assert.equal(await page.locator('#hlgb-unified-acertos-v95102').count(),1);
   assert.equal(errors.length,0,'no browser errors: '+errors.join(' | '));
   console.log('PASS '+browserName+' mobile: 2 peças avulsas sem cadastro e 1 pagamento normal geram 1 total visual R$35,00, sem baixa');
  }finally{await browser.close()}
