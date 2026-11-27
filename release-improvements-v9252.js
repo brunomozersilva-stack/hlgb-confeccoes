@@ -210,13 +210,39 @@ function renderSyncInsight9252(){
 }
 
 function stampVersion9252(){try{const cur=parseFloat(String(window.HLGB_RELEASE_VERSION||'0').replace(/[^0-9.]/g,''))||0;if(cur>92.52)return;const v=document.querySelector('#appShell .logo small');if(v)v.textContent='v92.52';const lb=document.querySelector('#loginScreen b');if(lb&&/Versão/i.test(lb.textContent||''))lb.textContent='Versão v92.52';window.HLGB_RELEASE_VERSION='92.52'}catch(e){}}
-function refreshAll9252(){stampVersion9252();ensureVoicePreview();ensureReports9252();ensureCutterGroups();decorateConfExpensePanel9252();bindHubWeek9252();injectStability9252();ensureSyncInsight9252()}
+// Only the automatic visual work is deferred; explicit report/group APIs stay intact.
+const visual9252={rendered:0,skipped:0,coalesced:0},visualTimers9252=new Map();
+const visualRenderers9252={relatorios:ensureReports9252,cortadores:ensureCutterGroups};
+function visualAllowed9252(id){
+ try{return window.__HLGB_AUTH_READY===true&&!document.hidden&&document.getElementById(id)?.classList.contains('active')===true&&typeof canOpenPage==='function'&&canOpenPage(id)===true}catch(_){return false}
+}
+function visualRefresh9252(id){
+ if(!visualAllowed9252(id)){visual9252.skipped++;return false}
+ visualRenderers9252[id]();visual9252.rendered++;return true
+}
+function visualSchedule9252(id,delay=30){
+ if(!visualAllowed9252(id)){visual9252.skipped++;return}
+ if(visualTimers9252.has(id)){visual9252.coalesced++;return}
+ const timer=setTimeout(()=>{visualTimers9252.delete(id);visualRefresh9252(id)},delay);visualTimers9252.set(id,timer);
+}
+function visualVisible9252(){for(const id of Object.keys(visualRenderers9252))visualSchedule9252(id)}
+function visualObserve9252(){
+ if(typeof MutationObserver!=='function')return;
+ const observer=new MutationObserver(entries=>{for(const entry of entries){const id=entry.target.id;if(visualRenderers9252[id])visualSchedule9252(id)}});
+ for(const id of Object.keys(visualRenderers9252)){const node=document.getElementById(id);if(node)observer.observe(node,{attributes:true,attributeFilter:['class']})}
+}
+visualObserve9252();
+window.addEventListener?.('hlgb:authenticated',visualVisible9252);
+window.addEventListener?.('pageshow',visualVisible9252);
+document.addEventListener?.('visibilitychange',visualVisible9252);
+window.addEventListener?.('hlgb:logout',()=>{for(const timer of visualTimers9252.values())clearTimeout(timer);visualTimers9252.clear()});
+function refreshAll9252(){stampVersion9252();ensureVoicePreview();visualVisible9252();decorateConfExpensePanel9252();bindHubWeek9252();injectStability9252();ensureSyncInsight9252()}
 const oldHub=window.renderHubFinance;if(typeof oldHub==='function'&&!oldHub.__v9252){const w=function(){const r=oldHub.apply(this,arguments);setTimeout(()=>{decorateConfExpensePanel9252();bindHubWeek9252()},30);return r};w.__v9252=true;w.__original=oldHub;window.renderHubFinance=w}
-const oldCut=window.renderCutters;if(typeof oldCut==='function'&&!oldCut.__v9252){const w=function(){const r=oldCut.apply(this,arguments);setTimeout(()=>{ensureCutterGroups();injectStability9252()},30);return r};w.__v9252=true;w.__original=oldCut;window.renderCutters=w}
-const oldRep=window.renderReports;if(typeof oldRep==='function'&&!oldRep.__v9252){const w=function(){const r=oldRep.apply(this,arguments);setTimeout(ensureReports9252,20);return r};w.__v9252=true;w.__original=oldRep;window.renderReports=w}
+const oldCut=window.renderCutters;if(typeof oldCut==='function'&&!oldCut.__v9252){const w=function(){const r=oldCut.apply(this,arguments);visualSchedule9252('cortadores');setTimeout(injectStability9252,30);return r};w.__v9252=true;w.__original=oldCut;window.renderCutters=w}
+const oldRep=window.renderReports;if(typeof oldRep==='function'&&!oldRep.__v9252){const w=function(){const r=oldRep.apply(this,arguments);visualSchedule9252('relatorios',20);return r};w.__v9252=true;w.__original=oldRep;window.renderReports=w}
 setTimeout(refreshAll9252,2200);setInterval(refreshAll9252,4000);
 try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>setTimeout(refreshAll9252,900),0)}catch(e){}
-window.hlgbImprovements9252={refreshAll9252,renderReports9252,ensureReports9252,renderCutterGroups,ensureCutterGroups,renderSyncInsight9252};
+window.hlgbImprovements9252={refreshAll9252,renderReports9252,ensureReports9252,renderCutterGroups,ensureCutterGroups,renderSyncInsight9252,visualStatus:()=>({...visual9252,pending:visualTimers9252.size})};
 window.HLGB_IMPROVEMENTS_9252=V;
 console.info('[HLGB] '+V+' ativo');
 })();
