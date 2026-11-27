@@ -113,6 +113,15 @@ test('pagamentos pagos, cancelados ou parcialmente recebidos não entram no acer
  assert.deepEqual(out.groups[0].paymentIds,['d']);
  assert.ok(out.warnings.some(x=>x.includes('pagamento-parcial')));
 });
+test('saldo parcial conciliado preserva o alerta legado para situação divergente',()=>{
+ const result=acerto.consolidate({masters:[{id:'m',name:'Facção A'}],manualGroups:[],payments:[
+  {id:'a',factionMasterId:'m',factionName:'Facção A',status:'Parcial',value:100,paidAmount:20,discountAmount:5,paymentHistory:[{id:'ev',paid:20,discount:5}]},
+  {id:'b',factionMasterId:'m',factionName:'Facção A',status:'Pendente',value:100,paidAmount:20}
+ ]});
+ assert.equal(result.groups[0].totalCents,7500);
+ assert.ok(result.warnings.includes('pagamento-parcial-requer-conferencia:b'));
+ assert.match(acerto.printablePending(result,'master:m',true),/75,00/);
+});
 test('facções homônimas com IDs diferentes nunca são misturadas',()=>{
  const data={masters:[{id:'100',name:'Maria',active:true},
   {id:'101',name:'Mária',active:true}],
