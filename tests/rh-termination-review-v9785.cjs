@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/financeiro/rh-planning-v9636.js');
+const data={terminations:[{id:'t',employeeId:'e',employeeName:'Pessoa A',date:'2026-11-01',paid:true,paidAt:'2026-11-05',value:1000,fgtsPaid:200,fgtsFine:100,otherCharges:50,thirteenthSettled:300}],employees:[{id:'e',active:false,terminationDate:'2026-11-01',terminationId:'t',provisionPaidHistory:[{sourceType:'termination',sourceId:'t',type:'13º',date:'2026-11-05',value:300}]}],formerEmployees:[{id:'f',employeeId:'e',terminationDate:'2026-11-01',terminationValue:1000}],hubFinanceEntries:[{id:'h',sourceType:'termination',sourceId:'t',flow:'Saída',category:'Funcionários',status:'Realizado',date:'2026-11-05',realizedAt:'2026-11-05',value:1350}],payroll:[]};
+const before=JSON.stringify(data),run=(d=data,p={state:'observed',ids:[]},allow=true)=>api.terminationReview(d,'2026-11-26',p,allow);
+const r=run();assert.equal(r.summary.localMatch,1);assert.equal(r.rows[0].expectedHubCents,135000);assert.equal(r.rows[0].observedHubCents,135000);assert.equal(r.bankConfirmed,false);assert.equal(r.canPublish,false);
+assert.equal(run(data,{state:'incomplete',ids:[]}).rows[0].issues.includes('queue-unconfirmed'),true);
+assert.ok(run(data,{state:'observed',ids:['hubFinanceEntries::h']}).rows[0].issues.includes('pending-sync'));
+assert.ok(run({...data,hubFinanceEntries:[{...data.hubFinanceEntries[0],value:1300}]}).rows[0].issues.includes('hub-divergence'));
+assert.ok(run({...data,hubFinanceEntries:[]}).rows[0].issues.includes('hub-count'));
+assert.ok(run({...data,employees:[{...data.employees[0],active:true}]}).rows[0].issues.includes('employee-link'));
+assert.ok(run({...data,payroll:[{employeeId:'e',month:'2026-11',paid:false}]}).rows[0].issues.includes('open-payroll-review'));
+assert.ok(run({...data,employees:[{...data.employees[0],provisionPaidHistory:[]}]}).rows[0].issues.includes('thirteenth-divergence'));
+assert.equal(run({...data,hubFinanceEntries:[...data.hubFinanceEntries,{id:'orphan',sourceType:'termination',sourceId:'other'}]}).summary.orphanHub,1);
+assert.equal(run(data,{},false).state,'forbidden');assert.equal(JSON.stringify(data),before);
+console.log('PASS termination reconciliation, financial differences, provision history, pending and no mutation');
