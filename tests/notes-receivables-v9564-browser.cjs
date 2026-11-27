@@ -112,6 +112,24 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   assert.equal(statement.v.summary.priorDatedCents,10000);assert.equal(statement.v.summary.periodEndDatedCents,3000);assert.equal(statement.v.summary.complete,false);
   assert.equal(statement.v.issues.length,1,'undated paid note is explicitly disclosed even with zero balance');
   assert.equal(statement.v.rows.length,3);assert.equal(statement.v.canWrite,false);assert.equal(statement.unchanged,true);assert.equal(statement.blocked,'unavailable');assert.equal(statement.forbidden,'forbidden');assert.equal(statement.duplicate,'event-review');
+
+  const preflight=await page.evaluate(()=>{
+   const api=window.hlgbNotesReceivables9564;
+   const note=(id,value,paid)=>({id,clientId:1,value,paid,remaining:value-paid,status:paid?'Parcial':'Pendente',issueDate:'2026-11-01',paymentHistory:paid?[{id:'p-'+id,value:paid}]:[]});
+   const a=note('a',100,20),b=note('b',200,0);
+   const title=n=>({id:'f-'+n.id,projectionInvoiceId:n.id,clientId:1,value:n.value,paid:n.paid,remaining:n.remaining,status:n.status});
+   const wrap=(module,data,revision)=>({module,entity_id:data.id,revision,data,deleted_at:null});
+   const records=[wrap('projectionInvoices',a,2),wrap('finance',title(a),3),wrap('projectionInvoices',b,4),wrap('finance',title(b),5)];
+   const preview=api.clientAccountPreview9759([a,b].map(n=>({...api.projectionView(n),clientKey:'id:1'})),{clientKey:'id:1',openingCents:0,paymentCents:15000,date:'2026-11-26'},true);
+   const input={clientId:1,reference:'PIX-abc',method:'PIX',date:'2026-11-26',preview,records,pendingIds:[],pendingObserved:true,canonicalObserved:true};
+   const before=JSON.stringify(input),run=changes=>api.globalPaymentPreflight9775({...input,...changes},true);
+   const ok=run({}),pending=run({pendingIds:['finance::f-a']}),stale=run({records:records.map(e=>e.entity_id==='a'?{...e,data:{...e.data,remaining:70}}:e)}),badTitle=run({records:records.map(e=>e.entity_id==='f-a'?{...e,data:{...e.data,paid:10}}:e)}),dupe=run({records:[...records,records[1]]}),extra=run({preview:{...preview,unallocatedPayment:100}}),badRef=run({records:records.map(e=>e.entity_id==='a'?{...e,data:{...e.data,paymentHistory:[{id:'p-a',value:20,globalPaymentReference9775:'PIX-abc'}]}}:e)});
+   return {ok,pending:pending.reason,stale:stale.reason,badTitle:badTitle.reason,dupe:dupe.reason,extra:extra.reason,badRef:badRef.reason,denied:api.globalPaymentPreflight9775(input,false).reason,unchanged:before===JSON.stringify(input)};
+  });
+  assert.equal(preflight.ok.state,'preflight-only');assert.equal(preflight.ok.amountCents,15000);
+  assert.deepEqual(preflight.ok.allocations.map(a=>[a.noteId,a.noteRevision,a.titleRevision,a.amountCents,a.afterCents]),[['a',2,3,8000,0],['b',4,5,7000,13000]]);
+  assert.equal(preflight.ok.hubExpectedEntries,1);assert.equal(preflight.ok.canWrite,false);assert.equal(preflight.ok.atomicConfirmed,false);
+  assert.equal(preflight.pending,'pending-sync');assert.equal(preflight.stale,'balance-changed');assert.equal(preflight.badTitle,'title-divergence');assert.equal(preflight.dupe,'record-identity');assert.equal(preflight.extra,'independent-balance-not-supported');assert.equal(preflight.badRef,'payment-history');assert.equal(preflight.denied,'permission');assert.equal(preflight.unchanged,true);
   // An overpayment or contradictory history cannot be hidden as a settled note
   // just because the display projection clamps paid to total.
   const proof=await page.evaluate(()=>{
