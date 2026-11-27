@@ -1,0 +1,21 @@
+name: HLGB Hub - simulacao de reserva de caixa
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/hub-intelligence-adapter-v9633.js'
+      - 'hlgb-modules/financeiro/live-personnel-finance-view-v9656.js'
+      - 'tests/hub-cash-reserve-v9787.cjs'
+      - '.github/workflows/hlgb-hub-cash-reserve-v9787.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check hlgb-modules/financeiro/live-personnel-finance-view-v9656.js
+      - run: node tests/hub-cash-reserve-v9787.cjs
