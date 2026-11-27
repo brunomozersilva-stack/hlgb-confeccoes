@@ -40,4 +40,4 @@ async function confirm({transport,source,req,stillCurrent}){
   return {state:'confirmed',record:clone(read)};
  }catch(e){return {state:'unconfirmed',reason:'transport',retryRequest:immutable};}
 }
-module.exports={request,confirm,verify};
+const api={request,confirm,verify};if(typeof module==='object'&&module.exports)module.exports=api;else window.HLGBChecklistConfirmation9835=api;
