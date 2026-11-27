@@ -286,6 +286,32 @@ const centsFilter9712=v=>{if(v==null||String(v).trim()==='')return null;const n=
 // Compact read-only Corte Conjunto. Discovery never constitutes authorization to cut.
 // Session-only comparison notebook; never represents a confirmed commercial cutting event.
 const jointTrials9838=[];let jointTrialOwner9838='';
+// Imported measurements remain manual observations, never proof of a commercial operation.
+function validateJointNotebook9840(doc,owner){
+ if(!doc||doc.kind!=='hlgb-joint-cut-session-notebook'||doc.confirmed!==false||doc.owner!==owner||!Array.isArray(doc.trials)||doc.trials.length>30)throw Error('notebook');
+ const text=(x,max,required=false)=>{if(typeof x!=='string'||x.length>max||required&&!x.trim())throw Error('text');return x.trim()};
+ const decimal=(x,max)=>{if(typeof x!=='number'||!Number.isFinite(x)||x<0||x>max||Math.abs(x*1000-Math.round(x*1000))>1e-6)throw Error('number');return x};
+ return doc.trials.map(h=>{
+  if(!h||h.kind!=='joint-cut-trial-not-confirmed'||typeof h.at!=='string'||!Number.isFinite(Date.parse(h.at))||!Array.isArray(h.rows)||h.rows.length<2||h.rows.length>500)throw Error('trial');
+  const keys=new Set();
+  const rows=h.rows.map(x=>{
+   const orderId=text(x.orderId,120,true),productId=text(x.productId,120,true),color=text(x.color,120,true),key=JSON.stringify([orderId,productId,color]);
+   if(keys.has(key)||!Array.isArray(x.grade)||!x.grade.length||x.grade.length>100)throw Error('grade');keys.add(key);
+   const sizes=new Set(),grade=x.grade.map(g=>{const size=text(g.size,60,true);if(sizes.has(size)||!Number.isSafeInteger(g.qty)||g.qty<=0||g.qty>1e9)throw Error('grade');sizes.add(size);return {size,qty:g.qty}});
+   return {orderId,productId,name:text(x.name,200,true),color,number:text(x.number,120,true),client:text(x.client,240),grade};
+  });
+  const w=h.weight;if(!w||!['estimated','measured'].includes(w.kind))throw Error('weight');
+  const total=decimal(w.totalKg,20000),used=decimal(w.usedKg,20000),waste=decimal(w.wasteKg,20000);
+  if(total<=0||used+waste>total+.000001)throw Error('weight');
+  const qty=w.actualPieces===null?null:w.actualPieces,width=w.widthCm===null?null:decimal(w.widthCm,100000000);
+  if(qty!==null&&(!Number.isSafeInteger(qty)||qty<0||qty>1e9)||width!==null&&width<=0)throw Error('quantity');
+  const lot=text(w.lot,60),note=text(w.note,300),p=w.physical;
+  if(!p||typeof p.checked!=='boolean')throw Error('physical');
+  const physical={composition:text(p.composition,120),stretch:text(p.stretch,120),grain:text(p.grain,120),constraint:text(p.constraint,120),checked:p.checked};
+  if(physical.checked&&(!lot||!width||new Set(rows.map(x=>norm(x.color))).size!==1||!['composition','stretch','grain','constraint'].every(k=>physical[k])))throw Error('physical');
+  return {kind:h.kind,at:new Date(h.at).toISOString(),materialId:text(h.materialId,120,true),materialName:text(h.materialName,200,true),rows,weight:{physical,totalKg:total,usedKg:used,wasteKg:waste,remainderKg:Math.max(0,+(total-used-waste).toFixed(3)),usedPercent:+(100*used/total).toFixed(2),wastePercent:+(100*waste/total).toFixed(2),actualPieces:qty,piecesPerKg:w.kind==='measured'&&qty!==null?+(qty/total).toFixed(3):null,widthCm:width,lot,note,kind:w.kind}};
+ });
+}
 function jointAllowed9837(){try{return requiredCutAllowed9820()&&canOpenPage('materiais')===true}catch(_){return false}}
 function jointSnapshot9837(){
  if(!jointAllowed9837()||typeof window.HLGBJointCutDiscovery9629?.discover!=='function')return null;
@@ -392,8 +418,27 @@ function openJointSimulation9837(){
  });
  button('Exportar histórico da sessão (JSON)',trial,()=>{
   if(!validOwner()||!jointTrials9838.length)return;
-  const url=URL.createObjectURL(new Blob([JSON.stringify({kind:'hlgb-joint-cut-session-notebook',confirmed:false,trials:jointTrials9838},null,2)],{type:'application/json'}));
+  const url=URL.createObjectURL(new Blob([JSON.stringify({kind:'hlgb-joint-cut-session-notebook',confirmed:false,owner,trials:jointTrials9838},null,2)],{type:'application/json'}));
   const a=document.createElement('a');a.href=url;a.download='hlgb-corte-conjunto-simulacoes.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);
+ });
+ const importLabel=el('label','Recuperar histórico exportado (JSON)',trial),importInput=el('input','',importLabel);
+ importInput.type='file';importInput.accept='.json,application/json';importInput.style.maxWidth='100%';
+ const importStatus=el('p','',trial);importStatus.setAttribute('role','status');
+ importInput.addEventListener('change',async()=>{
+  const file=importInput.files?.[0];importInput.value='';if(!file||!validOwner())return;
+  importInput.disabled=true;
+  try{
+   if(file.size>1024*1024)throw Error('size');
+   const incoming=validateJointNotebook9840(JSON.parse(await file.text()),owner);
+   if(!validOwner())return;
+   const key=x=>JSON.stringify([x.at,x.materialId,x.rows,x.weight]);
+   const seen=new Set(jointTrials9838.map(key)),added=[];
+   for(const record of incoming){const k=key(record);if(!seen.has(k)){seen.add(k);added.push(record)}}
+   if(jointTrials9838.length+added.length>30)throw Error('limit');
+   jointTrials9838.push(...added);showHistory();updateTrial();
+   importStatus.textContent=added.length+' combinação(ões) recuperada(s). Duplicatas ignoradas. Histórico manual, não confirmado.';
+  }catch(_){if(validOwner())importStatus.textContent='Arquivo recusado: conta, formato, pesos ou limite inválido. Nenhum registro importado.'}
+  finally{importInput.disabled=false}
  });
  showHistory();
  function printPlan(individual){
