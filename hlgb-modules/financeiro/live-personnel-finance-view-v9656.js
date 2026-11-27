@@ -78,6 +78,26 @@ function mount(pageId){const area=document.getElementById(pageId),id='hlgb-live-
    if(z.firstHypotheticalGapDate)el('p','Primeira data de atenção na simulação de atraso: '+z.firstHypotheticalGapDate,item);
   }
  }
+ const reservePanel=el('details','',out);el('summary','Simular saldo inicial e reserva mínima de caixa',reservePanel);
+ el('p','Informe o saldo inicial disponível para esta simulação, já descontados pagamentos realizados, e a reserva que deseja manter. Dados locais não conciliados, sem gravação.',reservePanel);
+ const scenarioInput=(label)=>{const l=el('label',label,reservePanel);l.style.display='block';const z=el('input','',l);z.type='text';z.inputMode='decimal';z.style.cssText='display:block;max-width:100%;box-sizing:border-box';return z};
+ const opening=scenarioInput('Saldo inicial hipotético (R$; admite negativo)'),reserve=scenarioInput('Reserva mínima (R$)'),scenarioOut=el('div','',reservePanel);
+ const cbLabel=el('label','Conferi o saldo inicial e reconheço que os compromissos podem estar incompletos',reservePanel),cb=el('input','',cbLabel);cb.type='checkbox';
+ const calc=el('button','Simular caixa com reserva',reservePanel);calc.type='button';calc.className='secondary';
+ const parse=v=>/^-?\d{1,9}(?:[.,]\d{1,2})?$/.test(v.trim())?Math.round(Number(v.replace(',','.'))*100):null;
+ for(const z of [opening,reserve])z.oninput=()=>{cb.checked=false;scenarioOut.replaceChildren()};cb.onchange=()=>scenarioOut.replaceChildren();
+ calc.onclick=()=>{scenarioOut.replaceChildren();if(!active()||!reservePanel.isConnected||!cb.checked)return;
+  const fresh=api.finance(deps,{asOf:today(),targetDate:target.value,historyWeeks:Number(select.value),receiptDelayDays:Number(delay.value)});
+  if(!active()||!reservePanel.isConnected)return;
+  if(fresh.state!=='local-observation-only'||JSON.stringify(fresh.plannerObligations)!==JSON.stringify(x.plannerObligations)){el('p','Compromissos alterados. Atualize a consulta financeira antes de simular novamente.',scenarioOut);return}
+  const v=root.HLGBHubIntelligenceAdapter9633.reserveScenario(fresh.plannerObligations,{asOf:today(),openingCents:parse(opening.value),reserveCents:parse(reserve.value),delayDays:Number(delay.value),reviewed:cb.checked},true);
+  if(v.state!=='scenario-only'){el('p','Confira saldo, reserva e qualidade dos dados.',scenarioOut);return}
+  el('p','Maior diferença para manter a reserva: '+money(v.base.peakReserveGapCents)+' · Com atraso de '+v.delayDays+' dias: '+money(v.delayed.peakReserveGapCents),scenarioOut);
+  el('p','Primeira data abaixo da reserva: '+(v.base.firstReserveBreach||'Não observada')+' · Com atraso: '+(v.delayed.firstReserveBreach||'Não observada'),scenarioOut);
+  el('p','Recebimentos vencidos excluídos: '+v.overdueExcludedCount+' · '+money(v.overdueExcludedCents)+' · Omissões: '+v.omitted+' · Fila: '+v.pendingState+'. Simulação parcial, não representa necessidade real de financiamento.',scenarioOut);
+  for(const [i,w] of v.base.weeks.entries()){const z=v.delayed.weeks[i];el('p',w.start+' a '+w.end+' · Fechamento simulado '+money(w.closingCents)+' · Menor saldo '+money(w.lowestCents)+' · Com atraso '+money(z.closingCents)+' · Diferença máxima para reserva '+money(z.reserveGapCents),scenarioOut)}
+  el('p','Valores fora dos 91 dias: entradas '+money(v.base.outsideIncomingCents)+' / saídas '+money(v.base.outsideOutgoingCents)+' · Entradas fora do prazo no cenário de atraso '+money(v.delayed.outsideIncomingCents),scenarioOut);
+ };
  el('h4','Compromissos previstos — 13 semanas',out);
  for(const [i,w] of x.cash.base.entries()){const z=x.cash.conservative?.[i];el('p',w.start+' a '+w.end+' · Entradas '+money(w.incomingCents)+' · Saídas '+money(w.outgoingCents)+(z?' · Entradas com atraso de '+x.cash.receiptDelayDays+' dias '+money(z.incomingCents):''),out)}
  el('p','Saldo bancário, diagnóstico de saúde e margens não confirmados. Registros omitidos: '+x.omitted,out)}}
