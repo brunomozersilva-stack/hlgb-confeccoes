@@ -1,0 +1,21 @@
+name: HLGB Auditor - comparacao de regressoes
+on:
+  pull_request:
+    paths:
+      - 'release-internal-auditor.js'
+      - 'release-auditor-blackbox-v9299.js'
+      - 'tests/auditor-regression-evidence-v9789.cjs'
+      - '.github/workflows/hlgb-auditor-regression-evidence-v9789.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-internal-auditor.js && node --check release-auditor-blackbox-v9299.js
+      - run: node tests/auditor-regression-evidence-v9789.cjs

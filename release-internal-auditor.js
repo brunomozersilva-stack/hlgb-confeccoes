@@ -714,6 +714,50 @@ async function run(mode='full',save=true){
 function latest(){
   return auditRunsCache.slice().sort((a,b)=>String(b?.completedAt||b?.startedAt||'').localeCompare(String(a?.completedAt||a?.startedAt||'')))[0]||null;
 }
+// Compare only explicit, comparable checks. A missing check is never a fix.
+function compareAuditRegression9789(current,history){
+  const empty=reason=>({state:reason,rows:[],counts:null,canRepair:false});
+  const time=x=>typeof x==='string'&&Number.isFinite(Date.parse(x))?Date.parse(x):null;
+  const valid=r=>r?.kind==='system_audit'&&r.readOnly===true&&typeof r.id!=='undefined'&&time(r.completedAt)!==null&&typeof r.auditorVersion==='string'&&r.auditorVersion.length>0&&typeof r.appVersion==='string'&&r.appVersion.length>0&&typeof r.user==='string'&&r.user.length>0&&typeof r.browser==='string'&&r.browser.length>0&&typeof r.mode==='string'&&typeof r.activePage==='string'&&Number.isFinite(r.viewport?.width)&&Number.isFinite(r.viewport?.height)&&Number.isFinite(r.viewport?.devicePixelRatio)&&Array.isArray(r.checks)&&r.checks.length<=5000;
+  if(!valid(current)||!Array.isArray(history)||history.length>100)return empty('invalid-current');
+  const scope=r=>JSON.stringify([r.auditorVersion,r.user,r.browser,r.mode,r.activePage,r.viewport.width,r.viewport.height,r.viewport.devicePixelRatio]);
+  const eligible=history.filter(r=>valid(r)&&String(r.id)!==String(current.id)&&time(r.completedAt)<time(current.completedAt)&&scope(r)===scope(current)).sort((a,b)=>time(b.completedAt)-time(a.completedAt));
+  const prior=eligible[0];if(!prior)return empty('no-comparable-baseline');
+  if(eligible.filter(r=>time(r.completedAt)===time(prior.completedAt)).length!==1)return empty('ambiguous-baseline');
+  const index=r=>{const m=new Map();for(const c of r.checks){
+   if(typeof c?.code!=='string'||!/^[A-Za-z0-9_:.\/-]{1,160}$/.test(c.code)||typeof c.category!=='string'||c.category.length>100)continue;
+   // Page-scoped checks must refer to the same page. Repeated identities are ambiguous.
+   const k=JSON.stringify([c.code,c.category,typeof c.page==='string'?c.page:'']);m.set(k,m.has(k)?null:['pass','warn','fail'].includes(c.status)?c:null);
+  }return m};
+  const before=index(prior),after=index(current),keys=new Set([...before.keys(),...after.keys()]),rows=[],counts={regressed:0,improved:0,persistent:0,stablePass:0,missing:0,newCheck:0,ambiguous:0};
+  const rank={pass:0,warn:1,fail:2};
+  for(const k of keys){
+   const a=before.get(k),b=after.get(k);let change;
+   if(before.has(k)&&!a||after.has(k)&&!b)change='ambiguous';
+   else if(!after.has(k))change='missing';
+   else if(!before.has(k))change='newCheck';
+   else if(rank[b.status]>rank[a.status])change='regressed';
+   else if(rank[b.status]<rank[a.status])change='improved';
+   else change=b.status==='pass'?'stablePass':'persistent';
+   counts[change]++;const [code,category,page]=JSON.parse(k);
+   if(change!=='stablePass')rows.push({code,category,page,before:a?.status??null,after:b?.status??null,change});
+  }
+  const priority={regressed:0,persistent:1,ambiguous:2,missing:3,newCheck:4,improved:5};
+  rows.sort((a,b)=>priority[a.change]-priority[b.change]||a.category.localeCompare(b.category)||a.code.localeCompare(b.code));
+  return {state:'local-comparison',baselineAt:prior.completedAt,currentAt:current.completedAt,baselineVersion:prior.appVersion,currentVersion:current.appVersion,counts,rows,canRepair:false,rootCauseConfirmed:false,coverageVerified:false};
+}
+function auditRegression9789(run){return compareAuditRegression9789(run,auditRunsCache)}
+function regressionText9789(run){
+ const r=auditRegression9789(run);if(r.state!=='local-comparison')return '\nComparação de regressões: sem auditoria anterior comparável.\n';
+ const c=r.counts;let s='\nCOMPARAÇÃO DE REGRESSÕES (mesmo contexto local; não confirma causa)\nAnterior: '+r.baselineAt+' · '+r.baselineVersion+'\nRegrediram: '+c.regressed+' | Melhoraram: '+c.improved+' | Persistem: '+c.persistent+' | Ausentes: '+c.missing+' | Novas: '+c.newCheck+' | Ambíguas: '+c.ambiguous+'\n';
+ for(const x of r.rows.slice(0,100))s+=x.change+' · '+x.category+' · '+x.code+' · '+(x.before??'—')+' → '+(x.after??'—')+'\n';
+ if(r.rows.length>100)s+='Mais '+(r.rows.length-100)+' ocorrências na comparação JSON.\n';return s;
+}
+function regressionHtml9789(run){
+ const r=auditRegression9789(run);if(r.state!=='local-comparison')return '<p class="sub">Sem auditoria anterior comparável (mesma versão do auditor, navegador, tela, modo e dimensões).</p>';
+ const c=r.counts,labels={regressed:'Regrediu',persistent:'Persiste',improved:'Melhorou',missing:'Não executado nesta comparação',newCheck:'Novo teste',ambiguous:'Identidade ambígua'};
+ return '<details class="panel"><summary>Comparação de regressões — '+c.regressed+' pioraram · '+c.improved+' melhoraram</summary><p class="sub">Anterior '+escSafe(r.baselineAt)+' · '+escSafe(r.baselineVersion)+'; '+c.persistent+' persistentes, '+c.missing+' ausentes, '+c.newCheck+' novos, '+c.ambiguous+' ambíguos. Ausência não comprova correção. Comparação local, não identifica a causa.</p>'+r.rows.slice(0,50).map(x=>'<p class="sub">'+escSafe(labels[x.change]+' · '+x.category+' · '+x.code+' · '+(x.before??'—')+' → '+(x.after??'—'))+'</p>').join('')+(r.rows.length>50?'<p>Mais ocorrências no relatório TXT/JSON.</p>':'')+'</details>';
+}
 function resultBadge(run){
   const r=run?.summary?.result||'-',cls=r==='Aprovado'?'ok':r==='Atenção'?'warn':'bad';
   return '<span class="badge '+cls+'">'+escSafe(r)+'</span>';
@@ -724,6 +768,7 @@ function renderRun(run){
   const bad=(run.checks||[]).filter(x=>x.status!=='pass');
   return '<div class="cards"><div class="card"><small>Resultado</small><strong>'+resultBadge(run)+'</strong></div><div class="card"><small>Passou</small><strong>'+q(s.pass)+'</strong></div><div class="card"><small>Atenções</small><strong>'+q(s.warn)+'</strong></div><div class="card"><small>Falhas</small><strong>'+q(s.fail)+'</strong></div></div>'+
     '<div class="sub" style="margin:10px 0">Executada em '+escSafe(String(run.completedAt||'').replace('T',' ').slice(0,19))+' · '+escSafe(run.browser||'-')+' · tela '+escSafe(run.activePage||'-')+' · somente leitura.</div>'+
+    regressionHtml9789(run)+
     (bad.length?'<div class="panel"><h3 style="margin-top:0">Pontos encontrados</h3>'+bad.map(x=>'<div style="padding:8px 0;border-bottom:1px solid #eee"><b>'+escSafe(x.status==='fail'?'🔴':'🟡')+' '+escSafe(x.title)+'</b><div class="sub">'+escSafe(x.category)+' · '+escSafe(x.detail||'-')+'</div></div>').join('')+'</div>':'<div class="panel"><b>✅ Nenhuma falha ou atenção nas verificações atuais.</b></div>');
 }
 function report(run){
@@ -741,7 +786,7 @@ function report(run){
     out+=(x.status==='pass'?'OK':x.status==='warn'?'ATENÇÃO':'FALHA')+' — '+x.category+' — '+x.title+'\n';
     if(x.detail)out+='  '+x.detail+'\n';
   });
-  return out;
+  return out+regressionText9789(run);
 }
 function inject(){
   if(document.getElementById('hlgbAuditorStyle')==null){
@@ -1003,7 +1048,7 @@ window.hlgbAuditorCleanDerivedSync=async function(){
     alert('Não foi possível concluir a limpeza segura.\n\n'+String(e?.message||e));
   }
 };
-window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,runVisualSweep,auditVisualSweep,downloadVisualDiagnostic,latest,report,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,enrichWalAudit9506,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending,runtimeErrors};
+window.hlgbInternalAuditor={VERSION,module:AUDIT_MODULE,buildRun,run,runVisualSweep,auditVisualSweep,downloadVisualDiagnostic,latest,report,auditRegression9789,compareAuditRegression9789,auditFunctions,auditModules,auditDomStructure,auditVisualCurrent,auditSync,auditDataIntegrity,enrichWalAudit9506,loadRuns,saveRun,stableJson,cleanupTechnicalPending,redactDiagnostic,normalizedPendingDiagnostic,localWalDiagnostic,indexedDbWalDiagnostic,buildSyncDiagnostic,downloadSyncDiagnostic,classifiedDerivedPending,cleanClassifiedDerivedPending,runtimeErrors};
 function boot(){
   detachTechnicalModule();cleanupTechnicalPending();inject();
   try{if(typeof hlgbAfterLogin==='function')hlgbAfterLogin(()=>{setTimeout(()=>{inject();loadRuns()},500)},0)}catch(e){}
