@@ -100,7 +100,7 @@ function openFullCutChecklist9820(id){
  const grid=el('div','');grid.dataset.cutChecklistLines9823='1';grid.style.overflowX='auto';
  const table=el('table','',grid);table.style.cssText='width:100%;border-collapse:collapse';const head=el('tr','',el('thead','',table));
  for(const label of ['OK','Material','Categoria','Cor','Peças da cor','Quantidade por cor','Unidade','Rolos por cor'])el('th',label,head);
- const tbody=el('tbody','',table);
+ const tbody=el('tbody','',table),conferenceRows=[];
  const warnings=v.materials.filter(m=>m.issues.length);
  if(warnings.length){const warning=el('div','');warning.setAttribute('role','note');warning.style.cssText='border:1px solid #a86a18;padding:8px;margin:8px 0';el('strong','Pendências da ficha técnica — conferir antes de separar',warning);for(const m of warnings)el('p',m.name+': '+m.issues.join('; '),warning);}
  el('p','Cada linha corresponde à quantidade necessária para a cor indicada. Rolos arredondados por cor, sem somar sobras de cores diferentes.');
@@ -108,18 +108,48 @@ function openFullCutChecklist9820(id){
   const splits=m.color?m.byColor.filter(x=>norm(x.color)===norm(m.color)):m.byColor;
   const lines=splits.length?splits:[{color:m.color||'A conferir',pieces:0,amount:null,rolls:null}];
   for(const color of lines){const row=el('tr','',tbody),cell=el('td','',row),check=el('input','',cell);check.type='checkbox';check.disabled=color.amount===null||!m.linkOK;check.setAttribute('aria-label',m.name+' '+color.color);
-   el('td',m.name,row);el('td',m.category||'-',row);el('td',color.color,row);el('td',String(color.pieces||'A conferir'),row);el('td',fmt(color.amount)+(!m.linkOK&&color.amount!==null?' (estimativa; conferir vínculo)':''),row);el('td',m.unit||'-',row);el('td',color.rolls===null?'-':String(color.rolls),row);
+   el('td',m.name,row);el('td',m.category||'-',row);el('td',color.color,row);el('td',String(color.pieces||'A conferir'),row);el('td',fmt(color.amount)+(!m.linkOK&&color.amount!==null?' (estimativa; conferir vínculo)':''),row);el('td',m.unit||'-',row);el('td',color.rolls===null?'-':String(color.rolls),row);conferenceRows.push({row,m,color});
   }
  }
  for(const cell of host.querySelectorAll('th,td'))cell.style.cssText='border:1px solid #aaa;padding:5px;text-align:left;font-size:12px';
  mark.onclick=()=>{for(const cb of grid.querySelectorAll('input[type=checkbox]:not(:disabled)'))cb.checked=true};
  if(!v.materials.length)el('p','Nenhuma matéria-prima cadastrada. Confira a ficha técnica antes da separação.');
+ // Optional detailed conference preserves the compact direct-print route.
+ if(conferenceRows.length){
+  const detailed=el('button','Conferir quantidades por cor',top);detailed.type='button';detailed.className='secondary';
+  detailed.onclick=()=>{
+   if(!requiredCutAllowed9820()||!host.isConnected||host.querySelector('[data-hlgb-color-conference9827]'))return;
+   const panel=el('section','');panel.dataset.hlgbColorConference9827='1';grid.insertAdjacentElement('afterend',panel);
+   el('h3','Conferência física por cor — rascunho',panel);el('p','Não salva na nuvem nem confirma baixa. Informe a quantidade realmente separada de cada cor.',panel);
+   const field=(parent,label,max)=>{const wrap=el('label',label+' ',parent),input=el('input','',wrap);input.type='text';input.maxLength=max;input.setAttribute('aria-label',label);input.style.cssText='max-width:100%;box-sizing:border-box';return input};
+   field(panel,'Responsável pela conferência',120);
+   field(panel,'Observações gerais da conferência',500);
+   const wrap=el('div','',panel);wrap.style.overflowX='auto';
+   const tab=el('table','',wrap),hdr=el('tr','',el('thead','',tab));for(const name of ['Material','Cor','Necessário','Separado','Falta','Observação'])el('th',name,hdr);
+   const body=el('tbody','',tab);
+   for(const {m,color} of conferenceRows){
+    const tr=el('tr','',body),verified=m.linkOK&&color.amount!==null;
+    el('td',m.name,tr);el('td',color.color,tr);el('td',verified?fmt(color.amount)+' '+m.unit:'A conferir',tr);
+    const amount=field(el('td','',tr),'Quantidade separada — '+m.name+' — '+color.color,16);amount.inputMode='decimal';amount.style.width='90px';
+    const shortage=el('td','Não conferido',tr);
+    field(el('td','',tr),'Observação — '+m.name+' — '+color.color,250);
+    amount.addEventListener('input',()=>{
+     const raw=amount.value.trim().replace(',','.');
+     const number=/^\d{1,9}(?:\.\d{1,6})?$/.test(raw)?Number(raw):null;
+     amount.setAttribute('aria-invalid',String(raw!==''&&number===null));
+     shortage.textContent=number===null?'Não conferido':!verified?'A conferir':fmt(Math.max(0,color.amount-number))+' '+m.unit;
+    });
+   }
+   for(const cell of panel.querySelectorAll('th,td'))cell.style.cssText='border:1px solid #aaa;padding:5px;text-align:left;font-size:12px';
+   detailed.disabled=true;
+  };
+ }
  const compose=el('div','');try{const order=idx.orders.get(v.orderId);if(typeof compositionTableForProduct==='function'){compose.innerHTML=compositionTableForProduct({...order,grade:v.grade.map(g=>({...g,productId:v.productId}))},v.productId,true)||''}}catch(_){el('p','Composição indisponível: confira a ficha técnica.',compose)}
  const print=el('button','Imprimir folha de pedido do corte');print.type='button';print.onclick=()=>printRequiredCut9820(v.cutId);
  const checklistPrint=el('button','Imprimir checklist de separação',top);checklistPrint.type='button';checklistPrint.className='primary';checklistPrint.dataset.hlgbPrintChecklist9824='1';top.insertBefore(checklistPrint,close);checklistPrint.onclick=()=>{
   if(!requiredCutAllowed9820()||!host.isConnected)return;
   const freshIdx=cutIndex9709(),fresh=cutActionProof9820(freshIdx.cuts.get(v.cutId),freshIdx);if(JSON.stringify(fresh)!==JSON.stringify(v)){alert('A grade ou ficha mudou. Reabra o checklist.');return}
-  const html=host.cloneNode(true);html.querySelectorAll('button').forEach(n=>n.remove());const original=[...host.querySelectorAll('input[type=checkbox]')];[...html.querySelectorAll('input[type=checkbox]')].forEach((n,i)=>{const text=document.createTextNode(original[i]?.checked?'☑ ':'☐ ');n.replaceWith(text)});html.removeAttribute('style');
+  const html=host.cloneNode(true);html.querySelectorAll('button').forEach(n=>n.remove());const original=[...host.querySelectorAll('input[type=checkbox]')];[...html.querySelectorAll('input[type=checkbox]')].forEach((n,i)=>{const text=document.createTextNode(original[i]?.checked?'☑ ':'☐ ');n.replaceWith(text)});const inputs=[...host.querySelectorAll('[data-hlgb-color-conference9827] input')];[...html.querySelectorAll('[data-hlgb-color-conference9827] input')].forEach((n,i)=>{const input=inputs[i];n.replaceWith(document.createTextNode(input?.getAttribute('aria-invalid')==='true'?'Valor inválido':input?.value||'________________'))});html.removeAttribute('style');
   const page='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Checklist de separação</title><style>@page{size:A4;margin:10mm}body{font:12px Arial;color:#222}h2{font-size:19px}h3{font-size:14px}h2,h3{margin:8px 0}p{margin:4px 0}table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #aaa;padding:4px}th{background:#eee}tr{break-inside:avoid}thead{display:table-header-group}</style><body><h1 style="font-size:20px;margin:0 0 8px">HLGB Confecções</h1>'+html.innerHTML+'<p>Responsável: _____________________ Data: ____/____/____</p><p>Faltas / observações: __________________________________________</p></body></html>';
   let popup;try{popup=window.open('','_blank')}catch(_){}
   if(popup){try{popup.document.open();popup.document.write(page);popup.document.close();popup.focus?.();popup.print?.();return}catch(_){try{popup.close()}catch(_){}}}

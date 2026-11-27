@@ -57,6 +57,24 @@
  assert.equal(colorRows.filter(r=>r[0]==='Tule teste'&&r[4]==='A conferir').length,3);
  await preview.getByRole('button',{name:'Fechar',exact:true}).click();
  assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__colorFixtureSnapshot),true);
+ // Optional physical conference must remain independent of official write-off and print all input values.
+ await required.getByRole('button',{name:'Checklist completo da peça'}).click();
+ await full.getByRole('button',{name:'Conferir quantidades por cor'}).click();
+ const conference=full.locator('[data-hlgb-color-conference9827]');
+ await conference.getByLabel('Responsável pela conferência').fill('Operador teste');
+ await conference.getByLabel('Quantidade separada — Aviamento teste — Preto').fill('96');
+ await conference.getByLabel('Quantidade separada — Aviamento teste — Branco').fill('40');
+ await conference.getByLabel('Quantidade separada — Aviamento teste — Rubi').fill('96');
+ await conference.getByLabel('Observação — Aviamento teste — Branco').fill('Faltam 8 metros');
+ const white=conference.locator('tbody tr').filter({hasText:'Aviamento teste'}).filter({hasText:'Branco'});
+ assert.equal(await white.locator('td').nth(4).innerText(),'8 m');
+ await conference.getByLabel('Quantidade separada — Tule teste — Preto').fill('3');
+ assert.equal(await conference.locator('tbody tr').filter({hasText:'Tule teste'}).filter({hasText:'Preto'}).locator('td').nth(4).innerText(),'A conferir');
+ await full.getByRole('button',{name:'Imprimir checklist de separação'}).click();await preview.waitFor();
+ const conferencePrint=await preview.locator('iframe').evaluate(x=>{const doc=new DOMParser().parseFromString(x.srcdoc,'text/html');return doc.querySelector('[data-hlgb-color-conference9827]').textContent});
+ assert.match(conferencePrint,/Operador teste/);assert.match(conferencePrint,/Faltam 8 metros/);assert.match(conferencePrint,/8 m/);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();
+ assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__colorFixtureSnapshot),true);
  await p.evaluate(()=>{for(const k of Object.keys(db))delete db[k];Object.assign(db,window.__colorFixtureBefore);window.open=window.__originalOpen9821;window.hlgbCutterSheetV9523.ensurePrintRoute9523()});
  assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);await singleGrade.click();await splitGrade.click();assert.deepEqual(await p.evaluate(()=>window.__gradeOpens),[['single','9'],['split','19']]);
  await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);
