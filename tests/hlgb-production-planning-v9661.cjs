@@ -337,3 +337,19 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(v.canWrite,false);assert.equal(v.cashVerified,false);assert.equal(v.canScheduleReceipts,false);assert.equal(plan.orderReceivablesReview(db,input,false).state,'forbidden');assert.equal(JSON.stringify([db,input]),before);
  console.log('PASS order receivables review, shared note dedupe, balances, payment conditions and pending evidence');
 })();
+
+
+(function plannerReceiptTimingAndTerms(){
+ const input={start:'2026-11-30',asOf:'2026-11-26',weeks:3,weeklyGoal:100,bufferPercent:0,history:[],closedDates:[],coverageConfirmed:true,newPieces:0,orders:[{key:'a',client:'A',model:'M',dueDate:'2026-12-01',pieces:120,paymentMode:'cash',amountCents:12000},{key:'b',client:'A',model:'N',dueDate:'2026-12-02',pieces:40,paymentMode:'term',paymentDays:7,amountCents:4000},{key:'c',client:'B',model:'M',dueDate:'2026-12-03',pieces:1000,paymentMode:'cash',amountCents:100000}]};
+ const p=plan.deliveryCapacityPlan(input,true);assert.equal(p.state,'local-capacity-simulation');assert.equal(p.orders[0].lastWorkDate,'2026-12-07');assert.equal(p.orders[0].receiptDate,'2026-12-07');assert.equal(p.weeks[0].cashAtDeliveryCents,0);assert.equal(p.weeks[1].cashAtDeliveryCents,12000);assert.equal(p.orders[1].receiptDate,'2026-12-16');assert.equal(p.weeks[2].termReceiptsCents,4000);assert.equal(p.orders[2].receiptDate,null);assert.equal(p.excludedReceiptPieces,1000);
+ assert.equal(plan.deliveryCapacityPlan({...input,history:[{week:'2026-11-23',pieces:100,confirmed:true}]},true).state,'invalid-history');
+ assert.equal(plan.deliveryCapacityPlan({...input,history:[{week:'2026-11-16',pieces:100,confirmed:false},{week:'2026-11-16',pieces:100,confirmed:true}]},true).state,'invalid-history');
+ const fallback={mode:'cash',days:0};
+ assert.deepEqual(plan.orderPaymentCondition({paymentTerms:'30 dias'},null,fallback,true),{mode:'term',days:30,source:'order-recorded'});
+ assert.equal(plan.orderPaymentCondition({paymentTerms:'Cheque'},null,fallback,true).mode,'unknown');
+ assert.equal(plan.orderPaymentCondition({},null,fallback,true).source,'client-scenario');
+ assert.deepEqual(plan.orderPaymentCondition({paymentTerms:'À vista'},{mode:'term',days:15},fallback,true),{mode:'term',days:15,source:'order-scenario'});
+ assert.equal(plan.orderPaymentCondition({paymentTerms:'À vista'},{mode:'unknown'},fallback,true).mode,'unknown');
+ assert.equal(plan.orderPaymentCondition({paymentTerms:'À vista'},null,fallback,false).mode,'unknown');
+ console.log('PASS payment timing after simulated completion, historical cutoffs and per-order conditions');
+})();
