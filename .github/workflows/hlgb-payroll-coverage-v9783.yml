@@ -1,0 +1,21 @@
+name: HLGB RH - cobertura da folha
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/financeiro/payroll-preview-adapter-v9634.js'
+      - 'hlgb-modules/financeiro/live-personnel-finance-view-v9656.js'
+      - 'tests/payroll-coverage-v9783.cjs'
+      - '.github/workflows/hlgb-payroll-coverage-v9783.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check hlgb-modules/financeiro/live-personnel-finance-view-v9656.js
+      - run: node tests/payroll-coverage-v9783.cjs
