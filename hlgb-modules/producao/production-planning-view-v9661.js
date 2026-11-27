@@ -451,7 +451,94 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
   const note=allowed?'Abrir planejamento completo, simulação, impressões e histórico.':'O planejamento requer acesso a Corte, Pedidos, Produtos, Materiais e Produção.';
   if(bar.children[1].textContent!==note)bar.children[1].textContent=note;
  }
- function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
+
+ // Connect the already-tested planning engines to the existing Metas page.
+ // The observed history is not automatically promoted to verified capacity.
+ function mountDeliveryPlanner9845(){
+  const allowed=()=>['metas','pedidos','producao','corte','produtos','faccoes'].every(can);
+  const ctx=hostFor('metas','hlgbDeliveryPlanner9845',allowed);if(!ctx)return;
+  const {host,active}=ctx,api=root.HLGBProductionPlanning9661;
+  if(!['observedThroughput','productionStageGoals','deliveryCapacityPlan'].every(k=>typeof api[k]==='function')){host.remove();return}
+  el('h2','Planejamento de produção e entregas',host);
+  el('p','Cenários de trabalho, sem alterar pedidos ou metas oficiais. Confira carteira restante e capacidade antes de assumir compromissos.',host);
+  const today=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),v=k=>p.find(x=>x.type===k)?.value;return v('year')+'-'+v('month')+'-'+v('day')};
+  const numeric=(label,parent,defaultValue='',max=10000000)=>{const x=field(label,parent,'number');x.min='0';x.max=String(max);x.step='1';x.value=String(defaultValue);return x};
+  const parse=x=>x.value.trim()!==''&&/^\d+$/.test(x.value)&&Number.isSafeInteger(Number(x.value))?Number(x.value):null;
+  const closed=field('Feriados e dias fechados (AAAA-MM-DD, separados por vírgula)',host);
+  const daysClosed=()=>closed.value.split(/[,;\s]+/).map(s=>s.trim()).filter(Boolean);
+  const start=field('Início do planejamento',host,'date');start.value=today();
+  const buffer=numeric('Margem de segurança (%)',host,10,90);
+  const history=el('details','',host);el('summary','Histórico observado de produção — últimas 12 semanas completas',history);const hist=el('div','',history);
+  button('Consultar produção observada',history,()=>{
+   hist.replaceChildren();if(!active())return;
+   const report=api.observedThroughput(data(),today(),true);
+   if(report.state!=='local-observation'){el('p','Fontes indisponíveis. Confira o acesso e a sincronização.',hist);return}
+   el('p','Semanas com registros não são capacidade garantida; períodos sem registro não são tratados como zero. '+report.issues.length+' ocorrências a conferir.',hist);
+   const sources={cut:'Corte',external:'Retornos de facção',internal:'Produção interna'};
+   for(const source of ['cut','external','internal']){
+    const rows=report.weeks.filter(w=>w.source===source);el('h4',sources[source],hist);
+    el('p',rows.length?rows.map(w=>w.week+': '+fmt(w.pieces)+' pç').join(' · '):'Sem dados datados suficientes.',hist);
+   }
+   const details=el('details','',hist);el('summary','Por modelo e equipe (até 100 registros)',details);
+   for(const r of report.rows.slice(0,100))el('p',sources[r.source]+' · '+r.productName+' · '+r.teamName+' · '+r.observedWeeks+' semanas observadas · média '+fmt(r.averageActiveWeek)+' pç',details);
+  });
+  const flow=el('details','',host);flow.open=true;el('summary','1. Definir objetivo semanal por etapa',flow);
+  const goal=numeric('Objetivo de peças prontas na semana',flow),stageFields=[];
+  for(const [key,name] of [['cut','Corte'],['sew','Costura / facções'],['finish','Acabamento e entrega']]){
+   const row=el('fieldset','',flow);el('legend',name,row);
+   const capacity=numeric('Capacidade informada de '+name+' (peças em 5 dias)',row);
+   const wip=key==='cut'?null:numeric('Peças disponíveis no início — '+name,row,0);
+   const check=wip?el('label','',row):null;let checked=null;if(check){checked=el('input','',check);checked.type='checkbox';el('span',' Conferi o saldo físico desta etapa',check)}
+   stageFields.push({key,name,capacity,wip,checked});
+  }
+  const stageOut=el('div','',flow);
+  button('Calcular divisão da produção',flow,()=>{
+   stageOut.replaceChildren();if(!active())return;
+   const stages=stageFields.map(s=>({key:s.key,name:s.name,manualCapacity:parse(s.capacity),initialWip:s.wip?parse(s.wip):0,wipConfirmed:!!s.checked?.checked,history:[],teams:[]}));
+   const v=api.productionStageGoals({start:start.value,goal:parse(goal),bufferPercent:parse(buffer),closedDates:daysClosed(),stages},true);
+   if(v.state!=='local-stage-goals'){el('p','Confira as datas, metas e capacidades inteiras.',stageOut);return}
+   el('p','Dias de trabalho: '+v.workdays+' · Peças prontas simuladas: '+fmt(v.simulatedDeliveries)+' · Falta para a meta: '+fmt(v.goalGap),stageOut);
+   for(const s of v.stages)el('p',s.name+' · capacidade no período '+fmt(s.periodCapacity)+' · peças simuladas '+fmt(s.simulatedPieces)+' · saldo em processo '+fmt(s.endingWip),stageOut);
+   if(v.bottlenecks.length)el('p','Etapa(s) limitante(s): '+v.bottlenecks.map(s=>s.name).join(' / '),stageOut);
+   const daily=el('details','',stageOut);el('summary','Divisão por dia',daily);
+   for(const d of v.days)el('p',d.date+' · '+d.stages.map(s=>stages.find(x=>x.key===s.key).name+': '+fmt(s.pieces)).join(' / '),daily);
+   if(v.partial)el('p','Cenário parcial: histórico não certificado e saldos não conferidos podem alterar o resultado.',stageOut);
+  });
+  const delivery=el('details','',host);delivery.open=true;el('summary','2. Organizar pedidos, prazos e recebimentos',delivery);
+  el('p','Informe apenas peças ainda pendentes. O valor e a condição de pagamento são referências informadas, não baixa de nota ou previsão bancária confirmada.',delivery);
+  const horizon=numeric('Semanas a planejar',delivery,4,13);horizon.min='1';
+  const weekly=numeric('Capacidade semanal de entregas (peças em 5 dias)',delivery);
+  const proposal=numeric('Quantidade de peças do novo pedido a avaliar',delivery,0);
+  const queue=el('div','',delivery),rows=[];let seq=0;
+  const out=el('div','',delivery);
+  function addOrder(){
+   if(rows.length>=100)return;
+   const row=el('fieldset','',queue),key='scenario-'+(++seq);el('legend','Pedido '+seq,row);
+   const client=field('Cliente',row),model=field('Modelo / número do pedido',row),due=field('Prazo de entrega',row,'date'),pieces=numeric('Peças ainda pendentes',row),value=field('Valor a receber (R$)',row);
+   const label=el('label','Condição de pagamento ',row),pay=el('select','',label);for(const [k,t] of [['unknown','A conferir'],['cash','À vista'],['term','A prazo']]){const o=el('option',t,pay);o.value=k}
+   const term=numeric('Prazo de pagamento em dias',row,0,365);
+   const item={key,client,model,due,pieces,value,pay,term};rows.push(item);
+   button('Remover pedido da simulação',row,()=>{const i=rows.indexOf(item);if(i>=0)rows.splice(i,1);row.remove();out.replaceChildren()});
+  }
+  button('Adicionar pedido à carteira simulada',delivery,addOrder);addOrder();
+  button('Calcular agenda de entregas',delivery,()=>{
+   out.replaceChildren();if(!active())return;
+   const money=x=>{const s=x.value.trim().replace(',','.');return /^\d{1,9}(?:\.\d{1,2})?$/.test(s)?Math.round(Number(s)*100):null};
+   const orders=rows.filter(r=>r.client.value.trim()||r.model.value.trim()||r.due.value||r.pieces.value).map(r=>({key:r.key,client:r.client.value.trim(),model:r.model.value.trim(),dueDate:r.due.value,pieces:parse(r.pieces),paymentMode:r.pay.value,paymentDays:parse(r.term),amountCents:money(r.value)}));
+   const v=api.deliveryCapacityPlan({start:start.value,asOf:today(),weeks:parse(horizon),weeklyGoal:parse(weekly),bufferPercent:parse(buffer),history:[],orders,closedDates:daysClosed(),coverageConfirmed:false,newPieces:parse(proposal)},true);
+   if(v.state!=='local-capacity-simulation'){el('p','Confira início, horizonte, capacidade e quantidades.',out);return}
+   el('p','Capacidade semanal após margem: '+fmt(v.weeklyTarget)+' · Peças atrasadas / fora do prazo: '+fmt(v.late)+' · Não alocadas: '+fmt(v.unallocated),out);
+   if(v.newPieces)el('p','Novo pedido de '+fmt(v.newPieces)+' peças: '+(v.firstAvailable?'data candidata '+v.firstAvailable:'não cabe no horizonte informado')+' · quantidade sem vaga '+fmt(v.unplacedNewPieces)+'. Não é promessa de entrega.',out);
+   for(const w of v.weeks){const item=el('details','',out);el('summary',w.start+' a '+w.end+' · '+fmt(w.allocated)+' pç alocadas · '+fmt(w.free)+' vagas',item);
+    el('p','À vista: '+fmt(w.cashAtDeliveryCents/100)+' R$ · A prazo: '+fmt(w.termReceiptsCents/100)+' R$ · Peças com condição/valor não confirmado: '+fmt(w.unknownPaymentPieces),item);
+    for(const d of v.daily.filter(d=>d.date>=w.start&&d.date<=w.end&&d.assignments.length))el('p',d.date+' · '+d.assignments.map(a=>a.client+' / '+a.model+': '+fmt(a.pieces)).join(' · '),item);
+   }
+   for(const o of v.orders)el('p',o.client+' / '+o.model+' · entrega '+o.dueDate+' · conclusão simulada '+(o.lastWorkDate||'não alocada')+' · restante '+fmt(o.remaining)+' · recebimento candidato '+(o.receiptDate||'a conferir'),out);
+   if(v.issues.length)el('p','Atenção: carteira e capacidade são manuais e parciais; registros inválidos ou sem confirmação não constituem compromissos. '+v.issues.join(' · '),out);
+  });
+ }
+
+ function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();mountDeliveryPlanner9845();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
  let operationalTimer9845=null;
 function scheduleOperational9845(){
  if(operationalTimer9845!==null)return;
@@ -477,7 +564,8 @@ document.addEventListener('click',scheduleOperational9845,true);document.addEven
   hubFinanceiro:[['hlgb-live-finance-9656-hubFinanceiro','Inteligência financeira e prévia salarial']],
   notas:[['hlgb-settlement-history-9654-cliente','Histórico de acertos por cliente']],
   pagamentosFaccoes:[['hlgb-settlement-history-9654-faccao','Histórico de acertos por facção']],
-  produtos:[['hlgbRemnant9661','Aproveitamento de sobras']]
+  produtos:[['hlgbRemnant9661','Aproveitamento de sobras']],
+  metas:[['hlgbDeliveryPlanner9845','Planejamento de produção e entregas']]
  };
  const prefix='hlgb-operational-access-9845-';
  let timer=null,observer=null;const watched=new Set();
@@ -493,7 +581,8 @@ document.addEventListener('click',scheduleOperational9845,true);document.addEven
   'hlgb-settlement-history-9654-funcionario':['folhaPagamento'],
   'hlgb-settlement-history-9654-cliente':['notas','financeiro'],
   'hlgb-settlement-history-9654-faccao':['pagamentosFaccoes','faccoes'],
-  'hlgbRemnant9661':['produtos','materiais']
+  'hlgbRemnant9661':['produtos','materiais'],
+  'hlgbDeliveryPlanner9845':['metas','pedidos','producao','corte','produtos','faccoes']
  };
  const panel=(area,id)=>{const target=document.getElementById(id);return target&&area.contains(target)&&access[id]?.every(can)?target:null};
  function clear(){for(const page of Object.keys(sections))document.getElementById(prefix+page)?.remove()}
