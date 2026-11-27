@@ -180,7 +180,7 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  const orders=[{key:'a',client:'A',model:'Camisola',dueDate:'2026-12-01',pieces:500,paymentMode:'cash',amountCents:50000},{key:'b',client:'B',model:'Body',dueDate:'2026-12-04',pieces:300,paymentMode:'term',paymentDays:7,amountCents:90000},{key:'c',client:'C',model:'Calcinha',dueDate:'2026-12-11',pieces:100,paymentMode:'unknown',amountCents:10000}];
  const input={start:'2026-11-30',weeks:3,weeklyGoal:1000,bufferPercent:0,history,orders,closedDates:['2026-12-02'],coverageConfirmed:true,newPieces:200},before=JSON.stringify(input),p=plan.deliveryCapacityPlan(input,true);
  assert.equal(p.state,'local-capacity-simulation');assert.equal(p.sampleCount,4);assert.equal(p.average,1025);assert.equal(p.conservative,800);assert.equal(p.weeklyTarget,800);
- assert.equal(p.weeks[0].capacity,640);assert.equal(p.weeks[0].committed,800);assert.equal(p.weeks[0].cashAtDeliveryCents,50000);assert.equal(p.weeks[1].termReceiptsCents,90000);
+ assert.equal(p.weeks[0].capacity,640);assert.equal(p.weeks[0].committed,800);assert.equal(p.weeks[0].cashAtDeliveryCents,50000);assert.equal(p.weeks[1].termReceiptsCents,0);assert.equal(p.weeks[2].termReceiptsCents,90000);
  assert.equal(p.weeks[1].unknownPaymentPieces,100);assert.equal(p.daily.find(x=>x.date==='2026-12-02').capacity,0);assert.equal(p.daily.find(x=>x.date==='2026-12-05').capacity,0);
  assert.equal(p.orders[0].latePieces,180);assert.equal(p.orders[1].latePieces,160);assert.equal(p.late,340);assert.equal(p.unallocated,0);
  assert.equal(p.firstAvailable,'2026-12-09');assert.equal(p.unplacedNewPieces,0);assert.equal(p.canPromise,false);assert.equal(p.cashVerified,false);assert.equal(p.canWrite,false);
