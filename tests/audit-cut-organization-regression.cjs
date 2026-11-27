@@ -55,3 +55,18 @@ const grade=[{productId:10,color:'Preto',size:'P',qty:30},{productId:11,color:'P
 const order={id:99,status:'Pedido finalizado',grade,total:1000};const inv={id:'N1',items:[{orderId:99,productId:10,qty:30}]};const beforeProof=JSON.stringify([order,inv]);const check=(invs,pairs=[])=>api.merchandiseEvidence9755([order],invs,vm.runInContext('new Set('+JSON.stringify(pairs)+')',context)).get('99');
 assert.equal(check([]).hide,false);assert.equal(check([inv]).reason,'partial');assert.equal(check([inv],['99|11']).hide,true);assert.equal(check([],['99|10','99|11']).hide,true);assert.equal(check([],['99|*']).hide,false);assert.equal(check([inv,{...inv}]).hide,false);assert.equal(check([{...inv,status:'Cancelada'}],['99|11']).hide,false);assert.equal(check([{...inv,manualNote:true}],['99|11']).hide,false);assert.equal(check([{...inv,items:[{orderId:99,productId:10,qty:31}]}],['99|11']).reason,'review');assert.equal(check([{...inv,items:[{orderId:98,productId:10,qty:30}]}],['99|11']).hide,false);assert.equal(JSON.stringify([order,inv]),beforeProof);
 console.log('PASS open merchandise evidence');
+
+// Work list excludes finalized model cards as well as legacy rows; filters never hide legitimate active cards.
+const completed={id:'done-1',orderId:48,productId:11,cutterId:7,status:'Finalizado',pieces:100,finishedAt:'2026-11-25',actualCutGrade:[{productId:11,color:'Preto',size:'P',qty:100}]};
+context.db.cuts.push(completed);
+const done=row('done-1'),group3={dataset:{},style:{display:''},querySelectorAll:()=>[done]};
+split.querySelectorAll=s=>s==='[data-hlgb-cut-model-id]'?[model,other,done]:[group1,group2,group3];
+api.apply();assert.equal(done.style.display,'none');assert.equal(group3.style.display,'none');assert.match(count.textContent,/2 de 2/);
+const history=api.completedCutHistory(context.db.cuts,api.cutIndex9709());assert.equal(history.rows.length,1);assert.equal(history.rows[0].id,'done-1');assert.equal(api.cutWorkVisible9799(history.rows[0].meta,{},false),false);
+const more={rows:Array.from({length:53},(_,i)=>({...history.rows[0],id:'history-'+i})),review:[]};
+const page=api.historyPage9799(more,{},false,25);assert.equal(page.rows.length,53);assert.equal(page.pageOffset,25);assert.equal(page.signature,api.historyPage9799(more,{},false,25).signature);
+assert.equal(api.historyPage9799({rows:more.rows.slice(0,26),review:[]},{},false,50).pageOffset,25);
+assert.notEqual(page.signature,api.historyPage9799(more,{q:'camisola'},false,25).signature);
+const changed={...more,rows:more.rows.map((r,i)=>i===25?{...r,meta:{...r.meta,pieces:99}}:r)};assert.notEqual(page.signature,api.historyPage9799(changed,{},false,25).signature);
+assert.equal(api.historyPage9799(more,{},true,25).rows.length,0);assert.equal(api.historyPage9799(more,{},true,25).pageOffset,0);
+console.log('PASS unified work excludes completed models; historical pagination and stable evidence signature');
