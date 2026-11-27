@@ -34,7 +34,30 @@
  assert.match(printed,/FOLHA DE GRADE DO CORTADOR/);assert.match(printed,/Camisola/);assert.match(printed,/Malha/);assert.match(printed,/Peso total \(kg\)/);assert.match(printed,/Assinatura do Cortador 1/);assert.doesNotMatch(printed,/Calcinha/);
  await preview.getByRole('button',{name:'Fechar',exact:true}).click();assert.equal(await preview.count(),0);
  assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__printDbBefore),true);
- await p.evaluate(()=>{window.open=window.__originalOpen9821;window.hlgbCutterSheetV9523.ensurePrintRoute9523()});
+ // Exercise direct checklist print, including the real Safari blocked-popup fallback.
+ await required.getByRole('button',{name:'Imprimir checklist',exact:true}).click();
+ await preview.waitFor();
+ const checklistPrinted=await preview.locator('iframe').evaluate(x=>x.srcdoc);
+ assert.match(checklistPrinted,/Checklist completo da peça/);assert.match(checklistPrinted,/Camisola/);assert.match(checklistPrinted,/Malha/);assert.match(checklistPrinted,/Total da grade/);assert.match(checklistPrinted,/Rolos/);assert.doesNotMatch(checklistPrinted,/Calcinha/);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();
+ assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__printDbBefore),true);
+ // Multi-color operational regression: verify actual printed document, not only screen or sum.
+ await p.evaluate(()=>{
+  window.__colorFixtureBefore=JSON.parse(JSON.stringify(db));
+  db.cuts[0].pieces=300;
+  db.cuts[0].actualCutGrade=[['Preto',120],['Branco',60],['Rubi',120]].flatMap(([color,n])=>['P','M','G','GG'].map((size,i)=>({productId:10,color,size,qty:n*(i===0||i===3?1:2)/6})));
+  db.products[0].materials=[{name:'Aviamento teste',cat:'Aviamento',qty:.8,unit:'m',materialId:61},{name:'Alça teste',cat:'Aviamento',qty:2,unit:'un.'},{name:'Tule teste',cat:'Tecido',qty:0,unit:'m'}];
+  db.materials=[{id:61,name:'Aviamento teste',unit:'m',purchaseUnit:'rolo',purchaseConversion:50}];
+  window.__colorFixtureSnapshot=JSON.stringify(db);
+ });
+ await required.getByRole('button',{name:'Imprimir checklist',exact:true}).click();await preview.waitFor();
+ const colorRows=await preview.locator('iframe').evaluate(x=>{const doc=new DOMParser().parseFromString(x.srcdoc,'text/html');return [...doc.querySelectorAll('[data-cut-checklist-lines9823] tbody tr')].map(r=>[...r.cells].slice(1).map(c=>c.textContent.trim()))});
+ assert.deepEqual(colorRows.filter(r=>r[0]==='Aviamento teste').map(r=>r.slice(2)),[['Preto','120','96','m','2'],['Branco','60','48','m','1'],['Rubi','120','96','m','2']]);
+ assert.deepEqual(colorRows.filter(r=>r[0]==='Alça teste').map(r=>r.slice(2,6)),[['Preto','120','240','un.'],['Branco','60','120','un.'],['Rubi','120','240','un.']]);
+ assert.equal(colorRows.filter(r=>r[0]==='Tule teste'&&r[4]==='A conferir').length,3);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();
+ assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__colorFixtureSnapshot),true);
+ await p.evaluate(()=>{for(const k of Object.keys(db))delete db[k];Object.assign(db,window.__colorFixtureBefore);window.open=window.__originalOpen9821;window.hlgbCutterSheetV9523.ensurePrintRoute9523()});
  assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);await singleGrade.click();await splitGrade.click();assert.deepEqual(await p.evaluate(()=>window.__gradeOpens),[['single','9'],['split','19']]);
  await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);
 

@@ -87,3 +87,20 @@ console.log('PASS required cut actions exact identity and complete grade');
 // Complete separation checklist keeps the actual adjusted grade and materials by color.
 context.db.cuts[0].actualCutGrade=[{productId:11,color:'Preto',size:'P',qty:40},{productId:11,color:'Rubi',size:'M',qty:60}];
 const colored=api.cutActionProof9820(context.db.cuts[0],api.cutIndex9709());assert.equal(colored.gradeSource,'realizada');assert.equal(colored.pieces,100);assert.equal(colored.materials[0].byColor.length,2);assert.equal(colored.materials[0].byColor[0].pieces,40);assert.equal(colored.materials[0].byColor[1].pieces,60);
+
+// P0 real-world shape, anonymized identifiers: zero consumption and mismatched material linkage never become confirmed consumption or rolls.
+context.db.cuts[0].actualCutGrade=[{productId:11,color:'Preto',size:'P',qty:20},{productId:11,color:'Preto',size:'M',qty:40},{productId:11,color:'Preto',size:'G',qty:40},{productId:11,color:'Preto',size:'GG',qty:20},{productId:11,color:'Branco',size:'P',qty:10},{productId:11,color:'Branco',size:'M',qty:20},{productId:11,color:'Branco',size:'G',qty:20},{productId:11,color:'Branco',size:'GG',qty:10},{productId:11,color:'Rubi',size:'P',qty:20},{productId:11,color:'Rubi',size:'M',qty:40},{productId:11,color:'Rubi',size:'G',qty:40},{productId:11,color:'Rubi',size:'GG',qty:20}];
+context.db.products[0].materials=[{name:'Tule',qty:0,unit:'m'},{name:'Alpinia',qty:.6,unit:'m',materialId:5},{name:'Papiro',qty:.08,unit:'m',materialId:6}];
+context.db.materials=[{id:5,name:'Sanduiche 16',unit:'m',purchaseUnit:'rolo',purchaseConversion:100},{id:6,name:'Papiro',unit:'m',purchaseUnit:'rolo',purchaseConversion:50}];
+const beforeChecklist9825=JSON.stringify(context.db),real=api.cutActionProof9820(context.db.cuts[0],api.cutIndex9709());
+assert.equal(real.pieces,300);assert.equal(real.materials[0].amount,null);assert.match(real.materials[0].issues[0],/Consumo zerado/);
+assert.equal(real.materials[1].amount,180);assert.equal(real.materials[1].rolls,null);assert.equal(real.materials[1].linkOK,false);assert.match(real.materials[1].issues.join(' '),/Sanduiche 16/);
+assert.equal(real.materials[1].byColor[0].amount,72);assert.equal(real.materials[1].byColor[0].rolls,null);
+assert.equal(real.materials[2].amount,24);assert.equal(real.materials[2].rolls,1);assert.equal(real.materials[2].linkOK,true);
+assert.equal(JSON.stringify(context.db),beforeChecklist9825);
+console.log('PASS 300-piece matrix and material integrity without changing catalogue or stock');
+
+// Each material's individual color quantities must be checked, not merely its total.
+assert.deepEqual(JSON.parse(JSON.stringify(real.materials[1].byColor.map(x=>[x.color,x.pieces,x.amount]))),[['Preto',120,72],['Branco',60,36],['Rubi',120,72]]);
+assert.deepEqual(JSON.parse(JSON.stringify(real.materials[2].byColor.map(x=>[x.color,x.pieces,Number(x.amount.toFixed(2)),x.rolls]))),[['Preto',120,9.6,1],['Branco',60,4.8,1],['Rubi',120,9.6,1]]);
+console.log('PASS exact per-color requirements and separate roll rounding');
