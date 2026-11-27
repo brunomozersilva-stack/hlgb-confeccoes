@@ -9,6 +9,13 @@ const esc=x=>sid(x).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"
 const dbRef=()=>{try{return typeof db!=='undefined'?db:window.db}catch(_){return window.db||{}}};
 const setting=()=>{const db=dbRef();return (Array.isArray(db?.factionSettings)?db.factionSettings:[]).find(x=>sid(x?.id)===ID)||null};
 const state={lastError:'',lastSaved:'',saving:false};
+ // Existing monetary contract is per point (not per piece).
+ function exactRate9779(v){
+  if(typeof v!=='number'&&!(typeof v==='string'&&/^\d+(?:[.,]\d{1,2})?$/.test(v.trim())))return null;
+  const n=q(v),k=Math.round(n*100);
+  return Number.isFinite(n)&&n>=0&&n<=1000&&Number.isSafeInteger(k)&&Math.abs(n*100-k)<.00001?k/100:null;
+ }
+
 function category(product){
  const s=sid(product?.name||product?.productName||product).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
  if(/calcinha|fio dental/.test(s))return 'calcinha';
@@ -21,15 +28,15 @@ function rates(){
  const pick=(name,defaultValue)=>{const val=p[name];return val!=null&&Number.isFinite(Number(val))&&Number(val)>=0?Number(val):defaultValue};
  return {
   embalagem:{camisola:pick('packCamisolaV9577',.25),doll:pick('packDollV9577',.25),calcinha:pick('packCalcinhaV9577',.15)},
-  travetaUnit:p.travetaUnitValue!=null&&q(p.travetaUnitValue)>=0?q(p.travetaUnitValue):null,
+  travetaUnit:exactRate9779(p.travetaUnitValue),
   updatedAt:sid(p.updatedAt),stored:!!setting()};
 }
 function embalagem(product){
  const type=category(product);return rates().embalagem[type]??null;
 }
 function traveta(master){
- if(master?.travetaDeductionUnit!=null&&Number.isFinite(Number(master.travetaDeductionUnit))&&Number(master.travetaDeductionUnit)>=0)
-  return Number(master.travetaDeductionUnit);
+ if(master?.travetaDeductionUnit!=null&&sid(master.travetaDeductionUnit).trim()!=='')
+  return exactRate9779(master.travetaDeductionUnit);
  return rates().travetaUnit;
 }
 async function save(input){
@@ -67,12 +74,12 @@ function open(){
  if(typeof window.openModal!=='function')return false;
  const r=rates(),tr=r.travetaUnit;
  const html='<div id="factionRates9577" class="panel" style="padding:12px">'+
- '<p class="sub">Tabela sugerida para embalagem. A travetada usa o valor cadastrado neste servidor, sem modificar lançamentos anteriores.</p>'+
+ '<p class="sub">Tabela sugerida para embalagem. A travetada usa a tarifa por ponto cadastrada neste servidor: pontos por peça × tarifa = valor por peça. Valores existentes não são alterados.</p>'+
  '<div class="grid">'+
  [['packCamisolaV9577','Embalagem camisola (R$/peça)',r.embalagem.camisola],
   ['packDollV9577','Embalagem doll (R$/peça)',r.embalagem.doll],
   ['packCalcinhaV9577','Embalagem calcinha (R$/peça)',r.embalagem.calcinha],
-  ['travetaUnitValue','Travetada (R$/peça)',tr]].map(([key,title,value])=>
+  ['travetaUnitValue','Travetada (R$/ponto)',tr]].map(([key,title,value])=>
   '<div class="field"><label>'+esc(title)+'</label><input id="fRate-'+key+'" type="number" min="0" step="0.01" value="'+(value==null?'':Number(value).toFixed(2))+'"></div>').join('')+
  '</div><p class="sub">Caso um tipo de produto não seja reconhecido, o valor deve ser informado manualmente.</p>'+
  '<div id="fRate-message" role="status"></div><button type="button" class="primary modalSave">☁️ Salvar tabela de serviços</button></div>';
@@ -89,6 +96,6 @@ function open(){
  });
  return true;
 }
-window.hlgbFactionRates9577={version:VERSION,category,embalagem,traveta,rates,save,open,status:()=>({...state})};
+window.hlgbFactionRates9577={version:VERSION,category,embalagem,traveta,rates,exactRate9779,save,open,status:()=>({...state})};
 console.info('[HLGB] v'+VERSION+' tabela de embalagem/travetada centralizada');
 })();

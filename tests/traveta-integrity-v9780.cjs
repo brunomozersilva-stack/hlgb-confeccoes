@@ -1,0 +1,16 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const rate=fs.readFileSync('release-faction-service-rates-v9577.js','utf8'),a=rate.indexOf('function exactRate9779('),b=rate.indexOf('function category(',a);
+assert.ok(a>=0&&b>a);
+const ctx={q:v=>Number(String(v??'').replace(',','.'))};vm.createContext(ctx);vm.runInContext(rate.slice(a,b),ctx);
+for(const v of [null,'',' ',false,'abc',-1,Infinity,0.001,1001])assert.equal(ctx.exactRate9779(v),null);
+for(const [v,n] of [[0,0],['0,15',.15],[.25,.25],['1.50',1.5]])assert.equal(ctx.exactRate9779(v),n);
+const ops=fs.readFileSync('release-faction-operations-v9520.js','utf8'),i=ops.indexOf('function histories('),j=ops.indexOf('function ensurePanel(',i);
+assert.ok(i>=0&&j>i);
+const ctx2={sid:v=>String(v??''),int:Number,product:()=>({travetadas:3}),modelName:()=> 'Modelo'};vm.createContext(ctx2);vm.runInContext(ops.slice(i,j),ctx2);
+const e={requestId:'a',quantity:20,pointsPerPiece:3,pointsTotal:60},f={id:'f',sent:50,done:40,returned:30,travetaBaixasV9520:[e],travetaDonePiecesV9520:20};
+assert.equal(ctx2.status(f).remaining,20);assert.equal(ctx2.status(f).recordedPoints,60);
+assert.throws(()=>ctx2.histories({...f,travetaBaixasV9520:[{...e,pointsTotal:59}]}),/Pontos/);
+assert.throws(()=>ctx2.histories({...f,travetaBaixasV9520:[{...e,pointsPerPiece:0}]}),/Pontos/);
+assert.throws(()=>ctx2.histories({...f,travetaBaixasV9520:[e,e]}),/inconsistente/);
+console.log('PASS traveta rate per point, historical quantities and point totals');
