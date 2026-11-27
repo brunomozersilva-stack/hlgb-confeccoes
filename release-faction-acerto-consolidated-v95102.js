@@ -26,12 +26,23 @@
  const dateBr=v=>validDay(v)?v.split('-').reverse().join('/'):'Não informada';
  const qtyText=v=>v===null?'—':v.toLocaleString('pt-BR');
  const cash=v=>v===null?'—':money(v);
- function lineDetail(r,manual){
+ function originDetail(r,context){
+  const unique=(rows,id)=>{if(!sid(id))return null;const matches=(Array.isArray(rows)?rows:[]).filter(x=>x&&!canceled(x)&&sid(x.id)===sid(id));return matches.length===1?matches[0]:null};
+  const f=unique(context?.factions,r.factionServiceId),p=unique(context?.production,f?.productionId);
+  const candidates=[r.orderId,f?.orderId,p?.orderId].map(sid).filter(Boolean),ids=[...new Set(candidates)],order=ids.length===1?unique(context?.orders,ids[0]):null;
+  const note=unique(context?.projectionInvoices,r.projectionInvoiceId);
+  const noteOrderIds=[note?.orderId,...(Array.isArray(note?.items)?note.items.map(x=>x?.orderId):[])].map(sid).filter(Boolean);
+  const explicit=sid(r.externalNoteNumber||r.noteNumber),linked=note&&ids.length<=1&&(!ids.length||!noteOrderIds.length||noteOrderIds.includes(ids[0]))?sid(note.externalNoteNumber||note.noteNumber):'';
+  const noteNumber=explicit&&linked&&explicit!==linked?'':explicit||linked;
+  const orderNumber=sid(r.orderNumber)||sid(order?.orderNumber||order?.number);
+  return {noteNumber,orderNumber:ids.length>1?'':orderNumber,originReview:ids.length>1||!!(explicit&&linked&&explicit!==linked)};
+ }
+ function lineDetail(r,manual,context){
   const quantity=r.quantity==null||r.quantity===''?null:Number(r.quantity),points=r.manualKindV9566==='travetada'?Number(r.travetaPointsPerPieceV9592):null;
   const q=Number.isSafeInteger(quantity)&&quantity>=0?quantity:null,point=Number.isSafeInteger(points)&&points>0?points:null;
   const traveta=r.manualKindV9566==='travetada',displayQty=traveta?(q!==null&&point!==null&&Number.isSafeInteger(q*point)?q*point:null):q;
   const service=r.serviceModeV9577==='travetada'||traveta?'Travetada':r.serviceModeV9577==='embalagem'||r.manualKindV9566==='embalagem'?'Embalagem':manual&&r.manualKindV9566==='service'?'Outro serviço':'Facção / costura';
-  return {id:sid(r.id),label:sid(r.description||r.manualProductNameV9589||r.productName||'Modelo / serviço não informado'),service,quantity:q,displayQty,points:point,unit:traveta?'travetadas':'peças',unitPriceCents:exactMoney(r.unitPrice),amountCents:exactMoney(r.value),travetaDiscountCents:manual?exactMoney(r.travetaDiscountTotalV9577??0):null,note:manual?sid(r.manualLineNoteV9566):'',referenceDate:validDay(r.scheduledPaymentDate)?r.scheduledPaymentDate:null,serviceDate:validDay(sid(r.serviceFinishedAt).slice(0,10))?sid(r.serviceFinishedAt).slice(0,10):null};
+  return {...originDetail(r,context),id:sid(r.id),label:sid(r.description||r.manualProductNameV9589||r.productName||'Modelo / serviço não informado'),service,quantity:q,displayQty,points:point,unit:traveta?'travetadas':'peças',unitPriceCents:exactMoney(r.unitPrice),amountCents:exactMoney(r.value),travetaDiscountCents:manual?exactMoney(r.travetaDiscountTotalV9577??0):null,note:manual?sid(r.manualLineNoteV9566):'',referenceDate:validDay(r.scheduledPaymentDate)?r.scheduledPaymentDate:null,serviceDate:validDay(sid(r.serviceFinishedAt).slice(0,10))?sid(r.serviceFinishedAt).slice(0,10):null};
  }
  function weekSummary(entry){
   const lines=entry.details||[],basis=lines.length&&lines.every(x=>x.serviceDate)?'service':lines.length&&lines.every(x=>x.referenceDate)?'reference':null;
@@ -119,7 +130,7 @@
    const first=unique.find(x=>!canceled(x))||unique[0];
    const factionName=sid(first.factionName||g.factionName);
    const actor=owner(factionName,first.factionMasterId);
-   const details=source.map(x=>lineDetail(x,true)),nominal=details.every(x=>x.amountCents!==null)?details.reduce((n,x)=>n+x.amountCents,0):null;
+   const details=source.map(x=>lineDetail(x,true,data)),nominal=details.every(x=>x.amountCents!==null)?details.reduce((n,x)=>n+x.amountCents,0):null;
    const signed=(items,minus,plus)=>Array.isArray(items)?items.map(x=>{const v=exactMoney(x?.amount);return v===null||![minus,plus].includes(x.kind)?null:{label:x.kind===minus?'Abatimento / crédito':'Acréscimo / complemento',amountCents:x.kind===minus?-v:v,note:sid(x.reason)}}):[];
    const adjustments=[...signed(g.directAdjustments,'abater','acrescentar'),...signed(g.applications,'a_mais','a_menos')];
    const detailVerified=nominal!==null&&adjustments.every(Boolean)&&nominal+adjustments.reduce((n,x)=>n+x.amountCents,0)===amountCents;
@@ -152,7 +163,7 @@
    if(!actor.name){errors.push('pagamento-sem-pessoa:'+id);continue}
    append(actor,{kind:'normal',paymentId:id,amountCents:balance,totalCents:total,paidCents:paid,discountCents:discount,partial,
     date:sid(row.scheduledPaymentDate||row.serviceFinishedAt||row.paymentDate),
-    label:sid(row.description||row.productName||'Pagamento de facção'),details:[lineDetail(row,false)],lineIds:[id]});
+    label:sid(row.description||row.productName||'Pagamento de facção'),details:[lineDetail(row,false,data)],lineIds:[id]});
   }
   return {version:VERSION,scope:'apenas_visual_sem_baixa',productionPayment:false,
    groups:[...possible.values()].map(g=>({...g,sourceCount:g.entries.length,
@@ -166,6 +177,7 @@
   const d=dbRef(),api=typeof window!=='undefined'?window.hlgbFactionManual9566:null;
   return {payments:Array.isArray(d.factionPayments)?d.factionPayments:[],
    masters:Array.isArray(d.factionMasters)?d.factionMasters:[],
+   factions:d.factions,production:d.production,orders:d.orders,projectionInvoices:d.projectionInvoices,
    manualGroups:typeof api?.receiptGroups==='function'?api.receiptGroups():[]};
  }
  function printablePending(data,key,allowed){
@@ -178,13 +190,27 @@
   }
   if(![total,normal,manual].every(valid)||total!==g.totalCents||normal!==g.regularCents||manual!==g.manualCents)throw Error('Totais divergentes');
   const sections=groupWeeks(g),weekNote=sections.length===1&&sections[0].key?'Todos os lançamentos têm a mesma '+(sections[0].basis==='service'?'semana de serviço.':'semana de referência (não comprova a produção).'):'Lançamentos de semanas diferentes ou sem semana comprovada; veja as seções abaixo.';
-  const renderEntry=e=>{
-   const ds=Array.isArray(e.details)?e.details:[],validDetails=ds.length&&ds.every(d=>d&&sid(d.label)&&d.amountCents!==null&&valid(d.amountCents));
-   const body=validDetails?ds.map(d=>'<tr><td><b>'+esc(d.label)+'</b><div class="muted">'+esc(d.service)+(d.points?' · '+qtyText(d.quantity)+' peças × '+d.points+' travetadas/peça':'')+(d.serviceDate?' · Serviço '+dateBr(d.serviceDate):'')+(d.referenceDate?' · Referência '+dateBr(d.referenceDate):'')+'</div>'+(d.note?'<div class="muted">'+esc(d.note)+'</div>':'')+'</td><td>'+qtyText(d.displayQty)+(d.displayQty!==null?'<div class="muted">'+esc(d.unit)+'</div>':'')+'</td><td>'+cash(d.unitPriceCents)+'</td><td>'+cash(d.amountCents)+(d.travetaDiscountCents>0?'<div class="muted">Travetada descontada: '+money(d.travetaDiscountCents)+'</div>':'')+'</td></tr>').join(''):'<tr><td colspan="4">Detalhamento indisponível. Confira o lançamento original.</td></tr>';
-   const adjustment=e.kind==='normal'?'<div class="summaryrow"><span>Pago registrado / abatimentos</span><b>'+money(e.paidCents)+' / '+money(e.discountCents)+'</b></div>':e.detailVerified?'<div class="summaryrow"><span>Total dos serviços</span><b>'+money(e.nominalCents)+'</b></div>'+e.adjustments.map(a=>'<div class="summaryrow"><span>'+esc(a.label)+(a.note?' · '+esc(a.note):'')+'</span><b>'+(a.amountCents<0?'− ':'+ ')+money(Math.abs(a.amountCents))+'</b></div>').join(''):'<p class="muted">Composição dos ajustes não comprovada. Saldo original preservado; conferir antes de pagar.</p>';
-   return '<section class="entry"><h3>'+esc(e.kind==='avulso'?'Acerto avulso':'Acerto normal')+' · '+esc(e.partial?'Parcial':'Pendente')+'</h3><table><colgroup><col style="width:55%"><col style="width:15%"><col style="width:15%"><col style="width:15%"></colgroup><thead><tr><th>Modelo / serviço</th><th>Qtd.</th><th>Unid.</th><th>Valor</th></tr></thead><tbody>'+body+'</tbody></table>'+adjustment+'<div class="summaryrow subtotal"><span>Saldo deste lançamento</span><b>'+money(e.amountCents)+'</b></div></section>';
+  const renderWeek=w=>{
+   const rows=[],adjustments=[],fallback=[];
+   let serviceTotal=0,complete=true;
+   for(const [i,e] of w.entries.entries()){
+    const tag=(e.kind==='avulso'?'Avulso':'Normal')+' '+(i+1),ds=Array.isArray(e.details)?e.details:[],good=ds.length&&ds.every(d=>d&&sid(d.label)&&valid(d.amountCents));
+    if(good){
+     for(const d of ds){rows.push('<tr><td><b>'+esc(d.label)+'</b><div class="muted">'+esc(d.service)+' · '+tag+(d.noteNumber?' · Nota '+esc(d.noteNumber):'')+(d.orderNumber?' · Pedido '+esc(d.orderNumber):'')+(d.originReview?' · Origem a conferir':'')+(d.points?' · '+qtyText(d.quantity)+' peças × '+d.points+' travetadas/peça':'')+(d.serviceDate?' · Serviço '+dateBr(d.serviceDate):'')+(d.referenceDate?' · Referência '+dateBr(d.referenceDate):'')+'</div>'+(d.note?'<div class="muted">'+esc(d.note)+'</div>':'')+'</td><td>'+qtyText(d.displayQty)+(d.displayQty!==null?'<div class="muted">'+esc(d.unit)+'</div>':'')+'</td><td>'+cash(d.unitPriceCents)+'</td><td>'+cash(d.amountCents)+(d.travetaDiscountCents>0?'<div class="muted">Travetada descontada: '+money(d.travetaDiscountCents)+'</div>':'')+'</td></tr>');serviceTotal+=d.amountCents}
+    }else {complete=false;rows.push('<tr><td colspan="4">'+tag+' · Detalhamento indisponível. Confira o lançamento original.</td></tr>')}
+    if(e.kind==='normal'){
+     if(e.paidCents>0)adjustments.push([tag+' · Pago registrado',-e.paidCents]);
+     if(e.discountCents>0)adjustments.push([tag+' · Abatimento',-e.discountCents]);
+    }else if(e.detailVerified){for(const a of e.adjustments)adjustments.push([tag+' · '+a.label+(a.note?' · '+a.note:''),a.amountCents])}
+    else {complete=false;fallback.push(tag+' · Composição dos ajustes não comprovada. Saldo original preservado.')}
+    // Preserve each source balance, without repeating a separate product table.
+    fallback.push(tag+' · '+(e.partial?'Parcial':'Pendente')+' · Saldo '+money(e.amountCents));
+   }
+   const reconciled=complete&&serviceTotal+adjustments.reduce((n,a)=>n+a[1],0)===w.totalCents;
+   const summary=(label,value)=>'<div class="summaryrow"><span>'+esc(label)+'</span><b>'+value+'</b></div>';
+   return '<h3 class="week">'+esc(w.label)+'</h3><table class="week-products"><colgroup><col style="width:55%"><col style="width:15%"><col style="width:15%"><col style="width:15%"></colgroup><thead><tr><th>Modelo / serviço</th><th>Qtd.</th><th>Unid.</th><th>Valor</th></tr></thead><tbody>'+rows.join('')+'</tbody></table>'+summary(reconciled?'Total dos serviços':'Valores de serviços observados',money(serviceTotal))+adjustments.map(a=>summary(a[0],(a[1]<0?'− ':'+ ')+money(Math.abs(a[1])))).join('')+(reconciled?'':'<p class="muted">Composição incompleta ou divergente; saldo original preservado, confira antes de pagar.</p>')+'<div class="muted">'+fallback.map(esc).join('<br>')+'</div><div class="summaryrow subtotal"><b>Subtotal da seção</b><b>'+money(w.totalCents)+'</b></div>';
   };
-  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB — Conferência de acerto</title><style>@page{size:A4 portrait;margin:14mm}*{box-sizing:border-box}body{font:12px Arial,sans-serif;color:#29252d;margin:24px auto;max-width:780px;padding:0 12px}h1{font-size:21px;color:#57355f;margin:0 0 5px}h2{font-size:14px;margin:0 0 12px}h3{font-size:12px;margin:12px 0 5px;break-after:avoid}p{margin:6px 0}.meta,.subtotal,.total{background:#f3eff5;padding:9px}.week{margin-top:18px;color:#57355f;border-bottom:1px solid #bbaec0;padding-bottom:4px}table{width:100%;border-collapse:collapse;table-layout:fixed;margin:5px 0}th,td{padding:7px 6px;vertical-align:top;overflow-wrap:anywhere;border-bottom:1px solid #ddd}th{background:#57355f;color:white;text-align:left;print-color-adjust:exact;-webkit-print-color-adjust:exact}tbody tr:nth-child(even){background:#f8f6f9}thead{display:table-header-group}tr,.summaryrow{break-inside:avoid}td:nth-child(n+2),th:nth-child(n+2){text-align:right}.muted{color:#666;font-size:10px}.summaryrow{display:flex;justify-content:space-between;gap:12px;padding:5px 7px}.summaryrow b{white-space:nowrap}.total{font-weight:bold;color:#57355f;font-size:15px;border-top:2px solid #57355f}button{margin-top:12px;padding:9px 14px}@media print{body{margin:0;padding:0;max-width:none}button{display:none}}</style></head><body><h1>HLGB CONFECÇÕES</h1><h2>DEMONSTRATIVO CONSOLIDADO — Conferência de acerto</h2><div class="meta"><b>Profissional: '+esc(g.factionName)+'</b><p>Situação: pendente / parcial · '+g.entries.length+' lançamento(s)</p><p>'+esc(weekNote)+'</p></div><h3>PRODUTOS E SERVIÇOS</h3>'+sections.map(w=>'<h3 class="week">'+esc(w.label)+'</h3>'+w.entries.map(renderEntry).join('')+'<div class="summaryrow"><b>Subtotal da seção</b><b>'+money(w.totalCents)+'</b></div>').join('')+'<h3>RESUMO DO ACERTO</h3><div class="summaryrow"><span>Normal</span><b>'+money(normal)+'</b></div><div class="summaryrow"><span>Avulso</span><b>'+money(manual)+'</b></div><div class="summaryrow total"><span>TOTAL LÍQUIDO A CONFERIR</span><b>'+money(total)+'</b></div><p class="muted">'+data.warnings.length+' alerta(s) na consulta geral. Datas de referência não são datas efetivas de serviço ou pagamento. Valores locais, não é recibo nem dá baixa. Confira antes de pagar.</p><button type="button" onclick="window.print()">Imprimir / salvar PDF</button></body></html>';
+  return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>HLGB — Conferência de acerto</title><style>@page{size:A4 portrait;margin:14mm}*{box-sizing:border-box}body{font:12px Arial,sans-serif;color:#29252d;margin:24px auto;max-width:780px;padding:0 12px}h1{font-size:21px;color:#57355f;margin:0 0 5px}h2{font-size:14px;margin:0 0 12px}h3{font-size:12px;margin:12px 0 5px;break-after:avoid}p{margin:6px 0}.meta,.subtotal,.total{background:#f3eff5;padding:9px}.week{margin-top:18px;color:#57355f;border-bottom:1px solid #bbaec0;padding-bottom:4px}table{width:100%;border-collapse:collapse;table-layout:fixed;margin:5px 0}th,td{padding:7px 6px;vertical-align:top;overflow-wrap:anywhere;border-bottom:1px solid #ddd}th{background:#57355f;color:white;text-align:left;print-color-adjust:exact;-webkit-print-color-adjust:exact}tbody tr:nth-child(even){background:#f8f6f9}thead{display:table-header-group}tr,.summaryrow{break-inside:avoid}td:nth-child(n+2),th:nth-child(n+2){text-align:right}.muted{color:#666;font-size:10px}.summaryrow{display:flex;justify-content:space-between;gap:12px;padding:5px 7px}.summaryrow b{white-space:nowrap}.total{font-weight:bold;color:#57355f;font-size:15px;border-top:2px solid #57355f}button{margin-top:12px;padding:9px 14px}@media print{body{margin:0;padding:0;max-width:none}button{display:none}}</style></head><body><h1>HLGB CONFECÇÕES</h1><h2>DEMONSTRATIVO CONSOLIDADO — Conferência de acerto</h2><div class="meta"><b>Profissional: '+esc(g.factionName)+'</b><p>Situação: pendente / parcial · '+g.entries.length+' lançamento(s)</p><p>'+esc(weekNote)+'</p></div><h3>PRODUTOS E SERVIÇOS</h3>'+sections.map(renderWeek).join('')+'<h3>RESUMO DO ACERTO</h3><div class="summaryrow"><span>Normal</span><b>'+money(normal)+'</b></div><div class="summaryrow"><span>Avulso</span><b>'+money(manual)+'</b></div><div class="summaryrow total"><span>TOTAL LÍQUIDO A CONFERIR</span><b>'+money(total)+'</b></div><p class="muted">'+data.warnings.length+' alerta(s) na consulta geral. Datas de referência não são datas efetivas de serviço ou pagamento. Valores locais. Não é recibo nem dá baixa. Confira antes de pagar.</p><button type="button" onclick="window.print()">Imprimir / salvar PDF</button></body></html>';
 
  }
  function authorized(){try{return window.__HLGB_AUTH_READY===true&&typeof canOpenPage==='function'&&canOpenPage('pagamentosFaccoes')===true&&canOpenPage('faccoes')===true}catch(_){return false}}
