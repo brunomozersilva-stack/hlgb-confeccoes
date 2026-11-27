@@ -3,10 +3,11 @@ const assert=require('node:assert/strict');
 const {chromium,webkit}=require('playwright');
 const browserName=process.env.HLGB_BROWSER==='webkit'?'webkit':'chromium';
 const engine=browserName==='webkit'?webkit:chromium;
-async function submit(page,{name,qty,price}){
+async function submit(page,{name,qty,price,date}){
  await page.locator('#hlgbFactionManualPaymentBtn').click();
  const modal=page.locator('#fm66-root');
  await modal.waitFor({state:'visible'});
+ if(date)await page.locator('#fm66-date').fill(date);
  await page.locator('#fm66-faction').fill('roseli');
  await page.locator('#fm66-faction-suggestions [data-faction="Roseli"]').click();
  const line=page.locator('.fm66-line').first();
@@ -29,8 +30,8 @@ async function submit(page,{name,qty,price}){
    {waitUntil:'domcontentloaded'});
   await page.evaluate(()=>{window.__factionReportAllowed=true;window.canOpenPage=area=>window.__factionReportAllowed&&['faccoes','pagamentosFaccoes'].includes(area)});
   await page.addScriptTag({url:'http://127.0.0.1:4173/release-faction-acerto-consolidated-v95102.js'});
-  await submit(page,{name:'Camisola avulsa sem preço comercial',qty:10,price:1.2});
-  await submit(page,{name:'Conjunto avulso sem cadastro comercial',qty:5,price:3});
+  await submit(page,{name:'Camisola avulsa sem preço comercial',qty:10,price:1.2,date:'2026-11-13'});
+  await submit(page,{name:'Conjunto avulso sem cadastro comercial',qty:5,price:3,date:'2026-11-13'});
   const first=await page.evaluate(()=>{
    window.db.factionPayments.push({id:'normal-001',status:'Pendente',manual:false,
     factionName:'ROSÉLI',factionMasterId:'1',value:8,paidAmount:0,
@@ -61,7 +62,9 @@ async function submit(page,{name,qty,price}){
   assert.equal(await page.locator('#hlgb-unified-acertos-v95102 > div > table > tbody > tr').count(),1,'one professional, excluding nested date rows');
   const dates=page.locator('#hlgb-unified-acertos-v95102 details').filter({has:page.getByText('Resumo por data de referência',{exact:true})});
   await dates.locator('summary').click();
-  assert.equal(await dates.locator('tbody tr').count(),3,'all three date buckets');
+  assert.equal(await dates.locator('tbody tr').count(),2,'two distinct dates; both avulsos grouped on the same day');
+  assert.match(await dates.innerText(),/2026-11-13/);
+  assert.match(await dates.innerText(),/R\$\s?27,00/);
   assert.match(await dates.innerText(),/2026-11-12/);
   assert.match(await dates.innerText(),/R\$\s?8,00/);
   assert.equal(await page.evaluate(()=>window.db.hubFinanceEntries.length),0);
