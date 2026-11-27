@@ -220,6 +220,35 @@
  // Rapid selection of a second model within the same order must not restore stale focus.
  await p.evaluate(()=>{const input=document.createElement('input');input.id='sepQty938_11';input.value='50';document.getElementById('separationTable').appendChild(input);const rows=window.HLGB_CUT_SEPARATION_CORE_9647.workspace.inspect(db,true,new Set()).rows;const a=rows.find(x=>x.orderId==='1'&&x.productId==='10'),b=rows.find(x=>x.orderId==='1'&&x.productId==='11');if(!a||!b)throw Error('model fixtures missing');window.hlgbCutOrganization.openModelSeparation9715(a);window.hlgbCutOrganization.openModelSeparation9715(b)});
  await p.waitForTimeout(200);assert.equal(await p.evaluate(()=>document.activeElement?.id),'sepQty938_11');assert.equal(await p.locator('#sepQty938_11').inputValue(),'50');assert.equal(await p.evaluate(()=>window.__sepClicks),1);
+ // New compact read-only simulator uses the existing discovery core, never edits a grade.
+ await p.addScriptTag({path:'hlgb-modules/producao/joint-cut-core-v9628.js'});
+ await p.addScriptTag({path:'hlgb-modules/producao/joint-cut-discovery-v9629.js'});
+ await p.evaluate(()=>{
+  window.__jointBefore=JSON.parse(JSON.stringify(db));
+  db.orders=[{id:'j1',status:'Aberto',grade:[{productId:'a',color:'Preto',size:'P',qty:20},{productId:'a',color:'Preto',size:'M',qty:40}]},{id:'j2',status:'Aberto',grade:[{productId:'b',color:'Preto',size:'P',qty:10},{productId:'b',color:'Preto',size:'M',qty:40}]}];
+  db.products=[{id:'a',name:'Camisola teste',materials:[{materialId:'mat'}]},{id:'b',name:'Calcinha teste',materials:[{materialId:'mat'}]}];
+  db.materials=[{id:'mat',name:'Malha teste',cat:'Tecido'}];db.cuts=[];db.production=[];db.operationalWriteoffs=[];
+  window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set()};window.__jointSnapshot=JSON.stringify(db);window.hlgbCutOrganization.apply();
+ });
+ await p.getByRole('button',{name:'Simular corte conjunto',exact:true}).click();
+ const joint=p.locator('#hlgbJointSimulation9837');await joint.getByLabel(/Camisola teste/).check();await joint.getByLabel(/Calcinha teste/).check();
+ assert.match(await joint.innerText(),/110 peças pedidas/);assert.match(await joint.innerText(),/P 10 · M 40/);assert.match(await joint.innerText(),/fora da grade comum: P 10 · M 0/);
+ await p.evaluate(()=>{window.__jointOpen=window.open;window.open=()=>null});
+ await joint.getByRole('button',{name:'Imprimir folha conjunta'}).click();await preview.waitFor();
+ const combined=await preview.locator('iframe').evaluate(x=>x.srcdoc);assert.match(combined,/Folha conjunta/);assert.match(combined,/Camisola teste/);assert.match(combined,/Calcinha teste/);assert.match(combined,/110/);assert.match(combined,/Peso total/);assert.match(combined,/NÃO AUTORIZA CORTE/);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();
+ await joint.getByRole('button',{name:'Imprimir folhas individuais'}).click();await preview.waitFor();
+ const individual=await preview.locator('iframe').evaluate(x=>{const doc=new DOMParser().parseFromString(x.srcdoc,'text/html');return [...doc.querySelectorAll('section')].map(s=>s.textContent)});
+ assert.equal(individual.length,2);assert.match(individual[0],/Camisola teste/);assert.doesNotMatch(individual[0],/Calcinha teste/);assert.match(individual[1],/Calcinha teste/);assert.doesNotMatch(individual[1],/Camisola teste/);
+ await preview.getByRole('button',{name:'Fechar',exact:true}).click();
+ await p.evaluate(()=>{db.orders[0].grade[0].qty++});
+ await joint.getByRole('button',{name:'Imprimir folha conjunta'}).click();await joint.getByText('Pedidos ou baixas alterados. Atualize as sugestões antes de imprimir.').waitFor();assert.equal(await preview.count(),0);
+ await p.evaluate(()=>{db.orders[0].grade[0].qty--;window.open=window.__jointOpen});
+
+ await joint.getByRole('button',{name:'Limpar seleção'}).click();assert.equal(await joint.locator('input:checked').count(),0);
+ await joint.getByRole('searchbox').fill('Calcinha');assert.equal(await joint.locator('input[type=checkbox]').count(),1);
+ await joint.getByRole('button',{name:'Fechar simulação'}).click();assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__jointSnapshot),true);
+ await p.evaluate(()=>{for(const k of Object.keys(db))delete db[k];Object.assign(db,window.__jointBefore);});
  await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!!document.querySelector('#pedidos #originalSep')&&!document.getElementById('hlgbSeparationOperation9715'));
  assert.equal(await p.evaluate(()=>window.__originalSep===document.getElementById('originalSep')),true);
  assert.equal(await p.locator('#beforeSep + #originalSep + #afterSep').count(),1);
