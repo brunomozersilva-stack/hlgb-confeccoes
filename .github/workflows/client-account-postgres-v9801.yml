@@ -40,3 +40,8 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/balance-events.sql
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/balance-events-contract.sql
+      - name: Verify integrated JSON record transaction in isolated schema
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/records-fixture.sql
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/records-candidate.sql
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/records-contract.sql
