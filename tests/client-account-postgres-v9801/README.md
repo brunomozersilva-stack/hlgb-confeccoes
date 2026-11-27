@@ -10,3 +10,6 @@ Contrato isolado exige nota, título e previsão documental vinculados e revisõ
 
 ## Estorno e falha transacional v98.49
 Estorno por evento exato, preserva original, motivo, autoria e referência; reabre previsão encerrada e libera somente as quantidades do evento estornado. Testa repetição, estorno duplicado, compensação integral, falha na terceira escrita e duas conexões simultâneas. Contrato de laboratório; não é autorização real, RPC comercial ou migração.
+
+## Confirmação independente v98.50
+Consulta a referência exata e os três registros associados, valida evento e revisões, distingue histórico confirmado de saldo ainda atual. Contrato cliente não aceita ACK divergente; após falha de transporte mantém referência para repetição idempotente, não gera novo lançamento. Fluxo legado bloqueia estorno, edição e abatimento por valor incompatíveis com uma devolução por item ativa. Ainda não é adaptador comercial e não habilita gravação; nenhuma alteração de banco de produção.

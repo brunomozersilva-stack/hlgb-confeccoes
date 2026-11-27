@@ -178,6 +178,7 @@ async function saveAction(type,id,kind,input){
   if(current.id==null)throw Error('Registro sem identificação.');
   if(!['return','note','payment','reversal','edit'].includes(kind))throw Error('Operação inválida.');
   const old=moneyState(current,type),next=copy(current),now=new Date().toISOString();
+  if(kind==='return'&&ret(current).some(e=>!e.reversedAt&&Array.isArray(e.itemsV9847)))throw Error('Nota com devolução por produto ativa. Abatimento por valor exige revisão integrada.');
   if(old.overCredit)throw Error('O histórico possui abatimentos maiores que o saldo. Conferir antes de lançar.');
   if(kind==='return'){
    const value=Number(input?.value),note=sid(input?.reason).trim(),detail=sid(input?.detail).trim(),at=sid(input?.date||today());
@@ -214,6 +215,7 @@ async function saveAction(type,id,kind,input){
    if(!validDay(at)||(due&&!validDay(due)))throw Error('Data da nota ou vencimento inválido.');
    if(!reason||reason.length>180)throw Error('Informe o motivo da alteração (até 180 caracteres).');
    const currentItems=Array.isArray(next.items)?next.items:[],changes=[];
+   if(ret(next).some(e=>!e.reversedAt&&Array.isArray(e.itemsV9847)))throw Error('Nota com devolução por produto ativa: a edição de preço e quantidade exige revisão integrada.');
    const incoming=Array.isArray(input?.items)?input.items:[];
    if(currentItems.length!==incoming.length)throw Error('A grade da nota mudou durante a edição. Reabra a nota.');
    let itemSum=0;
@@ -247,6 +249,7 @@ async function saveAction(type,id,kind,input){
   }else if(kind==='reversal'){
    const entry=ret(next).find(x=>sid(x?.id)===sid(input?.entryId));
    if(!entry||entry.reversedAt)throw Error('Devolução inexistente ou já estornada.');
+   if(Array.isArray(entry.itemsV9847))throw Error('Devolução por produto exige estorno integrado com a previsão financeira. Use a operação específica quando estiver disponível.');
    const why=sid(input?.reason).trim();if(!why)throw Error('Informe o motivo do estorno.');
    entry.reversedAt=now;entry.reversalReason=why.slice(0,400);
   }

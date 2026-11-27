@@ -112,3 +112,12 @@ assert.equal(api.itemReturns9847({...note9847,items:[...note9847.items,note9847.
 assert.equal(api.itemReturns9847({...note9847,acertoReturnsV9565:[{...history9847.acertoReturnsV9565[0],reversedAt:'2026-11-27'}]}).rows[0].available,10);
 assert.equal(api.itemReturns9847(note9847,a9847.rows.map(r=>({key:r.key,qty:r.qty}))).excessCents,2000);
 console.log('PASS item return preview: historical prices, partial, reversed, excess and unidentified legacy');
+// Legacy actions must never bypass the integrated item-return ledger when it is enabled later.
+(async()=>{
+ const fixture={id:'guard-items9849',orderId:'o',value:100,paid:0,remaining:90,status:'Parcial',items:[{productId:'p',qty:10,unitPrice:10,value:100}],acertoReturnsV9565:[{id:'item-return:guard',value:10,itemsV9847:[{key:'line',qty:1,unitCents:1000}]}]};
+ db.projectionInvoices.push(fixture);
+ await assert.rejects(()=>api.saveAction('projection',fixture.id,'reversal',{entryId:'item-return:guard',reason:'Teste'}),/estorno integrado/);
+ await assert.rejects(()=>api.saveAction('projection',fixture.id,'return',{value:1,reason:'Teste'}),/revisão integrada/);
+ await assert.rejects(()=>api.saveAction('projection',fixture.id,'edit',{date:'2026-11-26',reason:'Teste',items:[{qty:10,unitPrice:10}],value:100}),/revisão integrada/);
+ assert.equal(db.projectionInvoices.find(n=>n.id===fixture.id).remaining,90);
+})().catch(e=>{console.error(e);process.exitCode=1});
