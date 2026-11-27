@@ -260,18 +260,23 @@ function detail(d){
 function historySearchPermissions9652(){
  const can=p=>{try{return auth()&&typeof canOpenPage==='function'&&canOpenPage(p)===true}catch(_){return false}};
  const modules=[];if(can('pedidos'))modules.push('orders');if(can('corte'))modules.push('cuts');if(can('producao'))modules.push('production');if(can('faccoes'))modules.push('factions','materialChecklists');const financialAllowed=can('pagamentosFaccoes')&&can('financeiro');if(financialAllowed)modules.push('factionPayments');
- return {allowed:can('produtos'),ordersAllowed:modules.includes('orders'),factionsAllowed:modules.includes('factions'),financialAllowed,modules};
+ return {allowed:can('produtos'),ordersAllowed:modules.includes('orders'),factionsAllowed:modules.includes('factions'),financialAllowed,materialsAllowed:can('materiais'),modules};
 }
 function mountHistorySearch9652(host){
  const api=window.HLGBProductHistory9652;if(!api)return;
  const el=(tag,txt,parent)=>{const e=document.createElement(tag);e.textContent=txt;parent.appendChild(e);return e};
  const box=el('section','',host);box.className='panel';el('h3','Pesquisar produto e consultar remessas',box);el('p','Consulta dos registros locais autorizados. Não prova cobertura integral da nuvem.',box);
- const label=el('label','Pesquisar nome, SKU, código, pedido, cor ou tamanho',box);label.style.display='block';const input=el('input','',label);input.type='search';input.style.cssText='width:100%;min-width:0;box-sizing:border-box';
- const choices=el('div','',box),results=el('div','',box);let offset=0,selected='',selectedName='',eventOffset=0,cutOffset=0;
- function drawEvents(openEvents=false){results.replaceChildren();if(!selected)return;const p=historySearchPermissions9652(),x=api.timeline(database(),selected,{...p,offset:eventOffset,limit:30});
+ const label=el('label','Pesquisar modelo, código, pedido, corte, facção, cor ou material',box);label.style.display='block';const input=el('input','',label);input.type='search';input.style.cssText='width:100%;min-width:0;box-sizing:border-box';
+ const choices=el('div','',box),filters=el('div','',box),results=el('div','',box);
+ filters.style.cssText='display:flex;gap:8px;flex-wrap:wrap';
+ function filterField(title,type){const l=el('label',title+' ',filters),x=el('input','',l);x.type=type;x.setAttribute('aria-label',title);x.style.maxWidth='100%';return x}
+ const from=filterField('Histórico de','date'),to=filterField('Histórico até','date'),order=filterField('ID do pedido','text');
+ const originLabel=el('label','Origem ',filters),origin=el('select','',originLabel);for(const [k,name] of [['','Todas'],['orders','Pedidos'],['cuts','Corte'],['production','Produção'],['factions','Facções'],['materialChecklists','Checklists'],['factionPayments','Pagamentos']]){const o=el('option',name,origin);o.value=k}
+ const refresh=el('button','Atualizar histórico',filters);refresh.type='button';let offset=0,selected='',selectedName='',eventOffset=0,cutOffset=0;
+ function drawEvents(openEvents=false){results.replaceChildren();if(!selected)return;const p=historySearchPermissions9652();if(!p.allowed){el('p','Acesso indisponível.',results);return}if(from.value&&to.value&&from.value>to.value){el('p','A data inicial deve ser anterior à final.',results);return}const scope={...p,from:from.value,to:to.value,orderId:order.value.trim()},x=api.timeline(database(),selected,{...scope,source:origin.value,offset:eventOffset,limit:30});
  const sheet=el('section','',results);sheet.className='panel';el('h3',selectedName,sheet);
  if(typeof api.remittances==='function'){
-  const z=api.remittances(database(),selected,{...p,offset:cutOffset,limit:20});
+  const z=api.remittances(database(),selected,{...scope,offset:cutOffset,limit:20});
   if(z.state==='local-observation'){
    el('h4','Remessas de corte · '+z.total,sheet);
    const fmt=(v,u='')=>v==null?'Não registrado':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:3})+(u?' '+u:'');
@@ -289,8 +294,12 @@ function mountHistorySearch9652(host){
     else if(!g.sharedMeasurement)el('p','Pesagem total não registrada.',d);
     for(const m of g.materials)line(d,m.name||'Material',fmt(m.weight,m.unit));
     if(!g.materials.length&&!g.sharedMeasurement)el('p','Consumo por material não registrado.',d);
-    el('h4','Produção e facções vinculadas',d);
-    for(const e of g.events)line(d,e.date||'Sem data',[e.source==='production'?'Produção':'Facção',e.destination,e.status,e.source==='production'?'Planejado '+fmt(e.planned,'pç')+' / produzido '+fmt(e.quantity,'pç'):'Enviado '+fmt(e.quantity,'pç')+' / feito '+fmt(e.done,'pç')+' / devolvido '+fmt(e.returned,'pç')].filter(Boolean).join(' · '));
+    el('h4','Movimentações vinculadas por identificação',d);
+    for(const e of g.events){
+     const labels={production:'Produção',factions:'Facção',materialChecklists:'Checklist',factionPayments:'Pagamento'};
+     const desc=e.source==='production'?'Planejado '+fmt(e.planned,'pç')+' / produzido '+fmt(e.quantity,'pç'):e.source==='factions'?'Enviado '+fmt(e.quantity,'pç')+' / feito '+fmt(e.done,'pç')+' / devolvido '+fmt(e.returned,'pç'):e.source==='factionPayments'?'Lançado '+(e.estimatedAmount==null?'não informado':money(e.estimatedAmount))+' / pago '+(e.paidAmount==null?'não informado':money(e.paidAmount)):fmt(e.quantity,'pç');
+     line(d,e.date||'Sem data',[labels[e.source],e.sourceId,e.destination,e.status,desc].filter(Boolean).join(' · '));
+    }
     if(!g.events.length)el('p','Sem movimentações vinculadas por ID de corte.',d);
    }
    if(!z.total)el('p','Nenhuma remessa de corte encontrada nos registros autorizados.',sheet);
@@ -303,6 +312,7 @@ function mountHistorySearch9652(host){
  for(const r of x.rows){const item=el('article','',eventHost);item.className='panel';el('strong',r.source+' · '+r.sourceId,item);el('p',(r.date||'Data não registrada')+' · Pedido '+(r.orderId||'sem vínculo')+' · '+(r.quantity===null?'Quantidade não informada':r.quantity+' peças'),item);if(r.destination||r.actor||r.status)el('p',[r.destination,r.actor,r.status].filter(Boolean).join(' · '),item);if(r.grade.length)el('p',r.grade.map(g=>[g.color,g.size,g.qty===null?'?':g.qty].join(' ')).join(' · '),item);if(r.source==='factionPayments')el('p','Valor do lançamento: '+(r.estimatedAmount===null?'Não informado':money(r.estimatedAmount))+' · Pago registrado: '+(r.paidAmount===null?'Não informado':money(r.paidAmount))+(r.document?' · Comprovante registrado':''),item)}
  if(x.issues.length)el('p','Lacunas para revisar: '+x.issues.join(' · '),eventHost);if(eventOffset>0){const b=el('button','Eventos anteriores',eventHost);b.type='button';b.onclick=()=>{eventOffset=Math.max(0,eventOffset-30);drawEvents(true)}}if(eventOffset+30<x.total){const b=el('button','Mais eventos',eventHost);b.type='button';b.onclick=()=>{eventOffset+=30;drawEvents(true)}}}
  function draw(){choices.replaceChildren();const p=historySearchPermissions9652(),x=api.search(database(),input.value,{...p,offset,limit:30});el('p',x.state==='local-observation'?x.total+' modelos encontrados nos dados locais.':'Consulta indisponível.',choices);for(const r of x.rows){const b=el('button',r.name+' · '+(r.code||r.id)+' · ID '+r.id+(r.active?'':' · Inativo'),choices);b.type='button';b.className='secondary';b.style.cssText='display:block;max-width:100%;white-space:normal;margin:4px 0';b.onclick=()=>{selected=r.id;selectedName=r.name;eventOffset=0;cutOffset=0;drawEvents()}}if(offset>0){const b=el('button','Modelos anteriores',choices);b.type='button';b.onclick=()=>{offset=Math.max(0,offset-30);draw()}}if(offset+30<x.total){const b=el('button','Mais modelos',choices);b.type='button';b.onclick=()=>{offset+=30;draw()}}}
+ const reload=()=>{eventOffset=0;cutOffset=0;drawEvents(true)};for(const x of [from,to,order,origin])x.addEventListener('change',reload);refresh.onclick=reload;
  input.addEventListener('input',()=>{offset=0;selected='';results.replaceChildren();draw()});draw();
 }
 
