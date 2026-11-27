@@ -1,0 +1,23 @@
+'use strict';
+const assert=require('node:assert/strict'),{request,confirm}=require('./client-confirmation.cjs');
+(async()=>{
+const src={cutId:'c1',orderId:'o1',productId:'p1',revisions:{cut:5,product:7},lines:[{key:'p',color:'Preto',required:9.6,unit:'m'},{key:'b',color:'Branco',required:4.8,unit:'m'},{key:'r',color:'Rubi',required:9.6,unit:'m'},{key:'unknown',color:'Preto',required:null,unit:'m'}]};
+const draft={responsible:'Operador',note:'Falta branco',lines:src.lines.map(l=>({key:l.key,actual:l.key==='b'?4:l.required,checked:l.required!==null,note:''}))};
+const req=request(src,0,'req-1',draft);
+const ack={cutId:'c1',orderId:'o1',productId:'p1',revisions:src.revisions,version:1,requestId:'req-1',responsible:draft.responsible,note:draft.note,officialSeparationChanged:false,lines:src.lines.map((l,i)=>({...l,...draft.lines[i],shortage:l.required===null?null:l.key==='b'?.8:0}))};
+const record={source:src,result:ack};
+const check=(transport,stillCurrent=()=>true)=>confirm({transport,source:src,req,stillCurrent});
+let reads=0;
+assert.equal((await check({save:async()=>ack,read:async q=>{reads++;assert.equal(q.version,1);return record}})).state,'confirmed');
+assert.equal(reads,1);
+assert.equal((await check({save:async()=>({...ack,productId:'wrong'}),read:async()=>{throw Error('must not read')}})).reason,'ack-mismatch');
+assert.equal((await check({save:async()=>ack,read:async()=>null})).reason,'readback-mismatch');
+assert.equal((await check({save:async()=>ack,read:async()=>({...record,result:{...ack,version:2}})})).reason,'readback-mismatch');
+assert.equal((await check({save:async()=>({...ack,lines:ack.lines.map(l=>({...l,shortage:0}))}),read:async()=>record})).reason,'ack-mismatch');
+const uncertain=await check({save:async()=>{throw Error('network')},read:async()=>record});
+assert.equal(uncertain.state,'unconfirmed');assert.deepEqual(uncertain.retryRequest,req);
+let current=true;assert.equal((await check({save:async()=>{current=false;return ack},read:async()=>record},()=>current)).state,'stale');
+assert.throws(()=>request(src,0,'req-1',{...draft,lines:draft.lines.map(l=>l.key==='unknown'?{...l,checked:true}:l)}),/invalid-line/);
+assert.throws(()=>request(src,0,'req-1',{...draft,lines:draft.lines.map(l=>({...l,key:'b'}))}),/line-count/);
+console.log('PASS exact ACK plus independent readback, identity, shortage, retry, stale selection and invalid line');
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -17,3 +17,7 @@ Histórico independente recebe apenas linhas vinculadas ao snapshot calculado no
 
 ## Bloqueio de escopo reduzido (v98.30)
 Substitui bloqueio global do laboratório por advisory lock transacional por corte e SHARE nos registros de origem existentes. Cortes independentes podem compartilhar leitura de material, sem impedir operações alheias. Material vinculado inexistente/excluído impede gravação até revisão; a impressão comercial não é afetada. Teste concorrente da transação integrada cobre alteração de material, gravação independente e replay. Identidade comercial, paridade, anexos e integração final ainda pendentes; não executar em produção.
+
+
+## Consulta e confirmação de gravação (v98.31)
+Consulta histórica por corte/pedido/modelo e versão exata; listagem paginada, leitura em nova transação e autorização simulada. Contrato cliente em laboratório requer ACK e releitura independente idêntica, valida identidade, versão, revisão e quantidade por cor, impede confirmação de resposta inconsistente e mantém mesma chave na falha de transporte. Não carregado no app comercial; ainda requer transporte autenticado real, paridade de cálculo, integração visual e anexos.
