@@ -26,7 +26,8 @@ function call(role,name,x){
   await p.goto('http://localhost:9876/checklist');
   const html=fs.readFileSync('app9240.html','utf8'),at=html.indexOf('<section id="corte" class="page">'),end=html.indexOf('</section>',at);
   await p.setContent(html.slice(at,end+10).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,''));
-  await p.exposeFunction('fixtureRpc',(name,x)=>call(role,name,x));
+  let failAttachment=role==='checklist_lab_operator';
+  await p.exposeFunction('fixtureRpc',(name,x)=>{if(name==='attach'&&failAttachment){failAttachment=false;throw Error('fixture upload interrupted');}return call(role,name,x)});
   await p.evaluate(()=>{
    document.querySelector('#corte').classList.add('active');window.__HLGB_AUTH_READY=true;window.canOpenPage=()=>true;window.currentUser=()=>({id:'fixture-user',active:true});window.renderCuts=()=>{};window.hlgbWriteoffIntegrity9391={pairIndex:()=>new Set()};
    const grade=[['Preto','P',120],['Branco','M',60],['Rubi','G',120]].map(([color,size,qty])=>({productId:'p1',color,size,qty}));
@@ -51,7 +52,15 @@ function call(role,name,x){
  await a.locator('[data-hlgb-conference-docs9834] input[type=file]').setInputFiles({name:'folha.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7 fixture')});
  await a.getByText('Arquivo selecionado apenas nesta sessão. Ainda não enviado.').waitFor();
  await a.getByRole('button',{name:'Salvar conferência na homologação'}).click();
+ await a.getByText('Gravação não confirmada. Confira os dados e tente novamente.').waitFor();
+ assert.equal(call('checklist_lab_operator','list',{cutId:'c1',orderId:'o1',productId:'p1'}).length,1);
+ await a.getByRole('button',{name:'Fechar checklist'}).click();
+ await a.evaluate(()=>window.hlgbCutOrganization.openFullCutChecklist9820('c1'));
+ await a.getByRole('button',{name:'Conferir quantidades por cor'}).click();
+ await a.getByText('Gravação anterior pendente. Repita sem alterar o rascunho.').waitFor();
+ await a.getByRole('button',{name:'Salvar conferência na homologação'}).click();
  await a.getByText('Conferência e documentos confirmados — versão 1.').waitFor();
+ assert.equal(call('checklist_lab_operator','list',{cutId:'c1',orderId:'o1',productId:'p1'}).length,1);
  assert.equal(await a.evaluate(()=>JSON.stringify(db)===window.__before),true);
  const second=await init('checklist_lab_operator2');
  await second.getByRole('button',{name:'Consultar versão 1'}).click();

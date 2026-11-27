@@ -214,7 +214,7 @@ function openFullCutChecklist9820(id){
    // A missing adapter never disables the existing local conference or printing.
    if(window.HLGBCutChecklistPersistence9835?.mount&&sessionOwner){
     try{window.HLGBCutChecklistPersistence9835.mount({
-     panel,source:v,current,
+     panel,source:v,current,owner:sessionOwner,
      fields:()=>({responsible:fields[0]?.value||'',note:fields[1]?.value||'',lines:conferenceRows.map(({row,m,color},i)=>({name:m.name,color:color.color,unit:m.unit,pieces:color.pieces,required:m.linkOK?color.amount:null,actual:fields[2+i*2]?.value||'',note:fields[3+i*2]?.value||'',checked:!!row.querySelector('input[type=checkbox]')?.checked}))}),
      documents:()=>selected.slice()
     })}catch(_){}
@@ -801,6 +801,6 @@ function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643();or
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('nav'))setTimeout(dockSeparation9715,0)},true);
-window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbFullCutChecklist9820')?.remove();document.querySelectorAll('[data-hlgb-required-cut9820]').forEach(n=>n.remove());completedOffset=0;completedFilterSignature='';document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbFullCutChecklist9820')?.remove();document.querySelectorAll('[data-hlgb-required-cut9820]').forEach(n=>n.remove());completedOffset=0;completedFilterSignature='';document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();conferenceDrafts9828.clear();conferenceOwner9828='';expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();
