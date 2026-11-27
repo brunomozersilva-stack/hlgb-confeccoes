@@ -381,11 +381,19 @@ function addActionButtons(){
  for(const rootId of ['cutTable','dailyCutsTable']){
    const root=document.getElementById(rootId);if(!root)continue;
    root.querySelectorAll('tbody tr').forEach(tr=>{
-     if(tr.querySelector('.hlgbSheetMaterials9523'))return;
+     if(tr.querySelector('.hlgbSheetMaterials9523,.hlgb-native-cut-print9822,[data-hlgb-required-cut9820] button[data-hlgb-print-required9822]'))return;
      const c=byId('cuts',cutIdFromRow(tr));if(!c||!byId('orders',c.orderId))return;
-     const cell=tr.lastElementChild;if(!cell)return;
+     if(tr.dataset.hlgbSplitAggregateHidden==='1')return;
+     const cell=Array.from(tr.children).filter(x=>!x.hasAttribute('data-hlgb-cut-summary9761')).at(-1);if(!cell)return;
      const b=document.createElement('button');b.type='button';b.className='secondary hlgbSheetMaterials9523';
-     b.textContent='🖨️ Folha completa';b.onclick=()=>wrapped(c.orderId,c.id);
+     b.textContent='Imprimir folha de pedido do corte';b.onclick=()=>{
+      if(window.__HLGB_AUTH_READY!==true||typeof canOpenPage!=='function'||canOpenPage('corte')!==true)return false;
+      const live=x=>x&&!x.deleted_at&&!x.deletedAt&&x.deleted!==true&&!x._deleted;
+      const cuts=arr('cuts').filter(x=>live(x)&&sid(x.id)===sid(c.id));
+      const fresh=cuts[0],orders=arr('orders').filter(x=>live(x)&&sid(x.id)===sid(fresh?.orderId));
+      if(!tr.isConnected||cuts.length!==1||orders.length!==1||tr.dataset.hlgbSplitAggregateHidden==='1'||/cancel|desmembrado/i.test(sid(fresh.status))){alert('Confira a identidade do corte antes de imprimir.');return false}
+      return wrapped(fresh.orderId,fresh.id);
+     };
      cell.appendChild(document.createTextNode(' '));cell.appendChild(b);
    });
  }
