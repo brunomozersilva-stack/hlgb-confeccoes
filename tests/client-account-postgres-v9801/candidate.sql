@@ -3,7 +3,7 @@
 create function ledger_lab.pay(p_client text,p_ref text,p_revision bigint,p_day date,p_method text,p_amount bigint,p_selected jsonb,p_remainder_reviewed boolean)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare
- a ledger_lab.accounts%rowtype; n ledger_lab.notes%rowtype; t ledger_lab.titles%rowtype; prior ledger_lab.receipts%rowtype;
+ a ledger_lab.accounts%rowtype; n ledger_lab.notes%rowtype; t ledger_lab.titles%rowtype; prior ledger_lab.receipts%rowtype; v_forecast ledger_lab.forecast%rowtype;
  request jsonb; answer jsonb; selected jsonb; allocations jsonb:='[]'::jsonb;
  remaining bigint; applied bigint; available bigint; balance_after bigint; next_status text; actual_count integer; matched_count integer;
 begin
@@ -31,12 +31,15 @@ begin
   if not found or n.client_id<>t.client_id or n.revision<>(selected->>'noteRevision')::bigint or t.revision<>(selected->>'titleRevision')::bigint or n.status not in ('open','partial') or n.issued>p_day or t.status<>n.status or t.total<>n.total or t.paid<>n.paid or t.credit<>n.credit then raise exception 'note-title-divergence'; end if;
   available:=n.total-n.paid-n.credit;
   if available<=0 then raise exception 'note-balance'; end if;
+  select * into v_forecast from ledger_lab.forecast x where x.title_id=t.id for update;
+  if not found or v_forecast.client_id<>p_client or v_forecast.remaining<>available or v_forecast.status<>'open' then raise exception 'forecast-divergence'; end if;
   applied:=least(remaining,available);
   if applied=0 then continue; end if;
   next_status:=case when applied=available then 'paid' else 'partial' end;
   update ledger_lab.notes set paid=n.paid+applied,status=next_status,revision=n.revision+1 where id=n.id;
   update ledger_lab.titles set paid=t.paid+applied,status=next_status,revision=t.revision+1 where id=t.id;
-  allocations:=allocations||jsonb_build_array(jsonb_build_object('noteId',n.id,'titleId',t.id,'amountCents',applied,'beforeCents',available,'afterCents',available-applied));
+  update ledger_lab.forecast set remaining=available-applied,status=case when applied=available then 'closed' else 'open' end,revision=v_forecast.revision+1 where title_id=t.id;
+  allocations:=allocations||jsonb_build_array(jsonb_build_object('noteId',n.id,'titleId',t.id,'amountCents',applied,'beforeCents',available,'afterCents',available-applied,'forecastRevisionBefore',v_forecast.revision,'forecastRevisionAfter',v_forecast.revision+1));
   remaining:=remaining-applied;
  end loop;
  if remaining>0 and not p_remainder_reviewed then raise exception 'remainder-not-reviewed'; end if;

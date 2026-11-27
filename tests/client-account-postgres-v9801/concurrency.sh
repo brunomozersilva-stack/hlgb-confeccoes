@@ -31,4 +31,5 @@ test "$(psql -XAtc "select count(*) from ledger_lab.hub where client_id='b'")" =
 test "$(psql -XAtc "select paid||':'||revision from ledger_lab.notes where id='n3'")" = '30000:2'
 test "$(psql -XAtc "select paid||':'||revision from ledger_lab.titles where id='f3'")" = '30000:2'
 test "$(psql -XAtc "select independent_cents||':'||revision from ledger_lab.accounts where client_id='b'")" = '-50000:2'
-echo 'PASS parallel receipt replay and competing revision; exactly one receipt and Hub movement'
+test "$(psql -XAtc "select remaining||':'||revision from ledger_lab.forecast where title_id='f3'")" = '20000:2'
+echo 'PASS parallel receipt replay and competing revision; exactly one receipt, Hub movement and forecast reduction'
