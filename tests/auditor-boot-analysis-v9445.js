@@ -56,5 +56,10 @@ const stack=caller=>'Error\n    at traced (https://example.test/release-auditor-
  r=api.analyze();
  ok(r.status==='warn'&&r.summary.slowSyncCalls===1,'render lento deixou de ser alertado '+JSON.stringify(r));
  ok(r.summary.duplicateLoadGroups===0,'render lento criou duplicidade de carga');
+ // Nested calls and out-of-order promise resolutions.
+ const ev=(seq,type,callId,data={})=>({seq,type:'load:'+type,name:'hlgbRecordLoadBundle',monoMs:seq*10,authReady:true,appVisible:true,data:{callId,...data}});
+ events=[ev(1,'start',1),ev(2,'start',2),ev(3,'return',2,{syncDurationMs:8,promise:true}),ev(4,'return',1,{syncDurationMs:95,promise:true}),ev(5,'resolve',1,{totalDurationMs:420}),ev(6,'reject',2,{totalDurationMs:250}),ev(7,'start',7),ev(8,'start',8),ev(9,'throw',8,{durationMs:12})];
+ r=api.analyze();ok(r.rawCalls[0].syncDurationMs===95&&r.rawCalls[1].syncDurationMs===8,'nested calls mispaired');ok(r.rawCalls[0].asyncDurationMs===420&&r.rawCalls[1].outcome==='reject','async mispaired');ok(r.rawCalls[2].syncDurationMs===null&&r.rawCalls[3].outcome==='throw','missing/throw not preserved');ok(r.trace.unpairedDurations===1&&r.trace.asyncMeasured===2&&r.asyncSlow.length===2,'coverage/async report wrong');ok(r.summary.slowSyncCalls===1,'nested slow measurement incorrect');
+ events=[ev(1,'start',undefined),ev(2,'start',undefined),ev(3,'return',undefined,{syncDurationMs:3}),ev(4,'return',undefined,{syncDurationMs:80})];r=api.analyze();ok(r.rawCalls[0].syncDurationMs===80&&r.rawCalls[1].syncDurationMs===3,'legacy nested LIFO incorrect');
  console.log('AUDITOR_BOOT_ANALYSIS_V9445_OK',JSON.stringify({restoreIgnored:true,distinctCallersSafe:true,sameCallerDetected:true,realCaller:true,slowStillWarns:true}));
 })().catch(e=>{console.error(e.stack||e);process.exit(1)});
