@@ -32,7 +32,10 @@
  assert.equal(await weight.count(),1);assert.equal(await weight.isVisible(),true);await weight.click();
  assert.match((await p.evaluate(()=>window.__weightModal[0][0])),/19/);
  await p.evaluate(()=>{db.cuts.find(c=>c.id===19).status='Finalizado';window.hlgbCutOrganization.apply()});
- assert.equal(await weight.count(),1);assert.equal(await weight.isVisible(),true);
+ assert.equal(await p.locator('[data-hlgb-cut-model-id="19"]').isVisible(),false,'finalized model no longer in work list');
+ await p.locator('#hlgbCutStatus9770').selectOption('completed');
+ const historicWeight=p.locator('[data-completed-cut-id="19"]').getByRole('button',{name:'Registrar peso do corte'});assert.equal(await historicWeight.isVisible(),true);await historicWeight.click();assert.match((await p.evaluate(()=>window.__weightModal.at(-1)[0])),/19/);
+ await p.locator('#hlgbCutStatus9770').selectOption('');
  await p.evaluate(()=>{db.cuts.push({...db.cuts.find(c=>c.id===19)});window.hlgbCutWeight9579.decorate()});
  assert.equal(await weight.count(),0);
  await p.evaluate(()=>{db.cuts.pop();db.cuts.find(c=>c.id===19).status='Planejado';window.hlgbCutOrganization.apply()});
@@ -80,7 +83,8 @@
  await p.locator('#hlgbCutFrom9712').fill('');
  await p.locator('#hlgbCutSearch').fill('Calcinha');assert.equal(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id]').count(),1);
  await p.locator('#hlgbCutSearch').fill('');
- await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id]').count(),3);
+ await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id="32"] summary').click();
+ await p.evaluate(()=>{window.__stableHistoryNode=document.querySelector('[data-completed-cut-id="32"]');window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id]').count(),3);assert.equal(await p.evaluate(()=>window.__stableHistoryNode===document.querySelector('[data-completed-cut-id="32"]')&&window.__stableHistoryNode.querySelector('details').open),true);
  assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__historyBefore),true);
  await p.locator('#hlgbCutStatus9770').selectOption('');assert.equal(await p.locator('#hlgbCompletedHistory9770').count(),0);assert.equal(await p.locator('#cutTable').isVisible(),true);
  await p.evaluate(()=>{db.cuts=db.cuts.filter(c=>Number(c.id)<31);window.hlgbCutOrganization.apply()});
