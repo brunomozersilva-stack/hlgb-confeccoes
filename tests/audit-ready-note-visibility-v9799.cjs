@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict'),src=fs.readFileSync('release-note-integrity.js','utf8');
+const a=src.indexOf('function readyNoteEvidence9799('),b=src.indexOf('function decorateReadyNote9799(',a);assert.ok(a>=0&&b>a);
+const ctx=vm.createContext({sid:v=>String(v??''),norm:v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()});
+vm.runInContext(src.slice(a,b)+';this.check=readyNoteEvidence9799',ctx);
+const o={id:'o',status:'Pedido finalizado',grade:[{productId:'p',qty:100}],fulfillmentByProduct:{p:{completed:true,sourceOrderId:'o'}},projectionItems:{p:{invoicedQty:100,deliveryHistory:[{invoiceId:'n',qty:100}]}}};
+const n={id:'n',status:'Pendente',items:[{orderId:'o',productId:'p',qty:100}]},q={id:'q',orderId:'o',productId:'p',status:'Faturado',remainingQty:0};
+const before=JSON.stringify([o,n,q]),check=(orders=[o],notes=[n],queue=[q])=>ctx.check(orders,notes,queue,'o','p').state;
+assert.equal(check(),'documented-invoiced');assert.equal(check([o],[],[]),'review');assert.equal(check([o],[n,n]),'review');assert.equal(check([o],[{...n,status:'Cancelado'}]),'review');assert.equal(check([o],[{...n,manualNote:true}]),'review');assert.equal(check([o],[{...n,items:[{...n.items[0],qty:90}]}]),'review');assert.equal(check([o],[n],[{...q,status:'Parcial',remainingQty:10}]),'review');assert.equal(check([o,o]),'review');assert.equal(check([{...o,fulfillmentByProduct:{p:{completed:true,sourceOrderId:'other'}}},{...o,id:'other'}]),'review');
+assert.equal(check([{...o,status:'Aguardando nota'}]),'documented-invoiced');assert.equal(check([{...o,projectionItems:{p:{invoicedQty:100}}}]),'review');assert.equal(JSON.stringify([o,n,q]),before);
+assert.ok(src.includes('patchReadyNote9799();decorateReadyNote9799();'));console.log('PASS ready note: documentary reconciliation, partial and split preservation, no business mutation');

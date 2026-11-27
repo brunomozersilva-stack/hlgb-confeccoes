@@ -373,11 +373,64 @@ window.hlgbReconcileNoteFinanceTombstones9418=reconcileFinanceTombstones;
 window.hlgbNoteFinanceTombstoneIds9418=()=>[...readFinanceTombstones()];
 
 /* ---------- instalação ---------- */
+/* Ready-note visibility: documentary closure only, never a data write or physical delivery. */
+function readyNoteEvidence9799(orders,invoices,queue,orderId,productId){
+ const review=reason=>({state:'review',reason}),live=x=>x&&!x.deleted&&!x._deleted&&!x.deletedAt&&!x.deleted_at;
+ if(![orders,invoices,queue].every(Array.isArray))return review('source-unavailable');
+ const id=sid(orderId),pid=sid(productId),one=k=>{const rows=orders.filter(x=>live(x)&&sid(x.id)===k);return rows.length===1?rows[0]:null};
+ const ready=one(id),meta=ready?.fulfillmentByProduct?.[pid];
+ if(!id||!pid||meta?.completed!==true)return review('ready-identity');
+ const sourceId=sid(meta.sourceOrderId||id),source=one(sourceId);if(!source)return review('source-identity');
+ // A different source order can have several ready children; do not spend the same invoice twice.
+ if(sourceId!==id)return review('split-source');
+ const qtyFor=o=>{const rows=Array.isArray(o?.grade)?o.grade.filter(g=>sid(g?.productId)===pid):[];return rows.length&&rows.every(g=>Number.isSafeInteger(g.qty)&&g.qty>0)?rows.reduce((n,g)=>n+g.qty,0):null};
+ const qty=qtyFor(ready),saved=source.projectionItems?.[pid];
+ if(!Number.isSafeInteger(qty)||qty<=0||saved?.clientAllocations?.length||!Array.isArray(saved?.deliveryHistory)||!saved.deliveryHistory.length||saved.invoicedQty!==qty)return review('balance-unconfirmed');
+ const seen=new Set(),byInvoice=new Map();let billed=0;
+ for(const inv of invoices.filter(live)){
+  if(/cancelad|estornad|excluid/.test(norm(inv.status)))continue;
+  const rows=Array.isArray(inv.items)?inv.items.filter(i=>sid(i?.orderId)===sourceId&&sid(i?.productId||i?.itemKey)===pid):[];
+  if(!rows.length)continue;
+  const nid=sid(inv.id);if(!nid||seen.has(nid)||invoices.filter(x=>live(x)&&sid(x.id)===nid).length!==1||inv.manualNote===true||rows.some(i=>i.noteOnly===true||!Number.isSafeInteger(i.qty)||i.qty<=0))return review('invoice-conflict');
+  seen.add(nid);const n=rows.reduce((sum,i)=>sum+i.qty,0);byInvoice.set(nid,n);billed+=n;
+ }
+ const hist=new Set();for(const h of saved.deliveryHistory){const nid=sid(h?.invoiceId);if(!nid||hist.has(nid)||!Number.isSafeInteger(h.qty)||h.qty<=0||byInvoice.get(nid)!==h.qty)return review('history-conflict');hist.add(nid)}
+ if(hist.size!==byInvoice.size||billed!==qty)return review('quantity-conflict');
+ for(const row of queue.filter(live)){
+  if(![row.orderId,row.readyOrderId,row.sourceOrderId].map(sid).includes(id)||sid(row.productId||row.itemKey)!==pid)continue;
+  if(/cancelad/.test(norm(row.status)))continue;
+  if(norm(row.status)!=='faturado'||row.remainingQty!==0)return review('queue-open');
+ }
+ return {state:'documented-invoiced',qty};
+}
+function decorateReadyNote9799(){
+ try{
+  const box=document.getElementById('hlgbReadyNote9196Table');if(!box)return;
+  // No new global query of protected data: this is only the existing visible Notes panel.
+  if(typeof canOpenPage!=='function'||canOpenPage('notas')!==true||window.__HLGB_AUTH_READY!==true)return;
+  const data=typeof db!=='undefined'?db:null;if(!Array.isArray(data?.orders)||!Array.isArray(data?.noteQueue)||!Array.isArray(data?.projectionInvoices))return;
+  const inv=canonicalInvoices();let hidden=0;
+  for(const row of box.querySelectorAll('.hlgb9196-ready')){
+   const action=row.querySelector('button[onclick*="hlgbOpenReadyProjection9196"]'),m=sid(action?.getAttribute('onclick')).match(/^hlgbOpenReadyProjection9196\(['"]([^'"]+)['"],['"]([^'"]+)['"]\)$/);
+   const closed=!!m&&readyNoteEvidence9799(data.orders,inv,data.noteQueue,m[1],m[2]).state==='documented-invoiced';
+   if(closed){if(row.dataset.hlgbReadyClosed9799!=='1'){row.dataset.hlgbReadyClosed9799='1';row.hidden=true;row.style.setProperty('display','none','important')}hidden++}
+   else if(row.dataset.hlgbReadyClosed9799==='1'){delete row.dataset.hlgbReadyClosed9799;row.hidden=false;row.style.removeProperty('display')}
+  }
+  let info=box.querySelector('[data-hlgb-ready-summary9799]');
+  const message=hidden?hidden+' item(ns) integralmente faturado(s) com histórico conciliado, fora das pendências. Notas preservadas no histórico.':'';
+  if(message){if(!info){info=document.createElement('div');info.className='sub';info.dataset.hlgbReadySummary9799='1';box.appendChild(info)}if(info.textContent!==message)info.textContent=message}else if(info)info.remove();
+ }catch(_){}
+}
+function patchReadyNote9799(){
+ const old=window.renderReadyForNote9196;if(typeof old!=='function'||old.__hlgbReadyNote9799)return;
+ const wrapped=function(){const r=old.apply(this,arguments);decorateReadyNote9799();return r};
+ wrapped.__hlgbReadyNote9799=true;wrapped.__original=old;window.renderReadyForNote9196=wrapped;
+}
 function apply(){
- patchRenderer('renderNotes9200');patchRenderer('renderNotes9214');patchGroup();cleanRenderedHistory();decorateQueueSafety();decorateNoteActions();ensureManualNoteButton();
+ patchRenderer('renderNotes9200');patchRenderer('renderNotes9214');patchGroup();cleanRenderedHistory();decorateQueueSafety();decorateNoteActions();ensureManualNoteButton();patchReadyNote9799();decorateReadyNote9799();
 }
 function noteMutationRelevant(records){
- const selector='#legacyNotes9223,.v930ProjectionNotes,.nqSelect9202,[id^="noteQueue"],[id^="projectionInvoice"],[id*="Notes92"],#projectionNotes9214,#projectionNotes9200';
+ const selector='#hlgbReadyNote9196Table,#legacyNotes9223,.v930ProjectionNotes,.nqSelect9202,[id^="noteQueue"],[id^="projectionInvoice"],[id*="Notes92"],#projectionNotes9214,#projectionNotes9200';
  for(const m of records||[]){
   const nodes=[m.target,...(m.addedNodes||[]),...(m.removedNodes||[])];
   for(const n of nodes){
