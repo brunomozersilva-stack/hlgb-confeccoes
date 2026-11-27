@@ -8,20 +8,32 @@ begin
  if n is null or n<0 or n>1000000000000 or n<>trunc(n) then raise exception 'money-format';end if;
  return n::bigint;
 end$$;
-create function records_lab.pay(p_client text,p_ref text,p_day date,p_method text,p_amount bigint,p_selected jsonb)
+create table records_lab.account_balances(client_id text primary key,revision bigint not null check(revision>0),independent_cents bigint not null check(independent_cents between -1000000000000 and 1000000000000));
+create table records_lab.account_receipt_events(ref text primary key references records_lab.receipts(ref),client_id text not null references records_lab.account_balances(client_id),before_cents bigint not null,after_cents bigint not null,revision_before bigint not null,revision_after bigint not null,residual_cents bigint not null check(residual_cents>=0),check(after_cents=before_cents-residual_cents),check(revision_after=revision_before+1));
+grant select,update on records_lab.account_balances to records_lab_operator;
+grant select,insert on records_lab.account_receipt_events to records_lab_operator;
+-- Synthetic opening fixture, separate from all actual customer balances.
+insert into records_lab.account_balances values('c',1,2000);
+create function records_lab.pay_internal(p_client text,p_ref text,p_day date,p_method text,p_amount bigint,p_selected jsonb,p_account_revision bigint,p_residual_reviewed boolean)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare n records_lab.hlgb_records%rowtype; t records_lab.hlgb_records%rowtype; h records_lab.hlgb_records%rowtype; prior records_lab.receipts%rowtype;
  sel jsonb; req jsonb; ans jsonb; event jsonb; next_n jsonb; next_t jsonb; next_h jsonb; ack record; allocations jsonb:='[]';
+ a records_lab.account_balances%rowtype; after_balance bigint; account_mode boolean:=p_account_revision is not null;
  available bigint; total bigint; paid bigint; credit bigint; hist bigint; remaining bigint; applied bigint; next_status text; k text; cnt integer; actor text:=current_user; ts timestamptz:=clock_timestamp();
 begin
  if current_user<>'records_lab_operator' then raise exception 'permission' using errcode='42501';end if;
- if p_client is null or p_ref is null or p_ref !~ '^[a-zA-Z0-9_-]{1,100}$' or p_day is null or p_day>current_date or p_method is null or length(trim(p_method)) not between 1 and 80 or p_amount is null or p_amount not between 1 and 1000000000000 or jsonb_typeof(p_selected) is distinct from 'array' or jsonb_array_length(p_selected) not between 1 and 50 then raise exception 'input';end if;
+ if p_client is null or p_ref is null or p_ref !~ '^[a-zA-Z0-9_-]{1,100}$' or p_day is null or p_day>current_date or p_method is null or length(trim(p_method)) not between 1 and 80 or p_amount is null or p_amount not between 1 and 1000000000000 or jsonb_typeof(p_selected) is distinct from 'array' or jsonb_array_length(p_selected) not between (case when account_mode then 0 else 1 end) and 50 then raise exception 'input';end if;
  -- Coarse lab-only writer serialization. Not a production lock recommendation.
  lock table records_lab.hlgb_records in share row exclusive mode;
  req:=jsonb_build_object('client',p_client,'ref',p_ref,'day',p_day,'method',p_method,'amount',p_amount,'selected',p_selected);
+ if account_mode then req:=req||jsonb_build_object('accountRevision',p_account_revision,'residualReviewed',p_residual_reviewed);end if;
  select * into prior from records_lab.receipts x where x.ref=p_ref;
  if found then if prior.request is distinct from req then raise exception 'reference-conflict';end if;return prior.result;end if;
  if not exists(select 1 from records_lab.hlgb_records x where x.module='clients' and x.entity_id=p_client and x.deleted_at is null and x.data->>'id'=p_client) then raise exception 'client';end if;
+ if account_mode then
+  select * into a from records_lab.account_balances x where x.client_id=p_client for update;
+  if not found or a.revision<>p_account_revision then raise exception 'account-revision';end if;
+ end if;
  for sel in select value from jsonb_array_elements(p_selected) loop
   if jsonb_typeof(sel) is distinct from 'object' or coalesce(sel->>'noteId','')='' or coalesce(sel->>'titleId','')='' or coalesce(sel->>'noteRevision','') !~ '^[1-9][0-9]{0,15}$' or coalesce(sel->>'titleRevision','') !~ '^[1-9][0-9]{0,15}$' then raise exception 'selection';end if;
  end loop;
@@ -60,13 +72,33 @@ begin
   allocations:=allocations||jsonb_build_array(jsonb_build_object('noteId',n.entity_id,'titleId',t.entity_id,'amountCents',applied,'remainingCents',available-applied));
   remaining:=remaining-applied;
  end loop;
- if remaining<>0 then raise exception 'unallocated-payment';end if;
+ if remaining<>0 and (not account_mode or p_residual_reviewed is distinct from true) then raise exception 'unallocated-payment';end if;
+ if account_mode then
+  after_balance:=a.independent_cents-remaining;
+  if after_balance not between -1000000000000 and 1000000000000 then raise exception 'account-limit';end if;
+  update records_lab.account_balances set independent_cents=after_balance,revision=a.revision+1 where client_id=p_client and revision=a.revision;
+  if not found then raise exception 'account-revision';end if;
+ end if;
  k:='receipt:'||p_ref;
  next_h:=jsonb_build_object('id',k,'sourceType','lab-global-receipt','sourceId',p_ref,'clientId',p_client,'status','Realizado','flow','Entrada','value',p_amount::numeric/100,'date',p_day,'realizedAt',p_day,'paymentMethod',p_method);
  select * into ack from records_lab.hlgb_save_record('hubFinanceEntries',k,next_h,0,false);if ack.applied is distinct from true or ack.revision<>1 or ack.data is distinct from next_h then raise exception 'hub-ack';end if;
  ans:=jsonb_build_object('reference',p_ref,'clientId',p_client,'amountCents',p_amount,'allocations',allocations,'hubId',k);
+ if account_mode then ans:=ans||jsonb_build_object('allocatedCents',p_amount-remaining,'residualCents',remaining,'independentBeforeCents',a.independent_cents,'independentAfterCents',after_balance,'accountRevision',a.revision+1);end if;
  insert into records_lab.receipts(ref,client_id,request,result,actor) values(p_ref,p_client,req,ans,actor);
+ if account_mode then insert into records_lab.account_receipt_events values(p_ref,p_client,a.independent_cents,after_balance,a.revision,a.revision+1,remaining);end if;
  return ans;
 end$$;
+revoke all on function records_lab.pay_internal(text,text,date,text,bigint,jsonb,bigint,boolean) from public;
+grant execute on function records_lab.pay_internal(text,text,date,text,bigint,jsonb,bigint,boolean) to records_lab_operator;
+create function records_lab.pay(p_client text,p_ref text,p_day date,p_method text,p_amount bigint,p_selected jsonb)
+returns jsonb language sql security invoker set search_path='' as $select records_lab.pay_internal(p_client,p_ref,p_day,p_method,p_amount,p_selected,null,false)$;
+create function records_lab.pay_account(p_client text,p_ref text,p_day date,p_method text,p_amount bigint,p_selected jsonb,p_revision bigint,p_reviewed boolean)
+returns jsonb language plpgsql security invoker set search_path='' as $
+begin
+ if p_revision is null or p_revision<1 then raise exception 'account-revision';end if;
+ return records_lab.pay_internal(p_client,p_ref,p_day,p_method,p_amount,p_selected,p_revision,p_reviewed);
+end$;
+revoke all on function records_lab.pay_account(text,text,date,text,bigint,jsonb,bigint,boolean) from public;
+grant execute on function records_lab.pay_account(text,text,date,text,bigint,jsonb,bigint,boolean) to records_lab_operator;
 revoke all on function records_lab.pay(text,text,date,text,bigint,jsonb) from public;
 grant execute on function records_lab.pay(text,text,date,text,bigint,jsonb) to records_lab_operator;

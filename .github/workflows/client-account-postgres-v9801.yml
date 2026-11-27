@@ -69,3 +69,6 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/item-return-read.sql
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/item-return-read-contract.sql
           node tests/client-account-postgres-v9801/item-return-confirmation-contract.cjs
+
+      - name: Verify combined residual receipt and full transaction rollback
+        run: psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/residual-receipt-contract.sql
