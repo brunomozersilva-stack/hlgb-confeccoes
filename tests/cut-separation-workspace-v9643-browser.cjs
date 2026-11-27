@@ -75,6 +75,19 @@
  assert.match(conferencePrint,/Operador teste/);assert.match(conferencePrint,/Faltam 8 metros/);assert.match(conferencePrint,/8 m/);
  await preview.getByRole('button',{name:'Fechar',exact:true}).click();
  assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__colorFixtureSnapshot),true);
+ // Closing/printing the modal must not discard detailed conference within the same session.
+ await required.getByRole('button',{name:'Checklist completo da peça'}).click();
+ await full.getByRole('button',{name:'Conferir quantidades por cor'}).click();
+ assert.equal(await full.getByLabel('Responsável pela conferência').inputValue(),'Operador teste');
+ assert.equal(await full.getByLabel('Quantidade separada — Aviamento teste — Branco').inputValue(),'40');
+ assert.equal(await full.getByLabel('Observação — Aviamento teste — Branco').inputValue(),'Faltam 8 metros');
+ await full.getByRole('button',{name:'Fechar checklist'}).click();
+ await p.evaluate(()=>{window.currentUser=()=>({id:'other-fixture-user',active:true})});
+ await required.getByRole('button',{name:'Checklist completo da peça'}).click();
+ await full.getByRole('button',{name:'Conferir quantidades por cor'}).click();
+ assert.equal(await full.getByLabel('Responsável pela conferência').inputValue(),'');
+ await full.getByRole('button',{name:'Fechar checklist'}).click();
+ await p.evaluate(()=>{window.currentUser=()=>({id:'fixture-user',active:true})});
  await p.evaluate(()=>{for(const k of Object.keys(db))delete db[k];Object.assign(db,window.__colorFixtureBefore);window.open=window.__originalOpen9821;window.hlgbCutterSheetV9523.ensurePrintRoute9523()});
  assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);await singleGrade.click();await splitGrade.click();assert.deepEqual(await p.evaluate(()=>window.__gradeOpens),[['single','9'],['split','19']]);
  await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);

@@ -80,7 +80,14 @@ function printCutChecklist9824(id){
  const host=document.getElementById('hlgbFullCutChecklist9820'),btn=host?.querySelector('[data-hlgb-print-checklist9824]');
  if(!btn)return false;btn.click();return true;
 }
+// Session-only cache; direct print remains compact.
+const conferenceDrafts9828=new Map();let conferenceOwner9828='';
+function conferenceIdentity9828(){
+ let owner='';try{const u=typeof currentUser==='function'?currentUser():null;if(requiredCutAllowed9820()&&u?.active!==false)owner=sid(u?.id||u?.email||'').trim()}catch(_){}
+ if(owner!==conferenceOwner9828){conferenceDrafts9828.clear();conferenceOwner9828=owner}return owner;
+}
 function openFullCutChecklist9820(id){
+ const sessionOwner=conferenceIdentity9828();
  if(!requiredCutAllowed9820()){alert('Checklist indisponível: confira as permissões de Corte, Pedidos e Produtos.');return false}
  const idx=cutIndex9709(),v=cutActionProof9820(idx.cuts.get(sid(id)),idx);
  if(!v){alert('Não foi possível confirmar modelo e grade. Confira o corte antes de abrir o checklist.');return false}
@@ -120,8 +127,22 @@ function openFullCutChecklist9820(id){
   detailed.onclick=()=>{
    if(!requiredCutAllowed9820()||!host.isConnected||host.querySelector('[data-hlgb-color-conference9827]'))return;
    const panel=el('section','');panel.dataset.hlgbColorConference9827='1';grid.insertAdjacentElement('afterend',panel);
+   const cacheKey=JSON.stringify([v.cutId,v.orderId,v.productId]),signature=JSON.stringify(v);
+   const cached=sessionOwner&&conferenceIdentity9828()===sessionOwner?conferenceDrafts9828.get(cacheKey):null;
+   const restored=cached?.signature===signature?cached:null;
+   const status=el('p',restored?'Rascunho desta sessão recuperado.':cached?'Grade ou ficha técnica mudou. Os valores antigos não foram reaplicados.':'Rascunho somente nesta sessão; não salvo na nuvem.',panel);
+   status.setAttribute('role','status');
+   const fields=[];
+   function capture(){
+    if(!host.isConnected||!panel.isConnected||!sessionOwner||conferenceIdentity9828()!==sessionOwner)return;
+    const now=cutIndex9709(),fresh=cutActionProof9820(now.cuts.get(v.cutId),now);
+    if(JSON.stringify(fresh)!==signature){status.textContent='Grade ou ficha alterada. Reabra a conferência.';return}
+    if(conferenceDrafts9828.size>=20&&!conferenceDrafts9828.has(cacheKey))conferenceDrafts9828.delete(conferenceDrafts9828.keys().next().value);
+    conferenceDrafts9828.set(cacheKey,{signature,values:fields.map(x=>x.value),checks:conferenceRows.map(x=>!!x.row.querySelector('input[type=checkbox]')?.checked)});
+    status.textContent='Rascunho mantido nesta sessão; não salvo na nuvem.';
+   }
    el('h3','Conferência física por cor — rascunho',panel);el('p','Não salva na nuvem nem confirma baixa. Informe a quantidade realmente separada de cada cor.',panel);
-   const field=(parent,label,max)=>{const wrap=el('label',label+' ',parent),input=el('input','',wrap);input.type='text';input.maxLength=max;input.setAttribute('aria-label',label);input.style.cssText='max-width:100%;box-sizing:border-box';return input};
+   const field=(parent,label,max)=>{const wrap=el('label',label+' ',parent),input=el('input','',wrap);input.type='text';input.maxLength=max;input.setAttribute('aria-label',label);input.style.cssText='max-width:100%;box-sizing:border-box';fields.push(input);input.addEventListener('input',capture);return input};
    field(panel,'Responsável pela conferência',120);
    field(panel,'Observações gerais da conferência',500);
    const wrap=el('div','',panel);wrap.style.overflowX='auto';
@@ -141,6 +162,15 @@ function openFullCutChecklist9820(id){
     });
    }
    for(const cell of panel.querySelectorAll('th,td'))cell.style.cssText='border:1px solid #aaa;padding:5px;text-align:left;font-size:12px';
+   if(restored&&restored.values.length===fields.length&&restored.checks.length===conferenceRows.length){
+    fields.forEach((input,i)=>{input.value=restored.values[i]});
+    conferenceRows.forEach((x,i)=>{const cb=x.row.querySelector('input[type=checkbox]');if(cb&&!cb.disabled)cb.checked=restored.checks[i]===true});
+    fields.forEach(input=>input.dispatchEvent(new Event('input')));
+    status.textContent='Rascunho desta sessão recuperado.';
+   }
+   grid.addEventListener('change',capture);mark.addEventListener('click',capture);
+   const discard=el('button','Descartar rascunho desta sessão',panel);discard.type='button';discard.className='secondary';
+   discard.onclick=()=>{if(!host.isConnected||conferenceIdentity9828()!==sessionOwner||!confirm('Descartar somente os valores da conferência desta sessão?'))return;conferenceDrafts9828.delete(cacheKey);panel.remove();grid.removeEventListener('change',capture);mark.removeEventListener('click',capture);detailed.disabled=false;};
    detailed.disabled=true;
   };
  }
