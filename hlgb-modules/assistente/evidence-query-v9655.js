@@ -20,7 +20,7 @@ function mount(){
  const active=()=>host.isConnected&&input.isConnected&&auth()&&actor()===host.dataset.actor&&scopeStamp()===host.dataset.scope;
  const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='Consulta com evidências';const out=document.createElement('div');out.setAttribute('aria-live','polite');out.dataset.evidenceOutput='1';
  const help=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Exemplos de consultas';help.appendChild(summary);
- for(const [label,query] of [['Andamento de pedido','pedido 125'],['Histórico de modelo','histórico produto Camisola'],['Matéria-prima','material malha'],['Acertos de facção','acertos facção Roseli'],['Notas de cliente','acertos cliente NOME'],['Folha paga','acertos funcionário NOME'],['Previsão semanal','financeiro semana'],['Histórico produtivo','produção histórico'],['Resumo gerencial','resumo operação']]){
+ for(const [label,query] of [['Andamento de pedido','pedido 125'],['Histórico de modelo','histórico produto Camisola'],['Matéria-prima','material malha'],['Acertos de facção','acertos facção Roseli'],['Notas de cliente','acertos cliente NOME'],['Folha paga','acertos funcionário NOME'],['Previsão semanal','financeiro semana'],['Histórico produtivo','produção histórico'],['Resumo gerencial','resumo operação'],['Carteira de pedidos','carteira pedidos']]){
   const btn=document.createElement('button');btn.type='button';btn.className='secondary';btn.style.cssText='max-width:100%;white-space:normal';btn.textContent=label;btn.onclick=()=>{if(active()){input.value=query;out.replaceChildren();input.focus()}};help.appendChild(btn)
  }
  host.append(b,help,out);input.closest('.hlgb-assistant-input')?.insertAdjacentElement('afterend',host);if(!host.isConnected)input.insertAdjacentElement('afterend',host);
@@ -194,12 +194,64 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
    return result('observed',fmt(x.allocated)+' de '+fmt(pieces)+' peças sugeridas; '+fmt(x.unallocated)+' sem distribuição. '+(x.referenceDelivery?'Última entrega de referência: '+x.referenceDelivery+'. ':'')+'Ocorrências no histórico para revisão: '+x.historyIssues+'. Cenário local, capacidades e compatibilidade declaradas; não é promessa de entrega nem movimentação de estoque.',rows);
   }catch(_){return result('unavailable','Não foi possível conferir a distribuição. Nenhuma alteração foi feita.')}
  }
+ function portfolio(deps){
+  const allowed=()=>deps.auth()===true&&['pedidos','produtos','notas'].every(p=>deps.can(p)===true);
+  if(!allowed())return result('forbidden','Consulta de carteira não autorizada.');
+  const data={};for(const k of ['orders','products','projectionInvoices']){if(!allowed())return result('forbidden','Sessão alterada.');data[k]=deps.read(k);if(!allowed())return result('forbidden','Sessão alterada.');if(!Array.isArray(data[k]))return result('unavailable','Carteira ou notas locais indisponíveis.');}
+  const index=rows=>{const m=new Map();for(const r of rows.filter(live)){const k=sid(r.id);if(k)m.set(k,m.has(k)?null:r)}return m};
+  const validQty=v=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0&&v<=10000000;
+  const date=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+  const terminal=o=>/^(?:entregue|cancelad[oa]|finalizad[oa]|aguardando nota|faturad[oa])$/.test(norm(o.status)),orders=index(data.orders),products=index(data.products),notes=index(data.projectionInvoices),byPair=new Map(),uncertainOrders=new Set();let unlinkedNotes=0;
+  const key=(o,p)=>JSON.stringify([o,p]);
+  for(const n of data.projectionInvoices.filter(live)){
+   if(/cancelad|estornad|excluid/.test(norm(n.status)))continue;
+   if(!Array.isArray(n.items)||!n.items.length){if(sid(n.orderId))uncertainOrders.add(sid(n.orderId));else unlinkedNotes++;continue}
+   for(const item of n.items){const oid=sid(item?.orderId||n.orderId),pid=sid(item?.productId),nid=sid(n.id);
+    if(!oid||!pid){if(oid)uncertainOrders.add(oid);else unlinkedNotes++;continue}
+    const k=key(oid,pid),list=byPair.get(k)||[];list.push({nid,qty:item?.qty,valid:!!nid&&notes.get(nid)===n&&validQty(item?.qty)&&item.qty>0});byPair.set(k,list);
+   }
+  }
+  const rows=[];let review=0,terminalCount=0,active=0,gradeErrors=0,contracted=0;
+  const fmt=n=>n.toLocaleString('pt-BR');
+  for(const [oid,o] of orders){
+   if(!o){review++;rows.push({source:'orders',id:oid,label:'Pedido duplicado',detail:'Identidade ambígua; não somado.'});continue}
+   if(terminal(o)){terminalCount++;continue}
+   if(o.sourceOrderId||o.readyOrderId||o.fulfillmentByProduct){review++;rows.push({source:'orders',id:oid,label:'Pedido #'+sid(o.orderNumber||oid),detail:'Vínculo de desdobramento ou conclusão a conferir; não somado.'});continue}
+   active++;
+   const grade=o.grade,groups=new Map(),cells=new Set();let bad=!Array.isArray(grade)||!grade.length;
+   if(!bad)for(const g of grade){const pid=sid(g?.productId),color=sid(g?.color),size=sid(g?.size),k=JSON.stringify([pid,norm(color),norm(size)]);if(!products.get(pid)||!color||!size||!validQty(g?.qty)||cells.has(k)){bad=true;break}cells.add(k);groups.set(pid,(groups.get(pid)||0)+g.qty);}
+   if(bad||[...groups.values()].some(n=>!validQty(n)||!n)){review++;gradeErrors++;rows.push({source:'orders',id:oid,label:'Pedido #'+sid(o.orderNumber||oid),detail:'Grade ou modelo inconsistente; não somado.'});continue}
+   for(const [pid,qty] of groups){
+    contracted+=qty;
+    const m=o.projectionItems?.[pid],history=m?.deliveryHistory,links=byPair.get(key(oid,pid))||[],perNote=new Map();
+    let conflict=uncertainOrders.has(oid)||!!m?.clientAllocations?.length;
+    for(const a of links){if(!a.valid){conflict=true;continue}perNote.set(a.nid,(perNote.get(a.nid)||0)+a.qty)}
+    const noteQty=[...perNote.values()].reduce((a,b)=>a+b,0);if(!validQty(noteQty)||noteQty>qty)conflict=true;
+    let historical=null;
+    if(Array.isArray(history)&&history.length){const seen=new Set();let sum=0;for(const h of history){const nid=sid(h?.invoiceId);if(!nid||seen.has(nid)||!date(h.date)||!validQty(h.qty)||h.qty<=0||perNote.get(nid)!==h.qty){conflict=true;break}seen.add(nid);sum+=h.qty}
+     if(seen.size!==perNote.size||sum!==noteQty||sum>qty)conflict=true;else historical=sum;
+    }else if(history!=null&&!Array.isArray(history)||links.length||Number(m?.invoicedQty||0)>0)conflict=true;
+    if(m?.invoicedQty!=null&&(!validQty(m.invoicedQty)||m.invoicedQty!==noteQty))conflict=true;
+    const planDate=date(m?.date)?m.date:null,client=sid(o.productClientAssignments?.[pid]?.clientName||o.client||o.clientName)||'Cliente não informado';
+    const payment=deps.planningApi?.orderPaymentCondition?.(o,null,null,true),condition=payment?.mode==='cash'?'À vista':payment?.mode==='term'&&Number.isSafeInteger(payment.days)?payment.days+' dias':'Condição não confirmada';
+    const detail=[client,fmt(qty)+' contratadas',planDate?'Data da projeção '+planDate:'Data de projeção não informada',condition];
+    if(conflict){review++;detail.push('Divergência entre histórico/notas ou vínculo de cliente; saldo a conferir');}
+    else if(historical!==null){detail.push(fmt(historical)+' registradas em histórico e notas locais; diferença documental '+fmt(qty-historical));}
+    else detail.push('Sem histórico de entrega conciliado; quantidade restante não confirmada');
+    rows.push({source:'orders',id:oid+'/'+pid,label:'Pedido #'+sid(o.orderNumber||oid)+' · '+sid(products.get(pid).name||pid),detail:detail.join(' · ')});
+   }
+  }
+  if(!Number.isSafeInteger(contracted))return result('unavailable','Limite de quantidade excedido.');
+  if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+  return result('observed',active+' pedidos ativos examinados; '+fmt(contracted)+' peças contratadas em grades válidas (não saldo de produção). '+review+' ocorrências para revisão, '+gradeErrors+' grades inválidas, '+terminalCount+' pedidos em status de encerramento ou nota excluídos; '+unlinkedNotes+' registros de nota sem vínculo completo. Histórico e nota não comprovam expedição física nem sincronização. Até 50 linhas exibidas de '+rows.length+'. Não importa automaticamente para o simulador.',rows.slice(0,50));
+ }
  function ask(raw,deps){
   if(deps.auth()!==true)return result('forbidden','Entre no programa para consultar.');
   const q=String(raw??'').trim();if(!q||q.length>180)return result('unsupported','Informe uma consulta curta.');
   const m=q.match(/^(?:(?:status|andamento|situa[cç][aã]o)(?: do)? |como est[aá] (?:o )?)?pedido\s*#?\s*([A-Za-z0-9_-]{1,80})\??$/i),product=q.match(/^(?:hist[oó]rico(?: do)? produto|produto|modelo)\s+(.+)$/i),material=q.match(/^(?:material|mat[eé]ria.prima)\s+(.+)$/i),settlement=q.match(/^acertos?\s+(fac[cç][aã]o|cliente|funcion[aá]rio)\s+(.+)$/i),finance=/^(?:financeiro semana|previs[aã]o financeira semanal|como est[aá] o financeiro)\??$/i.test(q);
   const permitted=p=>deps.auth()===true&&deps.can(p)===true;
   try{
+   if(/^(?:carteira (?:de )?pedidos|carteira real|pedidos em aberto)\??$/i.test(q))return portfolio(deps);
    if(/^(?:distribuir produ[cç][aã]o|distribuir (?:entre )?fac[cç][oõ]es)\??$/i.test(q))return result('unsupported','Abra “Distribuir produção entre facções” na consulta com evidências e revise as premissas.');
    if(/^(?:simular novo pedido|avaliar novo pedido|simula[cç][aã]o de pedido)\??$/i.test(q))return result('unsupported','Abra “Simular novo pedido — prazo e caixa” na consulta com evidências e revise as premissas.');
    if(/^(?:resumo opera[cç][aã]o|resumo gerencial|vis[aã]o geral da opera[cç][aã]o)\??$/i.test(q))return operationOverview(deps,true);
