@@ -65,7 +65,7 @@ function classifyFailureEvidence978A(run,payload){
    return 'unknown-step';
   });
   const classification=kinds.length&&kinds.every(k=>k===kinds[0])?kinds[0]:'unknown-step';
-  rows.push({id:j.id,name:sid(j.name).slice(0,120),classification,failedSteps:steps.slice(0,20).map((s,i)=>({number:Number(s.number)||null,name:sid(s.name).slice(0,160),moduleCoverage:moduleCoverage978B(s.name,kinds[i])})),link:'https://github.com/'+REPO+'/actions/runs/'+Number(run.id)+'/job/'+j.id});
+  rows.push({id:j.id,name:sid(j.name).slice(0,120),classification,failedSteps:steps.slice(0,20).map((s,i)=>{const moduleCoverage=moduleCoverage978B(s.name,kinds[i]);return {number:Number(s.number)||null,name:sid(s.name).slice(0,160),moduleCoverage,repairHints:repairHints978C(run,j,moduleCoverage)}}),link:'https://github.com/'+REPO+'/actions/runs/'+Number(run.id)+'/job/'+j.id});
  }
  const kinds=new Set(rows.map(j=>j.classification)),classification=rows.length&&kinds.size===1?[...kinds][0]:rows.length?'mixed-evidence':'unclassified';
  return {...empty(rows.length?'observed-failed-steps':'no-failed-job-observed'),classification,jobs:rows,attempt:run.attempt,commit:run.commit};
@@ -86,6 +86,14 @@ function moduleCoverageLabel978B(e){
  if(e?.state==='test-path-unconfirmed')return 'Não foi possível identificar um teste individual pela etapa.';
  return '';
 }
+// Historical reviewed evidence candidates, not a diagnosis of a current failure.
+// CI validates the snapshot against the existing engineering evidence contract.
+function repairHistory978C(){return [{"id":"cut-remnant-selector-9661","workflow":"HLGB Comercial - Planejamento e dossie de Corte v96.61","testPath":"tests/hlgb-production-planning-v9661-browser.cjs","requiredJobs":["browser (chromium)","browser (webkit)"],"category":"test-locator","observed":"Strict mode: label Modelo de origem resolved to search and select in both engines.","correction":"Specify exact:true on the original select label, without removing any business assertion.","beforeRun":45304497656,"afterRun":45359414421,"beforeCommit":"4fdc40ffb07678a2f12bbddec7590b1f3bbaaf7f","afterCommit":"664a15e1090b8a79d0f782a921639525bd6c0c33"},{"id":"worker-passage-label-9659","workflow":"HLGB Comercial - Cadastro e acerto semanal v96.59","testPath":"tests/hlgb-worker-registry-v9659-browser.cjs","requiredJobs":["browser (chromium)","browser (webkit)"],"category":"test-locator","observed":"Both browser fixtures timed out waiting for the exact Passagem select.","correction":"Explicit aria-label on original select. Both browsers and contracts now pass.","beforeRun":45359414185,"afterRun":45361271637,"beforeCommit":"664a15e1090b8a79d0f782a921639525bd6c0c33","afterCommit":"e3e438d1ab7500df2ad1ddddfcb78fab03f22cb3"}]}
+function repairHints978C(run,job,coverage){
+ if(coverage?.state!=='mapped-test-coverage'||!run?.name||!job?.name)return [];
+ return repairHistory978C().filter(x=>x.workflow===run.name&&x.testPath===coverage.testPath&&x.requiredJobs.includes(job.name)&&x.beforeCommit!==run.commit&&x.afterCommit!==run.commit).map(x=>({...x,state:'historical-similarity-only',beforeLink:'https://github.com/'+REPO+'/actions/runs/'+x.beforeRun,afterLink:'https://github.com/'+REPO+'/actions/runs/'+x.afterRun,rootCauseConfirmed:false,canRepair:false}));
+}
+function repairHintLabel978C(h){return 'Caso anterior ('+h.id+'), hipótese a conferir nos logs atuais: '+h.observed+' | Correção histórica: '+h.correction+' | Evidências: '+h.beforeLink+' → '+h.afterLink}
 const failureLabels978A={'setup-step-failed':'Falha em etapa de preparação/instalação; causa não confirmada','test-step-failed':'Falha durante execução de testes; consultar logs para distinguir código/ambiente','unknown-step':'Etapa sem classificação segura','mixed-evidence':'Etapas de falha diferentes','unclassified':'Sem evidência suficiente'};
 let failureProbeBusy978A=false;
 async function probeFailures978A(){
@@ -383,7 +391,7 @@ function paint(){
   }
   const inspect=E('button','secondary',failureProbeBusy978A?'Consultando etapas…':'Conferir etapas com falha (até 5 execuções)');inspect.type='button';inspect.disabled=failureProbeBusy978A||!!busy||!!error||Date.now()-fetchedAt>=MAX_AGE;inspect.onclick=()=>probeFailures978A();list.append(inspect);
   const ev=latest.failureEvidence;
-  if(ev){list.append(E('p','sub','Etapas consultadas: '+ev.reviewedRuns+' de '+ev.totalFailed+' execuções com falha. A causa não foi comprovada.'));for(const row of ev.rows){const item=E('details','');item.append(E('summary','',row.runId+' · '+failureLabels978A[row.classification]));for(const job of row.jobs){const link=E('a','',job.name+' — '+failureLabels978A[job.classification]);link.href=job.link;link.target='_blank';link.rel='noopener noreferrer';item.append(link);for(const step of job.failedSteps){item.append(E('p','sub',step.name));const coverage=moduleCoverageLabel978B(step.moduleCoverage);if(coverage)item.append(E('p','sub',coverage))}}list.append(item)}}
+  if(ev){list.append(E('p','sub','Etapas consultadas: '+ev.reviewedRuns+' de '+ev.totalFailed+' execuções com falha. A causa não foi comprovada.'));for(const row of ev.rows){const item=E('details','');item.append(E('summary','',row.runId+' · '+failureLabels978A[row.classification]));for(const job of row.jobs){const link=E('a','',job.name+' — '+failureLabels978A[job.classification]);link.href=job.link;link.target='_blank';link.rel='noopener noreferrer';item.append(link);for(const step of job.failedSteps){item.append(E('p','sub',step.name));const coverage=moduleCoverageLabel978B(step.moduleCoverage);if(coverage)item.append(E('p','sub',coverage));for(const hint of step.repairHints||[])item.append(E('p','sub',repairHintLabel978C(hint)))}}list.append(item)}}
   result.append(list);
  }else if(ci.completed===0){
   result.append(E('div','sub','Os testes do commit atual ainda não foram concluídos ou não foram encontrados.'));
@@ -415,7 +423,7 @@ function humanSummary(data){
   'Publicação: '+(!p.checked?'não comprovada':p.current?'mesmo commit do main':'não corresponde ao main'),
   'Safari ↔ Chrome reais: NÃO COMPROVADO'];
  for(const f of ci.failingWorkflows)lines.push('FALHA — '+f.name+' — '+f.url);
- if(data.failureEvidence){lines.push('ETAPAS DE FALHA — '+data.failureEvidence.reviewedRuns+' de '+data.failureEvidence.totalFailed+' execuções; causa não confirmada.');for(const r of data.failureEvidence.rows){lines.push('Execução '+r.runId+' · '+failureLabels978A[r.classification]);for(const j of r.jobs)lines.push(j.name+' · '+j.failedSteps.map(s=>[s.name,moduleCoverageLabel978B(s.moduleCoverage)].filter(Boolean).join(' — ')).join(', ')+' · '+j.link)}}
+ if(data.failureEvidence){lines.push('ETAPAS DE FALHA — '+data.failureEvidence.reviewedRuns+' de '+data.failureEvidence.totalFailed+' execuções; causa não confirmada.');for(const r of data.failureEvidence.rows){lines.push('Execução '+r.runId+' · '+failureLabels978A[r.classification]);for(const j of r.jobs)lines.push(j.name+' · '+j.failedSteps.map(s=>[s.name,moduleCoverageLabel978B(s.moduleCoverage),...(s.repairHints||[]).map(repairHintLabel978C)].filter(Boolean).join(' — ')).join(', ')+' · '+j.link)}}
  if(l)lines.push('Execução do monitor: '+l.link);
  return lines.filter(Boolean).join('\n');
 }
@@ -504,7 +512,7 @@ function openStandalone(){
  return onOpen();
 }
 window.hlgbHourlyHealthPanel9541={
- version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,parse,classifyFailureEvidence978A,moduleCoverage978B,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
+ version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,parse,classifyFailureEvidence978A,moduleCoverage978B,repairHints978C,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
  status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,accessEvidence,retryAfterAt,latest:report()})
 };
 })();

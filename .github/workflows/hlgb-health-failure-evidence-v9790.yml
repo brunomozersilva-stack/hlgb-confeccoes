@@ -5,6 +5,9 @@ on:
       - 'release-health-monitor-panel-v9541.js'
       - 'tests/health-failure-evidence-v9790.cjs'
       - 'tests/health-failure-module-coverage-v9791.cjs'
+      - 'tests/health-repair-history-v9792.cjs'
+      - 'hlgb-modules/engenharia/ci-regression-cases-v9671.json'
+      - 'hlgb-modules/engenharia/ci-evidence-v9671.cjs'
       - 'hlgb-modules/engenharia/test-matrix-v9638.json'
       - '.github/workflows/hlgb-health-failure-evidence-v9790.yml'
   workflow_dispatch:
@@ -21,3 +24,4 @@ jobs:
       - run: node --check release-health-monitor-panel-v9541.js
       - run: node tests/health-failure-evidence-v9790.cjs
       - run: node tests/health-failure-module-coverage-v9791.cjs
+      - run: node tests/health-repair-history-v9792.cjs
