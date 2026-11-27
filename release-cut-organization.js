@@ -324,18 +324,53 @@ function openJointSimulation9837(){
  for(const x of [totalWeight,usedWeight,wasteWeight,actualPieces,width])x.inputMode='decimal';
  const modeLabel=el('label','Tipo de peso ',trial),mode=el('select','',modeLabel);
  for(const [value,title] of [['estimated','Estimado / simulação'],['measured','Medido, informado manualmente']]){const o=el('option',title,mode);o.value=value}
+ const physical=el('fieldset','',trial);el('legend','Conferência física para comparar resultados',physical);
+ el('p','Dados informados manualmente. Não substituem a conferência dos moldes, do lote e do encaixe.',physical);
+ function physicalField(title){const label=el('label',title+' ',physical);label.style.cssText='display:block;margin:6px 0';const x=el('input','',label);x.type='text';x.maxLength=120;x.setAttribute('aria-label',title);x.style.maxWidth='100%';return x}
+ const composition=physicalField('Composição do tecido'),stretch=physicalField('Elasticidade do tecido'),grain=physicalField('Sentido do fio'),constraint=physicalField('Restrição de corte (ou nenhuma)');
+ const checkLabel=el('label','',physical),physicalCheck=el('input','',checkLabel);physicalCheck.type='checkbox';el('span',' Conferi o mesmo lote, cor física, largura, elasticidade, sentido e restrições em todos os modelos selecionados.',checkLabel);
+ const compatibility=el('p','',physical);compatibility.setAttribute('role','status');
+ const comparison=el('p','',trial);comparison.dataset.jointComparison9839='1';
  const metrics=el('p','',trial);metrics.setAttribute('role','status');
  const history=el('div','',trial);
  const validOwner=()=>host.isConnected&&jointAllowed9837()&&conferenceIdentity9828()===owner&&jointTrialOwner9838===owner;
  const decimal=x=>/^\d{1,8}(?:[.,]\d{1,3})?$/.test(x.value.trim())?Number(x.value.trim().replace(',','.')):null;
  const fmt=n=>n.toLocaleString('pt-BR',{maximumFractionDigits:3});
+ const allPhysical=[composition,stretch,grain,constraint];
+ function physicalEvidence(rows){
+  const values=allPhysical.map(x=>x.value.trim());
+  const singleColor=new Set(rows.map(x=>norm(x.color))).size===1;
+  const checked=rows.length>=2&&singleColor&&!!lot.value.trim()&&decimal(width)>0&&values.every(Boolean)&&physicalCheck.checked;
+  compatibility.textContent=!singleColor&&rows.length?'Cores distintas: compare e confira cada cor separadamente.':checked?'Conferência física informada; encaixe dos moldes ainda não comprovado.':'Compatibilidade física pendente: confira lote, largura e propriedades antes de comparar resultados.';
+  return {composition:values[0],stretch:values[1],grain:values[2],constraint:values[3],checked};
+ }
+ function mixKey(rows){
+  return JSON.stringify(rows.map(x=>[x.productId,norm(x.color),x.grade.map(g=>[g.size,g.qty]).sort((a,b)=>a[0].localeCompare(b[0]))]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))));
+ }
+ function selectedMix(){return selectedRows().map(x=>({productId:x.productId,color:x.color,grade:x.lines.map(l=>({size:l.size,qty:l.ordered}))}))}
+ function comparable(weight){
+  if(!group||!weight?.physical?.checked){comparison.textContent='Comparação histórica indisponível sem conferência física completa.';return}
+  const p=weight.physical,key=mixKey(selectedMix());
+  const rows=jointTrials9838.filter(h=>h.materialId===group.materialId&&h.weight.kind==='measured'&&h.weight.physical?.checked&&h.weight.actualPieces>0&&h.weight.widthCm===weight.widthCm&&norm(h.weight.lot)===norm(weight.lot)&&['composition','stretch','grain','constraint'].every(k=>norm(h.weight.physical[k])===norm(p[k]))&&mixKey(h.rows)===key);
+  if(!rows.length){comparison.textContent='Nenhum resultado medido comparável nesta sessão. Estimativas não entram na média.';return}
+  const total=rows.reduce((n,h)=>n+h.weight.totalKg,0),used=rows.reduce((n,h)=>n+h.weight.usedKg,0),pieces=rows.reduce((n,h)=>n+h.weight.actualPieces,0);
+  comparison.textContent='Referência medida nesta sessão: '+rows.length+' combinação(ões) · aproveitamento ponderado '+fmt(100*used/total)+'% · '+fmt(pieces/total)+' peças/kg. Amostra manual; não garante economia futura.';
+ }
  function evaluateTrial(){
   const rows=selectedRows(),total=decimal(totalWeight),used=decimal(usedWeight),waste=decimal(wasteWeight),qty=decimal(actualPieces),w=decimal(width);
   if(rows.length<2||total===null||total<=0||total>20000||used===null||waste===null||used>total||waste>total||used+waste>total+.000001||actualPieces.value.trim()&&(!Number.isSafeInteger(qty)||qty<0)||width.value.trim()&&(w===null||w<=0))return null;
-  return {totalKg:total,usedKg:used,wasteKg:waste,remainderKg:Math.max(0,+(total-used-waste).toFixed(3)),usedPercent:+(100*used/total).toFixed(2),wastePercent:+(100*waste/total).toFixed(2),actualPieces:qty,piecesPerKg:mode.value==='measured'&&qty!==null?+(qty/total).toFixed(3):null,widthCm:w,lot:lot.value.trim(),note:note.value.trim(),kind:mode.value};
+  return {physical:physicalEvidence(rows),totalKg:total,usedKg:used,wasteKg:waste,remainderKg:Math.max(0,+(total-used-waste).toFixed(3)),usedPercent:+(100*used/total).toFixed(2),wastePercent:+(100*waste/total).toFixed(2),actualPieces:qty,piecesPerKg:mode.value==='measured'&&qty!==null?+(qty/total).toFixed(3):null,widthCm:w,lot:lot.value.trim(),note:note.value.trim(),kind:mode.value};
  }
- function updateTrial(){const x=evaluateTrial();metrics.textContent=x?'Aproveitamento '+fmt(x.usedPercent)+'% · Refugo '+fmt(x.wastePercent)+'% · Peso restante não classificado '+fmt(x.remainderKg)+' kg'+(x.piecesPerKg===null?'':' · '+fmt(x.piecesPerKg)+' peças/kg'):'Preencha pesos válidos: aproveitado + refugo não pode superar o total.';return x}
- for(const x of [totalWeight,usedWeight,wasteWeight,actualPieces,lot,width,note,mode])x.addEventListener('input',updateTrial);
+ function updateTrial(){const x=evaluateTrial();physicalEvidence(selectedRows());comparable(x);metrics.textContent=x?'Aproveitamento '+fmt(x.usedPercent)+'% · Refugo '+fmt(x.wastePercent)+'% · Peso restante não classificado '+fmt(x.remainderKg)+' kg'+(x.piecesPerKg===null?'':' · '+fmt(x.piecesPerKg)+' peças/kg'):'Preencha pesos válidos: aproveitado + refugo não pode superar o total.';return x}
+ for(const x of [totalWeight,usedWeight,wasteWeight,actualPieces,note,mode])x.addEventListener('input',updateTrial);
+ for(const x of [lot,width,...allPhysical])x.addEventListener('input',()=>{physicalCheck.checked=false;updateTrial()});
+ physicalCheck.addEventListener('change',updateTrial);
+ let lastSelection='';
+ function resetTrialForSelection(){
+  const key=JSON.stringify([group?.materialId,selectedRows().map(x=>x.key)]);
+  if(lastSelection&&key!==lastSelection){for(const x of [totalWeight,usedWeight,wasteWeight,actualPieces,lot,width,note,...allPhysical])x.value='';physicalCheck.checked=false;mode.value='estimated';}
+  lastSelection=key;
+ }
  function showHistory(){
   history.replaceChildren();el('h4','Combinações registradas nesta sessão',history);
   for(const h of jointTrials9838.slice().reverse()){
@@ -343,7 +378,7 @@ function openJointSimulation9837(){
    el('strong',h.materialName+' · '+h.rows.length+' seleções · '+h.weight.kind+' · '+new Date(h.at).toLocaleString('pt-BR'),item);
    el('p',h.rows.map(x=>x.name+' / Pedido '+x.number+' / '+x.color).join(' · '),item);
    el('p','Peso total '+fmt(h.weight.totalKg)+' kg · aproveitamento '+fmt(h.weight.usedPercent)+'% · refugo '+fmt(h.weight.wastePercent)+'%',item);
-   el('p','Lote: '+(h.weight.lot||'Não informado')+' · '+(h.weight.note||'Sem observação'),item);
+   el('p','Lote: '+(h.weight.lot||'Não informado')+' · '+(h.weight.note||'Sem observação')+' · '+(h.weight.physical?.checked?'Conferência física informada':'Conferência física pendente'),item);
   }
   if(!jointTrials9838.length)el('p','Nenhuma combinação registrada nesta sessão.',history);
  }
@@ -353,7 +388,7 @@ function openJointSimulation9837(){
   const rows=selectedRows().map(x=>({orderId:x.orderId,productId:x.productId,name:x.name,color:x.color,...orderMeta(x.orderId),grade:x.lines.map(l=>({size:l.size,qty:l.ordered}))}));
   const record={kind:'joint-cut-trial-not-confirmed',at:new Date().toISOString(),materialId:group.materialId,materialName:group.materialName,rows,weight};
   if(jointTrials9838.length>=30){metrics.textContent='Limite de 30 combinações nesta sessão. Exporte o caderno antes de sair.';return}
-  jointTrials9838.push(record);showHistory();metrics.textContent='Combinação registrada somente nesta sessão. '+metrics.textContent;
+  jointTrials9838.push(record);showHistory();comparable(weight);metrics.textContent='Combinação registrada somente nesta sessão. '+metrics.textContent;
  });
  button('Exportar histórico da sessão (JSON)',trial,()=>{
   if(!validOwner()||!jointTrials9838.length)return;
@@ -408,7 +443,7 @@ function openJointSimulation9837(){
  }
  function compare(){
   result.replaceChildren();if(!jointAllowed9837()){host.remove();return}
-  const rows=selectedRows();printCombined.disabled=printIndividual.disabled=rows.length<2;updateTrial();
+  const rows=selectedRows();printCombined.disabled=printIndividual.disabled=rows.length<2;resetTrialForSelection();updateTrial();
   if(!rows.length){status.textContent='Selecione os modelos e cores que deseja testar.';return}
   const pieces=rows.reduce((n,x)=>n+x.lines.reduce((a,l)=>a+l.ordered,0),0);
   const colors=new Set(rows.map(x=>norm(x.color)));
