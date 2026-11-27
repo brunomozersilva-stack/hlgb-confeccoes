@@ -14,5 +14,6 @@ const available=[...new Set(Object.values(testMatrix).flat())].filter(p=>/^tests
 const priority=plan(testMatrix,risk,available);
 const learned=api.learning(JSON.parse(read('hlgb-modules/engenharia/incident-cases-v9637.json')));
 const ciEvidence=require('./ci-evidence-v9671.cjs').review(JSON.parse(read('hlgb-modules/engenharia/ci-regression-cases-v9671.json')));
-process.stdout.write(JSON.stringify({ciEvidence,schema:'hlgb-preventive-v9637',base,head,graph,risk,priority,learned},null,2)+'\n');
+const repairInsights=require('./repair-insights-v9793.cjs').analyze({cases:JSON.parse(read('hlgb-modules/engenharia/ci-regression-cases-v9671.json')),captures:JSON.parse(read('hlgb-modules/engenharia/ci-repair-timing-v9793.json')),matrix:testMatrix,impact:risk,priority});
+process.stdout.write(JSON.stringify({repairInsights,ciEvidence,schema:'hlgb-preventive-v9637',base,head,graph,risk,priority,learned},null,2)+'\n');
 if(graph.findings.length||priority.missing.length)process.exitCode=1;

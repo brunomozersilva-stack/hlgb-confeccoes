@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/engenharia/repair-insights-v9793.cjs'),cases=require('../hlgb-modules/engenharia/ci-regression-cases-v9671.json'),captures=require('../hlgb-modules/engenharia/ci-repair-timing-v9793.json'),matrix=require('../hlgb-modules/engenharia/test-matrix-v9638.json');
+const input={cases,captures,matrix,impact:{areas:['corte-cortadores']},priority:{priority:[cases[0].regressionTest]}},before=JSON.stringify(input),r=api.analyze(input);
+assert.equal(r.accepted.length,2);assert.equal(r.related.length,1);assert.equal(r.related[0].reason,'exact-priority-test');assert.equal(r.related[0].rootCauseConfirmed,false);
+assert.equal(r.metrics.length,2);assert.equal(r.metrics[0].elapsedBetweenRunUpdatesSeconds,1962);assert.equal(r.metrics[1].elapsedBetweenRunUpdatesSeconds,461);assert.equal(r.metrics[0].actualHandsOnRepairTimeKnown,false);assert.equal(r.fullSuiteRequired,true);assert.equal(r.canAutoRepair,false);
+assert.equal(api.analyze({...input,priority:{priority:[]}}).related[0].reason,'shared-module-coverage');
+assert.equal(api.analyze({...input,impact:{areas:[]},priority:{priority:[]}}).related.length,0);
+assert.equal(api.analyze({...input,captures:[]}).missingTiming.length,2);
+const bad=JSON.parse(JSON.stringify(captures));bad[0].after.commit='f'.repeat(40);assert.equal(api.analyze({...input,captures:bad}).metrics.length,1);
+bad[0]=JSON.parse(JSON.stringify(captures[0]));bad[0].after.createdAt='2026-11-23T01:00:00Z';assert.equal(api.analyze({...input,captures:bad}).metrics.length,1);
+assert.equal(api.analyze({...input,cases:[cases[0],cases[0]]}).accepted.length,0);
+assert.equal(api.analyze({...input,cases:[{...cases[0],logReviewed:false}]}).accepted.length,0);
+assert.equal(JSON.stringify(input),before);
+console.log('PASS historical risk association, timing identity and conservative limits');
