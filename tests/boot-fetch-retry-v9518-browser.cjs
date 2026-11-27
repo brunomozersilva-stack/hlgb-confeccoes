@@ -25,6 +25,14 @@ async function setup(browser){
    await page.waitForSelector('#loginScreen',{timeout:25000});
    await page.waitForFunction(()=>window.__HLGB_BOOT_READY_9477===true,{timeout:15000});
    assert.equal(tries,2,'a failed fetch must recover on the second attempt');
+   const phase=await page.evaluate(()=>({metric:window.hlgbBootPhases9844,links:[...document.querySelectorAll('link[rel=preload][as=script]')].map(n=>n.href),scripts:[...document.scripts].filter(n=>n.src).map(n=>n.src)}));
+   assert.equal(phase.metric.baseAttempts,2);assert.equal(phase.metric.bootReady,true);
+   assert.equal(phase.metric.preloadCount,6);assert.equal(phase.links.length,6);
+   for(const link of phase.links)assert.equal(phase.scripts.filter(s=>s===link).length,1,'preload must reuse exact script URL, not create a second script');
+   for(const key of ['baseFetchMs','patchMs','scriptsAndDocumentMs','totalMs'])assert.ok(Number.isFinite(phase.metric[key])&&phase.metric[key]>=0);
+   assert.ok(Math.abs(phase.metric.totalMs-phase.metric.baseFetchMs-phase.metric.patchMs-phase.metric.scriptsAndDocumentMs)<1);
+   assert.ok(phase.metric.baseFetchMs>=450,'retry delay included in fetch phase');
+   console.log('BOOT_PHASES_9844 '+JSON.stringify(phase.metric));
    assert.deepEqual(errors,[],'boot must not generate JavaScript page errors');
    await context.close();
   }
