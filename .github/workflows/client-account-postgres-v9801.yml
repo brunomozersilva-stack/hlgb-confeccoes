@@ -45,3 +45,7 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/records-fixture.sql
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/records-candidate.sql
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/records-contract.sql
+      - name: Verify documentary forecast link and linked partial receipt
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/forecast-link.sql
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/forecast-link-contract.sql

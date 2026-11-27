@@ -5,6 +5,8 @@ on:
     paths:
       - 'app-stable3.html'
       - 'release-hub-save-proof-v9567.js'
+      - 'release-hub-delivery-v9324.js'
+      - 'tests/hub-save-ack-v9483.cjs'
       - 'release-hub-primary-v9323.js'
       - 'release-hub-learning-v9568.js'
       - 'tests/hub-save-v9483-fixture.html'
@@ -17,6 +19,8 @@ on:
     paths:
       - 'app-stable3.html'
       - 'release-hub-save-proof-v9567.js'
+      - 'release-hub-delivery-v9324.js'
+      - 'tests/hub-save-ack-v9483.cjs'
       - 'release-hub-primary-v9323.js'
       - 'release-hub-learning-v9568.js'
       - 'tests/hub-save-v9483-fixture.html'

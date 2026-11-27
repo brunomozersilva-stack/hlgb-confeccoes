@@ -100,5 +100,13 @@ function setup(){
  const f=setup();f.setCorruptRead(true);
  await assert.rejects(f.win.hlgbHubSaveConfirmed(updated,false,{source:'edit-button',original:initial}),/releitura|Conflito/);
  assert.equal(f.db.hubFinanceEntries[0].value,25);
+ const g=setup(),linked={...initial,flow:'Entrada',sourceType:'client_note_forecast_v9815',sourceId:'title-1',projectionInvoiceId:'note-1',clientId:'c',clientForecastLinkV9815:{reference:'link-1',titleId:'title-1'}};
+ g.server.get('hub-test-1').data=clone(linked);g.db.hubFinanceEntries[0]=clone(linked);g.snaps.hubFinanceEntries.get('hub-test-1').data=clone(linked);
+ await assert.rejects(g.win.hlgbHubSaveConfirmed({...linked,clientForecastLinkV9815:{...linked.clientForecastLinkV9815,updatedAt:'changed'}},false,{original:linked}),/Vínculo financeiro protegido/);
+ await assert.rejects(g.win.hlgbHubSaveConfirmed({...linked,value:9},false,{original:linked}),/Vínculo financeiro protegido/);
+ await assert.rejects(g.win.hlgbHubSaveConfirmed(initial,false,{original:linked}),/Vínculo financeiro protegido/);
+ await assert.rejects(g.win.hlgbHubSaveConfirmed({...linked,id:'new-linked'},false),/Vínculo financeiro protegido/);
+ assert.equal(g.calls.length,0);
+ const desc=await g.win.hlgbHubSaveConfirmed({...linked,description:'Descrição revisada'},false,{original:linked});assert.equal(desc.remoteVerified,true);assert.deepEqual(desc.data.clientForecastLinkV9815,linked.clientForecastLinkV9815);
  console.log('PASS v94.83: localStorage quota, ACK, revision, readback, retry-ID, conflict, offline, and false-ok are guarded');
 })().catch(e=>{console.error(e);process.exitCode=1});

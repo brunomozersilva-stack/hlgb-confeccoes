@@ -43,10 +43,11 @@ begin
   select coalesce(sum(records_lab.cents(e->'value')),0) into hist from jsonb_array_elements(coalesce(n.data->'paymentHistory','[]')) e;
   select coalesce(sum(records_lab.cents(e->'value')),0) into credit from jsonb_array_elements(coalesce(n.data->'acertoReturnsV9565','[]')) e where coalesce(e->>'reversedAt','')='';
   if paid<>hist or available<=0 or total-paid-credit<>available or records_lab.cents(t.data->'value')<>total or records_lab.cents(t.data->'paid')<>paid or records_lab.cents(t.data->'remaining')<>available or records_lab.cents(coalesce(t.data->'creditReturnsV9565','0'))<>credit then raise exception 'balance';end if;
-  select count(*) into cnt from records_lab.hlgb_records x where x.module='hubFinanceEntries' and x.deleted_at is null and x.data->>'sourceType'='lab-title-forecast' and x.data->>'sourceId'=t.entity_id;
+  select count(*) into cnt from records_lab.hlgb_records x where x.module='hubFinanceEntries' and x.deleted_at is null and x.data->>'sourceType' in ('lab-title-forecast','client_note_forecast_v9815') and x.data->>'sourceId'=t.entity_id;
   if cnt<>1 then raise exception 'forecast-count';end if;
-  select * into h from records_lab.hlgb_records x where x.module='hubFinanceEntries' and x.deleted_at is null and x.data->>'sourceType'='lab-title-forecast' and x.data->>'sourceId'=t.entity_id for update;
+  select * into h from records_lab.hlgb_records x where x.module='hubFinanceEntries' and x.deleted_at is null and x.data->>'sourceType' in ('lab-title-forecast','client_note_forecast_v9815') and x.data->>'sourceId'=t.entity_id for update;
   if h.data->>'clientId' is distinct from p_client or h.data->>'flow' is distinct from 'Entrada' or h.data->>'status' is distinct from 'Previsto' or records_lab.cents(h.data->'value')<>available then raise exception 'forecast-balance';end if;
+  if h.data->>'sourceType'='client_note_forecast_v9815' and (h.data->>'projectionInvoiceId' is distinct from n.entity_id or h.data->'clientForecastLinkV9815'->>'titleId' is distinct from t.entity_id or h.data->'clientForecastLinkV9815'->>'clientId' is distinct from p_client) then raise exception 'forecast-link-identity';end if;
   applied:=least(remaining,available);if applied=0 then raise exception 'unused-selection';end if;
   next_status:=case when applied=available then 'Pago' else 'Parcial' end;
   event:=jsonb_build_object('id','global-receipt:'||p_ref||':'||n.entity_id,'value',applied::numeric/100,'method',p_method,'date',p_day,'globalPaymentReference9775',p_ref,'actorId',actor,'createdAt',ts);
