@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/assistente/evidence-query-v9655.js'),planning=require('../hlgb-modules/producao/production-planning-v9661.js');
+const deps={auth:()=>true,can:()=>true,today:()=> '2026-11-23',planningApi:planning,read:()=>{throw Error('no reads')}};
+const raw={reviewed:true,weeklyGoal:'1000',buffer:'10',pieces:'100',dueDate:'2026-12-04',receipt:'5000',paymentDays:'0',cost:'3000',costDate:'2026-11-24',opening:'4000',reserve:'2000',delay:'14',queue:'2026-11-27 | 600 | Cliente prazo | 30\n2026-11-27 | 600 | Cliente vista | 0',cash:'2026-11-24 | saída | 1000',closed:''};
+const review=x=>x.rows.find(r=>r.id==='priority'),ordered=x=>x.rows.filter(r=>r.label.startsWith('Alternativa '));
+let x=api.simulateOrder(raw,deps);assert.equal(x.state,'observed');assert.equal(x.canWrite,false);assert.match(review(x).detail,/Não recomendar troca/);assert.match(ordered(x)[0].label,/Cliente vista/);assert.match(ordered(x)[1].label,/Cliente prazo/);
+x=api.simulateOrder({...raw,queue:raw.queue.replaceAll('600','300')},deps);assert.match(review(x).detail,/Alternativa sem aumento/);
+x=api.simulateOrder({...raw,queue:'2026-11-26 | 300 | Cliente prazo | 30\n2026-11-27 | 300 | Cliente vista | 0'},deps);assert.match(ordered(x)[0].label,/Cliente prazo/);assert.match(review(x).detail,/coincide/);
+x=api.simulateOrder({...raw,queue:'2026-11-27 | 300 | Sem condição | ?\n2026-11-27 | 300 | Cliente vista | 0'},deps);assert.match(review(x).detail,/1 condição/);assert.match(ordered(x)[1].detail,/desconhecida/);
+assert.equal(api.simulateOrder({...raw,queue:'2026-11-27 | 300 | Cliente | -1'},deps).state,'unsupported');
+const a=api.simulateOrder({...raw,queue:'2026-11-27 | 600\n2026-11-27 | 600'},deps),b=api.simulateOrder(raw,deps);assert.deepEqual(a.rows.slice(0,7),b.rows.slice(0,7),'priority is advisory, base cash and capacity unchanged');
+assert.equal(api.simulateOrder(raw,{...deps,can:p=>p!=='pedidos'}).state,'forbidden');
+console.log('PASS payment priority, protected deadlines, per-order delay comparison and unchanged cash scenario');
