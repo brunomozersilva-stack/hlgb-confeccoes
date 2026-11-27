@@ -29,7 +29,10 @@ begin
  grade:=case when jsonb_typeof(c.data->'actualCutGrade')='array' and jsonb_array_length(c.data->'actualCutGrade')>0 then c.data->'actualCutGrade' when jsonb_typeof(c.data->'originalGrade')='array' and jsonb_array_length(c.data->'originalGrade')>0 then c.data->'originalGrade' else (select jsonb_agg(g) from jsonb_array_elements(o.data->'grade') g where g->>'productId'=p_product) end;
  if grade is null or exists(select 1 from jsonb_array_elements(grade) g where (g->>'productId' is not null and g->>'productId'<>p_product) or (g->>'orderId' is not null and g->>'orderId'<>p_order) or coalesce(trim(g->>'color'),'')='' or coalesce(trim(g->>'size'),'')='' or coalesce(g->>'qty','') !~ '^[0-9]{1,9}$') or exists(select 1 from jsonb_array_elements(grade) g group by checklist_lab.norm_name(g->>'color'),checklist_lab.norm_name(g->>'size') having count(*)>1) then raise exception 'invalid-grade';end if;
  select jsonb_agg(g) into grade from jsonb_array_elements(grade) g where (g->>'qty')::numeric>0;
- if checklist_lab.norm_name(c.data->>'status')='finalizado' and (select sum((g->>'qty')::numeric) from jsonb_array_elements(grade) g) is distinct from case when coalesce(c.data->>'pieces','')~'^[0-9]+$' then (c.data->>'pieces')::numeric else null end then raise exception 'invalid-final-grade';end if;
+ if checklist_lab.norm_name(c.data->>'status')='finalizado' then
+  if coalesce(c.data->>'pieces','') !~ '^[0-9]+$' then raise exception 'invalid-final-grade';end if;
+  if (select sum((g->>'qty')::numeric) from jsonb_array_elements(grade) g) is distinct from (c.data->>'pieces')::numeric then raise exception 'invalid-final-grade';end if;
+ end if;
  select jsonb_agg(jsonb_build_object('color',color,'pieces',pieces) order by color) into colors from (select g->>'color' as color,sum((g->>'qty')::numeric) as pieces from jsonb_array_elements(grade) g group by g->>'color' having sum((g->>'qty')::numeric)>0) x;
  if colors is null or jsonb_typeof(p.data->'materials') is distinct from 'array' or jsonb_array_length(p.data->'materials')=0 then raise exception 'empty-source';end if;
  refs:=jsonb_build_object('cut',c.revision,'order',o.revision,'product',p.revision,'materials','{}'::jsonb);
