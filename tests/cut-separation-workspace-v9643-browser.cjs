@@ -86,6 +86,12 @@
  await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id="32"] summary').click();
  await p.evaluate(()=>{window.__stableHistoryNode=document.querySelector('[data-completed-cut-id="32"]');window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await p.locator('#hlgbCompletedHistory9770 [data-completed-cut-id]').count(),3);assert.equal(await p.evaluate(()=>window.__stableHistoryNode===document.querySelector('[data-completed-cut-id="32"]')&&window.__stableHistoryNode.querySelector('details').open),true);
  assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__historyBefore),true);
+ await p.evaluate(()=>{db.cuts.find(c=>c.id===31).finishedAt='2026-11-22';window.hlgbCutOrganization.apply()});
+ assert.equal(await p.locator('[data-completed-cut-id="32"] details[data-hlgb-history-grade9819]').evaluate(x=>x.open),true,'another cut changed: unchanged open grade stays open');
+ await p.evaluate(()=>{db.cuts.find(c=>c.id===32).actualCutGrade[0].color='Rubi';window.hlgbCutOrganization.apply()});
+ assert.equal(await p.locator('[data-completed-cut-id="32"] details[data-hlgb-history-grade9819]').evaluate(x=>x.open),false,'changed grade must be reopened for review');
+ await p.evaluate(()=>{db.cuts.find(c=>c.id===31).finishedAt='2026-11-20';db.cuts.find(c=>c.id===32).actualCutGrade[0].color='Branco';window.hlgbCutOrganization.apply()});
+
  await p.locator('#hlgbCutStatus9770').selectOption('');assert.equal(await p.locator('#hlgbCompletedHistory9770').count(),0);assert.equal(await p.locator('#cutTable').isVisible(),true);
  await p.evaluate(()=>{db.cuts=db.cuts.filter(c=>Number(c.id)<31);window.hlgbCutOrganization.apply()});
  // Merchandise projection uses explicit model coverage, not status or payment.

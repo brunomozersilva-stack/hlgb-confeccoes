@@ -70,3 +70,11 @@ assert.notEqual(page.signature,api.historyPage9799(more,{q:'camisola'},false,25)
 const changed={...more,rows:more.rows.map((r,i)=>i===25?{...r,meta:{...r.meta,pieces:99}}:r)};assert.notEqual(page.signature,api.historyPage9799(changed,{},false,25).signature);
 assert.equal(api.historyPage9799(more,{},true,25).rows.length,0);assert.equal(api.historyPage9799(more,{},true,25).pageOffset,0);
 console.log('PASS unified work excludes completed models; historical pagination and stable evidence signature');
+
+// Deleted copies cannot make a live cut or its catalogue identity ambiguous.
+context.db.cuts.push({...completed,deleted:true});context.db.products.push({...context.db.products[0],deleted:true});
+assert.equal(api.cutIndex9709().cuts.get('done-1').id,'done-1');assert.equal(api.cutIndex9709().products.get('11').name,'Camisola Liliane');
+const wrong={...completed,id:'wrong-model',actualCutGrade:[{productId:12,color:'Preto',size:'P',qty:100}]};
+const badGrade=api.completedCutHistory([wrong],api.cutIndex9709()).rows[0];assert.equal(badGrade.grade.length,0);assert(badGrade.reasons.includes('Grade realizada a conferir'));
+const empty={...completed,id:'zero',pieces:0,actualCutGrade:[{productId:11,color:'Preto',size:'P',qty:0}]};assert.equal(api.completedCutHistory([empty],api.cutIndex9709()).rows[0].grade.length,0);
+console.log('PASS live identity and exact model in history');
