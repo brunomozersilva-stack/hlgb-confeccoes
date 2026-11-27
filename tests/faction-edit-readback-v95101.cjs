@@ -36,6 +36,7 @@ function fixture(settings={}){
    let persisted=clone(record);
    if(settings.ackTimestampNormalization)persisted.updatedAt='2026-11-14T16:00:01.000Z';
    if(settings.corruptAck)persisted.value+=1;
+   if(settings.dropEditHistory)persisted.manualEditHistoryV9588=[];
    const i=cloud.findIndex(x=>x.id===id);
    if(i>=0)cloud[i]=clone(persisted);else cloud.push(clone(persisted));
    staleRemain=settings.staleReads||0;
@@ -118,4 +119,18 @@ test('ACK sem releitura conclusiva: bloqueia nova escrita automática e informa 
  assert.equal(t.api.editEvidenceStatusV95101().unverified,1);
  assert.equal(t.db.factionPayments.find(x=>x.id==='line-1').quantity,11,
   'acknowledged local value preserved, no rollback');
+});
+
+test('edição e cancelamento preservam histórico anterior além de 20 eventos',async()=>{
+ const t=fixture(),events=Array.from({length:25},(_,i)=>({id:'old-'+i,at:'2026-11-14T14:00:00Z',from:i,to:i+1,reason:'Edição anterior',extra:'preservar'}));
+ for(const list of [t.db.factionPayments,t.cloud])for(const row of list)row.manualEditHistoryV9588=clone(events);
+ const unchanged=await t.api.saveGroupEdits('g1',t.edit,null);assert.equal(unchanged.lines,0);assert.equal(t.writes.length,0);
+ const input=clone(t.edit);input.lines[0].quantity=12;input.lines.pop();await t.api.saveGroupEdits('g1',input,null,[{id:'line-2',reason:'Produto retirado após conferência'}]);
+ for(const row of t.cloud){assert.equal(row.manualEditHistoryV9588.length,26);assert.deepEqual(row.manualEditHistoryV9588.slice(0,25),events)}
+ assert.equal(t.cloud.find(x=>x.id==='line-2').status,'Cancelado');assert.equal(t.db.hubFinanceEntries.length,0);
+});
+test('ACK perde evento de edição: não confirma nem avança para a próxima linha',async()=>{
+ const t=fixture({dropEditHistory:true}),input=clone(t.edit);input.lines[0].quantity=11;input.lines[1].quantity=12;
+ await assert.rejects(()=>t.api.saveGroupEdits('g1',input,null),/valores diferentes|outra edição/);
+ assert.equal(t.writes.length,1);assert.equal(t.api.editEvidenceStatusV95101().conflicts,1);assert.equal(t.cloud.find(x=>x.id==='line-2').quantity,10);
 });
