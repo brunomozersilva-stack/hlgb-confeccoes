@@ -19,20 +19,28 @@ function stopIntervalByPreview(match){
 // renderizadores próprios e deve atualizar quando a tela é usada, não em loop global.
 stopIntervalByPreview(/refreshAll9252/);
 function activePage(){return document.querySelector('.page.active')?.id||''}
+const refreshStats={scheduled:0,coalesced:0,skipped:0,executed:0};let refreshPending=false;
 function refreshVisibleLegacy(){
  try{
+  if(document.hidden||window.__HLGB_AUTH_READY===false){refreshStats.skipped++;return false}
   const p=activePage(),api=window.hlgbImprovements9252;
   if(!api)return;
-  if(p==='relatorios')api.ensureReports9252?.();
-  else if(p==='cortadores')api.ensureCutterGroups?.();
+  if(p==='relatorios'&&typeof api.ensureReports9252==='function'){api.ensureReports9252();refreshStats.executed++}
+  else if(p==='cortadores'&&typeof api.ensureCutterGroups==='function'){api.ensureCutterGroups();refreshStats.executed++}
+  else refreshStats.skipped++;
  }catch(e){console.warn('[HLGB '+V+'] refresh visível',e)}
+}
+function scheduleVisibleRefresh(){
+ if(document.hidden||window.__HLGB_AUTH_READY===false){refreshStats.skipped++;return false}
+ if(refreshPending){refreshStats.coalesced++;return false}
+ refreshPending=true;refreshStats.scheduled++;setTimeout(()=>{refreshPending=false;refreshVisibleLegacy()},80);return true;
 }
 document.addEventListener('click',e=>{
  const nav=e.target?.closest?.('[data-page],button,a,[role="button"]');if(!nav)return;
- setTimeout(refreshVisibleLegacy,80);
+ scheduleVisibleRefresh();
 },true);
-window.addEventListener('pageshow',()=>setTimeout(refreshVisibleLegacy,80));
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(refreshVisibleLegacy,80)});
+window.addEventListener('pageshow',scheduleVisibleRefresh);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleVisibleRefresh()});
 
 function installClassifier(){
  const smart=window.hlgbAuditorSmart;
@@ -67,6 +75,6 @@ function installClassifier(){
 if(!installClassifier()){
  let tries=0;const wait=()=>{tries++;if(installClassifier()||tries>=80)return;setTimeout(wait,125)};setTimeout(wait,0);
 }
-window.hlgbRuntimePerformance9371={version:V,stoppedIntervals:stopped,refreshVisibleLegacy,installClassifier};
+window.hlgbRuntimePerformance9371={version:V,stoppedIntervals:stopped,refreshVisibleLegacy,installClassifier,refreshStats:()=>({...refreshStats,pending:refreshPending})};
 console.info('[HLGB] runtime performance v'+V+' ativo',stopped);
 })();
