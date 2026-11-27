@@ -1,0 +1,21 @@
+name: HLGB Planejamento - metas de varias semanas
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/production-planning-v9661.js'
+      - 'release-projection-team-view.js'
+      - 'tests/production-multiweek-flow-v9789.cjs'
+      - '.github/workflows/hlgb-production-multiweek-v9789.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-projection-team-view.js
+      - run: node tests/production-multiweek-flow-v9789.cjs
