@@ -6,14 +6,21 @@
  const date=v=>{const s=sid(v).slice(0,10),n=Date.parse(s+'T00:00:00Z');return /^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(n)&&new Date(n).toISOString().slice(0,10)===s?s:''};
  const list=x=>Array.isArray(x)?x:[];
  const unique=a=>[...new Set(a.filter(Boolean))];
+ const orderGrade=o=>list(o?.grade).length?list(o.grade):list(o?.items);
+ const cutGrade=c=>[c?.actualCutGrade,c?.cutGrade,c?.originalGrade].find(a=>Array.isArray(a)&&a.length)||[];
+ const gradeIds=c=>unique([sid(c?.productId||c?.product_id),...cutGrade(c).map(g=>sid(g?.productId||g?.product_id))]);
+ const uniqueRecords=rows=>{const counts=new Map();for(const r of list(rows).filter(live)){const id=sid(r.id);counts.set(id,(counts.get(id)||0)+1)}return list(rows).filter(r=>live(r)&&sid(r.id)&&counts.get(sid(r.id))===1)};
  function search(db,query,opts={}){
   if(opts.allowed!==true)return {state:'forbidden',rows:[],total:0};
   if(!Array.isArray(db?.products))return {state:'unavailable',rows:[],total:0};
   const counts=new Map(),extra=new Map();for(const p of db.products.filter(live)){const k=sid(p.id);counts.set(k,(counts.get(k)||0)+1)}
   const add=(id,terms)=>{if(!id||counts.get(id)!==1)return;const a=extra.get(id)||[];a.push(...terms.map(sid).filter(Boolean));extra.set(id,a)};
-  if(opts.ordersAllowed===true)for(const o of list(db.orders).filter(live))for(const g of [...list(o.grade),...list(o.items)])add(sid(g.productId),[o.id,o.orderNumber,o.client,g.color,g.size]);
-  if(opts.factionsAllowed===true)for(const f of list(db.factions).filter(live))add(sid(f.productId),[f.name,f.factionName]);
-  const terms=norm(query).split(/\s+/).filter(Boolean),rows=[];
+  if(opts.ordersAllowed===true)for(const o of uniqueRecords(db.orders))for(const g of orderGrade(o))add(sid(g.productId),[o.id,o.orderNumber,o.client,g.color,g.size]);
+  if(opts.factionsAllowed===true)for(const f of uniqueRecords(db.factions))add(sid(f.productId),[f.name,f.factionName,f.id]);
+  if(opts.modules?.includes('cuts'))for(const c of uniqueRecords(db.cuts)){if(c.hiddenByModelSplitV1||c.modelSplitParentV1)continue;const id=sid(c.productId||c.product_id);if(!id)continue;add(id,[c.id,c.cutNumber,c.status,c.cutterName,c.cutter2Name,...cutGrade(c).filter(g=>sid(g.productId||g.product_id)===id||gradeIds(c).length===1&&!sid(g.productId||g.product_id)).flatMap(g=>[g.color,g.size])]);}
+  if(opts.modules?.includes('production'))for(const r of uniqueRecords(db.production))add(sid(r.productId||r.product_id),[r.id,r.productionLocationName,r.factionName,r.stage,r.color,r.size]);
+  if(opts.materialsAllowed===true){const mats=new Map(uniqueRecords(db.materials).map(m=>[sid(m.id),m]));for(const p of uniqueRecords(db.products))for(const m of list(p.materials))add(sid(p.id),[m.name,m.materialName,mats.get(sid(m.materialId||m.id))?.name]);}
+  const terms=norm(query).replace(/#/g,'').split(/\s+/).filter(Boolean),rows=[];
   for(const p of db.products.filter(live)){
    const id=sid(p.id);if(!id||counts.get(id)!==1)continue;
    const attributes=[...list(p.variants),...list(p.grade),...list(p.sizes),...list(p.colors)];
@@ -30,7 +37,7 @@
   const pid=sid(productId),products=list(db?.products).filter(x=>live(x)&&sid(x.id)===pid);
   if(!pid||products.length!==1)return {state:'product-review',rows:[],total:0,issues:['product-id-missing-or-duplicate']};
   const rows=[],issues=[],sources=['orders','cuts','production','factions','materialChecklists','factionPayments'],counts=new Map();
-  const selected=new Set(['orders','cuts','production','factions','materialChecklists','factionPayments'].filter(k=>opts.modules?.includes(k)));
+  const selected=new Set(['orders','cuts','production','factions','materialChecklists','factionPayments'].filter(k=>opts.modules?.includes(k)&&(k!=='factionPayments'||opts.financialAllowed!==false)));
   const orders=new Map();if(selected.has('orders'))for(const o of list(db.orders).filter(live)){const id=sid(o.id);orders.set(id,orders.has(id)?null:o)}
   for(const source of sources){if(!selected.has(source))continue;if(!Array.isArray(db[source])){issues.push('source-unavailable:'+source);continue}for(const r of db[source].filter(live)){const id=sid(r.id),key=source+':'+id;counts.set(key,(counts.get(key)||0)+1)}}
   const q=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0?v:typeof v==='string'&&/^\d+(?:\.\d+)?$/.test(v)&&Number.isFinite(Number(v))?Number(v):null;
@@ -39,13 +46,14 @@
    for(const r of list(db[source]).filter(live)){
     const id=sid(r.id),key=source+':'+id,oid=source==='orders'?id:sid(r.orderId);
     if(source==='cuts'&&(r.hiddenByModelSplitV1||r.modelSplitParentV1))continue;
-    const grade=source==='orders'?(Array.isArray(r.grade)?r.grade:list(r.items)):list(r.actualCutGrade);
+    const mixed=source==='cuts'&&gradeIds(r).length>1;
+    const grade=source==='orders'?orderGrade(r):source==='cuts'?cutGrade(r).filter(g=>!mixed||sid(g.productId||g.product_id)===pid):source==='materialChecklists'?list(r.gradeV9198):list(r.actualCutGrade);
     const relevant=source==='orders'?grade.filter(g=>sid(g.productId)===pid):[];
     if(source==='orders'&&!relevant.length)continue;
-    if(source!=='orders'&&sid(r.productId||r.product_id)!==pid){if(!sid(r.productId||r.product_id)&&oid&&orders.get(oid)&&list(orders.get(oid).grade).some(g=>sid(g.productId)===pid))unknown++;continue}
+    if(source!=='orders'&&sid(r.productId||r.product_id)!==pid){if(!sid(r.productId||r.product_id)&&oid&&orders.get(oid)&&orderGrade(orders.get(oid)).some(g=>sid(g.productId)===pid))unknown++;continue}
     if(!id||counts.get(key)!==1){issues.push('missing-or-duplicate-id:'+source);continue}
     const amount=source==='orders'?relevant.map(g=>q(g.qty??g.quantity??g.pieces)):null;
-    const qty=source==='orders'?(amount.every(v=>v!==null)?amount.reduce((s,v)=>s+v,0):null):q(source==='cuts'?r.pieces??r.done:source==='production'?r.done:source==='factions'?r.sent??r.quantity:r.qty??r.quantity??r.pieces);
+    const qty=mixed?null:source==='orders'?(amount.every(v=>v!==null)?amount.reduce((s,v)=>s+v,0):null):q(source==='cuts'?r.pieces??r.done:source==='production'?r.done:source==='factions'?r.sent??r.quantity:r.qty??r.quantity??r.pieces);
     const day=date(source==='cuts'?r.finishedAt||r.date||r.createdAt:source==='factionPayments'?r.paymentDate||r.date||r.createdAt:r.date||r.assignedAt||r.sentAt||r.receivedAt||r.createdAt);
     const row={eventId:key,source,sourceId:id,orderId:oid||null,date:day||null,status:sid(r.status),quantity:qty,grade:source==='orders'?relevant.map(g=>({color:sid(g.color),size:sid(g.size),qty:q(g.qty??g.quantity??g.pieces)})):grade.map(g=>({color:sid(g.color),size:sid(g.size),qty:q(g.qty??g.quantity)})),destination:source==='factions'?sid(r.name||r.factionName):source==='production'?sid(r.productionLocationName):source==='orders'?sid(r.client):source==='materialChecklists'?sid(r.destinationName):'',actor:source==='cuts'?unique([r.cutterName,r.cutter2Name,r.infestadorName].map(sid)).join(' · '):source==='materialChecklists'?sid(r.receivedBy):'',paidAmount:source==='factionPayments'?q(r.paidAmount):null,estimatedAmount:source==='factionPayments'?q(r.value):null,document:source==='factionPayments'&&!!r.receiptPdfV9566,quality:'local-record'};
     if(!day)issues.push('date-unavailable:'+source);
@@ -65,11 +73,11 @@
   if(t.state!=='local-observation')return {...t,unlinked:0};
   const q=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0?v:typeof v==='string'&&/^\d+(?:\.\d+)?$/.test(v)&&Number.isFinite(Number(v))?Number(v):null;
   const maps=new Map();
-  for(const k of ['cuts','production','factions','cutters','orders']){
+  for(const k of ['cuts','production','factions','materialChecklists','factionPayments','cutters','orders']){
    const m=new Map();for(const x of list(db?.[k]).filter(live)){const id=sid(x.id);if(id)m.set(id,m.has(id)?null:x)}maps.set(k,m);
   }
   const lookup=(k,id)=>maps.get(k)?.get(sid(id));
-  const groups=new Map(),productionLinks=new Map();
+  const groups=new Map(),productionLinks=new Map(),factionLinks=new Map();
   for(const e of t.rows.filter(e=>e.source==='cuts')){
    const c=lookup('cuts',e.sourceId);if(!c)continue;
    // A mixed-model grade proves that the cut's aggregate measures cannot
@@ -92,7 +100,13 @@
   }
   for(const e of t.rows.filter(e=>e.source==='factions')){
    const f=lookup('factions',e.sourceId),g=productionLinks.get(sid(f?.productionId));
-   if(matching(g,e))g.events.push({...e,done:q(f.done),returned:q(f.returned)});else unlinked++;
+   if(matching(g,e)){g.events.push({...e,done:q(f.done),returned:q(f.returned)});factionLinks.set(e.sourceId,g)}else unlinked++;
+  }
+  // Never attach a checklist or a payment by date/name or order alone.
+  for(const e of t.rows.filter(e=>['materialChecklists','factionPayments'].includes(e.source))){
+   const r=lookup(e.source,e.sourceId),refs=[];
+   for(const [id,map] of [[sid(r?.cutId),groups],[sid(r?.productionId),productionLinks],[sid(r?.factionId),factionLinks]]){if(id)refs.push(map.get(id)||null)}
+   const g=refs[0];if(refs.length&&g&&refs.every(v=>v===g)&&matching(g,e))g.events.push(e);else unlinked++;
   }
   const rows=[...groups.values()],offset=Number.isSafeInteger(opts.offset)&&opts.offset>=0?opts.offset:0,limit=Number.isSafeInteger(opts.limit)?Math.max(1,Math.min(200,opts.limit)):20;
   return {state:t.state,rows:rows.slice(offset,offset+limit),total:rows.length,offset,limit,issues:t.issues,unlinked,completeCloud:false};
