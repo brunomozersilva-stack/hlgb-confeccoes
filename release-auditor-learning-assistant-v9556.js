@@ -27,10 +27,13 @@ const SPECS={
  script:{title:'Carregamento duplicado de script',priority:'média',investigate:['Loader dinâmico e script[src]','Network e Resource Timing','Guarda de inicialização única'],tests:['tests/auditor-structural-evidence-v9471.cjs'],rule:'Confirmar duplicidade real antes de alterar o loader.'},
  sync:{title:'Sincronização entre navegadores',priority:'alta',investigate:['Assinatura Realtime e reconexão','Revisão remota e atualização da tela','Prova A→B e B→A com duas sessões reais'],tests:['tests/realtime-generation-v9466.cjs','tests/realtime-revision-guard-v9465.cjs'],rule:'Testes simulados não comprovam atualização real sem refresh.'},
  save:{title:'Falha de salvamento',priority:'alta',investigate:['Clique e solicitação de gravação','RPC/ACK, revisão e leitura posterior','Atualização da tela e erro de rede'],tests:['tests/hub-save-ack-v9483.cjs'],rule:'Não declarar salvo sem confirmação do servidor e releitura.'},
+ feature:{title:'Possível regressão de função ou controle',priority:'alta',investigate:['Confirmar tela, perfil de acesso e ação original','Distinguir botão ausente de permissão, carregamento ou filtro','Reproduzir impressão, ajuste de grade, checklist ou edição antes/depois, sem gravar dados reais'],tests:['tests/audit-cut-model-grade-adjust-regression.cjs','tests/cutter-sheet-print-route-v9620.cjs','tests/cut-separation-checklist-v9644.cjs','tests/payroll-explicit-fare-v9496.cjs','tests/hlgb-mobile-menu-v9670.cjs'],rule:'Não ocultar controle nem remover função para fazer teste passar; confirmar paridade funcional e autorização.'},
  general:{title:'Falha técnica sem receita confirmada',priority:'investigar',investigate:['Mensagem e etapa exatas da falha','Código e teste que reproduz o erro','Prova antes/depois em navegador real'],tests:['scripts/run-nightly-audit.mjs'],rule:'Gerar hipótese; nunca executar uma correção desconhecida automaticamente.'}
 };
 function kind(x){
  const s=[x?.code,x?.action,x?.classification,x?.title,x?.detail,x?.id].map(str).join(' ').toLowerCase().slice(0,700);
+ const explicit=[x?.code,x?.action,x?.id].map(str).join(' ').toLowerCase();
+ if(/(?:^|[:\s-])(?:missing-control|missing-action|missing-feature|feature-regression|control-regression)(?:$|[:\s-])/.test(explicit))return 'feature';
  if(/finance-projection-orphan|financeiro sem projeção|projectioninvoiceid/.test(s))return 'finance';
  if(/indexeddb-wal|indexeddb.*pending|wal durável|wal duravel|review-indexeddb-pending/.test(s))return 'wal';
  if(/duplicate-scripts|script.*duplicad|review-script-loader/.test(s))return 'script';
@@ -88,7 +91,8 @@ function currentReport(){
  try{const api=window.hlgbAuditorAutoCorrect9448;const r=api?.exportReport?.();if(r?.run?.runId)return r}catch(_){}
  const r=json(REPORT_KEY,null);return r?.run?.runId?r:null;
 }
-const state={lastError:'',lastProcessedAt:'',lastRunId:'',current:[],observedCases:0,lastWriteOk:null};
+const state={lastError:'',lastProcessedAt:'',lastRunId:'',current:[],observedCases:0,lastWriteOk:null,pollReportReads:0,pollSkippedUnchanged:0,panelRedraws:0};
+let lastPollStamp=null;
 function collect(report){
  if(!auth()||disabled())return {ok:false,reason:!auth()?'not-authenticated':'disabled'};
  const r=report||currentReport();if(!r?.run?.runId)return {ok:false,reason:'no-audit-report'};
@@ -98,7 +102,7 @@ function collect(report){
  if(s.seenRuns.includes(id))return {ok:true,repeatedRun:true,observations:s.cases.length,findings:state.current.length};
  // Incomplete/failed execution can contain useful hypotheses, but does not
  // establish a completed observation or increment recurrence counters.
- if(r.auditCompleted===false||r.run.executionFailed===true)return {ok:false,reason:'incomplete-audit',findings:state.current.length};
+ if(r.auditCompleted===false||r.executionFailed===true||r.run.executionFailed===true)return {ok:false,reason:'incomplete-audit',findings:state.current.length};
  const now=iso(),byKey=new Map(s.cases.filter(x=>x?.fingerprint).map(x=>[x.fingerprint,x]));
  for(const f of state.current){
   const previous=byKey.get(f.fingerprint)||{fingerprint:f.fingerprint,kind:f.kind,title:f.title,firstSeenAt:now,observedRuns:0,recurrences:0};
@@ -137,27 +141,35 @@ function download(){
 }
 function setDisabled(v){try{localStorage.setItem(DISABLED_KEY,v?'1':'0')}catch(_){return false}if(!v)collect();render();return true}
 function render(){
- if(!auth())return false;
+ if(!auth()||document.hidden)return false;
  const host=document.getElementById('hlgbAuditorResult');if(!host)return false;
+ const page=host.closest?.('.page');if(page&&!page.classList.contains('active'))return false;
  let panel=document.getElementById(PANEL_ID);
  if(!panel){panel=document.createElement('div');panel.id=PANEL_ID;panel.className='panel';host.appendChild(panel)}
  const off=disabled(),cases=readCases().cases,observed=state.current.length,shared=window.hlgbLearningCloud9573?.snapshot?.()||{};
- panel.innerHTML='<b>🧠 Assistente de diagnóstico v'+VERSION+'</b><div class="sub">Módulo independente · histórico local e memória compartilhada · sem alterar dados de negócio</div>'+
+ const markup='<b>🧠 Assistente de diagnóstico v'+VERSION+'</b><div class="sub">Módulo independente · histórico local e memória compartilhada · sem alterar dados de negócio</div>'+
   (off?'<p class="sub">Desativado. Nenhuma nova ocorrência será aprendida.</p>':
   '<p class="sub">'+esc(observed)+' tipo(s) de problema na última auditoria consultada · '+esc(cases.length)+' tipo(s) no histórico.</p>'+
   '<p class="sub">Sugere investigação e testes; não desenvolve nem aplica correções sozinho.</p>')+
   '<p class="sub">☁️ '+(shared.verifiedServer?'Servidor confirmado: '+(shared.cases?.length||0)+' assunto(s) conhecidos, '+(shared.events||0)+' eventos.':'Servidor ainda sem confirmação de leitura; histórico local preservado.')+'</p>'+
   '<div style="margin-top:8px"><button type="button" class="secondary" id="hlgbLearningExport9556">⬇️ Pacote técnico para correção</button> '+
   '<button type="button" class="secondary" id="hlgbLearningToggle9556">'+(off?'Ativar assistente':'Desativar assistente')+'</button></div>';
+ if(panel.__hlgbLearningMarkup9556===markup&&panel.querySelector('#hlgbLearningExport9556')&&panel.querySelector('#hlgbLearningToggle9556'))return true;
+ panel.innerHTML=markup;panel.__hlgbLearningMarkup9556=markup;state.panelRedraws++;
  panel.querySelector('#hlgbLearningExport9556')?.addEventListener('click',()=>{if(!off)collect();download()});
  panel.querySelector('#hlgbLearningToggle9556')?.addEventListener('click',()=>setDisabled(!off));
  return true;
 }
-function poll(){try{if(auth()&&!disabled()&&!document.hidden)collect();render()}catch(e){state.lastError=str(e?.message||e)}}
+function poll(){try{if(!auth()||document.hidden)return false;if(!disabled()){
+ const stamp=window.hlgbAuditorAutoCorrect9448?.reportStamp?.()||null;
+ // Use only the live producer's cheap stamp; without it preserve the legacy storage fallback.
+ if(stamp&&stamp===lastPollStamp)state.pollSkippedUnchanged++;
+ else {state.pollReportReads++;const result=collect();if(stamp&&(result.ok||result.reason==='incomplete-audit'))lastPollStamp=stamp;else lastPollStamp=null;}
+ }else lastPollStamp=null;render();return true}catch(e){state.lastError=str(e?.message||e);return false}}
 function activate(){if(!auth())return false;poll();return true}
-window.hlgbAuditorLearningAssistant9556={version:VERSION,collect,pack,findings,render,download,disable:()=>setDisabled(true),enable:()=>setDisabled(false),history:()=>auth()?readCases().cases:[],status:()=>auth()?({...state,disabled:disabled(),authReady:true,historyCount:readCases().cases.length}):({authReady:false,historyCount:0})};
+window.hlgbAuditorLearningAssistant9556={version:VERSION,collect,pack,findings,render,download,poll,disable:()=>setDisabled(true),enable:()=>setDisabled(false),history:()=>auth()?readCases().cases:[],status:()=>auth()?({...state,disabled:disabled(),authReady:true,historyCount:readCases().cases.length}):({authReady:false,historyCount:0})};
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(activate,1000));
 window.addEventListener?.('hlgb:auditor:open',()=>setTimeout(poll,250));
-window.addEventListener?.('hlgb:logout',()=>{state.current=[];state.lastRunId='';state.lastProcessedAt='';state.observedCases=0;state.lastError='';state.lastWriteOk=null;document.getElementById(PANEL_ID)?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{lastPollStamp=null;state.current=[];state.lastRunId='';state.lastProcessedAt='';state.observedCases=0;state.lastError='';state.lastWriteOk=null;document.getElementById(PANEL_ID)?.remove()});
 if(!window.__HLGB_TEST__){setInterval(poll,60000);if(auth())setTimeout(activate,7000)}
 })();
