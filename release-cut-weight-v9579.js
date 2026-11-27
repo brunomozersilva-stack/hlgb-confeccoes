@@ -82,7 +82,8 @@ function show(id){
  '<div class="field"><label>Observação</label><input id="cw79-note" maxlength="300" placeholder="Rolo, conferência, diferença ou observação" value="'+esc(w.note||'')+'"></div>'+
  '<h4>Histórico de pesagens</h4>'+(entries||'<div class="sub">Nenhuma pesagem cadastrada.</div>')+
  '<div id="cw79-feedback" role="status" class="sub"></div><button type="button" class="primary modalSave">☁️ Salvar peso do corte</button></div>';
- window.openModal('⚖️ Peso do corte · '+esc(c.product||c.productId||c.id),html,async()=>{
+ const model=(dbRef()?.products||[]).find(p=>sid(p?.id)===sid(c.productId));
+ window.openModal('⚖️ Peso do corte · '+esc(c.product||model?.name||c.productId||'Modelo não identificado')+' · Corte #'+esc(c.id),html,async()=>{
   const host=document.getElementById('cutWeight9579'),feedback=host?.querySelector('#cw79-feedback'),btn=host?.querySelector('.modalSave');
   if(btn)btn.disabled=true;if(feedback)feedback.textContent='Confirmando a pesagem na nuvem…';
   try{
