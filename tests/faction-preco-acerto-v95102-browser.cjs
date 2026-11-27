@@ -58,7 +58,14 @@ async function submit(page,{name,qty,price}){
   assert.match(await page.locator('#hlgb-unified-acertos-v95102').innerText(),
    /Acerto consolidado por pessoa/);
   assert.match(await page.locator('#hlgb-unified-acertos-v95102').innerText(),/R\$\s?35,00/);
-  assert.equal(await page.locator('#hlgb-unified-acertos-v95102 tbody tr').count(),1);
+  assert.equal(await page.locator('#hlgb-unified-acertos-v95102 > div > table > tbody > tr').count(),1,'one professional, excluding nested date rows');
+  const dates=page.locator('#hlgb-unified-acertos-v95102 details').filter({has:page.getByText('Resumo por data de referência',{exact:true})});
+  await dates.locator('summary').click();
+  assert.equal(await dates.locator('tbody tr').count(),3,'all three date buckets');
+  assert.match(await dates.innerText(),/2026-11-12/);
+  assert.match(await dates.innerText(),/R\$\s?8,00/);
+  assert.equal(await page.evaluate(()=>window.db.hubFinanceEntries.length),0);
+  await dates.locator('summary').click();
 
   const popupPromise=page.waitForEvent('popup');await page.locator('[data-faction-print9777]').click();const report=await popupPromise;
   await report.waitForLoadState('domcontentloaded');assert.match(await report.locator('body').innerText(),/Conferência de acerto/);assert.match(await report.locator('body').innerText(),/35,00/);await report.close();
