@@ -57,3 +57,9 @@ jobs:
 
       - name: Verify concurrent item return and exact replay
         run: bash tests/client-account-postgres-v9801/item-returns-concurrency.sh
+
+      - name: Verify independent receipt readback and client confirmation
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/item-return-read.sql
+          psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/item-return-read-contract.sql
+          node tests/client-account-postgres-v9801/item-return-confirmation-contract.cjs
