@@ -511,6 +511,11 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
   const proposal=numeric('Quantidade de peças do novo pedido a avaliar',delivery,0);
   const queue=el('div','',delivery),rows=[];let seq=0;
   const out=el('div','',delivery);
+  let calculatedPlan=null,calculatedSignature='',cashOut=null;
+  const money=x=>{const s=x.value.trim().replace(',','.');return /^-?\d{1,9}(?:\.\d{1,2})?$/.test(s)?Math.round(Number(s)*100):null};
+  const orderInputs=()=>rows.filter(r=>r.client.value.trim()||r.model.value.trim()||r.due.value||r.pieces.value).map(r=>({key:r.key,client:r.client.value.trim(),model:r.model.value.trim(),dueDate:r.due.value,pieces:parse(r.pieces),paymentMode:r.pay.value,paymentDays:parse(r.term),amountCents:money(r.value)}));
+  const planInput=()=>({start:start.value,asOf:today(),weeks:parse(horizon),weeklyGoal:parse(weekly),bufferPercent:parse(buffer),history:[],orders:orderInputs(),closedDates:daysClosed(),coverageConfirmed:false,newPieces:parse(proposal)});
+  function invalidatePlan(){calculatedPlan=null;calculatedSignature='';out.replaceChildren();cashOut?.replaceChildren()}
   function addOrder(){
    if(rows.length>=100)return;
    const row=el('fieldset','',queue),key='scenario-'+(++seq);el('legend','Pedido '+seq,row);
@@ -518,15 +523,17 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    const label=el('label','Condição de pagamento ',row),pay=el('select','',label);for(const [k,t] of [['unknown','A conferir'],['cash','À vista'],['term','A prazo']]){const o=el('option',t,pay);o.value=k}
    const term=numeric('Prazo de pagamento em dias',row,0,365);
    const item={key,client,model,due,pieces,value,pay,term};rows.push(item);
-   button('Remover pedido da simulação',row,()=>{const i=rows.indexOf(item);if(i>=0)rows.splice(i,1);row.remove();out.replaceChildren()});
+   button('Remover pedido da simulação',row,()=>{const i=rows.indexOf(item);if(i>=0)rows.splice(i,1);row.remove();invalidatePlan()});
   }
   button('Adicionar pedido à carteira simulada',delivery,addOrder);addOrder();
   button('Calcular agenda de entregas',delivery,()=>{
    out.replaceChildren();if(!active())return;
-   const money=x=>{const s=x.value.trim().replace(',','.');return /^\d{1,9}(?:\.\d{1,2})?$/.test(s)?Math.round(Number(s)*100):null};
-   const orders=rows.filter(r=>r.client.value.trim()||r.model.value.trim()||r.due.value||r.pieces.value).map(r=>({key:r.key,client:r.client.value.trim(),model:r.model.value.trim(),dueDate:r.due.value,pieces:parse(r.pieces),paymentMode:r.pay.value,paymentDays:parse(r.term),amountCents:money(r.value)}));
-   const v=api.deliveryCapacityPlan({start:start.value,asOf:today(),weeks:parse(horizon),weeklyGoal:parse(weekly),bufferPercent:parse(buffer),history:[],orders,closedDates:daysClosed(),coverageConfirmed:false,newPieces:parse(proposal)},true);
+   invalidatePlan();
+   const input=planInput();
+   if(input.orders.some(r=>!r.client||!r.dueDate||!Number.isSafeInteger(r.pieces)||r.pieces<=0||r.amountCents!==null&&r.amountCents<0||r.paymentMode==='term'&&(!Number.isSafeInteger(r.paymentDays)||r.paymentDays<=0))){el('p','Complete todos os pedidos iniciados: cliente, prazo, peças e condição de pagamento.',out);return}
+   const v=api.deliveryCapacityPlan(input,true);
    if(v.state!=='local-capacity-simulation'){el('p','Confira início, horizonte, capacidade e quantidades.',out);return}
+   calculatedPlan=v;calculatedSignature=JSON.stringify(input);
    el('p','Capacidade semanal após margem: '+fmt(v.weeklyTarget)+' · Peças atrasadas / fora do prazo: '+fmt(v.late)+' · Não alocadas: '+fmt(v.unallocated),out);
    if(v.newPieces)el('p','Novo pedido de '+fmt(v.newPieces)+' peças: '+(v.firstAvailable?'data candidata '+v.firstAvailable:'não cabe no horizonte informado')+' · quantidade sem vaga '+fmt(v.unplacedNewPieces)+'. Não é promessa de entrega.',out);
    for(const w of v.weeks){const item=el('details','',out);el('summary',w.start+' a '+w.end+' · '+fmt(w.allocated)+' pç alocadas · '+fmt(w.free)+' vagas',item);
@@ -536,6 +543,40 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    for(const o of v.orders)el('p',o.client+' / '+o.model+' · entrega '+o.dueDate+' · conclusão simulada '+(o.lastWorkDate||'não alocada')+' · restante '+fmt(o.remaining)+' · recebimento candidato '+(o.receiptDate||'a conferir'),out);
    if(v.issues.length)el('p','Atenção: carteira e capacidade são manuais e parciais; registros inválidos ou sem confirmação não constituem compromissos. '+v.issues.join(' · '),out);
   });
+  // Finance scenario is deliberately manual; no import that could duplicate recorded receivables.
+  const cash=el('details','',host);el('summary','3. Avaliar novo pedido e impacto no caixa',cash);
+  el('p','Requer a agenda calculada acima. Informe saldo e compromissos já conhecidos, separados do novo pedido. Não é conciliação bancária.',cash);
+  const financialAllowed=()=>active()&&can('hubFinanceiro')&&can('financeiro');
+  if(!financialAllowed()){el('p','Análise financeira requer acesso ao Hub Financeiro e Financeiro.',cash);return}
+  const opening=field('Saldo disponível no início (R$)',cash),reserve=field('Reserva mínima desejada (R$)',cash);reserve.value='0';
+  const delay=numeric('Atraso de recebimentos para cenário de risco (dias)',cash,14,91);
+  const commitments=el('div','',cash),entries=[];let entrySeq=0;
+  function addCommitment(){if(entries.length>=100)return;const row=el('fieldset','',commitments);el('legend','Compromisso '+(++entrySeq),row);const date=field('Data do compromisso',row,'date'),value=field('Valor do compromisso (R$)',row),l=el('label','Tipo ',row),direction=el('select','',l);for(const [k,t] of [['out','Saída'],['in','Entrada']]){const o=el('option',t,direction);o.value=k}const item={reference:'commitment-'+entrySeq,date,value,direction};entries.push(item);button('Remover compromisso',row,()=>{entries.splice(entries.indexOf(item),1);row.remove();cashOut.replaceChildren()})}
+  button('Adicionar compromisso existente',cash,addCommitment);
+  const proposedClient=field('Cliente do novo pedido',cash),proposedDue=field('Prazo solicitado do novo pedido',cash,'date'),receipt=field('Valor de venda do novo pedido (R$)',cash);
+  const payLabel=el('label','Condição do novo pedido ',cash),pay=el('select','',payLabel);for(const [k,t] of [['cash','À vista'],['term','A prazo']]){const o=el('option',t,pay);o.value=k}
+  const term=numeric('Prazo do novo pedido em dias',cash,0,365);
+  const costs=el('div','',cash),costRows=[];let costSeq=0;
+  function addCost(){if(costRows.length>=50)return;const row=el('fieldset','',costs);el('legend','Custo do novo pedido '+(++costSeq),row);const date=field('Data do custo novo',row,'date'),value=field('Valor do custo novo (R$)',row);const item={reference:'new-cost-'+costSeq,date,value};costRows.push(item);button('Remover custo',row,()=>{costRows.splice(costRows.indexOf(item),1);row.remove();cashOut.replaceChildren()})}
+  button('Adicionar custo do novo pedido',cash,addCost);addCost();
+  const confirmation=el('label','',cash),confirmed=el('input','',confirmation);confirmed.type='checkbox';el('span',' Conferi que os custos e o recebimento deste novo pedido não foram incluídos nos compromissos existentes.',confirmation);
+  cashOut=el('div','',cash);
+  const brl=n=>Number.isSafeInteger(n)?(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'Não confirmado';
+  button('Comparar caixa com e sem novo pedido',cash,()=>{
+   cashOut.replaceChildren();if(!financialAllowed())return;
+   if(!calculatedPlan||JSON.stringify(planInput())!==calculatedSignature){el('p','Recalcule a agenda de entregas antes de analisar o caixa.',cashOut);return}
+   const v=api.newOrderDecision(calculatedPlan,{start:start.value,openingCents:money(opening),reserveCents:money(reserve),delayDays:parse(delay),entries:entries.map(e=>({reference:e.reference,date:e.date.value,direction:e.direction.value,amountCents:money(e.value)})),reviewed:confirmed.checked,newCostsAndReceiptNotIncluded:confirmed.checked,proposal:{client:proposedClient.value,pieces:parse(proposal),dueDate:proposedDue.value,receiptCents:money(receipt),paymentMode:pay.value,paymentDays:parse(term),costs:costRows.map(e=>({reference:e.reference,date:e.date.value,amountCents:money(e.value)}))}},true);
+   if(v.state!=='local-order-decision'){el('p','Confira capacidade, prazo, saldo, custos, recebimentos e confirmação de que não existem valores duplicados.',cashOut);return}
+   el('p',v.withinDue?'Prazo comporta a capacidade informada.':'Prazo não comporta a capacidade informada.',cashOut);
+   el('p','Conclusão candidata: '+(v.completion||'sem vaga')+' · Custo informado '+brl(v.costTotalCents)+' · Contribuição indicativa '+brl(v.indicativeContributionCents),cashOut);
+   for(const [label,scenario] of [['Sem novo pedido',v.baseline],['Com novo pedido',v.withOrder],['Com novo pedido e atraso',v.withOrderStress]]){
+    el('p',label+' · menor saldo '+brl(scenario.minimumCents)+' · necessidade adicional de reserva '+brl(scenario.maximumGapCents)+' · primeiro dia abaixo da reserva '+(scenario.firstGap||'nenhum no cenário'),cashOut);
+   }
+   el('p','Diferença de necessidade de reserva: '+brl(v.extraReserveGapCents)+' · no cenário de atraso '+brl(v.extraStressGapCents)+'. Não constitui autorização de venda ou garantia financeira.',cashOut);
+  });
+  for(const x of [start,buffer,closed,horizon,weekly,proposal])x.addEventListener('input',invalidatePlan);
+  queue.addEventListener('input',invalidatePlan);queue.addEventListener('change',invalidatePlan);
+  cash.addEventListener('input',e=>{cashOut.replaceChildren();if(e.target!==confirmed)confirmed.checked=false});
  }
 
  function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();mountDeliveryPlanner9845();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
