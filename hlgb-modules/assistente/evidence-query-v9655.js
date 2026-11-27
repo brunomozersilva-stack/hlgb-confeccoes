@@ -4,7 +4,7 @@ const actor=()=>{try{return String(typeof cloudUser!=='undefined'?cloudUser?.id|
 const auth=()=>root.__HLGB_AUTH_READY===true&&!!actor(),can=p=>{try{return typeof canOpenPage==='function'&&canOpenPage(p)===true}catch(_){return false}};
 const read=k=>{const d=typeof db!=='undefined'?db:root.db;return Array.isArray(d?.[k])?d[k]:null};
 const today=()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const v=k=>p.find(x=>x.type===k)?.value;return v('year')+'-'+v('month')+'-'+v('day')};
-const deps={auth,can,read,today,get productApi(){return root.HLGBProductHistory9652},
+const deps={auth,can,read,today,get productApi(){return root.HLGBProductHistory9652},get planningApi(){return root.HLGBProductionPlanning9661},
  settlement:(kind,filter)=>root.HLGBSettlementHistoryView9654?.read({auth,can,rows:read,manualGroups:()=>root.hlgbFactionManual9566?.receiptGroups?.()??null,notes:()=>root.hlgbNotesReceivables9564?.allNotes?.()??null,inspect:(ctx,f)=>root.HLGBSettlementHistory9653.inspect(ctx,f)},kind,filter),
  finance:opt=>root.HLGBLivePersonnelFinance9656?.finance({auth,can,read,financeApi:()=>root.HLGBHubIntelligenceAdapter9633,paidDateApi:()=>root.hlgbHubPayrollPaidDate9515},opt),
  weeklySummary:x=>root.HLGBLivePersonnelFinance9656?.weeklySummary(x)
@@ -20,7 +20,7 @@ function mount(){
  const active=()=>host.isConnected&&input.isConnected&&auth()&&actor()===host.dataset.actor&&scopeStamp()===host.dataset.scope;
  const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='Consulta com evidências';const out=document.createElement('div');out.setAttribute('aria-live','polite');out.dataset.evidenceOutput='1';
  const help=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Exemplos de consultas';help.appendChild(summary);
- for(const [label,query] of [['Andamento de pedido','pedido 125'],['Histórico de modelo','histórico produto Camisola'],['Matéria-prima','material malha'],['Acertos de facção','acertos facção Roseli'],['Notas de cliente','acertos cliente NOME'],['Folha paga','acertos funcionário NOME'],['Previsão semanal','financeiro semana']]){
+ for(const [label,query] of [['Andamento de pedido','pedido 125'],['Histórico de modelo','histórico produto Camisola'],['Matéria-prima','material malha'],['Acertos de facção','acertos facção Roseli'],['Notas de cliente','acertos cliente NOME'],['Folha paga','acertos funcionário NOME'],['Previsão semanal','financeiro semana'],['Histórico produtivo','produção histórico'],['Resumo gerencial','resumo operação']]){
   const btn=document.createElement('button');btn.type='button';btn.className='secondary';btn.style.cssText='max-width:100%;white-space:normal';btn.textContent=label;btn.onclick=()=>{if(active()){input.value=query;out.replaceChildren();input.focus()}};help.appendChild(btn)
  }
  host.append(b,help,out);input.closest('.hlgb-assistant-input')?.insertAdjacentElement('afterend',host);if(!host.isConnected)input.insertAdjacentElement('afterend',host);
@@ -33,12 +33,38 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
  const sid=x=>typeof x==='string'||typeof x==='number'?String(x).trim():'';
  const live=x=>x&&!x.deletedAt&&!x.deleted_at&&!x.deleted&&!x._deleted;
  const result=(state,message,rows=[])=>({state,message,rows,canWrite:false,coverage:'local-only'});
+ function operationOverview(deps,withFinance){
+  const areas=['corte','producao','faccoes','produtos',...(withFinance?['hubFinanceiro','folhaPagamento']:[])],allowed=()=>deps.auth()===true&&areas.every(p=>deps.can(p)===true);
+  if(!allowed())return result('forbidden','Consulta gerencial não autorizada para todos os módulos necessários.');
+  const plan=deps.planningApi;if(typeof plan?.observedThroughput!=='function'||typeof deps.today!=='function')return result('unavailable','Histórico produtivo indisponível.');
+  const today=deps.today();if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+  if(typeof today!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(today)||!Number.isFinite(Date.parse(today+'T00:00:00Z'))||new Date(today+'T00:00:00Z').toISOString().slice(0,10)!==today)return result('unavailable','Data de referência inválida.');
+  const data={};for(const key of ['cuts','factions','production','products','productionLocations']){if(!allowed())return result('forbidden','Sessão ou acesso alterado.');data[key]=deps.read(key);if(!allowed())return result('forbidden','Sessão ou acesso alterado.');if(!Array.isArray(data[key]))return result('unavailable','Fontes de produção incompletas.');}
+  const x=plan.observedThroughput(data,today,true);if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+  if(x?.state!=='local-observation'||!Array.isArray(x.weeks)||!Array.isArray(x.issues))return result('unavailable','Histórico produtivo não confirmado.');
+  const fmt=n=>n.toLocaleString('pt-BR'),groups={cut:[],external:[],internal:[]},seen=new Set();
+  const day=86400000,at=Date.parse(today+'T00:00:00Z'),end=at-((new Date(at).getUTCDay()+6)%7)*day,first=end-84*day;
+  for(const z of x.weeks){const key=JSON.stringify([z?.source,z?.week]),d=Date.parse(z?.week+'T00:00:00Z');if(!Object.hasOwn(groups,z?.source)||typeof z.week!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(z.week)||!Number.isFinite(d)||new Date(d).toISOString().slice(0,10)!==z.week||d<first||d>=end||(d-first)%(7*day)!==0||!Number.isSafeInteger(z.pieces)||z.pieces<=0||seen.has(key))return result('unavailable','Semanas de produção inconsistentes.');seen.add(key);groups[z.source].push(z);}
+  const labels={cut:'Corte',external:'Retornos de facções',internal:'Produção interna'},rows=[];
+  for(const [stage,records] of Object.entries(groups)){const total=records.reduce((a,b)=>a+b.pieces,0);if(!Number.isSafeInteger(total))return result('unavailable','Limite de quantidade excedido.');rows.push({source:'observedThroughput',id:stage+':'+today,label:labels[stage],detail:records.length?fmt(total)+' peças registradas · média '+fmt(Math.round(total/records.length))+' por semana com registro ('+records.length+'/12 semanas)':'Sem semanas com registros válidos; não significa zero produção'});}
+  let message='Últimas 12 semanas completas: '+x.issues.length+' ocorrência(s) de dados para revisar. Etapas separadas; não somar como peças entregues. Médias apenas das semanas com registro, não comprovam capacidade, expedição ou cobertura da nuvem.';
+  if(withFinance){
+   if(typeof deps.finance!=='function'||typeof deps.weeklySummary!=='function')return result('unavailable','Inteligência financeira indisponível.');
+   const raw=deps.finance({asOf:today,targetDate:today,historyWeeks:8,receiptDelayDays:14});if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+   const y=deps.weeklySummary(raw);if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+   if(y?.state==='observed'&&[y.plannedInCents,y.plannedOutCents,y.plannedDifferenceCents].every(Number.isSafeInteger)&&y.plannedInCents>=0&&y.plannedOutCents>=0&&y.plannedInCents-y.plannedOutCents===y.plannedDifferenceCents){const money=n=>(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});rows.push({source:'hubFinanceEntries',id:today,label:'Financeiro da semana atual',detail:'Entradas previstas '+money(y.plannedInCents)+' · saídas previstas '+money(y.plannedOutCents)+' · diferença '+money(y.plannedDifferenceCents)});message+=' '+(y.plannedDifferenceCents<0?'Atenção: saídas previstas superam entradas previstas. ':'')+'Previsão local, não é saldo bancário nem autorização para aceitar pedidos.';}
+   else {rows.push({source:'hubFinanceEntries',id:today,label:'Financeiro da semana atual',detail:'Dados insuficientes para uma previsão.'});message+=' Cobertura financeira insuficiente.';}
+  }
+  return allowed()?result('observed',message,rows):result('forbidden','Sessão ou acesso alterado.');
+ }
  function ask(raw,deps){
   if(deps.auth()!==true)return result('forbidden','Entre no programa para consultar.');
   const q=String(raw??'').trim();if(!q||q.length>180)return result('unsupported','Informe uma consulta curta.');
   const m=q.match(/^(?:(?:status|andamento|situa[cç][aã]o)(?: do)? |como est[aá] (?:o )?)?pedido\s*#?\s*([A-Za-z0-9_-]{1,80})\??$/i),product=q.match(/^(?:hist[oó]rico(?: do)? produto|produto|modelo)\s+(.+)$/i),material=q.match(/^(?:material|mat[eé]ria.prima)\s+(.+)$/i),settlement=q.match(/^acertos?\s+(fac[cç][aã]o|cliente|funcion[aá]rio)\s+(.+)$/i),finance=/^(?:financeiro semana|previs[aã]o financeira semanal|como est[aá] o financeiro)\??$/i.test(q);
   const permitted=p=>deps.auth()===true&&deps.can(p)===true;
   try{
+   if(/^(?:resumo opera[cç][aã]o|resumo gerencial|vis[aã]o geral da opera[cç][aã]o)\??$/i.test(q))return operationOverview(deps,true);
+   if(/^(?:produ[cç][aã]o hist[oó]rico|hist[oó]rico (?:da )?produ[cç][aã]o|m[eé]dia (?:de )?produ[cç][aã]o)\??$/i.test(q))return operationOverview(deps,false);
    if(material){
     if(!permitted('materiais'))return result('forbidden','Consulta de materiais não autorizada.');
     const data=deps.read('materials');if(!permitted('materiais'))return result('forbidden','Sessão alterada.');
@@ -106,7 +132,7 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
     if(!permitted('produtos')||modules.some(k=>!permitted(({orders:'pedidos',cuts:'corte',production:'producao',factions:'faccoes'})[k])))return result('forbidden','Sessão ou acesso alterado.');
     return result('observed','Modelo '+row.name+' · '+history.total+' eventos locais; até 30 exibidos. '+(history.issues.length?'Há lacunas de vínculo ou dados. ':'')+'Não confirma cobertura da nuvem.',[{source:'products',id:row.id,label:row.name,detail:row.code||''},...history.rows.map(e=>({source:e.source,id:e.sourceId,label:e.status||e.source,detail:[e.date,e.orderId?'Pedido '+e.orderId:'',e.quantity===null?'':e.quantity+' peças'].filter(Boolean).join(' · ')}))]);
    }
-   return result('unsupported','Use “pedido 125”, “histórico produto Camisola”, “material malha”, “acertos facção Roseli” ou “financeiro semana”. Para as demais funções, utilize o Assistente original.');
+   return result('unsupported','Use “pedido 125”, “histórico produto Camisola”, “material malha”, “acertos facção Roseli” “financeiro semana”, “produção histórico” ou “resumo operação”. Para as demais funções, utilize o Assistente original.');
   }catch(_){return result('unavailable','Não foi possível conferir a consulta. Nenhuma alteração foi feita.')}
  }
  return {ask};

@@ -5,6 +5,8 @@ on:
       - 'hlgb-modules/assistente/evidence-query-v9655.js'
       - 'hlgb-modules/engenharia/search-inventory-v9655.json'
       - 'tests/hlgb-assistant-evidence-v9655.cjs'
+      - 'tests/hlgb-assistant-operation-overview-v9794.cjs'
+      - 'hlgb-modules/producao/production-planning-v9661.js'
       - 'tests/hlgb-search-inventory-v9655.cjs'
       - 'app-stable3.html'
       - 'app9240.html'
@@ -22,5 +24,6 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: node tests/hlgb-assistant-evidence-v9655.cjs
+      - run: node tests/hlgb-assistant-operation-overview-v9794.cjs
       - run: node tests/hlgb-search-inventory-v9655.cjs
       - run: node tests/hlgb-integration-v9651.cjs
