@@ -1,0 +1,38 @@
+name: HLGB Corte - Laboratorio checklist persistente v98.26
+on:
+  pull_request:
+    paths:
+      - 'tests/cut-checklist-postgres-v9826/**'
+      - '.github/workflows/cut-checklist-postgres-v9826.yml'
+permissions:
+  contents: read
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture_only
+          POSTGRES_DB: hlgb_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_fixture"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: fixture_only
+      PGDATABASE: hlgb_fixture
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify independent checklist persistence
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/fixture.sql
+          psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/candidate.sql
+          psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/contract.sql
+      - name: Verify simultaneous sessions and source lock
+        run: bash tests/cut-checklist-postgres-v9826/concurrency.sh
