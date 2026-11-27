@@ -321,3 +321,19 @@ require('./hlgb-remnant-save-contract-v9679.cjs')().catch(e=>{console.error(e);p
  assert.equal(plan.forecastJournal(db,capture,false).state,'forbidden');assert.equal(JSON.stringify(db),before);
  console.log('PASS portable forecast journal, immutable revisions and first-forecast outcome evaluation');
 })();
+
+
+(function orderReceivablesReview(){
+ const note=(id,orderIds,terms,value,paid,due)=>({id,clientId:'c',client:'Cliente',value,paid,remaining:value-paid,terms,issueDate:'2026-11-20',dueDate:due,status:value===paid?'Pago':'Pendente',items:orderIds.map(orderId=>({orderId}))});
+ const a=note('a',['o1'],'À vista',100,20,'2026-11-20'),b=note('b',['o1','o2'],'A prazo',200,0,'2026-12-20'),c=note('c',['o2'],'À vista',50,50,'2026-11-20');
+ const finance=n=>({id:'f-'+n.id,projectionInvoiceId:n.id,clientId:n.clientId,value:n.value,paid:n.paid,remaining:n.remaining,paymentTerms:n.terms,issueDate:n.issueDate,dueDate:n.dueDate,status:n.status});
+ const db={orders:[{id:'o1',orderNumber:1,clientId:'c'},{id:'o2',orderNumber:2,clientId:'c'},{id:'o3',orderNumber:3,clientId:'c',paymentTerms:'À vista'}],clients:[{id:'c',name:'Cliente'}],projectionInvoices:[a,b,c],finance:[finance(a),finance(b),finance(c)]};
+ const input={asOf:'2026-11-26',canonicalIds:['a','b','c'],pendingIds:[],pendingObserved:true},before=JSON.stringify([db,input]),v=plan.orderReceivablesReview(db,input,true);
+ assert.equal(v.state,'local-receivables-review');assert.equal(v.issues.length,0);assert.equal(v.clients[0].balanceCents,28000);assert.equal(v.clients[0].cashOpenCents,8000);assert.equal(v.clients[0].termOpenCents,20000);assert.equal(v.clients[0].overdueCents,8000);
+ assert.equal(v.orders[0].exclusiveNoteBalanceCents,8000);assert.equal(v.orders[1].exclusiveNoteBalanceCents,0);assert.equal(v.orders[0].sharedNotes,1);assert.equal(v.orders[0].terms,'unknown');assert.equal(v.orders[2].termsSource,'order');assert.equal(v.orders[2].orderRemainingCents,null);
+ const bad=plan.orderReceivablesReview({...db,finance:db.finance.map(f=>f.id==='f-a'?{...f,remaining:90}:f)},input,true);assert.equal(bad.titles[0].reason,'saldo-divergente');assert.equal(bad.clients[0].balanceCents,20000);
+ const pend=plan.orderReceivablesReview(db,{...input,pendingIds:['finance::f-b']},true);assert.equal(pend.titles[1].reason,'sincronizacao-pendente');assert.equal(pend.clients[0].balanceCents,8000);
+ assert.equal(plan.orderReceivablesReview(db,{...input,pendingObserved:false},true).state,'source-unavailable');assert.equal(plan.orderReceivablesReview(db,{...input,canonicalIds:['a','a']},true).state,'canonical-conflict');
+ assert.equal(v.canWrite,false);assert.equal(v.cashVerified,false);assert.equal(v.canScheduleReceipts,false);assert.equal(plan.orderReceivablesReview(db,input,false).state,'forbidden');assert.equal(JSON.stringify([db,input]),before);
+ console.log('PASS order receivables review, shared note dedupe, balances, payment conditions and pending evidence');
+})();
