@@ -1,0 +1,21 @@
+name: HLGB Planejamento - novo pedido e caixa
+on:
+  pull_request:
+    paths:
+      - 'hlgb-modules/producao/production-planning-v9661.js'
+      - 'release-projection-team-view.js'
+      - 'tests/production-new-order-decision-v9788.cjs'
+      - '.github/workflows/hlgb-production-new-order-v9788.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check release-projection-team-view.js
+      - run: node tests/production-new-order-decision-v9788.cjs

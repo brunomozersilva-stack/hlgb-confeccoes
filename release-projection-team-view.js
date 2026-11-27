@@ -265,6 +265,36 @@ function mountPlanner(){
    });
 
 
+   const decision=el('details','',cash);el('summary','Aceitar um novo pedido? Capacidade e impacto no caixa',decision);
+   el('p','Compare com a carteira existente, sem deslocar seus pedidos. Informe apenas receitas e custos novos, ainda não incluídos nos compromissos acima. Não é promessa de entrega, lucro contábil ou aprovação de venda.',decision);
+   const decisionSource=JSON.stringify(getOrders()),client=field('Cliente (identificação para simulação)','text','',decision),pieces=field('Quantidade de peças','number',newPieces.value,decision),due=field('Data pretendida de entrega','date','',decision),receipt=field('Valor a receber do novo pedido (R$)','number','',decision);
+   const modeLabel=el('label','Condição de pagamento',decision),payMode=el('select','',modeLabel);for(const [v,t] of [['','Selecione'],['cash','À vista na entrega'],['term','A prazo após entrega']]){const z=el('option',t,payMode);z.value=v}
+   const payDays=field('Prazo em dias corridos','number','',decision),costLabel=el('label','Custos adicionais previstos: data;valor em R$;referência única (informe zero explicitamente se não houver custo adicional)',decision);
+
+   const costText=el('textarea','',costLabel);costText.rows=4;costText.style.cssText='display:block;width:100%;box-sizing:border-box';
+   const confirmLabel=el('label','Conferi o cenário e os custos/recebimento não estão nos compromissos já informados',decision),confirmNew=el('input','',confirmLabel);confirmNew.type='checkbox';
+   const decisionOut=el('div','',decision);decisionOut.setAttribute('aria-live','polite');
+   for(const f of [client,pieces,due,receipt,payMode,payDays,costText,balance,reserve,delay,ledger])f.addEventListener('input',()=>{confirmNew.checked=false;decisionOut.replaceChildren()});
+   confirmNew.onchange=()=>decisionOut.replaceChildren();
+   btn('Comparar antes e depois do novo pedido',decision,()=>{
+    decisionOut.replaceChildren();if(!active()||!confirmNew.checked||!client.value.trim()){el('p','Informe o cliente e confirme os dados.',decisionOut);return}
+    try{
+     if(JSON.stringify(getOrders())!==decisionSource){el('p','A carteira mudou. Atualize a simulação de capacidade.',decisionOut);return}
+     if(hubImported){const fresh=readHub();if(!fresh||JSON.stringify(fresh)!==hubImported||ledger.value!==hubLines(fresh))throw Error('hub-changed')}
+     const entries=ledger.value.split(/\r?\n/).filter(x=>x.trim()).map(line=>{const a=line.split(';').map(x=>x.trim());return {date:a[0],direction:a.length===4?({entrada:'in',saida:'out'})[a[1]]:'invalid',amountCents:cents(a[2]),reference:a[3]}});
+     const costs=costText.value.split(/\r?\n/).filter(x=>x.trim()).map(line=>{const a=line.split(';').map(x=>x.trim());return {date:a[0],amountCents:a.length===3?cents(a[1]):NaN,reference:a[2]}});
+     const v=api.newOrderDecision(p,{start:start.value,openingCents:cents(balance.value),reserveCents:cents(reserve.value),delayDays:Number(delay.value),entries,reviewed:true,newCostsAndReceiptNotIncluded:true,proposal:{client:client.value.trim(),pieces:Number(pieces.value),dueDate:due.value,receiptCents:cents(receipt.value),paymentMode:payMode.value,paymentDays:Number(payDays.value),costs}},true);
+     if(v.state!=='local-order-decision'){el('p','Confira a capacidade, prazo, saldo, custos e compromissos. '+v.state,decisionOut);return}
+     const f=n=>money(n/100);
+     el('h4',v.withinDue?'Cabe na capacidade simulada até a data':'Prazo não cabe na capacidade simulada',decisionOut);
+     el('p','Vagas até o prazo: '+v.freeByDue+' peças · Conclusão hipotética: '+(v.completion||'fora do horizonte')+' · Sem capacidade: '+v.remaining+' peças.',decisionOut);
+     el('p','Receita hipotética '+f(v.receiptCents)+' · Custos informados '+f(v.costTotalCents)+' · Diferença bruta '+f(v.indicativeContributionCents)+(v.receiptIncluded?'':' · Recebimento excluído do fluxo por falta de conclusão'),decisionOut);
+     el('p','Pico de diferença para a reserva: antes '+f(v.baseline.maximumGapCents)+' · com pedido '+f(v.withOrder.maximumGapCents)+' · com atraso, antes '+f(v.baselineStress.maximumGapCents)+' e depois '+f(v.withOrderStress.maximumGapCents),decisionOut);
+     el('p','Primeira data abaixo da reserva com pedido: '+(v.withOrder.firstGap||'não observada')+' · com atraso: '+(v.withOrderStress.firstGap||'não observada'),decisionOut);
+     el('p','Cenário parcial: '+v.issues.join(' · ')+'. Não confirma caixa nem capacidade real.',decisionOut);
+    }catch(_){el('p','Dados ou fonte alterados. Atualize a consulta e confira novamente.',decisionOut)}
+   });
+
    const recv=el('details','',output);el('summary','Clientes, condições e títulos a receber',recv);
    el('p','Consulta as notas canônicas e seus títulos financeiros vinculados. Saldos divergentes ou pendentes ficam em revisão. Nota compartilhada entre pedidos aparece uma vez nos totais do cliente. Condição de nota anterior não garante a condição de nova entrega.',recv);
    const recvSearch=field('Buscar cliente, pedido ou nota','search','',recv),recvOut=el('div','',recv);let recvData=null,recvPage=0;
