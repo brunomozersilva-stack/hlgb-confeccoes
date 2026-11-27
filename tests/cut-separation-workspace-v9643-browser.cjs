@@ -25,6 +25,18 @@
  const singleGrade=p.locator('#legacy9712').getByRole('button',{name:'Ajustar grade',exact:true}),splitGrade=p.locator('[data-hlgb-cut-model-id="19"]').getByRole('button',{name:'Ajustar grade',exact:true});
  assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);await singleGrade.click();await splitGrade.click();assert.deepEqual(await p.evaluate(()=>window.__gradeOpens),[['single','9'],['split','19']]);
  await p.evaluate(()=>{window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});assert.equal(await singleGrade.count(),1);assert.equal(await splitGrade.count(),1);
+
+ await p.addScriptTag({path:'release-cut-weight-v9579.js'});
+ await p.evaluate(()=>{window.__weightModal=[];window.openModal=(title,html)=>window.__weightModal.push([title,html]);window.hlgbCutOrganization.apply();window.hlgbCutOrganization.apply()});
+ const weight=p.locator('[data-hlgb-cut-model-id="19"]').getByRole('button',{name:'Peso do corte'});
+ assert.equal(await weight.count(),1);assert.equal(await weight.isVisible(),true);await weight.click();
+ assert.match((await p.evaluate(()=>window.__weightModal[0][0])),/19/);
+ await p.evaluate(()=>{db.cuts.find(c=>c.id===19).status='Finalizado';window.hlgbCutOrganization.apply()});
+ assert.equal(await weight.count(),1);assert.equal(await weight.isVisible(),true);
+ await p.evaluate(()=>{db.cuts.push({...db.cuts.find(c=>c.id===19)});window.hlgbCutWeight9579.decorate()});
+ assert.equal(await weight.count(),0);
+ await p.evaluate(()=>{db.cuts.pop();db.cuts.find(c=>c.id===19).status='Planejado';window.hlgbCutOrganization.apply()});
+ assert.equal(await weight.count(),1);assert.equal(await splitGrade.count(),1);
  assert.equal(await p.locator('#legacy9712 > td').first().getAttribute('data-cut-label9712'),'Pedido');
  assert.equal(await p.locator('[data-hlgb-cut-summary9761]').count(),2);
  assert.match(await p.locator('#legacy9712 [data-hlgb-cut-summary9761]').innerText(),/Camisola.*Pedido #12.*Cliente A/s);
