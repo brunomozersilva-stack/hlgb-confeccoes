@@ -14,16 +14,16 @@ create table checklist_lab.record_history(
  primary key(cut_id,version), unique(cut_id,request_id)
 );
 alter table checklist_lab.record_history enable row level security;
-grant select on checklist_lab.record_history to checklist_lab_operator;
+grant select on checklist_lab.record_history to checklist_lab_operator,checklist_lab_operator2,checklist_lab_revoked;
 grant select,insert on checklist_lab.record_history to checklist_lab_writer;
-create policy record_history_read on checklist_lab.record_history for select to checklist_lab_operator using(true);
+create policy record_history_read on checklist_lab.record_history for select to checklist_lab_operator,checklist_lab_operator2,checklist_lab_revoked using(checklist_lab.authorized());
 create policy record_history_writer_read on checklist_lab.record_history for select to checklist_lab_writer using(true);
-create policy record_history_insert on checklist_lab.record_history for insert to checklist_lab_writer with check(actor='checklist_lab_operator');
+create policy record_history_insert on checklist_lab.record_history for insert to checklist_lab_writer with check(checklist_lab.authorized() and actor=current_setting('role',true));
 create function checklist_lab.save_record_checklist(p_cut text,p_order text,p_product text,p_revisions jsonb,p_expected bigint,p_request text,p_payload jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $fn$
 declare src jsonb; prior checklist_lab.record_history%rowtype; current_version bigint; l jsonb; expected_line jsonb; response jsonb; actual numeric; shortage numeric; result_lines jsonb:='[]'; material_keys text[]; locked_materials integer;
 begin
- if current_setting('role',true) is distinct from 'checklist_lab_operator' then raise exception 'permission' using errcode='42501';end if;
+ if not checklist_lab.authorized() then raise exception 'permission' using errcode='42501';end if;
  if p_cut is null or p_order is null or p_product is null or jsonb_typeof(p_revisions) is distinct from 'object' or p_expected is null or p_expected<0 or p_request is null or p_request !~ '^[a-zA-Z0-9_-]{1,100}$' or jsonb_typeof(p_payload) is distinct from 'object' or octet_length(p_payload::text)>100000 then raise exception 'input';end if;
  -- Serialize saves only for this cut, then lock the exact source records.
  -- Missing material IDs have no row to lock: reject save until they exist.
@@ -59,11 +59,11 @@ begin
  end loop;
  response:=jsonb_build_object('cutId',p_cut,'orderId',p_order,'productId',p_product,'revisions',src->'revisions','version',p_expected+1,'requestId',p_request,'responsible',p_payload->>'responsible','note',p_payload->>'note','lines',result_lines,'officialSeparationChanged',false);
  insert into checklist_lab.record_history(cut_id,order_id,product_id,source_snapshot,version,request_id,actor,payload,result)
- values(p_cut,p_order,p_product,src,p_expected+1,p_request,'checklist_lab_operator',p_payload,response);
+ values(p_cut,p_order,p_product,src,p_expected+1,p_request,current_setting('role',true),p_payload,response);
  return response;
 end$fn$;
 grant create on schema checklist_lab to checklist_lab_writer;
 alter function checklist_lab.save_record_checklist(text,text,text,jsonb,bigint,text,jsonb) owner to checklist_lab_writer;
 revoke create on schema checklist_lab from checklist_lab_writer;
 revoke all on function checklist_lab.save_record_checklist(text,text,text,jsonb,bigint,text,jsonb) from public;
-grant execute on function checklist_lab.save_record_checklist(text,text,text,jsonb,bigint,text,jsonb) to checklist_lab_operator;
+grant execute on function checklist_lab.save_record_checklist(text,text,text,jsonb,bigint,text,jsonb) to checklist_lab_operator,checklist_lab_operator2,checklist_lab_revoked;
