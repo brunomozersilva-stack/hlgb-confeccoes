@@ -10,7 +10,7 @@ window.__actions=[];window.__writes=0;window.__cloudChecks=0;
 function offset(days){const d=new Date();d.setDate(d.getDate()+days);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 window.db={projectionInvoices:[
  {id:'1',client:'Cliente A',clientId:1,value:100,paid:100,remaining:0,dueDate:offset(-5),status:'Pago',paymentHistory:[{value:100}]},
- {id:'2',client:'Cliente A',clientId:1,value:200,paid:20,remaining:180,dueDate:offset(1),status:'Pendente',paymentHistory:[{value:20}]},
+ {id:'2',orderId:'order-2',items:[{productId:'p1',productName:'Camisola Rubi',qty:10,unitPrice:20,value:200}],client:'Cliente A',clientId:1,value:200,paid:20,remaining:180,dueDate:offset(1),status:'Pendente',paymentHistory:[{value:20}]},
  {id:'3',client:'Cliente B',clientId:2,value:300,paid:0,remaining:300,dueDate:offset(-2),status:'Pendente'},
  {id:'4',client:'Cliente B',clientId:2,value:400,paid:0,remaining:400,dueDate:offset(0),status:'Pendente'},
  {id:'5',client:'Cliente B',clientId:2,value:500,paid:0,remaining:500,dueDate:'',status:'Pendente'}

@@ -4,7 +4,7 @@
 'use strict';
 if(window.hlgbNotesReceivables9564)return;
 const ID='hlgbNotesReceivables9564',V='95.64';
-const state={tab:'open',client:'',search:'',min:'',max:'',basis:'total',dateBasis:'due',from:'',to:'',sort:'due',lastCloud:'',draws:0};
+const state={tab:'open',client:'',search:'',min:'',max:'',basis:'total',dateBasis:'due',from:'',to:'',sort:'due',lastCloud:'',draws:0,page:0};
 const sid=x=>String(x??''),num=x=>Math.max(0,Number(x)||0),cent=x=>Math.round(num(x)*100);
 const norm=x=>sid(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 const esc=x=>sid(x).replace(/[&<>"']/g,k=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[k]));
@@ -232,15 +232,16 @@ function ensure(){
  const title=page.querySelector('h1');if(title)title.insertAdjacentElement('afterend',root);else page.prepend(root);
  const fields={client:'client',search:'search',basis:'basis',min:'min',max:'max',dateBasis:'dateBasis',from:'from',to:'to',sort:'sort'};
  for(const [id,key] of Object.entries(fields)){
-  const el=root.querySelector('#nr-'+id);el.addEventListener(['search','min','max'].includes(id)?'input':'change',()=>{state[key]=el.value;paint()});
+  const el=root.querySelector('#nr-'+id);el.addEventListener(['search','min','max'].includes(id)?'input':'change',()=>{state[key]=el.value;state.page=0;paint()});
  }
  root.addEventListener('click',async e=>{
   const b=e.target?.closest?.('button[data-action]');if(!b||!root.contains(b))return;
   const action=b.dataset.action;
-  if(action==='tab'){state.tab=b.dataset.tab;paint();return}
-  if(action==='week'){const span=weekBounds(Number(b.dataset.week)||0);state.from=span.from;state.to=span.to;root.querySelector('#nr-from').value=state.from;root.querySelector('#nr-to').value=state.to;paint();return}
-  if(action==='history'){state.client=sid(b.dataset.client);state.tab='all';state.search='';state.from='';state.to='';root.querySelector('#nr-search').value='';root.querySelector('#nr-from').value='';root.querySelector('#nr-to').value='';root.querySelector('#nr-client').value=state.client;paint();return}
-  if(action==='clear'){for(const key of Object.values(fields))state[key]=key==='basis'?'total':key==='sort'?'due':key==='dateBasis'?'due':'';for(const [id,key] of Object.entries(fields))root.querySelector('#nr-'+id).value=state[key];paint();return}
+  if(action==='tab'){state.tab=b.dataset.tab;state.page=0;paint();return}
+  if(action==='page'){state.page=Math.max(0,state.page+(b.dataset.step==='next'?1:-1));paint();return}
+  if(action==='week'){state.page=0;const span=weekBounds(Number(b.dataset.week)||0);state.from=span.from;state.to=span.to;root.querySelector('#nr-from').value=state.from;root.querySelector('#nr-to').value=state.to;paint();return}
+  if(action==='history'){state.page=0;state.client=sid(b.dataset.client);state.tab='all';state.search='';state.from='';state.to='';root.querySelector('#nr-search').value='';root.querySelector('#nr-from').value='';root.querySelector('#nr-to').value='';root.querySelector('#nr-client').value=state.client;paint();return}
+  if(action==='clear'){state.page=0;for(const key of Object.values(fields))state[key]=key==='basis'?'total':key==='sort'?'due':key==='dateBasis'?'due':'';for(const [id,key] of Object.entries(fields))root.querySelector('#nr-'+id).value=state[key];paint();return}
   if(action==='csv'){exportCsv();return}
   if(action==='cloud'){
    const sync=window.hlgbNotesLiveSync9563;
@@ -256,6 +257,7 @@ function ensure(){
   if(action==='view'&&type==='projection')window.hlgbViewNote9411?.(id);
   if(action==='view'&&type==='order')window.viewOrderDetails?.(id);
   if(action==='pdf'&&type==='projection')window.hlgbDownloadNotePdf9411?.(id);
+  if(action==='print'&&type==='projection')window.hlgbPrintNote9411?.(id);
   if(action==='pay'&&type==='projection')window.openProjectionAcerto9214?.(id);
   if(action==='edit'&&type==='projection')window.openProjectionAcerto9214?.(id);
   if(action==='pay'&&type==='order')window.openAcerto?.(id);
@@ -316,17 +318,18 @@ function paint(){
   label+' ('+tot[key][0]+')<span style="display:block;font-size:12px">'+brl(tot[key][1])+'</span></button>').join('');
  const amount=state.tab==='compensated'?sum(filtered,'credit'):state.tab==='paid'||state.tab==='all'?sum(filtered,'total'):sum(filtered,'balance');
  root.querySelector('#nr-summary').innerHTML='<div class="nr-row"><b>'+filtered.length+' nota(s) · '+brl(amount)+'</b><span class="sub">Valores calculados sobre dados carregados. Pagamentos parciais deixam o saldo em aberto.</span></div>';
- const shown=filtered.slice(0,300);
+ const pageSize=100;state.page=Math.max(0,Math.min(Number.isSafeInteger(state.page)?state.page:0,Math.max(0,Math.ceil(filtered.length/pageSize)-1)));const shown=filtered.slice(state.page*pageSize,(state.page+1)*pageSize);
  root.querySelector('#nr-table').innerHTML=shown.length?'<div class="nr-table"><table><thead><tr><th>Nota</th><th>Cliente</th><th>Produtos / peças</th><th>Emissão</th><th>Vencimento</th><th class="nr-money">Total</th><th class="nr-money">Recebido</th><th class="nr-money">Devoluções</th><th class="nr-money">Saldo</th><th>Situação</th><th>Ações</th></tr></thead><tbody>'+
  shown.map(n=>{const badge=label(n,now),partial=n.balance>1&&n.paid>0?' · Parcial':'';
  const actions=actionButton('view',n,n.type==='order'?'Ver pedido':'Ver')+
  (n.type==='projection'&&typeof window.hlgbDownloadNotePdf9411==='function'?actionButton('pdf',n,'PDF'):'')+
+ (n.type==='projection'&&typeof window.hlgbPrintNote9411==='function'?actionButton('print',n,'Imprimir'):'')+
  (n.type==='order'?(n.balance>1&&typeof window.openAcerto==='function'?actionButton('pay',n,'Acerto'):''):(typeof window.openProjectionAcerto9214==='function'?actionButton(n.balance>1?'pay':'edit',n,n.balance>1?'Acerto':'Abrir / editar'):''));
  return '<tr><td><b>#'+esc(n.number)+'</b><div class="sub">'+esc(n.source)+'</div></td><td>'+esc(n.client)+'</td><td><details><summary>'+esc(n.pieces==null?'Quantidade a conferir':n.pieces+' pç')+'</summary>'+((n.models||[]).map(m=>'<div>'+esc(m.name)+' · '+m.qty+' pç</div>').join('')||'Itens não identificados')+'</details></td><td>'+esc(n.issued?dateFmt(n.issued):'-')+'</td>'+
  '<td>'+esc(dateFmt(n.due))+'</td><td class="nr-money">'+brl(n.total)+'</td><td class="nr-money">'+brl(n.paid)+'</td><td class="nr-money">'+brl(n.credit)+'</td><td class="nr-money">'+brl(n.balance)+'</td>'+
  '<td><span class="badge '+badge[1]+'">'+esc(badge[0]+partial)+'</span>'+(n.mismatch?'<div style="color:#a66300">⚠ Conferir saldo</div>':'')+'</td><td><div class="nr-actions">'+actions+'</div></td></tr>';
  }).join('')+'</tbody></table></div>':'<div class="empty" style="padding:14px">Nenhuma nota encontrada nos filtros.</div>';
- if(filtered.length>300)root.querySelector('#nr-table').insertAdjacentHTML('beforeend','<div class="sub">Exibindo 300 notas; CSV exporta todos os resultados filtrados.</div>');
+ if(filtered.length>pageSize)root.querySelector('#nr-table').insertAdjacentHTML('beforeend','<div class="nr-row"><button type="button" class="secondary" data-action="page" data-step="prev"'+(state.page===0?' disabled':'')+'>Anteriores</button><span class="sub">Exibindo '+(state.page*pageSize+1)+'–'+Math.min(filtered.length,(state.page+1)*pageSize)+' de '+filtered.length+' notas; CSV exporta todo o filtro.</span><button type="button" class="secondary" data-action="page" data-step="next"'+((state.page+1)*pageSize>=filtered.length?' disabled':'')+'>Próximas</button></div>');
  root.querySelector('#nr-agenda').innerHTML=agenda(base,now)+byClient(base)+clientHistory(all);
  const s=window.hlgbNotesLiveSync9563?.status?.();
  root.querySelector('#nr-sync').textContent=state.lastCloud||(s?.unverified?'⚠ Última leitura da nuvem sem confirmação.':s?.lastAt?'Nuvem conferida: '+new Date(s.lastAt).toLocaleString('pt-BR'):'Sem prova de atualização da nuvem nesta sessão.');
