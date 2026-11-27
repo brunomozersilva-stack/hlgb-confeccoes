@@ -112,6 +112,25 @@
     if(b.totals)el('p','Salários-base '+money(b.totals.baseCents)+' · Descontos '+money(b.totals.deductionCents)+' · Extras '+money(b.totals.extraCents)+' · Bruto indicativo '+money(b.totals.indicativeGrossCents),report);
     for(const r of b.rows){const item=el('article','',report);el('strong',r.name+' · '+r.company,item);if(r.preview){const p=r.preview;el('p','Faltas injustificadas '+p.counts.absenceUnjustified+' min · Justificadas '+p.counts.absenceJustified+' min · Diferença de jornada '+p.counts.shortfall+' min · Extras observadas '+p.counts.extra+' min · Dias sem registro '+p.missingDays,item);if(p.reviewed)el('p','Descontos '+money(p.deductionCents)+' · Extras '+money(p.extraCents)+' · Bruto indicativo '+money(p.indicativeGrossCents),item)}if(r.reason)el('p',({'roster-or-report-changed':'Cadastro ou relatório alterado: importe novamente','missing-attendance':'Sem ponto importado','parameters-unreviewed':'Parâmetros ainda não conferidos','unavailable':'Confira salário e divisor'})[r.reason]||r.reason,item)}
    });draw();
+   const transportSection=el('details','',salaryHost);el('summary','Usar este relatório para conferir passagem',transportSection);
+   el('p','Associe três colunas explícitas do mesmo arquivo: deslocamento (sim/nao/pendente), passagem antecipada por dia em reais (ou vazia) e compensada (sim/nao/pendente). Não inferimos deslocamento pela presença ou falta.',transportSection);
+   const transportMapped={};
+   for(const [key,label,alias] of [['commute','Deslocamento','deslocamento'],['advance','Antecipação diária','passagem_antecipada'],['adjusted','Compensação anterior','compensada']]){
+    const sel=ds(label,transportSection);opt(sel,'','Escolher coluna');for(const c of tableDigital.columns)opt(sel,c,c);sel.value=tableDigital.columns.includes(alias)?alias:'';transportMapped[key]=sel;
+   }
+   const transportOut=el('div','',transportSection);
+   for(const sel of Object.values(transportMapped))sel.onchange=()=>transportOut.replaceChildren();
+   dbtn('Conferir e carregar passagem do mesmo arquivo',transportSection,()=>{
+    transportOut.replaceChildren();if(!current()||!tableDigital)return;
+    const v=root.HLGBAttendance9658.digitalTransportBridge(tableDigital,mapping,data()?.employees,month.value,[...links].map(([code,employeeId])=>({code,employeeId})),Object.fromEntries(Object.entries(transportMapped).map(([k,s])=>[k,s.value])),true);
+    if(v.state!=='local-preview'||!v.rows.length){el('p','Sem evidência suficiente. Confira colunas e vínculos; a prévia anterior permanece.',transportOut);return}
+    if(batch&&!confirm('Substituir a prévia de passagem atual nesta sessão? Nenhum dado gravado será alterado.'))return;
+    request++;batch=v;file.value='';employee.replaceChildren();out.replaceChildren();resetBatch();
+    for(const pid of new Set(v.rows.map(r=>r.employeeId))){const e=(data()?.employees||[]).find(x=>String(x.id)===pid);opt(employee,pid,String(e?.name||pid)+' · ID '+pid)}
+    el('p',v.rows.length+' registros de passagem importados dos '+v.salaryRows+' registros de ponto · '+v.issues.length+' ocorrências a revisar. Confira tarifa e cobertura individual na seção de passagem.',transportOut);
+    for(const i of v.issues.slice(0,30))el('p','Linha '+i.line+' · '+i.reason,transportOut);
+    refreshBatch();
+   });
 
   });
   const bulk=el('details','',host);bulk.className='panel';el('summary','Conferência coletiva de ponto e passagem por confecção',bulk);
