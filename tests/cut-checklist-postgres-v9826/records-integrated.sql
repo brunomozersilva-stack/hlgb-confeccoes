@@ -2,6 +2,9 @@
 -- No commercial schema or endpoint. The historical snapshot is calculated by server.
 grant select,update on checklist_lab.source_records to checklist_lab_writer;
 create policy source_writer_read on checklist_lab.source_records for select to checklist_lab_writer using(module in ('cuts','orders','products','materials') and deleted_at is null);
+-- Row-level SHARE locks require UPDATE privilege; the writer is NOLOGIN and can
+-- only use its validated functions. RLS update predicate permits lock targets.
+create policy source_writer_lock on checklist_lab.source_records for update to checklist_lab_writer using(module in ('cuts','orders','products','materials') and deleted_at is null) with check(false);
 grant execute on function checklist_lab.record_source(text,text,text) to checklist_lab_writer;
 create table checklist_lab.record_history(
  cut_id text not null, order_id text not null, product_id text not null,
@@ -18,13 +21,22 @@ create policy record_history_writer_read on checklist_lab.record_history for sel
 create policy record_history_insert on checklist_lab.record_history for insert to checklist_lab_writer with check(actor='checklist_lab_operator');
 create function checklist_lab.save_record_checklist(p_cut text,p_order text,p_product text,p_revisions jsonb,p_expected bigint,p_request text,p_payload jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $fn$
-declare src jsonb; prior checklist_lab.record_history%rowtype; current_version bigint; l jsonb; expected_line jsonb; response jsonb; actual numeric; shortage numeric; result_lines jsonb:='[]';
+declare src jsonb; prior checklist_lab.record_history%rowtype; current_version bigint; l jsonb; expected_line jsonb; response jsonb; actual numeric; shortage numeric; result_lines jsonb:='[]'; material_keys text[]; locked_materials integer;
 begin
  if current_setting('role',true) is distinct from 'checklist_lab_operator' then raise exception 'permission' using errcode='42501';end if;
  if p_cut is null or p_order is null or p_product is null or jsonb_typeof(p_revisions) is distinct from 'object' or p_expected is null or p_expected<0 or p_request is null or p_request !~ '^[a-zA-Z0-9_-]{1,100}$' or jsonb_typeof(p_payload) is distinct from 'object' or octet_length(p_payload::text)>100000 then raise exception 'input';end if;
- -- Coarse fixture lock prevents source insert/update/delete and serializes competing saves.
- -- Production must use narrower locking plus consistent material identity.
- lock table checklist_lab.source_records in share row exclusive mode;
+ -- Serialize saves only for this cut, then lock the exact source records.
+ -- Missing material IDs have no row to lock: reject save until they exist.
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('checklist-lab:'||p_cut,0));
+ perform 1 from checklist_lab.source_records where module='cuts' and entity_id=p_cut and deleted_at is null for share;
+ perform 1 from checklist_lab.source_records where module='orders' and entity_id=p_order and deleted_at is null for share;
+ perform 1 from checklist_lab.source_records where module='products' and entity_id=p_product and deleted_at is null for share;
+ select array_agg(distinct m->>'materialId' order by m->>'materialId') into material_keys
+ from checklist_lab.source_records p cross join lateral jsonb_array_elements(case when jsonb_typeof(p.data->'materials')='array' then p.data->'materials' else '[]'::jsonb end) m
+ where p.module='products' and p.entity_id=p_product and p.deleted_at is null and nullif(m->>'materialId','') is not null;
+ perform 1 from checklist_lab.source_records where module='materials' and entity_id=any(material_keys) and deleted_at is null order by entity_id for share;
+ get diagnostics locked_materials=row_count;
+ if locked_materials<>coalesce(cardinality(material_keys),0) then raise exception 'missing-material-source';end if;
  select * into prior from checklist_lab.record_history h where h.cut_id=p_cut and h.request_id=p_request;
  if found then
   if prior.order_id<>p_order or prior.product_id<>p_product or prior.source_snapshot->'revisions' is distinct from p_revisions or prior.version<>p_expected+1 or prior.payload is distinct from p_payload then raise exception 'request-conflict';end if;
