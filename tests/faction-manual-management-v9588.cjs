@@ -106,6 +106,7 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  assert.equal(db.factionPayments.find(x=>x.id==='C-1').status,'Pendente');
  assert.equal(db.hubFinanceEntries.length,2);
  failHub=false;
+ const other={id:'unexpected-hub',sourceId:'group-wal',sourceType:'faction_manual_payment',status:'Realizado',value:20};db.hubFinanceEntries.push(other);const beforeConflict=writes.length;await assert.rejects(()=>api.markGroupPaid('group-wal','2026-11-13','Dinheiro',null),/fora do ID esperado/);assert.equal(writes.length,beforeConflict);db.hubFinanceEntries.pop();
  const final=await api.markGroupPaid('group-wal','2026-11-13','Dinheiro',null);
  assert.equal(final.total,20);
  assert.equal(db.hubFinanceEntries.length,3);
@@ -120,5 +121,6 @@ const edit={serviceMode:'faccao',factionName:'Roseli',status:'Pendente',
  b.paymentDate='2026-11-26';
  const mixed=api.receiptGroups().find(x=>x.id==='group-date');assert.equal(mixed.date,'');assert.equal(mixed.paidDate,'');assert.equal(mixed.dateEvidence,'review');assert.equal(mixed.status,'Pago','do not reopen a paid group merely because its dates disagree');
  assert.equal(writes.length,writeCount);
+ const diego=[{...row('group-diego','DIEGO-1',19.5),description:'Camisola Plus Cyrlene'},{...row('group-diego','DIEGO-2',65),description:'Body Monara'},{...row('group-diego','DIEGO-3',70.5),description:'Camisola Trancada'}];db.factionPayments.push(...deep(diego));server.factionPayments.push(...deep(diego));const beforeDiego=db.hubFinanceEntries.length;const diegoResult=await api.markGroupPaid('group-diego','2026-11-27','PIX',null);assert.equal(diegoResult.total,155);assert.equal(db.hubFinanceEntries.length,beforeDiego+1);assert.equal(db.factionPayments.filter(x=>x.manualGroupId==='group-diego'&&x.status==='Pago').length,3);
  console.log('PASS faction manual v95.88: edits, same IDs, PDF preservation, WAL/stale blocks, one Hub per payment, readbacks, partial retry and paid protection.');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -773,6 +773,8 @@ async function markGroupPaid(groupId,date,method,receipt,options={}){
   if(alreadyPaid.some(x=>sid(x.paymentDate)!==date||sid(x.paymentMethod)!==method||
     cents(x.paidAmount)!==cents(allocations[rows.indexOf(x)])))
    throw Error('Parte deste pagamento já foi registrada com outros dados. Não duplicar; revisar histórico.');
+  const linkedLocal=arr('hubFinanceEntries').filter(x=>x&&!x.deleted&&!x.deleted_at&&!x.deletedAt&&!['cancelado','cancelada','excluido','excluida'].includes(norm(x.status))&&sid(x.sourceId)===sid(groupId));
+  if(linkedLocal.length>1||linkedLocal.some(x=>sid(x.id)!==sid(hubId(groupId))||x.sourceType!=='faction_manual_payment'))throw Error('Existe lançamento financeiro vinculado fora do ID esperado. Confira o Hub antes de registrar outra saída.');
   const oldHub=await preflightGroup(groupId,allRows);
   if(options.requireExistingHub===true&&(!oldHub||oldHub.sourceType!=='faction_manual_payment'||sid(oldHub.id)!==sid(hubId(groupId))))throw Error('Pagamento anterior sem saída vinculada confirmada na nuvem. Nenhuma baixa ou saída nova será criada.');
   if(oldHub&&(cents(oldHub.value)!==cents(total)||sid(oldHub.date)!==date||sid(oldHub.paymentMethod)!==method||sid(oldHub.status)!=='Realizado'))
@@ -1753,7 +1755,7 @@ function openPayModal(groupId,options={}){
  if(!open)throw Error('Janela de pagamento indisponível.');
  const html='<div id="fm88-pay-modal" class="panel" style="padding:12px">'+
   '<p><b>'+esc(group.factionName)+'</b> · '+group.items+' serviço(s) · <b>'+money(total)+'</b></p>'+
-  (existingOnly?'<p class="sub"><b>Pagamento anterior:</b> só conclui a baixa quando a saída deste grupo já existe e coincide com data, valor e forma na nuvem. Não cria saída financeira.</p>':'<p class="sub">A baixa registra o total já ajustado no Hub Financeiro. Para abater ou acrescentar agora, use o botão abaixo antes de confirmar. Nenhuma alteração será feita automaticamente.</p>')+
+  (existingOnly?'<p class="sub"><b>Pagamento anterior:</b> só conclui a baixa quando a saída deste grupo já existe e coincide com data, valor e forma na nuvem. Não cria saída financeira.</p>':'<p class="sub">Use somente após realizar o pagamento de verdade. Este formulário registra a saída no Hub e marca os serviços como pagos; não realiza Pix ou transferência. Se já registrou a saída em outro lugar, confira o vínculo antes de confirmar. Para abater ou acrescentar, use o botão abaixo.</p>')+
    '<p class="sub">Serviços: '+money(group.nominal)+' · Ajustes diretos: '+money(sumDirectCentsV9591(group.directAdjustments||[])/100)+
    ' · Total líquido: <b>'+money(total)+'</b></p>'+
    (existingOnly?'':'<button type="button" class="secondary" id="fm91-pay-adjust">➖ Abater / ➕ Acrescentar antes de pagar</button>')+
