@@ -112,6 +112,34 @@
   const filtered=filter==='all'?Object.values(groups).flat():groups[filter];
   return {state:'local-review',groups,rows:filtered,totals:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,k==='unknown'?null:sum(v)])),observedTotalCents:sum(known),filteredTotalCents:sum(filtered.filter(x=>x.status!=='unknown')),unknownCount:groups.unknown.length,reviewedCount:known.length,employeeCount:new Set(known.map(x=>x.employeeId)).size,officialTotalCents:null,canPublish:false};
  }
+ // Compact view: oldest overdue cycle per employee; never erase remaining liabilities.
+ function provisionFocus(source,rows,asOf,allowed){
+  const empty=state=>({state,people:[],focusRows:[],totals:null,canPublish:false,officialTotalCents:null});
+  if(allowed!==true)return empty('forbidden');
+  let report;try{report=provisionCycles(source,rows,asOf,'all')}catch(_){return empty('unavailable')}
+  const people=new Map(),focusRows=[],totals={openCents:0,overdueCents:0,oldestOverdueCents:0,otherOverdueCents:0,acquiredCents:0,proportionalCents:0,usedReportedCents:0,unknownCount:0,openCount:0,oldestCount:0,otherOverdueCount:0};
+  for(const e of source.rows)people.set(e.id,{employeeId:e.id,name:e.name,company:e.company,overdue:[],acquired:[],proportional:[],used:[],unknown:[]});
+  for(const [status,group] of Object.entries(report.groups))for(const r of group){
+   const p=people.get(r.employeeId);if(p)p[status].push(r);
+   if(status==='unknown'){totals.unknownCount++;continue}
+   if(status==='used'){totals.usedReportedCents+=r.provisionCents;continue}
+   totals.openCents+=r.provisionCents;totals.openCount++;totals[status+'Cents']+=r.provisionCents;
+  }
+  for(const p of people.values()){
+   p.overdue.sort((a,b)=>a.concessionEnd.localeCompare(b.concessionEnd)||a.acquisitionStart.localeCompare(b.acquisitionStart)||a.cycleId.localeCompare(b.cycleId));
+   const first=p.overdue[0]||null,other=p.overdue.slice(1);
+   if(first){focusRows.push(first);totals.oldestOverdueCents+=first.provisionCents;totals.oldestCount++}
+   for(const r of other){totals.otherOverdueCents+=r.provisionCents;totals.otherOverdueCount++}
+   p.oldestOverdue=first;p.otherOverdueCount=other.length;p.otherOverdueCents=other.reduce((s,r)=>s+r.provisionCents,0);
+   p.openCents=[...p.overdue,...p.acquired,...p.proportional].reduce((s,r)=>s+r.provisionCents,0);
+   p.openDays=[...p.overdue,...p.acquired,...p.proportional].reduce((s,r)=>s+r.remainingDays,0);
+   p.hasEvidence=Object.values(report.groups).some(g=>g.some(r=>r.employeeId===p.employeeId));
+   if(!p.hasEvidence){p.openCents=null;p.openDays=null}
+  }
+  if(Object.values(totals).some(n=>!Number.isSafeInteger(n)))return empty('amount-limit');
+  const all=[...people.values()],withoutCycles=all.filter(p=>!p.hasEvidence).length;
+  return {...empty('local-focus'),people:all,focusRows,totals,withoutCycles,partial:withoutCycles>0||totals.unknownCount>0,sourceCoverage:'local-manually-reviewed',allOpenRows:[...report.groups.overdue,...report.groups.acquired,...report.groups.proportional]};
+ }
  function reviewedNotice(source,input){
   if(source?.state!=='local-roster')throw Error('roster-unavailable');
   const e=source.rows.find(x=>x.id===employeeId(input?.employeeId));
@@ -119,5 +147,5 @@
   const result=notice({hireDate:input.hireDate,noticeDate:input.noticeDate,type:input.type,mode:input.mode,salaryCents:input.salaryCents,approvedItems:input.approvedItems||[]});
   return {...result,employeeId:e.id,name:e.name,observedItemsDifferenceCents:result.items.some(x=>x.status==='open'&&['credit','discount'].includes(x.kind))?result.observedCreditsCents-result.observedDiscountsCents:null,canPublish:false};
  }
- return {vacations,provisions,notice,roster,selectRoster,reviewedVacations,provisionCycles,reviewedNotice};
+ return {vacations,provisions,notice,roster,selectRoster,reviewedVacations,provisionCycles,provisionFocus,reviewedNotice};
 })());
