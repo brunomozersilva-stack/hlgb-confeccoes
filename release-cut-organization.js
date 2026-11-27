@@ -10,8 +10,9 @@ function cutIdentity9709(row){
  for(const b of buttons){const m=sid(b.getAttribute('onclick')).match(/^\s*(?:return\s+)?(?:editCut|hlgbEditCut9189|finishCut|viewCutGradeComparison)\(\s*(['"]?)([^'")\s]+)\1\s*\)\s*;?\s*$/);if(m)ids.add(m[2])}
  return ids.size===1?[...ids][0]:'';
 }
+function cutLive9819(x){return !!x&&x.deleted!==true&&x._deleted!==true&&!x.deletedAt&&!x.deleted_at}
 function cutIndex9709(){
- const index=n=>{const map=new Map();for(const x of arr(n)){if(!x||x.id==null)continue;const id=sid(x.id);map.set(id,map.has(id)?null:x)}return map};
+ const index=n=>{const map=new Map();for(const x of arr(n)){if(!cutLive9819(x)||x.id==null||!sid(x.id).trim())continue;const id=sid(x.id);map.set(id,map.has(id)?null:x)}return map};
  return {cuts:index('cuts'),orders:index('orders'),cutters:index('cutters'),products:index('products'),materials:index('materials')};
 }
 function cutMoney9712(c,p){
@@ -91,20 +92,21 @@ function ensureGradeAction9722(row,cut,model){
  // Completed cuts are a historical view of the actual records, independent of
  // whether today's order grade still contains every model in the original split.
  function completedCutHistory(cuts,idx){
-  const live=c=>c&&!c.deletedAt&&!c.deleted_at&&c.deleted!==true&&c._deleted!==true;
+  const live=cutLive9819;
   const counts=new Map(),rows=[],review=[];
   for(const c of cuts.filter(live)){const k=sid(c.id);if(k)counts.set(k,(counts.get(k)||0)+1)}
   for(const c of cuts.filter(live)){
    if(norm(c.status)!=='finalizado'||c.modelSplitParentV1===true||c.hiddenByModelSplitV1===true)continue;
    const key=sid(c.id);if(!key||counts.get(key)!==1){review.push({id:key,reason:'Identidade duplicada ou ausente'});continue}
    const meta=cutMeta9709(c,idx),raw=sid(c.finishedAt||''),day=raw.slice(0,10),date=/^\d{4}-\d{2}-\d{2}$/.test(day)&&Number.isFinite(Date.parse(day+'T00:00:00Z'))&&new Date(day+'T00:00:00Z').toISOString().slice(0,10)===day?day:'';
-   const grade=Array.isArray(c.actualCutGrade)?c.actualCutGrade:[],cells=[],seen=new Set();let sum=0,valid=grade.length>0;
+   const grade=Array.isArray(c.actualCutGrade)?c.actualCutGrade:[],cells=[],seen=new Set(),modelIds=new Set();let sum=0,valid=grade.length>0;
    for(const g of grade){const pid=sid(g?.productId||c.productId),color=sid(g?.color),size=sid(g?.size),qty=g?.qty,k=JSON.stringify([sid(g?.orderId||c.orderId),pid,color,size]);
     if(!pid||!color||!size||!Number.isSafeInteger(qty)||qty<0||seen.has(k)){valid=false;continue}
-    seen.add(k);sum+=qty;if(qty)cells.push({model:idx.products.get(pid)?.name||pid,color,size,qty});
+    if(c.productId&&pid!==sid(c.productId)){valid=false;continue}
+    seen.add(k);sum+=qty;if(qty){modelIds.add(pid);cells.push({model:idx.products.get(pid)?.name||pid,color,size,qty})}
    }
-   valid=valid&&Number.isSafeInteger(sum)&&sum===meta.pieces;
-   const models=[...new Set(cells.map(g=>g.model))];
+   valid=valid&&cells.length>0&&Number.isSafeInteger(sum)&&sum===meta.pieces;
+   const models=[...modelIds].map(id=>idx.products.get(id)?.name||id);
    const hasOrder=!!idx.orders.get(sid(c.orderId)),hasProduct=!!idx.products.get(sid(c.productId));
    const reasons=[];if(!date)reasons.push('Data de conclusão não confirmada');if(!hasOrder)reasons.push('Pedido original não encontrado');if(!valid)reasons.push('Grade realizada a conferir');if(!hasProduct&&!models.length)reasons.push('Modelo não confirmado');
    const named=models.length>1?models.join(' + '):meta.model||models[0]||'Modelo não identificado';
@@ -136,6 +138,12 @@ function ensureGradeAction9722(row,cut,model){
   const count=document.getElementById('hlgbCutFilterCount');if(count)count.textContent=rows.length+' cortes finalizados no filtro · '+all.rows.length+' identificados';
   // Same page and evidence: retain expanded grades, focused buttons and DOM nodes.
   if(host.__hlgbHistoryPaint9799===paintSignature)return;
+  // A change elsewhere on this page must not close a grade that is unchanged.
+  const expanded=new Map();
+  for(const card of host.querySelectorAll('[data-completed-cut-id]')){
+   const d=card.querySelector('details[data-hlgb-history-grade9819]');
+   if(d?.open)expanded.set(card.dataset.completedCutId,d.dataset.hlgbHistoryGrade9819);
+  }
   host.replaceChildren();host.__hlgbHistoryPaint9799=paintSignature;
   el('h3','Cortes finalizados — histórico');
   el('p',rows.length+' de '+all.rows.length+' cortes identificados · '+all.review.length+' registros com identidade a conferir. Datas dos filtros referem-se à conclusão; cobertura local, sem confirmação de nuvem.');
@@ -144,7 +152,7 @@ function ensureGradeAction9722(row,cut,model){
    const card=el('article','');card.className='hlgb-completed-card9770';card.dataset.completedCutId=r.id;
    el('strong',r.meta.model,card);el('p','Pedido #'+(r.meta.orderNumber||'—')+' · '+(r.meta.client||'Cliente não identificado')+' · '+(r.meta.pieces===null?'Quantidade a conferir':r.meta.pieces+' pç')+' · '+(r.meta.date||'Sem data de conclusão')+' · '+r.meta.cutterName,card);
    if(r.reasons.length)el('p',r.reasons.join(' · '),card);
-   if(r.grade.length){const d=el('details','',card);el('summary','Ver grade realmente cortada',d);for(const g of r.grade)el('p',g.model+' · '+g.color+' '+g.size+': '+g.qty,d)}
+   if(r.grade.length){const d=el('details','',card);d.dataset.hlgbHistoryGrade9819=JSON.stringify(r.grade);d.open=expanded.get(r.id)===d.dataset.hlgbHistoryGrade9819;el('summary','Ver grade realmente cortada',d);for(const g of r.grade)el('p',g.model+' · '+g.color+' '+g.size+': '+g.qty,d)}
    if(typeof window.hlgbCutWeight9579?.show==='function'){
     const b=el('button',r.weight?'Consultar / atualizar peso':'Registrar peso do corte',card);b.type='button';b.className='secondary';
     b.onclick=()=>{if(window.__HLGB_AUTH_READY!==true||canOpenPage('corte')!==true||!card.isConnected)return;const fresh=arr('cuts').filter(c=>sid(c?.id)===r.id&&!c.deleted&&!c.deletedAt&&!c.deleted_at&&!c._deleted);if(fresh.length!==1||norm(fresh[0].status)!=='finalizado'||fresh[0].modelSplitParentV1||fresh[0].hiddenByModelSplitV1){alert('Corte mudou. Atualize o histórico.');return}if(fresh[0].modelSplitChildV1&&window.hlgbCutModelSplit?.competingModelCuts?.(fresh[0])?.length>1){alert('Corte duplicado: confira antes de pesar.');return}window.hlgbCutWeight9579.show(r.id)};
