@@ -4,6 +4,15 @@
  const dates=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&Number.isFinite(Date.parse(s+'T00:00:00Z'))&&new Date(Date.parse(s+'T00:00:00Z')).toISOString().slice(0,10)===s;
  const id=v=>typeof v==='number'&&Number.isSafeInteger(v)||typeof v==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(v)?String(v):'';
  const cents=s=>typeof s==='string'&&/^\d{1,7}(?:[.,]\d{1,2})?$/.test(s)?Math.round(Number(s.replace(',','.'))*100):null;
+ // A known employment boundary is inclusive; missing dates remain unverified, not invented.
+ function employmentWindow(person,month){
+  const [y,m]=month.split('-').map(Number),start=month+'-01',end=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);
+  const hire=person?.hireDate,leave=person?.terminationDate;
+  if(hire&&!dates(hire)||leave&&!dates(leave)||hire&&leave&&hire>leave)return {state:'invalid',start:null,end:null,days:0};
+  const first=hire&&hire>start?hire:start,last=leave&&leave<end?leave:end;
+  if(first>last)return {state:'outside',start:null,end:null,days:0};
+  return {state:hire&&!(person?.active===false&&!leave)?'inside':'unknown',start:first,end:last,days:Math.round((Date.parse(last+'T00:00:00Z')-Date.parse(first+'T00:00:00Z'))/86400000)+1};
+ }
  const states=new Set(['trabalhado','falta_justificada','falta_injustificada','ferias','afastamento','folga','pendente']);
  function parse(text){
   if(typeof text!=='string'||text.length>2000000)throw Error('limite-do-arquivo');
@@ -25,6 +34,7 @@
    const line=i+2,[employeeId,date,scheduled,status,commute,advance,adjusted]=r,k=employeeId+'|'+date;
    if(r.length!==7||!persons.get(employeeId)||!dates(date)||date.slice(0,7)!==month||!['sim','nao'].includes(scheduled)||!states.has(status)||!['sim','nao','pendente'].includes(commute)||advance!==''&&cents(advance)===null||!['sim','nao','pendente'].includes(adjusted)){issues.push({line,reason:'linha-invalida-ou-sem-vinculo'});return}
    if(status==='pendente'&&commute!=='pendente'||status==='folga'&&scheduled==='sim'||scheduled==='nao'&&['falta_justificada','falta_injustificada'].includes(status)||adjusted==='sim'&&advance===''){issues.push({line,reason:'ocorrencia-inconsistente'});return}
+   const w=employmentWindow(persons.get(employeeId),month);if(w.state==='invalid'||w.state==='outside'||date<w.start||date>w.end){issues.push({line,reason:'dia-fora-do-vinculo-ou-datas-invalidas'});return}
    const v={employeeId,date,scheduled:scheduled==='sim',status,commute,advanceCents:advance===''?null:cents(advance),adjusted,sourceLine:line};
    const canonical=JSON.stringify({...v,sourceLine:0}),prev=groups.get(k);
    if(prev){if(prev.canonical===canonical){duplicateCount++;return}prev.conflict=true;issues.push({line,reason:'conflito-mesmo-funcionario-dia'});return}
@@ -35,10 +45,11 @@
  }
  function preview(batch,person,opt,transport){
   if(batch?.state!=='local-preview'||!person||!id(person.id)||!dates(opt?.asOf)||!dates(opt?.paidThrough)||!Number.isSafeInteger(opt?.rateCents)||opt.rateCents<0||typeof transport?.transport!=='function')return {state:'unavailable',canWrite:false};
-  const pid=id(person.id),rows=batch.rows.filter(x=>x.employeeId===pid),counts={scheduled:0,worked:0,justified:0,unjustified:0,vacation:0,leave:0,pending:0,commuted:0};
+  const pid=id(person.id),w=employmentWindow(person,batch.month);if(w.state==='invalid'||w.state==='outside')return {state:'unavailable',canWrite:false};
+  const rows=batch.rows.filter(x=>x.employeeId===pid&&x.date>=w.start&&x.date<=w.end),counts={scheduled:0,worked:0,justified:0,unjustified:0,vacation:0,leave:0,pending:0,commuted:0};
   for(const r of rows){if(r.scheduled)counts.scheduled++;if(r.status==='trabalhado')counts.worked++;if(r.status==='falta_justificada')counts.justified++;if(r.status==='falta_injustificada')counts.unjustified++;if(r.status==='ferias')counts.vacation++;if(r.status==='afastamento')counts.leave++;if(r.status==='pendente'||r.commute==='pendente'||r.adjusted==='pendente')counts.pending++;if(r.commute==='sim')counts.commuted++}
   const [y,m]=batch.month.split('-').map(Number),start=batch.month+'-01',end=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);
-  const missingDays=new Date(Date.UTC(y,m,0)).getUTCDate()-rows.length;
+  const missingDays=w.days-new Set(rows.map(x=>x.date)).size;
   const eligible=person.hasTransport===true?true:person.hasTransport===false?false:null;
   if(!rows.length||eligible===null)return {state:'local-preview',rows,counts,missingDays,transport:null,canWrite:false};
   // These "verified" flags inside the pure transport engine mean only normalized evidence rows;
@@ -54,9 +65,9 @@
   const index=new Map(),issues=[],imported=new Set(batch.rows.map(x=>x.employeeId));
   for(const e of employees){if(!e||e.deletedAt||e.deleted_at||e.deleted===true||e._deleted===true)continue;const k=id(e.id);if(k)index.set(k,index.has(k)?null:e)}
   const rows=[];
-  for(const [k,e] of index){if(!e){issues.push('duplicate-employee:'+k);continue}if(e.active===false&&!imported.has(k))continue;
+  for(const [k,e] of index){if(!e){issues.push('duplicate-employee:'+k);continue}const w=employmentWindow(e,batch.month);if(!imported.has(k)&&(w.state==='outside'||e.active===false&&w.state==='unknown'))continue;
    const person={id:k,name:typeof e.name==='string'?e.name.trim().slice(0,160):k,company:typeof e.companyName==='string'?e.companyName.trim().slice(0,160):'',eligible:typeof e.hasTransport==='boolean'?e.hasTransport:null,imported:imported.has(k)};
-   rows.push({...person,signature:JSON.stringify([person.id,person.name,person.company,person.eligible,e.active!==false,e.terminationDate||''])});
+   rows.push({...person,signature:JSON.stringify([person.id,person.name,person.company,person.eligible,e.active!==false,e.hireDate||'',e.terminationDate||''])});
   }
   for(const k of imported)if(!index.get(k))issues.push('imported-employee-unavailable:'+k);
   return {state:'local-roster',rows:rows.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.id.localeCompare(b.id)),issues,canWrite:false};
@@ -128,6 +139,7 @@
    const line=i+2,[rawCode,rawDate,rawScheduled,rawWorked,rawStatus]=indexes.map(k=>r[k]),code=id(String(rawCode??'').trim()),pid=external.get(code)||code,d=reportDate(rawDate),scheduled=duration(rawScheduled),worked=duration(rawWorked),status=normalize(rawStatus);
    if(r.length!==table.columns.length||!people.get(pid)||!d||d.slice(0,7)!==month||scheduled===null||worked===null||!states.has(status)){issues.push({line,reason:'linha-invalida-ou-sem-vinculo',code});return}
    if((['falta_justificada','falta_injustificada','ferias','afastamento','folga'].includes(status)&&worked!==0)||(status==='folga'&&scheduled!==0)||(['falta_justificada','falta_injustificada'].includes(status)&&scheduled===0)||(status==='trabalhado'&&worked===0)){issues.push({line,reason:'ocorrencia-inconsistente',code});return}
+   const w=employmentWindow(people.get(pid),month);if(w.state==='invalid'||w.state==='outside'||d<w.start||d>w.end){issues.push({line,reason:'dia-fora-do-vinculo-ou-datas-invalidas',code});return}
    const v={employeeId:pid,date:d,scheduledMinutes:scheduled,workedMinutes:worked,status},key=JSON.stringify([pid,d]),canonical=JSON.stringify(v),prev=groups.get(key);
    if(prev){if(prev.canonical===canonical){duplicateCount++;return}prev.conflict=true;issues.push({line,reason:'conflito-mesmo-funcionario-dia',code});return}
    groups.set(key,{v,canonical,conflict:false});
@@ -165,7 +177,9 @@
   if(allowed!==true)return empty('forbidden');
   const pid=id(person?.id),salary=cents(String(person?.salary??'')),divisor=opt?.monthlyHours;
   if(batch?.state!=='local-digital-preview'||!pid||salary===null||salary<=0||!Number.isSafeInteger(divisor)||divisor<1||divisor>744)return empty('unavailable');
-  const rows=batch.rows.filter(r=>r.employeeId===pid),byDate=new Set(rows.map(r=>r.date));
+  const w=employmentWindow(person,batch.month);if(w.state==='invalid'||w.state==='outside')return empty('employment-period-review');
+  const rows=batch.rows.filter(r=>r.employeeId===pid&&r.date>=w.start&&r.date<=w.end),byDate=new Set(rows.map(r=>r.date));
+  if(rows.length!==batch.rows.filter(r=>r.employeeId===pid).length)return empty('employment-period-review');
   if(!rows.length)return empty('missing-attendance');
   const counts={scheduled:0,worked:0,absenceUnjustified:0,absenceJustified:0,shortfall:0,extra:0,pending:0};
   for(const r of rows){
@@ -175,7 +189,7 @@
    if(r.status==='trabalhado'){counts.shortfall+=Math.max(0,r.scheduledMinutes-r.workedMinutes);counts.extra+=Math.max(0,r.workedMinutes-r.scheduledMinutes)}
    if(r.status==='pendente')counts.pending++;
   }
-  const [y,m]=batch.month.split('-').map(Number),missingDays=new Date(Date.UTC(y,m,0)).getUTCDate()-byDate.size;
+  const missingDays=w.days-byDate.size;
   const approvedDeduction=opt?.approvedDeductionMinutes,approvedExtra=opt?.approvedExtraMinutes,extraPercent=opt?.extraPercent;
   const valid=Number.isSafeInteger(approvedDeduction)&&approvedDeduction>=0&&approvedDeduction<=counts.absenceUnjustified+counts.shortfall&&Number.isSafeInteger(approvedExtra)&&approvedExtra>=0&&approvedExtra<=counts.extra&&Number.isSafeInteger(extraPercent)&&extraPercent>=100&&extraPercent<=1000;
   const reviewed=valid&&opt.reviewed===true;
@@ -192,7 +206,7 @@
   const byId=new Map(),imported=new Set(batch.rows.map(r=>r.employeeId)),issues=[];
   for(const e of employees){if(!e||e.deletedAt||e.deleted_at||e.deleted===true||e._deleted===true)continue;const k=id(e.id);if(k)byId.set(k,byId.has(k)?null:e)}
   const rows=[];
-  for(const [k,e] of byId){if(!e){issues.push('duplicate-employee:'+k);continue}if(e.active===false&&!imported.has(k))continue;
+  for(const [k,e] of byId){if(!e){issues.push('duplicate-employee:'+k);continue}const w=employmentWindow(e,batch.month);if(!imported.has(k)&&(w.state==='outside'||e.active===false&&w.state==='unknown'))continue;
    const baseCents=cents(String(e.salary??'')),name=String(e.name||k).slice(0,160),company=String(e.companyName||'').slice(0,160);
    const days=batch.rows.filter(r=>r.employeeId===k),signature=JSON.stringify([k,name,company,baseCents,e.active!==false,e.hireDate||'',e.terminationDate||'',batch.month,days]);
    rows.push({employeeId:k,name,company,baseCents,imported:days.length>0,signature});

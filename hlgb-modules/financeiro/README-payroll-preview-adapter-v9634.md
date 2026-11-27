@@ -1,3 +1,6 @@
 # Adaptador da prévia salarial #298
 
 Usa estrutura db.payroll/month/employeeId/paid/paidAt/paidValue e db.employees e callback payrollCalc oficial, conforme release-payroll-view-v9295.js. Não reimplementa fórmula de salário, descontos ou passagem. Passa cópias, agrega líquido local de não pagos e valor comprovável pelo registro local dos pagos; bloqueia duplicidade, pendência sinalizada, falta de vínculo e valor/data inválidos. Não presume que ausência de linhas significa folha zerada. Retorna exclusivamente observação local agregada, sem nomes/IDs individuais e sem valor oficial ou lançamento no Hub. Calendário sempre provisório nesta rota. Callback oficial, autorização, integridade de snapshots, cobertura de empregados/ponto e calendário/CCT devem ser comprovados na integração real; ainda não acoplado ao runtime. A simulação não altera histórico ou folha.
+
+## Coerência da cobertura — 27/11
+Exclui da soma observada registros de pessoas comprovadamente fora da competência ou com datas de vínculo inválidas (incluindo pagamentos). Mantém observação local de registros com datas ausentes, identificada como vínculo não confirmado; nunca publica valor oficial. Desligamento durante o mês continua elegível. Não modifica registros históricos.

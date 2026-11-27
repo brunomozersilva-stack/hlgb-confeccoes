@@ -63,3 +63,15 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/financei
  assert.equal(JSON.stringify([batch,people,settings]),before);
  console.log('PASS collective payroll preview, incomplete coverage, stale evidence and no writes');
 })();
+
+(function competenceEmployment(){
+ const people=[{id:'a',salary:2000,hasTransport:true,hireDate:'2026-11-03',terminationDate:'2026-11-05',active:false},{id:'b',salary:2000,hireDate:'2026-11-02',terminationDate:'2026-11-10',active:false},{id:'c',hireDate:'2026-12-01'},{id:'d',hireDate:'2026-10-01',terminationDate:'2026-10-31',active:false}];
+ const daily=[api.header.join(';'),'a;2026-11-02;sim;trabalhado;sim;;nao','a;2026-11-03;sim;trabalhado;sim;;nao','a;2026-11-04;sim;trabalhado;sim;;nao','a;2026-11-05;sim;trabalhado;sim;;nao','a;2026-11-06;sim;trabalhado;sim;;nao'].join('\n');
+ const b=api.inspect(daily,people,'2026-11',true);assert.equal(b.rows.length,3);assert.equal(b.issues.length,2);assert.deepEqual(api.roster(b,people,true).rows.map(x=>x.id),['a','b']);
+ assert.equal(api.preview(b,people[0],{asOf:'2026-11-06',paidThrough:'2026-11-05',rateCents:1000},transport).missingDays,0);
+ const t=api.digitalTable(['id;date;planned;worked;status','a;2026-11-02;480;480;trabalhado','a;2026-11-03;480;480;trabalhado','a;2026-11-04;480;480;trabalhado','a;2026-11-05;480;480;trabalhado','a;2026-11-06;480;480;trabalhado'].join('\n'),';',true);
+ const d=api.inspectDigital(t,{employee:'id',date:'date',scheduled:'planned',worked:'worked',status:'status'},people,'2026-11',true);assert.equal(d.rows.length,3);assert.equal(d.issues.length,2);assert.deepEqual(api.digitalSalaryRoster(d,people,true).rows.map(x=>x.employeeId),['a','b']);
+ const p=api.salaryDigitalPreview(d,people[0],{monthlyHours:220,approvedDeductionMinutes:0,approvedExtraMinutes:0,extraPercent:150,reviewed:true},true);assert.equal(p.missingDays,0);assert.equal(p.partial,true);assert.equal(p.canWrite,false);
+ assert.equal(api.salaryDigitalPreview(d,{...people[0],terminationDate:'2026-11-04'},{monthlyHours:220},true).state,'employment-period-review');
+ console.log('PASS employment boundaries in attendance, transport and salary roster');
+})();
