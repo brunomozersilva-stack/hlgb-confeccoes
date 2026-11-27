@@ -35,7 +35,8 @@ vm.createContext(gradeCtx);vm.runInContext(split.slice(begin,end)+';globalThis.r
 const html=gradeCtx.renderGrade(cut,{id:'o1'},false);
 assert.equal((html.match(/data-hlgb-grade-group9711/g)||[]).length,1);
 assert.equal((html.match(/hlgbOpenSplitGradeAdjust/g)||[]).length,1);
-assert.equal((html.match(/printCuttingSheet/g)||[]).length,1);
+assert.equal((html.match(/hlgbPrintSplitCut9822/g)||[]).length,1);
+assert.match(html,/<div class="toolbar">[\s\S]*hlgbPrintSplitCut9822[\s\S]*<\/div><details>/,'print must be visible before the collapsed grade');
 assert.match(html,/<td>8<\/td>/);
 assert.match(gradeCtx.renderGrade(cut,{id:'o1'},true),/disabled title="Corte duplicado/);
 assert.doesNotMatch(gradeCtx.renderGrade({...cut,status:'Finalizado'},{id:'o1'},false),/hlgbOpenSplitGradeAdjust/);
