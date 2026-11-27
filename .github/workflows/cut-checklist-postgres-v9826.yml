@@ -41,4 +41,5 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-source.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-integrated.sql
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-integrated-contract.sql
+          bash tests/cut-checklist-postgres-v9826/records-integrated-concurrency.sh
           psql -v ON_ERROR_STOP=1 -f tests/cut-checklist-postgres-v9826/records-source-contract.sql

@@ -13,3 +13,7 @@ Correção do fixture: uso de to_jsonb para nomes textuais. Cor fixa ausente da 
 
 ## Integração do laboratório
 Histórico independente recebe apenas linhas vinculadas ao snapshot calculado no servidor, grava revisões de todas as fontes e rejeita material alterado, modelo errado, replays divergentes e versões obsoletas. O bloqueio de tabela é propositalmente restrito ao laboratório: antes de produção, trocar por bloqueios de escopo reduzido e testar concorrência do contrato integrado, identidade Supabase, paridade de cálculo, anexos e UI. Não executar no banco comercial.
+
+
+## Bloqueio de escopo reduzido (v98.30)
+Substitui bloqueio global do laboratório por advisory lock transacional por corte e SHARE nos registros de origem existentes. Cortes independentes podem compartilhar leitura de material, sem impedir operações alheias. Material vinculado inexistente/excluído impede gravação até revisão; a impressão comercial não é afetada. Teste concorrente da transação integrada cobre alteração de material, gravação independente e replay. Identidade comercial, paridade, anexos e integração final ainda pendentes; não executar em produção.
