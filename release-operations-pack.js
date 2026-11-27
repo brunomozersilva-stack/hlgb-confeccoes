@@ -50,7 +50,7 @@ function routeCollect9534(base,draftId,createdAt){
  const locs=routeLocations(),stops=[];
  for(const [i,el] of els.entries()){
   const sel=sid(el.querySelector('.ops-route-loc')?.value);
-  const loc=sel===''?null:locs[Number(sel)];
+  const loc=routeResolveLocation9778(el.querySelector('.ops-route-loc'),locs);
   if(!loc)throw new Error('Escolha a facção ou confecção da parada '+(i+1)+'.');
   if(el.dataset.routeLocationKey9534!==sid(loc.type)+'|'+sid(loc.id))throw new Error('A lista de locais mudou. Confira novamente a parada '+(i+1)+'.');
   const items=[...el.querySelectorAll('[data-route-item9249]')].map(x=>({
@@ -187,9 +187,19 @@ function renderUtilities(){
 window.hlgbOpsOpen9249=function(k){const m={rotas:['rotas9249',renderRoutes],etiquetas:['etiquetas9249',renderLabels],etiquetasEmb:['etiquetasEmb9249',renderLabelTemplates],regularizacao:['regularizacao9249',renderHistorical]};const x=m[k];if(x)activate(x[0],null,x[1])};
 
 /* ---------- ROTAS ---------- */
+function routeLocationKey9778(loc){
+ const type=sid(loc?.type),id=sid(loc?.id);
+ return id&&['Facção','Confecção'].includes(type)?JSON.stringify([type,id]):'';
+}
+function routeResolveLocation9778(select,locations=routeLocations()){
+ const option=select?.options?.[select.selectedIndex],key=option?.dataset?.routeLocation9778;
+ if(!key||!Array.isArray(locations))return null;
+ const matches=locations.filter(x=>routeLocationKey9778(x)===key);
+ return matches.length===1?matches[0]:null;
+}
 function routeLocations(){
- const out=[];arr('factionMasters').forEach(x=>out.push({type:'Facção',id:x.id,name:x.name||'Facção',address:x.address||'',phone:x.phone||''}));
- arr('productionLocations').forEach(x=>out.push({type:'Confecção',id:x.id,name:x.name||'Confecção',address:x.address||'',phone:x.phone||''}));
+ const out=[],live=x=>x&&x.id!=null&&sid(x.id)&&x.active!==false&&!x.deleted_at&&!x.deletedAt&&x.deleted!==true&&!x._deleted;arr('factionMasters').filter(live).forEach(x=>out.push({type:'Facção',id:x.id,name:x.name||'Facção',address:x.address||'',phone:x.phone||''}));
+ arr('productionLocations').filter(live).forEach(x=>out.push({type:'Confecção',id:x.id,name:x.name||'Confecção',address:x.address||'',phone:x.phone||''}));
  return out;
 }
 /* v94.53: A lista de rotas deve consultar a nuvem também no computador receptor.
@@ -260,7 +270,7 @@ function routeStopHtml(stop,i){
  // Nova parada começa sem local: nunca selecionar implicitamente Roseli,
  // nem outro primeiro registro, antes de a pessoa escolher a facção.
  const opts='<option value="" disabled '+(!selected?'selected':'')+'>Selecione a facção ou confecção</option>'+
-  locs.map((x,j)=>'<option value="'+j+'" '+(selected&&sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type)?'selected':'')+'>'+escSafe(x.type+' — '+x.name)+'</option>').join('');
+  locs.map((x,j)=>'<option value="'+j+'" data-route-location9778="'+escSafe(routeLocationKey9778(x))+'" '+(selected&&sid(stop?.locationId)===sid(x.id)&&sid(stop?.type)===sid(x.type)?'selected':'')+'>'+escSafe(x.type+' — '+x.name)+'</option>').join('');
  return '<div class="ops-route-stop" data-i="'+i+'"><div class="grid"><div class="field"><label>Local</label><select class="ops-route-loc" onchange="routeLocationChanged9249(this)">'+opts+'</select></div><div class="field"><label>Observações</label><input class="ops-route-note" value="'+escSafe(stop?.notes||'')+'"></div></div><div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0"><button type="button" class="secondary" onclick="routeMoveStop9683(this,-1)">↑ Subir parada</button><button type="button" class="secondary" onclick="routeMoveStop9683(this,1)">↓ Descer parada</button><button type="button" class="secondary" data-route-refresh9684="1" onclick="routeRefreshAssigned9683(this)">Atualizar modelos da nuvem</button></div><div class="ops-route-refresh-status" role="status" aria-live="polite"></div><div class="ops-route-assigned" style="margin:8px 0"></div><div class="grid"><div class="field"><label>LEVAR — um item por linha</label><textarea class="ops-route-carry" rows="5">'+escSafe((stop?.carry||[]).join('\n'))+'</textarea></div><div class="field"><label>BUSCAR — um item por linha</label><textarea class="ops-route-pickup" rows="5">'+escSafe((stop?.pickup||[]).join('\n'))+'</textarea></div></div><button type="button" class="danger" onclick="this.closest(\'.ops-route-stop\').remove()">Remover parada</button></div>';
 }
 
@@ -310,12 +320,12 @@ window.routeRemoveItem9683=function(btn){const item=btn?.closest?.('[data-route-
 window.routeMoveStop9683=function(btn,delta){const stop=btn?.closest?.('.ops-route-stop'),parent=stop?.parentElement;if(!parent||parent.id!=='opsRouteStops')return;if(delta===-1&&stop.previousElementSibling)parent.insertBefore(stop,stop.previousElementSibling);if(delta===1&&stop.nextElementSibling)parent.insertBefore(stop.nextElementSibling,stop)};
 window.routeRefreshAssigned9683=async function(btn){
  const stop=btn?.closest?.('.ops-route-stop'),select=stop?.querySelector('.ops-route-loc'),box=stop?.querySelector('.ops-route-assigned'),notice=stop?.querySelector('.ops-route-refresh-status');
- const loc=select?.value===''?null:routeLocations()[Number(select?.value)];
+ const loc=routeResolveLocation9778(select);
  if(!stop||!box||!notice||!loc||loc.type!=='Facção'){if(notice)notice.textContent='Escolha uma facção para consultar os modelos.';return}
  const token=typeof cloudAccessToken!=='undefined'?cloudAccessToken:null;
  if(!token||typeof cloudRequest!=='function'){notice.textContent='Consulta à nuvem indisponível. Não foi feita nenhuma alteração.';return}
  const generation=(stop.__routeRefresh9683||0)+1;stop.__routeRefresh9683=generation;
- const valid=()=>stop.isConnected&&stop.__routeRefresh9683===generation&&stop.dataset.routeLocationKey9534===sid(loc.type)+'|'+sid(loc.id)&&sid(routeLocations()[Number(select.value)]?.id)===sid(loc.id)&&routeLocations()[Number(select.value)]?.type===loc.type&&typeof cloudAccessToken!=='undefined'&&cloudAccessToken===token;
+ const valid=()=>stop.isConnected&&stop.__routeRefresh9683===generation&&stop.dataset.routeLocationKey9534===sid(loc.type)+'|'+sid(loc.id)&&routeLocationKey9778(routeResolveLocation9778(select))===routeLocationKey9778(loc)&&typeof cloudAccessToken!=='undefined'&&cloudAccessToken===token;
  btn.disabled=true;notice.textContent='Consultando produção atual desta facção…';
  try{
   const rows=await cloudRequest('hlgb_records?select=entity_id,data,deleted_at&module=eq.production&deleted_at=is.null&'+encodeURIComponent('data->>factionId')+'=eq.'+encodeURIComponent(sid(loc.id))+'&limit=501',{method:'GET'});
@@ -360,7 +370,7 @@ window.routeRefreshAll9684=async function(btn){
 };
 window.routeLocationChanged9249=function(select){
  const stop=select?.closest?.('.ops-route-stop'),selectedIndex=sid(select?.value);
- const loc=selectedIndex===''?null:routeLocations()[Number(selectedIndex)];
+ const loc=routeResolveLocation9778(select);
  const box=stop?.querySelector('.ops-route-assigned'),carry=stop?.querySelector('.ops-route-carry'),pickup=stop?.querySelector('.ops-route-pickup');
  if(!stop||!box)return;
  if(!loc){stop.__routeRefresh9683=(stop.__routeRefresh9683||0)+1;delete stop.dataset.routeLocationKey9534;box.innerHTML='<div class="sub">Escolha a facção ou confecção para ver seus produtos.</div>';const btn=stop.querySelector('button[data-route-refresh9684]');if(btn)btn.disabled=false;return}

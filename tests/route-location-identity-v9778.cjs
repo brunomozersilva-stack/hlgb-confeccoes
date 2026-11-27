@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('release-operations-pack.js','utf8');
+const start=source.indexOf('function routeLocationKey9778('),end=source.indexOf('/* v94.53:',start);
+assert.ok(start>=0&&end>start);
+const data={factionMasters:[{id:1,name:'Roseli'},{id:2,name:'Luana'},{id:3,name:'Inativa',active:false},{id:4,deleted:true}],productionLocations:[{id:1,name:'Interno'}]};
+const ctx={sid:x=>String(x??''),arr:key=>data[key]||[]};
+vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
+const locs=ctx.routeLocations();assert.equal(locs.length,3);
+const sel={selectedIndex:0,options:[{dataset:{routeLocation9778:ctx.routeLocationKey9778(locs[0])}}]};
+assert.equal(ctx.routeResolveLocation9778(sel).name,'Roseli');
+data.factionMasters.reverse();assert.equal(ctx.routeResolveLocation9778(sel).name,'Roseli','sync must not change selected person');
+data.factionMasters.push({id:1,name:'Duplicada'});assert.equal(ctx.routeResolveLocation9778(sel),null);
+data.factionMasters.pop();data.factionMasters.find(x=>x.id===1).active=false;assert.equal(ctx.routeResolveLocation9778(sel),null);
+sel.options[0].dataset.routeLocation9778=ctx.routeLocationKey9778({type:'Confecção',id:1});assert.equal(ctx.routeResolveLocation9778(sel).name,'Interno');
+assert.equal(ctx.routeResolveLocation9778({selectedIndex:0,options:[{dataset:{}}]}),null);
+assert.ok(!source.includes('routeLocations()[Number('));assert.ok(!source.includes('locs[Number(sel)]'));
+console.log('PASS route location identity across reorder, duplicate, inactive and shared ID across types');
