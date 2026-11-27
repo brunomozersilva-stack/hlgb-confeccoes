@@ -126,6 +126,17 @@ const engine=process.env.HLGB_BROWSER==='webkit'?webkit:chromium;
   await page.evaluate(()=>{window.db.orders[0].received=100;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
   assert.equal(await page.locator('#legacyPaid').isVisible(),false);
   await page.evaluate(()=>window.closeModal());await page.locator('[data-hlgb-client-account9759]').click();await page.locator('#ca9759-payment').fill('25');await page.locator('#ca9759-preview').click();assert.match(await page.locator('#ca9759-result').innerText(),/Nenhum valor foi gravado/);assert.match(await page.locator('#ca9759-result').innerText(),/Saldo projetado/);assert.equal(await page.evaluate(()=>window.__writes),3);
+
+  await page.addScriptTag({path:'hlgb-modules/financeiro/settlement-history-v9653.js'});
+  await page.locator('#ca9773-statement summary').click();
+  await page.locator('#ca9773-load').click();
+  assert.match(await page.locator('#ca9773-output').innerText(),/Histórico parcial/);
+  assert.equal(await page.locator('#ca9773-export').isEnabled(),true);
+  const statementDownload=page.waitForEvent('download');await page.locator('#ca9773-export').click();const statementFile=await statementDownload;
+  assert.match(statementFile.suggestedFilename(),/^HLGB-extrato-cliente-/);
+  assert.match(await fs.readFile(await statementFile.path(),'utf8'),/Saldo inicial independente/);
+  await page.locator('#ca9759-opening').fill('-20');assert.equal(await page.locator('#ca9773-export').isEnabled(),false);
+  assert.equal(await page.evaluate(()=>window.__writes),3);
   await page.evaluate(()=>{window.closeModal();window.db.orders[0].received=40;window.hlgbNotesReceivables9564.organizeLegacyNotes9710()});
   assert.equal(await page.locator('#legacyPaid').isVisible(),true,'reopened note returns to active list');
   assert.equal(await page.locator('[data-hlgb-paid-legacy9710]').count(),0);
