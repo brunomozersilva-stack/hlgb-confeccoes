@@ -65,6 +65,15 @@ const assert=require('node:assert/strict');const api=require('../hlgb-modules/fi
  const blocked=p({db:{hubFinanceEntries:[legacy,rows[0]],payroll:payRows},paidDateApi:pd,pendingEvidence:{state:'observed',ids:['payroll::p1']}});
  ok(blocked.pendingEvidence.blockedPayrollMonths===1&&!blocked.observations.some(x=>x.category==='Funcionários'),'pending payroll excludes entire competence');
  ok(p().pendingEvidence.state==='incomplete','missing pending snapshot not clean');
+
+ const ph=h.plannerObligations;
+ ok(ph.state==='partial-local'&&!ph.remoteConfirmed&&!ph.coverageVerified&&!ph.canWrite,'planner source remains partial');
+ ok(ph.entries.length===3&&ph.entries.find(x=>x.reference==='hub:12').date==='2026-11-23'&&ph.entries.find(x=>x.reference==='hub:12').originalDate==='2026-11-16','overdue outflow simulated today only');
+ ok(ph.overdueReceipts.length===1&&ph.overdueReceipts[0].reference==='hub:13'&&!ph.entries.some(x=>x.reference==='hub:13'),'overdue receipt excluded until confirmed date');
+ ok(!ph.entries.some(x=>x.reference==='hub:3')&&ph.entries.every(x=>!Object.hasOwn(x,'origin')),'settled rows and internal origins excluded');
+ ok(pending.plannerObligations.pendingState==='observed'&&!pending.plannerObligations.entries.some(x=>x.reference==='hub:1'),'pending rows excluded from planner');
+ ok(mixed.plannerObligations.omitted===2&&!mixed.plannerObligations.entries.some(x=>x.reference==='hub:1'),'duplicates excluded from planner');
+ ok(!p({financeAllowed:false}).plannerObligations,'no planner records without permission');
  const empty=p({db:{hubFinanceEntries:[],payroll:[]}}).cash.commitmentReview;
  ok(empty.base.every(x=>x.hypotheticalPeakGapCents===null&&x.activeDays===0),'missing obligations not proof of no gap');
 
