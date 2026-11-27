@@ -48,6 +48,43 @@ async function getJSON(path){
   return await response.json();
  }finally{clearTimeout(timer)}
 }
+// Job-step evidence is not log evidence. Do not infer root cause from a failed run.
+function classifyFailureEvidence978A(run,payload){
+ const empty=state=>({state,runId:Number(run?.id)||null,classification:'unclassified',jobs:[],rootCauseConfirmed:false,canRepair:false});
+ if(!Number.isSafeInteger(Number(run?.id))||Number(run.id)<=0||!Number.isInteger(run.attempt)||run.attempt<1||!Array.isArray(payload?.jobs)||!Number.isSafeInteger(payload.total_count)||payload.total_count!==payload.jobs.length||payload.jobs.length>100)return empty('incomplete-jobs');
+ const failed=payload.jobs.filter(j=>j?.conclusion==='failure'),rows=[],ids=new Set();
+ for(const j of failed){
+  if(Number(j.run_id)!==Number(run.id)||Number(j.run_attempt)!==run.attempt||j.head_sha!==run.commit||!Number.isSafeInteger(j.id)||ids.has(j.id)||j.status!=='completed'||!Array.isArray(j.steps))return empty('identity-unconfirmed');
+  ids.add(j.id);
+  const steps=j.steps.filter(s=>s?.conclusion==='failure');
+  const kinds=steps.map(s=>{
+   const name=sid(s.name).trim();
+   // Only explicit installation/setup labels, not a generic "Run" step.
+   if(/^(set up job|checkout|run actions\/checkout@[\w.-]+|setup node(?:\.js)?|run actions\/setup-node@[\w.-]+|install (?:playwright(?: browsers| dependencies)?|browser dependencies|dependencies|browsers)|run npx playwright install(?:\s+[\w.-]+)*|run npm ci)$/i.test(name))return 'setup-step-failed';
+   if(/^(run (?:node (?:tests\/|--test\b)|npm test\b|npx playwright test\b)|(?:run |execute )?(?:browser|webkit|chromium|regression|unit|integration) tests?\b)/i.test(name))return 'test-step-failed';
+   return 'unknown-step';
+  });
+  const classification=kinds.length&&kinds.every(k=>k===kinds[0])?kinds[0]:'unknown-step';
+  rows.push({id:j.id,name:sid(j.name).slice(0,120),classification,failedSteps:steps.slice(0,20).map(s=>({number:Number(s.number)||null,name:sid(s.name).slice(0,160)})),link:'https://github.com/'+REPO+'/actions/runs/'+Number(run.id)+'/job/'+j.id});
+ }
+ const kinds=new Set(rows.map(j=>j.classification)),classification=rows.length&&kinds.size===1?[...kinds][0]:rows.length?'mixed-evidence':'unclassified';
+ return {...empty(rows.length?'observed-failed-steps':'no-failed-job-observed'),classification,jobs:rows,attempt:run.attempt,commit:run.commit};
+}
+const failureLabels978A={'setup-step-failed':'Falha em etapa de preparação/instalação; causa não confirmada','test-step-failed':'Falha durante execução de testes; consultar logs para distinguir código/ambiente','unknown-step':'Etapa sem classificação segura','mixed-evidence':'Etapas de falha diferentes','unclassified':'Sem evidência suficiente'};
+let failureProbeBusy978A=false;
+async function probeFailures978A(){
+ if(failureProbeBusy978A||busy||!latest||error||Date.now()-fetchedAt>=MAX_AGE||Date.now()<retryAfterAt)return;
+ const snapshot=latest,rows=[],targets=snapshot.ci.failingWorkflows.slice(0,5);
+ failureProbeBusy978A=true;paint();
+ try{
+  for(const run of targets){
+   if(latest!==snapshot||Date.now()-fetchedAt>=MAX_AGE)break;
+   try{const payload=await getJSON('/actions/runs/'+run.id+'/attempts/'+run.attempt+'/jobs?per_page=100');rows.push(classifyFailureEvidence978A(run,payload))}
+   catch(e){recordFailure(e);break}
+  }
+  if(latest===snapshot)snapshot.failureEvidence={state:rows.length===snapshot.ci.failed?'observed':'partial',commit:snapshot.currentCommit,generatedAt:new Date().toISOString(),reviewedRuns:rows.length,totalFailed:snapshot.ci.failed,rows,rootCauseConfirmed:false};
+ }finally{failureProbeBusy978A=false;paint()}
+}
 function parse(head,all,scheduled){
  const sha=sid(head?.commit?.sha);
  if(!/^[a-f0-9]{40}$/.test(sha))throw Error('GitHub não informou o commit atual do sistema.');
@@ -66,7 +103,7 @@ function parse(head,all,scheduled){
  }
  const current=[...currentById.values()],completed=current.filter(x=>x.status==='completed'),pending=current.filter(x=>x.status!=='completed');
  const approved=completed.filter(x=>x.conclusion==='success'),failed=completed.filter(x=>x.conclusion==='failure'),inconclusive=completed.filter(x=>!['success','failure'].includes(x.conclusion));
- const failures=failed.map(x=>({id:Number(x.id),name:sid(x.name).slice(0,120),url:runUrl(x)}));
+ const failures=failed.map(x=>({id:Number(x.id),name:sid(x.name).slice(0,120),attempt:Number(x.run_attempt||1),commit:sha,url:runUrl(x)}));
  const canceled=inconclusive.filter(x=>x.conclusion==='cancelled').length;
  const other=inconclusive.length-canceled;
  const listCount=Array.isArray(all?.workflow_runs)?all.workflow_runs.length:0,totalCount=Number.isSafeInteger(all?.total_count)?all.total_count:null;
@@ -328,6 +365,9 @@ function paint(){
    const item=E('div','hlgb-health-failure-item',f.name);
    list.append(item);
   }
+  const inspect=E('button','secondary',failureProbeBusy978A?'Consultando etapas…':'Conferir etapas com falha (até 5 execuções)');inspect.type='button';inspect.disabled=failureProbeBusy978A||!!busy||!!error||Date.now()-fetchedAt>=MAX_AGE;inspect.onclick=()=>probeFailures978A();list.append(inspect);
+  const ev=latest.failureEvidence;
+  if(ev){list.append(E('p','sub','Etapas consultadas: '+ev.reviewedRuns+' de '+ev.totalFailed+' execuções com falha. A causa não foi comprovada.'));for(const row of ev.rows){const item=E('details','');item.append(E('summary','',row.runId+' · '+failureLabels978A[row.classification]));for(const job of row.jobs){const link=E('a','',job.name+' — '+failureLabels978A[job.classification]);link.href=job.link;link.target='_blank';link.rel='noopener noreferrer';item.append(link);for(const step of job.failedSteps)item.append(E('p','sub',step.name))}list.append(item)}}
   result.append(list);
  }else if(ci.completed===0){
   result.append(E('div','sub','Os testes do commit atual ainda não foram concluídos ou não foram encontrados.'));
@@ -359,6 +399,7 @@ function humanSummary(data){
   'Publicação: '+(!p.checked?'não comprovada':p.current?'mesmo commit do main':'não corresponde ao main'),
   'Safari ↔ Chrome reais: NÃO COMPROVADO'];
  for(const f of ci.failingWorkflows)lines.push('FALHA — '+f.name+' — '+f.url);
+ if(data.failureEvidence){lines.push('ETAPAS DE FALHA — '+data.failureEvidence.reviewedRuns+' de '+data.failureEvidence.totalFailed+' execuções; causa não confirmada.');for(const r of data.failureEvidence.rows){lines.push('Execução '+r.runId+' · '+failureLabels978A[r.classification]);for(const j of r.jobs)lines.push(j.name+' · '+j.failedSteps.map(s=>s.name).join(', ')+' · '+j.link)}}
  if(l)lines.push('Execução do monitor: '+l.link);
  return lines.filter(Boolean).join('\n');
 }
@@ -447,7 +488,7 @@ function openStandalone(){
  return onOpen();
 }
 window.hlgbHourlyHealthPanel9541={
- version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,parse,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
+ version:V,onOpen,openStandalone,refresh:refreshNow,collect,report,parse,classifyFailureEvidence978A,download:saveJSON,downloadTXT:saveTXT,copySummary,humanSummary,visibleDownloads:prepareVisibleDownloads9545,
  status:()=>({busy:!!busy,lastFetchedAt:fetchedAt,error,accessEvidence,retryAfterAt,latest:report()})
 };
 })();
