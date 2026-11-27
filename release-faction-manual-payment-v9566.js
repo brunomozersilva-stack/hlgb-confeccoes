@@ -327,8 +327,16 @@ function registerEditEvidenceV95101(kind,module,id,description,attempts=0){
  try{window.dispatchEvent?.(new CustomEvent('hlgb:faction-edit-evidence',{detail:{...event}}))}catch(_){}
 }
 function editEvidenceStatusV95101(){return {...factionEditEvidenceV95101,recent:factionEditEvidenceV95101.recent.slice()}}
+function editHistorySignature9810(row){
+ const raw=row?.manualEditHistoryV9588;
+ if(raw!=null&&!Array.isArray(raw))return null;
+ const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
+ try{return JSON.stringify(canonical(raw||[]))}catch(_){return null}
+}
 function compareEditBusinessV95101(a,b){
  if(!a||!b)return false;
+ const historyA=editHistorySignature9810(a),historyB=editHistorySignature9810(b);
+ if(historyA===null||historyB===null||historyA!==historyB)return false;
  const labels=['id','manualGroupId','manualKindV9566','serviceModeV9577','factionMasterId',
  'factionName','status','productId','description','manualProductNameV9589','manualProductCategoryV9589',
  'scheduledPaymentDate','paymentMethod','observation','manualLineNoteV9566','priceOriginV9566','paymentDate'];
@@ -394,6 +402,7 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
  state.status=STATUS.saving;state.lastError='';let saved=0,canceled=0,accepted=0;
  try{
   const rows=assertGroup(groupId),active=activeGroupRowsV9590(rows);
+  if(rows.some(x=>editHistorySignature9810(x)===null))throw Error('Histórico de edição inválido. Confira o lançamento antes de salvar.');
   if(groupState(rows)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores corrigidos ou removidos.');
   const removing=new Map();
   for(const entry of removalReasons||[]){
@@ -442,7 +451,7 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   if(draft)draft.editAttemptId=editId;
   for(let i=0;i<parsed.lines.length;i++){
    const x=parsed.lines[i],old=existingById.get(sid(x.id)),oldProof=old?.receiptPdfV9566||null;
-   const history=Array.isArray(old?.manualEditHistoryV9588)?old.manualEditHistoryV9588.slice(-19):[];
+   const history=Array.isArray(old?.manualEditHistoryV9588)?old.manualEditHistoryV9588.slice():[];
    const altered=!old||cents(old.value)!==cents(x.value)||Number(old.quantity)!==x.quantity||
     cents(old.unitPrice)!==cents(x.unitPrice)||cents(old.travetaDiscountUnitV9577)!==cents(x.travetaDiscountUnit)||
     sid(old.productId)!==sid(x.productId)||sid(old.description)!==sid(x.description);
@@ -479,7 +488,7 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   // e dados para auditoria continuam registrados na nuvem e no histórico.
   for(const old of omitted){
    const reason=removing.get(sid(old.id));
-   const history=Array.isArray(old.manualEditHistoryV9588)?old.manualEditHistoryV9588.slice(-19):[];
+   const history=Array.isArray(old.manualEditHistoryV9588)?old.manualEditHistoryV9588.slice():[];
    if(!history.some(x=>sid(x.id)===editId))
     history.push({id:editId,at:ts,from:Number(old.value)||0,to:0,reason:'Produto cancelado: '+reason});
    const next={...old,status:'Cancelado',manualCanceledV9590:true,
