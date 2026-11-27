@@ -113,7 +113,7 @@
     errors.push('valor-normal-invalido:'+id);continue;
    }
    const partial=norm(row.status)==='parcial';
-   if(!partial&&paid!==0||partial&&paid+discount===0){errors.push('situacao-saldo-divergente:'+id);continue}
+   if(!partial&&paid!==0||partial&&paid+discount===0){errors.push('pagamento-parcial-requer-conferencia:'+id);continue}
    const history=row.paymentHistory??[];let historyPaid=0,historyDiscount=0,valid=Array.isArray(history);const eventIds=new Set();
    if(valid)for(const h of history){const eventId=sid(h?.id),p=exact(h?.paid??0),d=exact(h?.discount??0);if(!eventId||eventIds.has(eventId)||p===null||d===null||p+d<=0){valid=false;break}eventIds.add(eventId);historyPaid+=p;historyDiscount+=d}
    if(!valid||!Number.isSafeInteger(historyPaid)||!Number.isSafeInteger(historyDiscount)||history.length&&(historyPaid!==paid||historyDiscount!==discount)||partial&&!history.length){errors.push('pagamento-parcial-requer-conferencia:'+id);continue}
