@@ -284,6 +284,8 @@ function matchesCut9709(meta,filters){
 let filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};
 const centsFilter9712=v=>{if(v==null||String(v).trim()==='')return null;const n=Number(v);return Number.isFinite(n)&&n>=0&&Number.isSafeInteger(Math.round(n*100))?Math.round(n*100):null};
 // Compact read-only Corte Conjunto. Discovery never constitutes authorization to cut.
+// Session-only comparison notebook; never represents a confirmed commercial cutting event.
+const jointTrials9838=[];let jointTrialOwner9838='';
 function jointAllowed9837(){try{return requiredCutAllowed9820()&&canOpenPage('materiais')===true}catch(_){return false}}
 function jointSnapshot9837(){
  if(!jointAllowed9837()||typeof window.HLGBJointCutDiscovery9629?.discover!=='function')return null;
@@ -292,6 +294,7 @@ function jointSnapshot9837(){
 function openJointSimulation9837(){
  if(!jointAllowed9837())return false;
  const owner=conferenceIdentity9828();if(!owner)return false;
+ if(jointTrialOwner9838!==owner){jointTrials9838.length=0;jointTrialOwner9838=owner}
  const snapshot=jointSnapshot9837();if(!snapshot||snapshot.state!=='discovery-only'){alert('Sugestões indisponíveis: confira os dados de pedidos, materiais e baixas.');return false}
  document.getElementById('hlgbJointSimulation9837')?.remove();
  const host=document.createElement('section');host.id='hlgbJointSimulation9837';host.setAttribute('role','dialog');host.setAttribute('aria-label','Simular corte conjunto');host.style.cssText='position:fixed;inset:12px;z-index:110002;background:white;color:#222;border:1px solid #bbb;border-radius:10px;padding:14px;overflow:auto;max-width:850px;max-height:86vh;margin:auto;box-shadow:0 0 0 100vmax rgba(0,0,0,.45);box-sizing:border-box';
@@ -307,12 +310,57 @@ function openJointSimulation9837(){
  const list=el('div','');list.style.cssText='max-height:235px;overflow:auto;border:1px solid #ddd;padding:6px';
  const result=el('section',''),status=el('p','');status.setAttribute('role','status');
  const chosen=new Set();let candidates=[],group=null;
- const idx=cutIndex9709(),orderMeta=oid=>{const o=idx.orders.get(oid);return {number:sid(o?.orderNumber||o?.number||oid),client:sid(o?.client||o?.clientName||'')}};
+ const orderMetadata=new Map([...cutIndex9709().orders].filter(([,o])=>o).map(([oid,o])=>[oid,{number:sid(o.orderNumber||o.number||oid),client:sid(o.client||o.clientName||'')}]));
+ const orderMeta=oid=>orderMetadata.get(oid)||{number:oid,client:''};
  const selectedRows=()=>candidates.filter(x=>chosen.has(x.key));
  const sameSource=()=>{const fresh=jointSnapshot9837();if(!fresh||JSON.stringify(fresh)!==JSON.stringify(snapshot))return false;const now=cutIndex9709();return selectedRows().every(x=>{const a=now.orders.get(x.orderId),b=orderMeta(x.orderId);return !!a&&sid(a.orderNumber||a.number||a.id)===b.number&&sid(a.client||a.clientName||'')===b.client})};
  const printButtons=el('div','',host);printButtons.style.cssText='display:flex;flex-wrap:wrap;gap:6px;margin:8px 0';
  const printCombined=button('Imprimir folha conjunta',printButtons,()=>printPlan(false));
  const printIndividual=button('Imprimir folhas individuais',printButtons,()=>printPlan(true));
+ const trial=el('details','',host);el('summary','Comparar aproveitamento e registrar simulação',trial);
+ el('p','Caderno desta sessão: informe pesos medidos ou previstos, sem gravar estoque ou confirmar corte. Não é histórico comercial.',trial);
+ const field=(label,max=60)=>{const wrap=el('label',label+' ',trial);wrap.style.cssText='display:block;margin:6px 0';const x=el('input','',wrap);x.type='text';x.maxLength=max;x.setAttribute('aria-label',label);x.style.maxWidth='100%';return x};
+ const totalWeight=field('Peso total da combinação (kg)'),usedWeight=field('Peso aproveitado (kg)'),wasteWeight=field('Refugo / lixo (kg)'),actualPieces=field('Peças efetivamente cortadas'),lot=field('Lote de tecido'),width=field('Largura do tecido (cm)'),note=field('Observação da combinação',300);
+ for(const x of [totalWeight,usedWeight,wasteWeight,actualPieces,width])x.inputMode='decimal';
+ const modeLabel=el('label','Tipo de peso ',trial),mode=el('select','',modeLabel);
+ for(const [value,title] of [['estimated','Estimado / simulação'],['measured','Medido, informado manualmente']]){const o=el('option',title,mode);o.value=value}
+ const metrics=el('p','',trial);metrics.setAttribute('role','status');
+ const history=el('div','',trial);
+ const validOwner=()=>host.isConnected&&jointAllowed9837()&&conferenceIdentity9828()===owner&&jointTrialOwner9838===owner;
+ const decimal=x=>/^\d{1,8}(?:[.,]\d{1,3})?$/.test(x.value.trim())?Number(x.value.trim().replace(',','.')):null;
+ const fmt=n=>n.toLocaleString('pt-BR',{maximumFractionDigits:3});
+ function evaluateTrial(){
+  const rows=selectedRows(),total=decimal(totalWeight),used=decimal(usedWeight),waste=decimal(wasteWeight),qty=decimal(actualPieces),w=decimal(width);
+  if(rows.length<2||total===null||total<=0||total>20000||used===null||waste===null||used>total||waste>total||used+waste>total+.000001||actualPieces.value.trim()&&(!Number.isSafeInteger(qty)||qty<0)||width.value.trim()&&(w===null||w<=0))return null;
+  return {totalKg:total,usedKg:used,wasteKg:waste,remainderKg:Math.max(0,+(total-used-waste).toFixed(3)),usedPercent:+(100*used/total).toFixed(2),wastePercent:+(100*waste/total).toFixed(2),actualPieces:qty,piecesPerKg:mode.value==='measured'&&qty!==null?+(qty/total).toFixed(3):null,widthCm:w,lot:lot.value.trim(),note:note.value.trim(),kind:mode.value};
+ }
+ function updateTrial(){const x=evaluateTrial();metrics.textContent=x?'Aproveitamento '+fmt(x.usedPercent)+'% · Refugo '+fmt(x.wastePercent)+'% · Peso restante não classificado '+fmt(x.remainderKg)+' kg'+(x.piecesPerKg===null?'':' · '+fmt(x.piecesPerKg)+' peças/kg'):'Preencha pesos válidos: aproveitado + refugo não pode superar o total.';return x}
+ for(const x of [totalWeight,usedWeight,wasteWeight,actualPieces,lot,width,note,mode])x.addEventListener('input',updateTrial);
+ function showHistory(){
+  history.replaceChildren();el('h4','Combinações registradas nesta sessão',history);
+  for(const h of jointTrials9838.slice().reverse()){
+   const item=el('article','',history);item.style.cssText='border:1px solid #ddd;padding:6px;margin:6px 0';
+   el('strong',h.materialName+' · '+h.rows.length+' seleções · '+h.weight.kind+' · '+new Date(h.at).toLocaleString('pt-BR'),item);
+   el('p',h.rows.map(x=>x.name+' / Pedido '+x.number+' / '+x.color).join(' · '),item);
+   el('p','Peso total '+fmt(h.weight.totalKg)+' kg · aproveitamento '+fmt(h.weight.usedPercent)+'% · refugo '+fmt(h.weight.wastePercent)+'%',item);
+   el('p','Lote: '+(h.weight.lot||'Não informado')+' · '+(h.weight.note||'Sem observação'),item);
+  }
+  if(!jointTrials9838.length)el('p','Nenhuma combinação registrada nesta sessão.',history);
+ }
+ button('Registrar combinação nesta sessão',trial,()=>{
+  if(!validOwner())return;if(!sameSource()){metrics.textContent='Pedidos ou baixas alterados. Atualize as sugestões.';return}
+  const weight=updateTrial();if(!weight)return;
+  const rows=selectedRows().map(x=>({orderId:x.orderId,productId:x.productId,name:x.name,color:x.color,...orderMeta(x.orderId),grade:x.lines.map(l=>({size:l.size,qty:l.ordered}))}));
+  const record={kind:'joint-cut-trial-not-confirmed',at:new Date().toISOString(),materialId:group.materialId,materialName:group.materialName,rows,weight};
+  if(jointTrials9838.length>=30){metrics.textContent='Limite de 30 combinações nesta sessão. Exporte o caderno antes de sair.';return}
+  jointTrials9838.push(record);showHistory();metrics.textContent='Combinação registrada somente nesta sessão. '+metrics.textContent;
+ });
+ button('Exportar histórico da sessão (JSON)',trial,()=>{
+  if(!validOwner()||!jointTrials9838.length)return;
+  const url=URL.createObjectURL(new Blob([JSON.stringify({kind:'hlgb-joint-cut-session-notebook',confirmed:false,trials:jointTrials9838},null,2)],{type:'application/json'}));
+  const a=document.createElement('a');a.href=url;a.download='hlgb-corte-conjunto-simulacoes.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);
+ });
+ showHistory();
  function printPlan(individual){
   if(!host.isConnected||!jointAllowed9837()||conferenceIdentity9828()!==owner)return;
   const rows=selectedRows();if(rows.length<2)return;
@@ -360,7 +408,7 @@ function openJointSimulation9837(){
  }
  function compare(){
   result.replaceChildren();if(!jointAllowed9837()){host.remove();return}
-  const rows=selectedRows();printCombined.disabled=printIndividual.disabled=rows.length<2;
+  const rows=selectedRows();printCombined.disabled=printIndividual.disabled=rows.length<2;updateTrial();
   if(!rows.length){status.textContent='Selecione os modelos e cores que deseja testar.';return}
   const pieces=rows.reduce((n,x)=>n+x.lines.reduce((a,l)=>a+l.ordered,0),0);
   const colors=new Set(rows.map(x=>norm(x.color)));
@@ -910,6 +958,6 @@ function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643();or
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('nav'))setTimeout(dockSeparation9715,0)},true);
-window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbFullCutChecklist9820')?.remove();document.getElementById('hlgbJointSimulation9837')?.remove();document.getElementById('hlgbJointSimulationButton9837')?.remove();document.querySelectorAll('[data-hlgb-required-cut9820]').forEach(n=>n.remove());completedOffset=0;completedFilterSignature='';document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();conferenceDrafts9828.clear();conferenceOwner9828='';expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbFullCutChecklist9820')?.remove();document.getElementById('hlgbJointSimulation9837')?.remove();document.getElementById('hlgbJointSimulationButton9837')?.remove();document.querySelectorAll('[data-hlgb-required-cut9820]').forEach(n=>n.remove());completedOffset=0;completedFilterSignature='';document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();conferenceDrafts9828.clear();conferenceOwner9828='';jointTrials9838.length=0;jointTrialOwner9838='';expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();

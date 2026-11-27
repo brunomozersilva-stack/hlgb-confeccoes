@@ -245,6 +245,22 @@
  await joint.getByRole('button',{name:'Imprimir folha conjunta'}).click();await joint.getByText('Pedidos ou baixas alterados. Atualize as sugestões antes de imprimir.').waitFor();assert.equal(await preview.count(),0);
  await p.evaluate(()=>{db.orders[0].grade[0].qty--;window.open=window.__jointOpen});
 
+ await joint.getByText('Comparar aproveitamento e registrar simulação',{exact:true}).click();
+ await joint.getByLabel('Peso total da combinação (kg)',{exact:true}).fill('10');
+ await joint.getByLabel('Peso aproveitado (kg)',{exact:true}).fill('8');
+ await joint.getByLabel('Refugo / lixo (kg)',{exact:true}).fill('1');
+ await joint.getByLabel('Lote de tecido',{exact:true}).fill('Lote fictício');
+ assert.match(await joint.innerText(),/Aproveitamento 80% · Refugo 10%/);
+ await joint.getByLabel('Refugo / lixo (kg)',{exact:true}).fill('3');
+ await joint.getByRole('button',{name:'Registrar combinação nesta sessão'}).click();
+ assert.equal(await joint.getByText('Nenhuma combinação registrada nesta sessão.').count(),1);
+ await joint.getByLabel('Refugo / lixo (kg)',{exact:true}).fill('1');
+ await joint.getByRole('button',{name:'Registrar combinação nesta sessão'}).click();
+ assert.match(await joint.innerText(),/Peso total 10 kg · aproveitamento 80% · refugo 10%/);
+ await joint.getByRole('button',{name:'Fechar simulação'}).click();
+ await p.getByRole('button',{name:'Simular corte conjunto',exact:true}).click();
+ await joint.getByText('Comparar aproveitamento e registrar simulação',{exact:true}).click();
+ assert.match(await joint.innerText(),/Lote fictício/);
  await joint.getByRole('button',{name:'Limpar seleção'}).click();assert.equal(await joint.locator('input:checked').count(),0);
  await joint.getByRole('searchbox').fill('Calcinha');assert.equal(await joint.locator('input[type=checkbox]').count(),1);
  await joint.getByRole('button',{name:'Fechar simulação'}).click();assert.equal(await p.evaluate(()=>JSON.stringify(db)===window.__jointSnapshot),true);
