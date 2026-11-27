@@ -29,15 +29,17 @@ function cutMeta9709(c,idx){
 // These are required operational actions, independent of separation status.
 function cutActionProof9820(c,idx){
  if(!cutLive9819(c)||!sid(c.id)||idx.cuts.get(sid(c.id))!==c||c.modelSplitParentV1||c.hiddenByModelSplitV1||/cancel|desmembrado/.test(norm(c.status)))return null;
- const order=idx.orders.get(sid(c.orderId)),product=idx.products.get(sid(c.productId));
- if(!order||!product||!Array.isArray(order.grade))return null;
- const ordered=order.grade.filter(g=>sid(g?.productId)===sid(c.productId));
+ const order=idx.orders.get(sid(c.orderId));if(!order||!Array.isArray(order.grade))return null;
+ const ids=[...new Set(order.grade.filter(g=>Number(g?.qty)>0).map(g=>sid(g?.productId)))];
+ const pid=sid(c.productId)||(ids.length===1?ids[0]:'');
+ const product=idx.products.get(pid);if(!pid||!product)return null;
+ const ordered=order.grade.filter(g=>sid(g?.productId)===pid);
  if(!ordered.length)return null;
- const source=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length&&norm(c.status)==='finalizado'?c.actualCutGrade:Array.isArray(c.originalGrade)&&c.originalGrade.length?c.originalGrade:Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:ordered;
+ const source=Array.isArray(c.actualCutGrade)&&c.actualCutGrade.length?c.actualCutGrade:Array.isArray(c.originalGrade)&&c.originalGrade.length?c.originalGrade:ordered;
  const grade=[],seen=new Set();let pieces=0;
  for(const g of source){
   const q=g?.qty,key=JSON.stringify([norm(g?.color),norm(g?.size)]);
-  if(!g||g.productId!=null&&sid(g.productId)!==sid(c.productId)||g.orderId!=null&&sid(g.orderId)!==sid(c.orderId)||!norm(g.color)||!norm(g.size)||!(typeof q==='number'||typeof q==='string'&&/^\d+$/.test(q))||!Number.isSafeInteger(Number(q))||Number(q)<0||seen.has(key))return null;
+  if(!g||g.productId!=null&&sid(g.productId)!==pid||g.orderId!=null&&sid(g.orderId)!==sid(c.orderId)||!norm(g.color)||!norm(g.size)||!(typeof q==='number'||typeof q==='string'&&/^\d+$/.test(q))||!Number.isSafeInteger(Number(q))||Number(q)<0||seen.has(key))return null;
   seen.add(key);if(Number(q)>0){grade.push({color:sid(g.color),size:sid(g.size),qty:Number(q)});pieces+=Number(q)}
  }
  if(!grade.length||!Number.isSafeInteger(pieces)||pieces<=0||norm(c.status)==='finalizado'&&pieces!==Number(c.pieces))return null;
@@ -45,13 +47,16 @@ function cutActionProof9820(c,idx){
   const cat=idx.materials.get(sid(m?.materialId)),name=sid(m?.name||cat?.name||'Material sem identificação'),unit=sid(m?.unit||cat?.unit||''),raw=m?.qty,loss=Number(m?.loss??0),q=Number(raw),mode=m?.calcMode||'consumption';
   const valid=(typeof raw==='number'||typeof raw==='string'&&/^\d+(\.\d+)?$/.test(raw))&&q>0&&Number.isFinite(q)&&Number.isFinite(loss)&&loss>=0&&!!unit&&['yield','consumption'].includes(mode);
   const amount=valid?(mode==='yield'?pieces/q:pieces*q)*(1+loss/100):null;
-  return {name,unit,amount:Number.isFinite(amount)?amount:null,category:sid(m?.category||m?.cat||cat?.category||cat?.cat||''),color:sid(m?.color||'')};
+  const byColor=new Map();for(const g of grade)byColor.set(g.color,(byColor.get(g.color)||0)+g.qty);
+  const conversion=((norm(cat?.purchaseUnit).includes('rolo')||norm(cat?.purchaseMode).includes('rolo'))?Number(cat?.purchaseConversion):norm(cat?.packageName).includes('rolo')?Number(cat?.packageAvg):0);
+  const roll=n=>Number.isFinite(n)&&Number.isFinite(conversion)&&conversion>0?Math.ceil(n/conversion-1e-9):null;
+  return {name,unit,amount:Number.isFinite(amount)?amount:null,category:sid(m?.category||m?.cat||cat?.category||cat?.cat||''),color:sid(m?.color||''),rolls:roll(amount??NaN),byColor:[...byColor].map(([color,count])=>{const a=valid?(mode==='yield'?count/q:count*q)*(1+loss/100):null;return {color,pieces:count,amount:Number.isFinite(a)?a:null,rolls:roll(a??NaN)}})};
  });
- return {cutId:sid(c.id),orderId:sid(order.id),productId:sid(product.id),orderNumber:sid(order.orderNumber||order.id),client:sid(order.client||order.clientName||''),model:sid(product.name||c.product),pieces,grade,materials,gradeSource:source===ordered?'pedido':norm(c.status)==='finalizado'?'realizada':'corte',canWrite:false};
+ return {cutId:sid(c.id),orderId:sid(order.id),productId:sid(product.id),orderNumber:sid(order.orderNumber||order.id),client:sid(order.client||order.clientName||''),model:sid(product.name||c.product),pieces,grade,materials,gradeSource:source===ordered?'pedido':source===c.actualCutGrade?'realizada':'corte',canWrite:false};
 }
 function requiredCutAllowed9820(){try{return window.__HLGB_AUTH_READY===true&&canOpenPage('corte')===true&&canOpenPage('pedidos')===true&&canOpenPage('produtos')===true}catch(_){return false}}
 function openFullCutChecklist9820(id){
- if(!requiredCutAllowed9820())return false;
+ if(!requiredCutAllowed9820()){alert('Checklist indisponível: confira as permissões de Corte, Pedidos e Produtos.');return false}
  const idx=cutIndex9709(),v=cutActionProof9820(idx.cuts.get(sid(id)),idx);
  if(!v){alert('Não foi possível confirmar modelo e grade. Confira o corte antes de abrir o checklist.');return false}
  const old=document.getElementById('hlgbFullCutChecklist9820');old?.remove();
@@ -62,11 +67,34 @@ function openFullCutChecklist9820(id){
  el('h3','Grade por cor e tamanho');for(const g of v.grade)el('p',g.color+' · '+g.size+' · '+g.qty+' peças');
  el('h3','Matérias-primas e aviamentos da ficha técnica');
  el('p','Marcação de conferência somente nesta janela, sem baixa ou gravação. Quantidades estimadas para esta grade; confira fisicamente.');
- for(const m of v.materials){const lab=el('label','');lab.style.cssText='display:block;padding:7px 0;border-bottom:1px solid #ddd';const check=el('input','',lab);check.type='checkbox';lab.appendChild(document.createTextNode(' '+m.name+(m.category?' · '+m.category:'')+(m.color?' · '+m.color:'')+' · '+(m.amount===null?'Quantidade a conferir':m.amount.toLocaleString('pt-BR',{maximumFractionDigits:4})+' '+m.unit)));}
+ const fmt=n=>n===null?'A conferir':n.toLocaleString('pt-BR',{maximumFractionDigits:4});
+ const mark=el('button','Marcar todos os materiais',host);mark.type='button';
+ const grid=el('div','');grid.dataset.cutChecklistLines9823='1';
+ for(const m of v.materials){const group=el('section','',grid);group.style.cssText='border:1px solid #ddd;border-radius:6px;padding:8px;margin:6px 0';el('strong',m.name+' · '+fmt(m.amount)+' '+m.unit+(m.rolls===null?'':' · '+m.rolls+' rolo(s) estimados'),group);
+  if(m.category)el('p',m.category,group);
+  for(const color of m.byColor){const lab=el('label','',group);lab.style.cssText='display:block;padding:5px 0';const check=el('input','',lab);check.type='checkbox';check.disabled=color.amount===null;lab.appendChild(document.createTextNode(' '+color.color+' · '+color.pieces+' pç · '+fmt(color.amount)+' '+m.unit+(color.rolls===null?'':' · '+color.rolls+' rolo(s)')))}
+ }
+ mark.onclick=()=>{for(const cb of grid.querySelectorAll('input[type=checkbox]:not(:disabled)'))cb.checked=true};
  if(!v.materials.length)el('p','Nenhuma matéria-prima cadastrada. Confira a ficha técnica antes da separação.');
+ const compose=el('div','');try{const order=idx.orders.get(v.orderId);if(typeof compositionTableForProduct==='function'){compose.innerHTML=compositionTableForProduct({...order,grade:v.grade.map(g=>({...g,productId:v.productId}))},v.productId,true)||''}}catch(_){el('p','Composição indisponível: confira a ficha técnica.',compose)}
  const print=el('button','Imprimir folha de pedido do corte');print.type='button';print.onclick=()=>printRequiredCut9820(v.cutId);
+ const checklistPrint=el('button','Imprimir checklist de separação');checklistPrint.type='button';checklistPrint.onclick=()=>{
+  if(!requiredCutAllowed9820()||!host.isConnected)return;
+  const freshIdx=cutIndex9709(),fresh=cutActionProof9820(freshIdx.cuts.get(v.cutId),freshIdx);if(JSON.stringify(fresh)!==JSON.stringify(v)){alert('A grade ou ficha mudou. Reabra o checklist.');return}
+  const html=host.cloneNode(true);html.querySelectorAll('button').forEach(n=>n.remove());const original=[...host.querySelectorAll('input[type=checkbox]')];[...html.querySelectorAll('input[type=checkbox]')].forEach((n,i)=>{const text=document.createTextNode(original[i]?.checked?'☑ ':'☐ ');n.replaceWith(text)});html.removeAttribute('style');
+  const page='<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Checklist de separação</title><style>@page{size:A4;margin:10mm}body{font:12px Arial;color:#222}section{break-inside:avoid}h2,h3{margin:8px 0}p{margin:4px 0}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:4px}</style><body>'+html.innerHTML+'<p>Responsável: _____________________ Data: ____/____/____</p><p>Faltas / observações: __________________________________________</p></body></html>';
+  let popup;try{popup=window.open('','_blank')}catch(_){}
+  if(popup){try{popup.document.open();popup.document.write(page);popup.document.close();popup.focus?.();popup.print?.();return}catch(_){try{popup.close()}catch(_){}}}
+  if(typeof window.hlgbCutterSheetV9523?.previewOnPage9523==='function'){host.remove();window.hlgbCutterSheetV9523.previewOnPage9523(page)}else alert('Permita a abertura da janela para imprimir o checklist.');
+ };
+ const sep=el('button','Abrir separação e confirmar quantidades');sep.type='button';sep.onclick=()=>{
+  if(!separationAllowed9643()||!host.isConnected){alert('Confira as permissões da separação.');return}
+  let rows;try{rows=inspectWorkspace9643().rows.filter(x=>x.orderId===v.orderId&&x.productId===v.productId&&(!x.cutId||x.cutId===v.cutId))}catch(_){rows=[]}
+  if(rows.length!==1){alert('A baixa deste modelo não está disponível para a situação atual do pedido. Confira o progresso existente; nenhuma baixa foi feita.');return}
+  if(openModelSeparation9715(rows[0]))host.remove();else alert('Não foi possível abrir a separação original. Nenhuma baixa foi feita.');
+ };
  const details=Array.from(document.querySelectorAll('[data-hlgb-inline-materials9711]')).find(x=>x.dataset.hlgbCutId9820===v.cutId);
- if(details){const sep=el('button','Abrir checklist de separação, faltas e anexos');sep.type='button';sep.onclick=()=>{if(!requiredCutAllowed9820()||!details.isConnected)return;host.remove();details.open=true;const editor=Array.from(details.querySelectorAll('details')).find(x=>x.querySelector('summary')?.textContent==='Preencher checklist e anexos (rascunho)');if(editor)editor.open=true;details.scrollIntoView?.({block:'nearest'})}}
+ if(details){const draft=el('button','Abrir checklist de separação, faltas e anexos');draft.type='button';draft.onclick=()=>{if(!requiredCutAllowed9820()||!details.isConnected)return;host.remove();details.open=true;const editor=Array.from(details.querySelectorAll('details')).find(x=>x.querySelector('summary')?.textContent==='Preencher checklist e anexos (rascunho)');if(editor)editor.open=true;details.scrollIntoView?.({block:'nearest'})}}
  document.body.appendChild(host);return true;
 }
 function printRequiredCut9820(id){
@@ -86,11 +114,11 @@ function printRequiredCut9820(id){
 function ensureRequiredCutActions9820(row,c,model){
  if(!row?.querySelectorAll||typeof document.createElement!=='function')return;
  const existing=Array.from(row.querySelectorAll('[data-hlgb-required-cut9820]')).filter(x=>x.hasAttribute?.('data-hlgb-required-cut9820'));
- if(!requiredCutAllowed9820()||!cutLive9819(c)||c.modelSplitParentV1||c.hiddenByModelSplitV1||/cancel|desmembrado|finalizado/.test(norm(c.status))||!c.productId){existing.forEach(x=>x.remove());return}
+ if(!requiredCutAllowed9820()||!cutLive9819(c)||c.modelSplitParentV1||c.hiddenByModelSplitV1||/cancel|desmembrado|finalizado/.test(norm(c.status))){existing.forEach(x=>x.remove());return}
  const host=model?(Array.from(row.querySelectorAll('.toolbar')).find(n=>!n.closest('details'))||row):Array.from(row.children).filter(x=>!x.hasAttribute('data-hlgb-cut-summary9761')).at(-1);
  if(!host)return;
  let actions=existing[0];if(!actions){actions=document.createElement('div');actions.dataset.hlgbRequiredCut9820=sid(c.id);actions.className='toolbar';actions.style.cssText='display:flex;flex-wrap:wrap;gap:6px';host.appendChild(actions);
- const required=[['Checklist completo da peça',openFullCutChecklist9820]];
+ const required=[];if(!row.querySelector('.hlgb-native-cut-checklist9823'))required.push(['Checklist completo da peça',openFullCutChecklist9820]);
  if(!row.querySelector('.hlgb-native-cut-print9822,.hlgbSheetMaterials9523'))required.push(['Imprimir folha de pedido do corte',printRequiredCut9820]);
  for(const [label,fn] of required){const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=label;if(fn===printRequiredCut9820)button.dataset.hlgbPrintRequired9822='1';button.onclick=()=>{if(!row.isConnected||cutIdentity9709(row)!==sid(c.id))return;fn(c.id)};actions.appendChild(button)}
  }

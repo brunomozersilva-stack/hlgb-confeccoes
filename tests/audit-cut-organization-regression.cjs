@@ -83,3 +83,7 @@ context.db.orders[0].grade=[{productId:11,color:'Preto',size:'P',qty:100}];
 const proof=api.cutActionProof9820(cut,api.cutIndex9709());assert.equal(proof.pieces,100);assert.equal(proof.productId,'11');assert.equal(proof.grade[0].color,'Preto');assert.equal(proof.materials.length,1);assert.equal(proof.canWrite,false);
 assert.equal(api.cutActionProof9820({...cut},api.cutIndex9709()),null);
 console.log('PASS required cut actions exact identity and complete grade');
+
+// Complete separation checklist keeps the actual adjusted grade and materials by color.
+context.db.cuts[0].actualCutGrade=[{productId:11,color:'Preto',size:'P',qty:40},{productId:11,color:'Rubi',size:'M',qty:60}];
+const colored=api.cutActionProof9820(context.db.cuts[0],api.cutIndex9709());assert.equal(colored.gradeSource,'realizada');assert.equal(colored.pieces,100);assert.equal(colored.materials[0].byColor.length,2);assert.equal(colored.materials[0].byColor[0].pieces,40);assert.equal(colored.materials[0].byColor[1].pieces,60);
