@@ -1,0 +1,20 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('release-health-monitor-panel-v9541.js','utf8'),a=source.indexOf('function classifyFailureEvidence978A('),b=source.indexOf('const failureLabels978A=',a);
+assert.ok(a>=0&&b>a);
+const ctx={sid:x=>String(x??''),REPO:'example/repo'};vm.createContext(ctx);vm.runInContext(source.slice(a,b),ctx);
+const plain=x=>JSON.parse(JSON.stringify(x)),matrix=JSON.parse(fs.readFileSync('hlgb-modules/engenharia/test-matrix-v9638.json','utf8'));
+assert.deepEqual(plain(ctx.moduleMatrix978B()),matrix,'Regenerate snapshot if source matrix changes');
+const c=(name,kind='test-step-failed')=>plain(ctx.moduleCoverage978B(name,kind));
+assert.deepEqual(c('Run node tests/audit-cutter-planner-regression.cjs').modules,['corte-cortadores']);
+assert.deepEqual(c('Run node --test tests/hlgb-rh-finance-v9667-browser.cjs').modules,['financeiro-hub-notas','folha-pessoal','interface-mobile']);
+for(const [module,paths] of Object.entries(matrix))for(const path of paths){const e=c('Run node '+path);assert.ok(e.modules.includes(module));assert.equal(e.rootCauseConfirmed,false);assert.equal(e.canRepair,false)}
+assert.equal(c('Install Playwright','setup-step-failed').state,'not-test-step');
+assert.equal(c('Run node tests/unknown.cjs').state,'unmapped-test');
+for(const name of ['Run npm test','Run node tests/a.cjs && node tests/b.cjs','Run node tests/../audit.cjs','Run node tests/a.cjs --flag','Run node tests//a.cjs'])assert.equal(c(name).state,'test-path-unconfirmed');
+const run={id:4,attempt:1,commit:'a'.repeat(40)},job={id:7,run_id:4,run_attempt:1,head_sha:run.commit,status:'completed',conclusion:'failure',name:'example',steps:[{number:2,name:'Run node tests/audit-cutter-planner-regression.cjs',conclusion:'failure'}]};
+const before=JSON.stringify(job),ev=plain(ctx.classifyFailureEvidence978A(run,{total_count:1,jobs:[job]}));
+assert.deepEqual(ev.jobs[0].failedSteps[0].moduleCoverage.modules,['corte-cortadores']);assert.equal(ev.rootCauseConfirmed,false);assert.equal(JSON.stringify(job),before);
+assert.match(ctx.moduleCoverageLabel978B(ev.jobs[0].failedSteps[0].moduleCoverage),/não identifica o culpado/);
+assert.equal(ctx.moduleCoverageLabel978B(c('Install Playwright','setup-step-failed')),'');
+console.log('PASS module coverage, shared and unknown tests, matrix drift, no causal claim');
