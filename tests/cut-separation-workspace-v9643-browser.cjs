@@ -124,6 +124,10 @@
  assert.equal(await p.locator('#corte #hlgbSeparationOperation9715 #originalSep').count(),1);
  assert.equal(await p.evaluate(()=>window.__originalSep===document.getElementById('originalSep')),true);
  assert.equal(await p.locator('#separationOrder').count(),1);
+ assert.equal(await p.locator('#pedidos #hlgbSeparationGoToCut9774').count(),1);
+ await p.evaluate(()=>{window.hlgbCutOrganization.dockSeparation9715();document.getElementById('hlgbSeparationGoToCut9774').click()});
+ assert.equal(await p.evaluate(()=>window.__page),'corte');assert.equal(await p.locator('#hlgbSeparationOperation9715').evaluate(x=>x.open),true);
+ assert.equal(await p.locator('#pedidos #hlgbSeparationGoToCut9774').count(),1);
  await p.evaluate(()=>{window.__row=window.HLGB_CUT_SEPARATION_CORE_9647.workspace.inspect(db,true,new Set()).rows.find(x=>x.productId==='10')});
  await p.evaluate(()=>{if(!window.__row)throw Error('model fixture missing');window.hlgbCutOrganization.openModelSeparation9715(window.__row)});
  await p.waitForFunction(()=>document.activeElement?.id==='sepQty938_10');
@@ -135,4 +139,5 @@
  await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!!document.querySelector('#pedidos #originalSep')&&!document.getElementById('hlgbSeparationOperation9715'));
  assert.equal(await p.evaluate(()=>window.__originalSep===document.getElementById('originalSep')),true);
  assert.equal(await p.locator('#beforeSep + #originalSep + #afterSep').count(),1);
+ assert.equal(await p.locator('#hlgbSeparationGoToCut9774').count(),0);
   await p.evaluate(()=>{window.__allowed=false;window.renderCuts()});await p.waitForFunction(()=>!document.getElementById('hlgbCutSeparation9643')&&!document.querySelector('[data-hlgb-inline-materials9711]'));await p.close();console.log('PASS',width)}}finally{await b.close()}})().catch(e=>{console.error(e);process.exit(1)});
