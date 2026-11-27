@@ -44,6 +44,26 @@ assert.strictEqual(points.unit,.24,'3 travetadas por peça × R$ 0,08 = R$ 0,24 
 assert.equal(api.deductionForModelV9592({productId:999},context.db.factionMasters[0]),null,
  'unknown model cannot silently invent a traveta count');
 
+const master=context.db.factionMasters[0];
+for(const bad of [undefined,null,'',false,true,' ',1.5,-1,101]){
+ context.db.products=[{id:3,name:'Teste',travetadas:bad}];
+ assert.equal(api.deductionForModelV9592({productId:3},master),null,'invalid points '+String(bad));
+}
+context.db.products=[{id:3,name:'Sem travetada',travetadas:0}];
+assert.equal(api.deductionForModelV9592({productId:3},master).unit,0);
+context.hlgbFactionRates9577={traveta:()=>null};
+assert.equal(api.deductionForModelV9592({productId:3},master).unit,0);
+context.db.products=[{id:3,travetadas:3}];
+assert.equal(api.deductionForModelV9592({productId:3},master),null);
+assert.equal(api.newDiscount9818(null,false,'0.08').code,'missing-sheet');
+assert.equal(api.newDiscount9818(null,true,'0').unit,0);
+assert.equal(api.newDiscount9818(null,true,'').code,'deduction');
+assert.equal(api.newDiscount9818(null,true,'0.123').code,'deduction');
+assert.equal(api.newDiscount9818({unit:.24},false,'0.08').unit,.24);
+assert.equal(api.newDiscount9818({unit:0},false,'0.08').unit,0);
+assert.equal(api.newDiscount9818({unit:.24},true,'0.20').origin,'manual');
+context.db.products=[{id:3,travetadas:0},{id:3,travetadas:3}];
+assert.equal(api.deductionForModelV9592({productId:3},master),null);
 assert(src.includes('f.price=valid.finalUnit'),'valor final precisa alimentar faction.price');
 assert(src.includes("storedBase!=null&&state.mode==='edit'"),'edição precisa restaurar valor base e evitar desconto duplo');
 assert(!src.includes('new MutationObserver'),'v94.24 não pode usar observer amplo/recursivo');

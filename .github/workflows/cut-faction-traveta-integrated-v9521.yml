@@ -6,6 +6,8 @@ on:
       - 'app-stable3.html'
       - 'release-cut-model-split.js'
       - 'release-faction-operations-v9520.js'
+      - 'release-faction-traveta-payment-v9424.js'
+      - 'tests/audit-faction-traveta-payment-v9424.cjs'
       - 'release-faction-material-refresh-v9522.js'
       - 'tests/cut-post-finish-queue-v9519.cjs'
       - 'tests/faction-operations-v9520.cjs'
@@ -19,6 +21,8 @@ on:
       - 'app-stable3.html'
       - 'release-cut-model-split.js'
       - 'release-faction-operations-v9520.js'
+      - 'release-faction-traveta-payment-v9424.js'
+      - 'tests/audit-faction-traveta-payment-v9424.cjs'
       - 'tests/cut-faction-traveta-*'
       - 'tests/click-sophia-grade-v9561-browser.cjs'
       - '.github/workflows/cut-faction-traveta-integrated-v9521.yml'
@@ -37,6 +41,7 @@ jobs:
       - run: node --check tests/click-sophia-grade-v9561-browser.cjs
       - run: node --check release-faction-safe-adjust-v9514.js
       - run: node --check release-faction-operations-v9520.js
+      - run: node tests/audit-faction-traveta-payment-v9424.cjs
       - run: node --check release-faction-material-refresh-v9522.js
       - run: node --test tests/cut-post-finish-queue-v9519.cjs tests/faction-operations-v9520.cjs tests/cut-faction-traveta-integration-v9521.cjs tests/faction-material-refresh-v9522.cjs
       - run: node tests/audit-cut-model-split-regression.cjs
