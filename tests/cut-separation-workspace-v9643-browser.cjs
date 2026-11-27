@@ -93,6 +93,18 @@
   window.__merchBefore=JSON.stringify(db);window.hlgbCutOrganization.organizeMerchandise9755();
  });
  assert.equal(await p.locator('#merch1').evaluate(x=>x.style.display),'');
+ const merchProof=await p.evaluate(()=>{
+  const api=window.hlgbCutOrganization,orders=db.orders,base={id:'note',items:[{orderId:1,productId:10,qty:40}]};
+  const x=(notes,pairs=[])=>api.merchandiseEvidence9755(orders,notes,new Set(pairs)).get('1');
+  return {partial:x([base]),manual:x([{...base,items:[{...base.items[0],sourceType:'manual_note'}]}]),bad:x([{...base,items:[{...base.items[0],qty:null}]}]),extra:x([{...base,items:[{orderId:1,productId:999,qty:5}]}]),over:x([{...base,items:[{orderId:1,productId:10,qty:101}]}]),full:x([{...base,items:[{orderId:1,productId:10,qty:100}]}],['1|11'])};
+ });
+ assert.equal(merchProof.partial.remainingPieces,110);assert.equal(merchProof.partial.reason,'partial');assert.equal(merchProof.manual.remainingPieces,150);
+ for(const v of [merchProof.bad,merchProof.extra,merchProof.over]){assert.equal(v.reason,'review');assert.equal(v.hide,false);assert.equal(v.remainingPieces,null)}
+ assert.equal(merchProof.full.hide,true);assert.equal(merchProof.full.remainingPieces,0);
+ assert.match(await p.locator('#merch1 [data-hlgb-merch-detail9772] summary').innerText(),/50 peças/);
+ await p.evaluate(()=>window.hlgbCutOrganization.organizeMerchandise9755());
+ assert.equal(await p.locator('#merch1 [data-hlgb-merch-detail9772]').count(),1);
+
  await p.evaluate(()=>{window.__merchPairs=['1|11'];window.hlgbCutOrganization.organizeMerchandise9755()});
  assert.equal(await p.locator('#merch1').evaluate(x=>x.style.display),'none');assert.match(await p.locator('#hlgbMerchandiseEvidence9755').textContent(),/1 com todos os modelos cobertos/);
  await p.evaluate(()=>{window.__merchInvoices[0].status='Cancelada';window.hlgbCutOrganization.organizeMerchandise9755()});
