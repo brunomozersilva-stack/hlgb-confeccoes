@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict'),api=require('../hlgb-modules/financeiro/attendance-transport-preview-v9658.js');
+const people=[{id:'a',name:'Pessoa A',salary:2000,hasTransport:true}];
+const columns='matricula;data;previsto;trabalhado;status;deslocamento;passagem_antecipada;compensada';
+const lines=['001;01/11/2026;08:00;08:00;trabalhado;sim;10,00;nao','001;02/11/2026;08:00;00:00;falta_injustificada;nao;10,00;nao','001;03/11/2026;08:00;08:00;trabalhado;pendente;;pendente'];
+const mapping={employee:'matricula',date:'data',scheduled:'previsto',worked:'trabalhado',status:'status'},tm={commute:'deslocamento',advance:'passagem_antecipada',adjusted:'compensada'},links=[{code:'001',employeeId:'a'}];
+const table=x=>api.digitalTable([columns,...x].join('\n'),';',true),run=(x=lines,m=tm,allow=true)=>api.digitalTransportBridge(table(x),mapping,people,'2026-11',links,m,allow);
+const b=run();assert.equal(b.state,'local-preview');assert.equal(b.rows.length,3);assert.equal(b.rows[1].advanceCents,1000);assert.equal(b.rows[1].commute,'nao');assert.equal(b.rows[2].commute,'pendente');assert.equal(b.canWrite,false);assert.equal(b.official,false);
+assert.equal(run([...lines,lines[0]]).duplicateCount,1);
+const conflict=run([...lines,lines[0].replace(';sim;',';nao;')]);assert.equal(conflict.rows.length,2);assert.ok(conflict.issues.some(i=>i.reason==='conflito-passagem-mesmo-dia'));
+assert.equal(run(lines,{...tm,commute:'status'}).state,'invalid-transport-mapping');assert.equal(run(lines,tm,false).state,'forbidden');
+assert.equal(run([lines[0].replace(';sim;',';;')]).rows.length,0);
+assert.equal(run([lines[1].replace(';10,00;nao',';;sim')]).rows.length,0);
+assert.equal(api.inspectDigital(table(lines),mapping,people,'2026-11',true,links).rows.length,3);
+console.log('PASS shared digital report with explicit transport evidence and no mutation');
