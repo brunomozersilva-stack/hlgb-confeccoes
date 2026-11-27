@@ -77,7 +77,7 @@ function printRequiredCut9820(id){
 }
 function ensureRequiredCutActions9820(row,c,model){
  if(!row?.querySelectorAll||typeof document.createElement!=='function')return;
- const existing=Array.from(row.querySelectorAll('[data-hlgb-required-cut9820]'));
+ const existing=Array.from(row.querySelectorAll('[data-hlgb-required-cut9820]')).filter(x=>x.hasAttribute?.('data-hlgb-required-cut9820'));
  if(!requiredCutAllowed9820()||!cutLive9819(c)||c.modelSplitParentV1||c.hiddenByModelSplitV1||/cancel|desmembrado|finalizado/.test(norm(c.status))||!c.productId){existing.forEach(x=>x.remove());return}
  const host=model?(Array.from(row.querySelectorAll('.toolbar')).find(n=>!n.closest('details'))||row):Array.from(row.children).filter(x=>!x.hasAttribute('data-hlgb-cut-summary9761')).at(-1);
  if(!host)return;
