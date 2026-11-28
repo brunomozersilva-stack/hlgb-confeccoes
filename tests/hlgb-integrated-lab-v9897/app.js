@@ -8,7 +8,10 @@ function button(host,label,fn){const b=el('button',label,host);b.type='button';b
 function table(host,head,rows){const div=el('div','',host);div.className='table';const t=el('table','',div),h=el('tr','',el('thead','',t));head.forEach(x=>el('th',x,h));const body=el('tbody','',t);rows.forEach(r=>{const tr=el('tr','',body);r.forEach(v=>el('td',String(v??''),tr))});return t}
 async function api(op,input){const r=await fetch('/api',{method:'POST',headers:{'content-type':'application/json','x-hlgb-lab':token},body:JSON.stringify({op,input})}),j=await r.json();if(!r.ok)throw Error(j.error+' '+(j.detail||''));return j}
 async function submit(op,input){
- if(busy)return;const signature=JSON.stringify(input),old=pending.get(op);
+ if(busy)return;
+ const positiveInt=x=>Number.isSafeInteger(x)&&x>0&&x<=1000000;
+ if((op==='adjust'||op==='extra')&&(!positiveInt(input.qty)||!positiveInt(input.rate)||op==='adjust'&&(input.qty>100||input.reason.trim().length<6||input.reason.length>500)||op==='extra'&&(!input.confirmedDelivery||!input.name.trim()||input.name.length>120))||(['settle','receive'].includes(op)&&(!input.reviewed||!Number.isSafeInteger(input.amount)||input.amount<=0))||op==='checklist'&&(!input.payload.responsible.trim()||input.payload.responsible.length>120||input.payload.note.length>500||input.payload.lines.some(l=>l.note.length>250||l.actual!==null&&(!Number.isFinite(l.actual)||l.actual<0||l.actual>1e8)||l.checked&&l.actual===null))){status.textContent='Confira os campos e a confirmação antes de enviar.';return}
+ const signature=JSON.stringify(input),old=pending.get(op);
  if(old&&old.signature!==signature){status.textContent='Referência anterior não confirmada. Confira os dados e repita a mesma operação.';return}
  const req=old?.req||{...input,ref:uuid()};pending.set(op,{signature,req});busy=true;status.textContent='Conferindo operação fictícia…';
  try{const r=await api(op,req);if(r.confirmed!==true)throw Error('Sem confirmação');pending.delete(op);await refresh();status.textContent='Confirmado no banco descartável: '+op+' · '+req.ref;}

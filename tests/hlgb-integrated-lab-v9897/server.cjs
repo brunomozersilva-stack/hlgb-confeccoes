@@ -36,7 +36,7 @@ function operation(op,x){
  if(op==='receive'){
   if(x.reviewed!==true||!Array.isArray(x.selected))throw Error('review');
   const a=sql('records_lab_operator',"records_lab.pay_account('c',"+ref(x.ref)+','+day+",'Pix',"+n(x.amount,1)+','+j(x.selected)+','+n(x.revision,1)+',true)'),r=readAccount(x.ref);
-  if(!r||r.receipt.reference!==x.ref||r.receipt.amountCents!==x.amount||r.hubCount!==1||r.hub.status!=='Realizado'||r.hub.flow!=='Entrada'||Math.round(Number(r.hub.value)*100)!==x.amount||r.event.after_cents!==a.independentAfterCents||r.account.revision!==a.accountRevision||r.account.independent_cents!==a.independentAfterCents||r.notes.length!==a.allocations.length||a.allocations.some(i=>!r.notes.some(v=>v.id===i.noteId&&Math.round(Number(v.remaining)*100)===i.remainingCents&&v.remaining===v.titleRemaining&&v.status===v.titleStatus)))throw Error('conferência não confirmada');return {confirmed:true,result:r};
+  if(!r||r.receipt.reference!==x.ref||r.receipt.amountCents!==x.amount||r.hubCount!==1||r.hub.status!=='Realizado'||r.hub.flow!=='Entrada'||Math.round(Number(r.hub.value)*100)!==x.amount||r.event.after_cents!==a.independentAfterCents||r.account.revision!==a.accountRevision||r.account.independent_cents!==a.independentAfterCents||r.notes.length!==a.allocations.length||a.allocations.some(i=>!r.notes.some(v=>v.id===i.noteId&&Math.round(Number(v.remaining)*100)===i.remainingCents&&Number(v.remaining)===Number(v.titleRemaining)&&v.status===v.titleStatus&&v.paidEvent===1)))throw Error('conferência não confirmada');return {confirmed:true,result:r};
  }
  if(op==='checklist'){
   if(!x.payload||!x.revisions||!Array.isArray(x.payload.lines))throw Error('input');

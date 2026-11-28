@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'tests/hlgb-integrated-lab-v9897/**'
+      - 'tests/faction-normal-adjustment-postgres-v9879/**'
+      - 'tests/faction-weekly-settlement-postgres-v9883/**'
+      - 'tests/client-account-postgres-v9801/**'
+      - 'tests/cut-checklist-postgres-v9826/**'
       - '.github/workflows/hlgb-integrated-lab-v9897.yml'
 permissions:
   contents: read
@@ -32,6 +36,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
+      - run: node --check tests/hlgb-integrated-lab-v9897/server.cjs && node --check tests/hlgb-integrated-lab-v9897/app.js && node --check tests/hlgb-integrated-lab-v9897/browser.cjs
       - run: bash tests/hlgb-integrated-lab-v9897/setup.sh
       - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
       - name: Single browser journey
