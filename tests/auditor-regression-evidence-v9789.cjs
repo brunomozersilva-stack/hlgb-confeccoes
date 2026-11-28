@@ -11,3 +11,9 @@ assert.equal(ctx.compareAuditRegression9789({...current,browser:'Chrome'},[base]
 assert.equal(ctx.compareAuditRegression9789({...current,auditorVersion:'2'},[base]).state,'no-comparable-baseline');
 assert.equal(ctx.compareAuditRegression9789(current,[base,{...base,id:'c'}]).state,'ambiguous-baseline');assert.equal(JSON.stringify({base,current}),before);
 console.log('PASS audit regression comparison, absent checks, context match, no private detail or mutation');
+
+const earlier={...base,id:'z',completedAt:'2026-11-24T10:00:00Z',checks:[check('fn:a','fail'),check('fn:c','warn')]};
+const multi=ctx.compareAuditRegression9789(current,[base,earlier]);assert.equal(multi.recurrence.returned,1);assert.equal(multi.recurrence.persistent,1);assert.equal(multi.recurrence.rows.find(x=>x.code==='fn:a').returnedAfterPass,true);assert.equal(multi.recurrence.rows.find(x=>x.code==='fn:c').consecutiveNonPass,3);
+const missing={...earlier,checks:[]};assert.equal(ctx.compareAuditRegression9789(current,[base,missing]).recurrence.returned,0);
+assert.equal(ctx.compareAuditRegression9789(current,[base,earlier,{...earlier,id:'duplicate-time'}]).recurrence.returned,0);
+assert.ok(!JSON.stringify(multi.recurrence).includes('PERSONAL-EXAMPLE'));assert.ok(!JSON.stringify(multi.recurrence).includes('SECRET-EXAMPLE'));
