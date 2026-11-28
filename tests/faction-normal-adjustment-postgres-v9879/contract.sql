@@ -50,3 +50,16 @@ do $body$begin
 end$body$;
 reset role;
 select 'PASS duplicate and paid protection';
+
+-- Extra decimal zeros are legal; a nonzero fractional cent is not.
+update fa_lab.records set deleted=true where id='linked';
+update fa_lab.records set data=data||'{"unitPrice":2.000000000000,"value":100.000000000000}'::jsonb where id='p2';
+set role fa_lab_operator;
+select fa_lab.adjust('p2','scale-ok',1,1,40,200,'Conferência de escala');
+reset role;
+update fa_lab.records set data=data||'{"unitPrice":2.001,"value":80.04}'::jsonb where id='p2';
+set role fa_lab_operator;
+do $body$begin
+ begin perform fa_lab.adjust('p2','subcent',2,1,39,200,'Conferência de escala');raise exception 'expected failure';exception when others then if sqlerrm<>'money' then raise;end if;end;
+end$body$;
+reset role;

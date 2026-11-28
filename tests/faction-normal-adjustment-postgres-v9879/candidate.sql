@@ -30,13 +30,14 @@ begin
   if not exists(select 1 from fa_lab.events e where e.payment_id=p_id and e.ref=prev_event->>'reference' and e.result->'adjustment'=prev_event) then raise exception 'adjustment-proof';end if;
   old_qty:=(prev_event->>'payableQuantity')::bigint;
  end if;
- if coalesce(p.data->>'unitPrice','') !~ '^[0-9]{1,10}(\.[0-9]{1,2})?$' or coalesce(p.data->>'value','') !~ '^[0-9]{1,10}(\.[0-9]{1,2})?$' then raise exception 'money';end if;
+ if coalesce(p.data->>'unitPrice','') !~ '^[0-9]{1,10}(\.[0-9]{1,20})?$' or coalesce(p.data->>'value','') !~ '^[0-9]{1,10}(\.[0-9]{1,20})?$' then raise exception 'money';end if;
+ if (p.data->>'unitPrice')::numeric*100<>trunc((p.data->>'unitPrice')::numeric*100) or (p.data->>'value')::numeric*100<>trunc((p.data->>'value')::numeric*100) then raise exception 'money';end if;
  old_rate:=((p.data->>'unitPrice')::numeric*100)::bigint;old_value:=((p.data->>'value')::numeric*100)::bigint;
  if old_rate<=0 or old_qty<=0 or old_qty>qty or old_qty*old_rate<>old_value then raise exception 'value-proof';end if;
  if p_qty=old_qty and p_rate=old_rate then raise exception 'unchanged';end if;
  total:=p_qty*p_rate;
  event:=jsonb_build_object('reference',p_ref,'deliveredQuantity',qty,'payableQuantity',p_qty,'deliveryDate',h->>'date','previousPayableQuantity',old_qty,'previousUnitCents',old_rate,'unitCents',p_rate,'previousCents',old_value,'totalCents',total,'reason',trim(p_reason),'actor',current_user);
- next_data:=p.data||jsonb_build_object('unitPrice',p_rate::numeric/100,'value',total::numeric/100,'settlementAdjustmentV9879',event);
+ next_data:=p.data||jsonb_build_object('unitPrice',round(p_rate::numeric/100,2),'value',round(total::numeric/100,2),'settlementAdjustmentV9879',event);
  update fa_lab.records set data=next_data,revision=revision+1 where module='factionPayments' and id=p_id and revision=p_revision;
  if not found then raise exception 'payment-revision';end if;
  ans:=jsonb_build_object('paymentId',p_id,'revision',p_revision+1,'adjustment',event,'hubMovementCents',0,'physicalQuantity',qty);
