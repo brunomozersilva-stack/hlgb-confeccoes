@@ -21,3 +21,12 @@ const assert=require('node:assert/strict'),api=require('../hlgb-modules/assisten
  active=true;calls.length=0;const revoke=api.ask('pedido 0012',{...d,auth:()=>active,read:k=>{calls.push(k);if(k==='cuts')active=false;return k==='orders'?orders:cuts}});ok(revoke.state==='forbidden'&&calls.join(',')==='orders,cuts','stop after revocation');
  ok(api.ask('pagar acerto facção Roseli',sd).state==='unsupported','no financial action');
 })(api,(v,m)=>assert.ok(v,m));console.log('PASS assistant evidence query');
+(function(){
+ const planningApi=require('../hlgb-modules/producao/production-planning-v9661.js');
+ const data={products:[{id:'p',name:'Body'}],productionLocations:[{id:'f',name:'Roseli'}],factions:[{id:'lot',productId:'p',productionLocationId:'f',status:'Em produção',sentAt:'2026-11-10',sent:100,returned:0,deliveryHistory:[],dueDate:'2026-11-20'}]};
+ const deps={auth:()=>true,can:()=>true,read:k=>data[k],today:()=> '2026-11-28',planningApi};
+ const late=api.ask('facções atrasadas',deps);assert.equal(late.state,'observed');assert.equal(late.rows[0].id,'lot');assert.match(late.rows[0].detail,/100 peças restantes/);assert.equal(late.canWrite,false);
+ const history=api.ask('prazos facção Roseli',deps);assert.equal(history.state,'observed');assert.equal(history.rows[0].id,'lot');
+ let read=0;assert.equal(api.ask('facções atrasadas',{...deps,can:p=>p!=='faccoes',read:()=>{read++;return []}}).state,'forbidden');assert.equal(read,0);
+ assert.equal(api.ask('prazos facção Roseli',{...deps,read:k=>k==='productionLocations'?[...data.productionLocations,{id:'g',name:'Roseli'}]:data[k]}).state,'ambiguous');
+})();

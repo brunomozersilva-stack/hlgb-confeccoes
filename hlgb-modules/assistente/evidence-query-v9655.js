@@ -20,7 +20,7 @@ function mount(){
  const active=()=>host.isConnected&&input.isConnected&&auth()&&actor()===host.dataset.actor&&scopeStamp()===host.dataset.scope;
  const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='Consulta com evidências';const out=document.createElement('div');out.setAttribute('aria-live','polite');out.dataset.evidenceOutput='1';
  const help=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Exemplos de consultas';help.appendChild(summary);
- for(const [label,query] of [['Andamento de pedido','pedido 125'],['Histórico de modelo','histórico produto Camisola'],['Matéria-prima','material malha'],['Acertos de facção','acertos facção Roseli'],['Notas de cliente','acertos cliente NOME'],['Folha paga','acertos funcionário NOME'],['Previsão semanal','financeiro semana'],['Histórico produtivo','produção histórico'],['Resumo gerencial','resumo operação'],['Carteira de pedidos','carteira pedidos']]){
+ for(const [label,query] of [['Andamento de pedido','pedido 125'],['Histórico de modelo','histórico produto Camisola'],['Matéria-prima','material malha'],['Acertos de facção','acertos facção Roseli'],['Notas de cliente','acertos cliente NOME'],['Folha paga','acertos funcionário NOME'],['Previsão semanal','financeiro semana'],['Histórico produtivo','produção histórico'],['Facções atrasadas','facções atrasadas'],['Prazos de facção','prazos facção Roseli'],['Resumo gerencial','resumo operação'],['Carteira de pedidos','carteira pedidos']]){
   const btn=document.createElement('button');btn.type='button';btn.className='secondary';btn.style.cssText='max-width:100%;white-space:normal';btn.textContent=label;btn.onclick=()=>{if(active()){input.value=query;out.replaceChildren();input.focus()}};help.appendChild(btn)
  }
  host.append(b,help,out);input.closest('.hlgb-assistant-input')?.insertAdjacentElement('afterend',host);if(!host.isConnected)input.insertAdjacentElement('afterend',host);
@@ -245,12 +245,36 @@ if(typeof document!=='undefined'){document.addEventListener('click',()=>setTimeo
   if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
   return result('observed',active+' pedidos ativos examinados; '+fmt(contracted)+' peças contratadas em grades válidas (não saldo de produção). '+review+' ocorrências para revisão, '+gradeErrors+' grades inválidas, '+terminalCount+' pedidos em status de encerramento ou nota excluídos; '+unlinkedNotes+' registros de nota sem vínculo completo. Histórico e nota não comprovam expedição física nem sincronização. Até 50 linhas exibidas de '+rows.length+'. Não importa automaticamente para o simulador.',rows.slice(0,50));
  }
+ function factionHistoryQuery(query,lateOnly,deps){
+  const areas=['produtos','producao','faccoes'],allowed=()=>deps.auth()===true&&areas.every(p=>deps.can(p)===true);
+  if(!allowed())return result('forbidden','Consulta de prazos de facções não autorizada.');
+  const source={};for(const k of ['factions','products','productionLocations']){if(!allowed())return result('forbidden','Sessão ou acesso alterado.');source[k]=deps.read(k)}
+  if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+  if(typeof deps.planningApi?.factionLeadTimes!=='function'||typeof deps.today!=='function')return result('unavailable','Histórico de prazos indisponível.');
+  const h=deps.planningApi.factionLeadTimes(source,deps.today(),true);
+  if(!allowed())return result('forbidden','Sessão ou acesso alterado.');
+  if(h?.state!=='local-leadtime-observation'||!Array.isArray(h.rows)||!Array.isArray(h.open)||!Array.isArray(h.issues))return result('unavailable','Registros de facções ainda não disponíveis.');
+  const fmt=n=>Number.isFinite(n)?n.toLocaleString('pt-BR'):'Não confirmado';
+  if(lateOnly){
+   const rows=h.open.filter(r=>r.lateAgainstDue===true);
+   return result(rows.length?'observed':'empty',rows.length+' lotes com prazo informado vencido e entrega incompleta nos registros locais; '+h.issues.length+' registros a conferir. Não confirma cobertura de toda a carteira.',rows.slice(0,30).map(r=>({source:'factions',id:r.recordId,label:r.teamName+' · '+r.productName,detail:fmt(r.remaining)+' peças restantes · prazo '+r.dueDate+' · enviado '+r.sentAt+' · '+fmt(r.elapsedDays)+' dias em aberto'})));
+  }
+  const q=norm(query),locations=source.productionLocations;if(!Array.isArray(locations))return result('unavailable','Cadastro de equipes indisponível.');
+  const exact=locations.filter(r=>live(r)&&r.active!==false&&(sid(r.id)===query||norm(r.name)===q));
+  const found=exact.length?exact:locations.filter(r=>live(r)&&r.active!==false&&norm(r.name).includes(q));
+  if(found.length!==1)return result(found.length?'ambiguous':'empty',found.length?'Mais de uma equipe corresponde à consulta. Informe o ID exato.':'Equipe não localizada.',found.slice(0,20).map(r=>({source:'productionLocations',id:sid(r.id),label:sid(r.name),detail:'ID '+sid(r.id)})));
+  const team=sid(found[0].id);if(!team||locations.filter(r=>live(r)&&sid(r.id)===team).length!==1)return result('ambiguous','Identidade da equipe a conferir.');
+  const rows=h.rows.filter(r=>r.teamId===team),open=h.open.filter(r=>r.teamId===team);
+  return result(rows.length||open.length?'observed':'empty',sid(found[0].name)+' · '+rows.length+' grupos históricos de modelo/faixa · '+open.length+' lotes em aberto. Referência de 84 dias; dados locais, não é promessa de prazo.',[...rows.slice(0,20).map(r=>({source:'factionLeadTimes',id:r.productId,label:r.productName+' · '+r.band+' peças',detail:r.count+' lotes · média '+fmt(r.averageDays)+' dias · referência conservadora '+fmt(r.conservativeDays)+' dias'})),...open.slice(0,10).map(r=>({source:'factions',id:r.recordId,label:r.productName+' em aberto',detail:fmt(r.remaining)+' peças restantes · prazo '+(r.dueDate||'não informado')+' · '+(r.referenceDate||'sem referência histórica')}))]);
+ }
  function ask(raw,deps){
   if(deps.auth()!==true)return result('forbidden','Entre no programa para consultar.');
   const q=String(raw??'').trim();if(!q||q.length>180)return result('unsupported','Informe uma consulta curta.');
   const m=q.match(/^(?:(?:status|andamento|situa[cç][aã]o)(?: do)? |como est[aá] (?:o )?)?pedido\s*#?\s*([A-Za-z0-9_-]{1,80})\??$/i),product=q.match(/^(?:hist[oó]rico(?: do)? produto|produto|modelo)\s+(.+)$/i),material=q.match(/^(?:material|mat[eé]ria.prima)\s+(.+)$/i),settlement=q.match(/^acertos?\s+(fac[cç][aã]o|cliente|funcion[aá]rio)\s+(.+)$/i),finance=/^(?:financeiro semana|previs[aã]o financeira semanal|como est[aá] o financeiro)\??$/i.test(q);
   const permitted=p=>deps.auth()===true&&deps.can(p)===true;
   try{
+   if(/^fac[cç][oõ]es atrasadas\??$/i.test(q))return factionHistoryQuery('',true,deps);
+   const lead=q.match(/^prazos? (?:da )?fac[cç][aã]o\s+(.+?)\??$/i);if(lead)return factionHistoryQuery(lead[1].trim(),false,deps);
    if(/^(?:carteira (?:de )?pedidos|carteira real|pedidos em aberto)\??$/i.test(q))return portfolio(deps);
    if(/^(?:distribuir produ[cç][aã]o|distribuir (?:entre )?fac[cç][oõ]es)\??$/i.test(q))return result('unsupported','Abra “Distribuir produção entre facções” na consulta com evidências e revise as premissas.');
    if(/^(?:simular novo pedido|avaliar novo pedido|simula[cç][aã]o de pedido)\??$/i.test(q))return result('unsupported','Abra “Simular novo pedido — prazo e caixa” na consulta com evidências e revise as premissas.');

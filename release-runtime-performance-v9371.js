@@ -42,6 +42,13 @@ document.addEventListener('click',e=>{
 window.addEventListener('hlgb:logout',()=>{refreshEpoch++;if(refreshPending)refreshStats.canceled++;if(refreshTimer!==null)clearTimeout(refreshTimer);refreshTimer=null;refreshPending=false});
 window.addEventListener('pageshow',scheduleVisibleRefresh);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleVisibleRefresh()});
+let pageObserver9905=null;const watched9905=new WeakSet();
+function watchReportPages9905(){
+ if(typeof MutationObserver!=='function')return;
+ if(!pageObserver9905)pageObserver9905=new MutationObserver(records=>{if(records.some(r=>r.target.classList?.contains('active')))scheduleVisibleRefresh()});
+ for(const id of ['relatorios','cortadores']){const page=document.getElementById(id);if(page&&!watched9905.has(page)){watched9905.add(page);pageObserver9905.observe(page,{attributes:true,attributeFilter:['class']})}}
+}
+watchReportPages9905();document.addEventListener('DOMContentLoaded',watchReportPages9905,{once:true});window.addEventListener('hlgb:authenticated',watchReportPages9905);
 
 function installClassifier(){
  const smart=window.hlgbAuditorSmart;
@@ -50,11 +57,11 @@ function installClassifier(){
  const base=smart.classifyProblem;
  const evidenceText=(sync,support)=>{
   const safe=v=>{try{return JSON.stringify(v||{})}catch(e){return ''}};
-  const timeline=support?.timeline||support?.forensics?.timeline||support?.hub?.timeline||[];
-  const errors=support?.errors||[];
+  const timelines=[support?.timeline,support?.forensics?.timeline,support?.hub?.timeline].filter(Array.isArray);
+  const errors=[support?.errors,support?.forensics?.errors,support?.hub?.errors].filter(Array.isArray);
   const runtime=(window.hlgbInternalAuditor?.runtimeErrors||[]).slice(-40);
   const guards=sync?.runtime?.guards||{};
-  return [safe(timeline),safe(errors),safe(runtime),safe({
+  return [safe(timelines),safe(errors),safe(runtime),safe({
    payrollReliable:guards.payrollReliable?.lastError,
    payrollRace:guards.payrollRace?.lastError,
    replay:guards.replay?.lastError,

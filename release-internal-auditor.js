@@ -744,19 +744,38 @@ function compareAuditRegression9789(current,history){
   }
   const priority={regressed:0,persistent:1,ambiguous:2,missing:3,newCheck:4,improved:5};
   rows.sort((a,b)=>priority[a.change]-priority[b.change]||a.category.localeCompare(b.category)||a.code.localeCompare(b.code));
-  return {state:'local-comparison',baselineAt:prior.completedAt,currentAt:current.completedAt,baselineVersion:prior.appVersion,currentVersion:current.appVersion,counts,rows,canRepair:false,rootCauseConfirmed:false,coverageVerified:false};
+  const timeCounts=new Map(),idCounts=new Map();
+  for(const r of eligible){const t=time(r.completedAt),id=String(r.id);timeCounts.set(t,(timeCounts.get(t)||0)+1);idCounts.set(id,(idCounts.get(id)||0)+1)}
+  const chain=eligible.slice(0,12).map(r=>timeCounts.get(time(r.completedAt))===1&&idCounts.get(String(r.id))===1?{at:r.completedAt,index:index(r)}:null);
+  const recurring=[];
+  for(const [key,cur] of after){
+   if(!cur||cur.status==='pass')continue;
+   let streak=1,observed=1,failures=cur.status==='fail'?1:0,first=current.completedAt,priorPass=false,returned=false,continuous=true;
+   for(const item of chain){
+    const c=item?.index.get(key);if(!c)break;
+    observed++;
+    if(c.status==='pass'){priorPass=true;continuous=false}
+    else{if(continuous){streak++;first=item.at}if(c.status==='fail')failures++;if(priorPass)returned=true}
+   }
+   if(streak>1||returned){const [code,category,page]=JSON.parse(key);recurring.push({code,category,page,currentStatus:cur.status,consecutiveNonPass:streak,firstConsecutiveAt:first,observedRuns:observed,failureRuns:failures,returnedAfterPass:returned})}
+  }
+  recurring.sort((a,b)=>Number(b.returnedAfterPass)-Number(a.returnedAfterPass)||b.consecutiveNonPass-a.consecutiveNonPass||a.code.localeCompare(b.code));
+  return {state:'local-comparison',baselineAt:prior.completedAt,currentAt:current.completedAt,baselineVersion:prior.appVersion,currentVersion:current.appVersion,counts,rows,recurrence:{priorRunsExamined:chain.length,persistent:recurring.filter(r=>r.consecutiveNonPass>1).length,returned:recurring.filter(r=>r.returnedAfterPass).length,rows:recurring},canRepair:false,rootCauseConfirmed:false,coverageVerified:false};
 }
 function auditRegression9789(run){return compareAuditRegression9789(run,auditRunsCache)}
 function regressionText9789(run){
  const r=auditRegression9789(run);if(r.state!=='local-comparison')return '\nComparação de regressões: sem auditoria anterior comparável.\n';
  const c=r.counts;let s='\nCOMPARAÇÃO DE REGRESSÕES (mesmo contexto local; não confirma causa)\nAnterior: '+r.baselineAt+' · '+r.baselineVersion+'\nRegrediram: '+c.regressed+' | Melhoraram: '+c.improved+' | Persistem: '+c.persistent+' | Ausentes: '+c.missing+' | Novas: '+c.newCheck+' | Ambíguas: '+c.ambiguous+'\n';
  for(const x of r.rows.slice(0,100))s+=x.change+' · '+x.category+' · '+x.code+' · '+(x.before??'—')+' → '+(x.after??'—')+'\n';
- if(r.rows.length>100)s+='Mais '+(r.rows.length-100)+' ocorrências na comparação JSON.\n';return s;
+ if(r.rows.length>100)s+='Mais '+(r.rows.length-100)+' ocorrências na comparação JSON.\n';
+ const h=r.recurrence;if(h){s+='\nRECORRÊNCIA LOCAL — '+h.persistent+' persistentes; '+h.returned+' voltaram após aprovação; '+h.priorRunsExamined+' auditorias anteriores examinadas.\n';for(const x of h.rows.slice(0,100))s+=x.code+' · '+x.category+' · '+x.consecutiveNonPass+' ocorrências consecutivas · '+(x.returnedAfterPass?'voltou após aprovação':'persistente')+'\n'}
+ return s;
 }
 function regressionHtml9789(run){
  const r=auditRegression9789(run);if(r.state!=='local-comparison')return '<p class="sub">Sem auditoria anterior comparável (mesma versão do auditor, navegador, tela, modo e dimensões).</p>';
  const c=r.counts,labels={regressed:'Regrediu',persistent:'Persiste',improved:'Melhorou',missing:'Não executado nesta comparação',newCheck:'Novo teste',ambiguous:'Identidade ambígua'};
- return '<details class="panel"><summary>Comparação de regressões — '+c.regressed+' pioraram · '+c.improved+' melhoraram</summary><p class="sub">Anterior '+escSafe(r.baselineAt)+' · '+escSafe(r.baselineVersion)+'; '+c.persistent+' persistentes, '+c.missing+' ausentes, '+c.newCheck+' novos, '+c.ambiguous+' ambíguos. Ausência não comprova correção. Comparação local, não identifica a causa.</p>'+r.rows.slice(0,50).map(x=>'<p class="sub">'+escSafe(labels[x.change]+' · '+x.category+' · '+x.code+' · '+(x.before??'—')+' → '+(x.after??'—'))+'</p>').join('')+(r.rows.length>50?'<p>Mais ocorrências no relatório TXT/JSON.</p>':'')+'</details>';
+ return '<details class="panel"><summary>Comparação de regressões — '+c.regressed+' pioraram · '+c.improved+' melhoraram</summary><p class="sub">Anterior '+escSafe(r.baselineAt)+' · '+escSafe(r.baselineVersion)+'; '+c.persistent+' persistentes, '+c.missing+' ausentes, '+c.newCheck+' novos, '+c.ambiguous+' ambíguos. Ausência não comprova correção. Comparação local, não identifica a causa.</p>'+r.rows.slice(0,50).map(x=>'<p class="sub">'+escSafe(labels[x.change]+' · '+x.category+' · '+x.code+' · '+(x.before??'—')+' → '+(x.after??'—'))+'</p>').join('')+(r.rows.length>50?'<p>Mais ocorrências no relatório TXT/JSON.</p>':'')+'</details>'+
+ (r.recurrence?'<details class="panel"><summary>Falhas recorrentes — '+r.recurrence.persistent+' persistentes · '+r.recurrence.returned+' voltaram após aprovação</summary><p class="sub">Até 12 auditorias comparáveis anteriores. Teste ausente ou ambíguo interrompe a sequência; não comprova reparo ou causa.</p>'+r.recurrence.rows.slice(0,50).map(x=>'<p>'+escSafe(x.category+' · '+x.code+' · '+x.consecutiveNonPass+' ocorrências consecutivas'+(x.returnedAfterPass?' · voltou após aprovação':''))+'</p>').join('')+'</details>':'');
 }
 function resultBadge(run){
   const r=run?.summary?.result||'-',cls=r==='Aprovado'?'ok':r==='Atenção'?'warn':'bad';
