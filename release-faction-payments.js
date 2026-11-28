@@ -27,6 +27,43 @@ function weekKey(p){
   const d=new Date(ds+'T12:00:00'),tmp=new Date(d);tmp.setHours(0,0,0,0);tmp.setDate(tmp.getDate()+3-((tmp.getDay()+6)%7));const w1=new Date(tmp.getFullYear(),0,4),wk=1+Math.round(((tmp-w1)/86400000-3+((w1.getDay()+6)%7))/7);return `${tmp.getFullYear()}-W${String(wk).padStart(2,'0')}`;
 }
 function paymentGroupKey(p){const name=sid(p?.factionName||'Sem facção').trim()||'Sem facção';return norm(name)+'||'+weekKey(p)}
+// Legacy grouping is by scheduled week, not actual delivery week. Do not
+// authorize a multi-item settlement merely because its forecast dates match.
+function legacyScope9887(key){
+ const all=arr('factionPayments'),rows=all.filter(p=>p&&paymentGroupKey(p)===sid(key));
+ const fail=reason=>({ok:false,reason});
+ const live=p=>p&&!p.deleted&&!p.deletedAt&&!p.deleted_at&&!p.manualCanceledV9590&&!['cancelado','cancelada','excluido','excluida'].includes(norm(p.status));
+ if(!rows.length)return {ok:true,reason:null};
+ if(rows.some(p=>!live(p)))return fail('cancelado');
+ const pending=rows.filter(p=>['pendente','parcial'].includes(norm(p.status)));
+ if(rows.some(p=>!['pendente','parcial','pago'].includes(norm(p.status))))return fail('status');
+ if(rows.some(p=>p.manual===true||sid(p.manualGroupId)))return fail('avulso');
+ if(rows.some(p=>p.settlementAdjustmentV9879||p.weeklySettlementV9883))return fail('historico-protegido');
+ if(new Set(rows.map(p=>sid(p.id))).size!==rows.length||rows.some(p=>!sid(p.id)))return fail('identidade');
+ if(pending.length<=1)return {ok:true,reason:null};
+ const names=new Set(pending.map(p=>norm(p.factionName))),masterIds=new Set(pending.map(p=>sid(p.factionMasterId)).filter(Boolean));
+ if(names.size!==1||masterIds.size>1)return fail('identidade');
+ const known=arr('factionMasters').filter(m=>m&&m.active!==false&&norm(m.name)===norm(pending[0].factionName));
+ if(known.length>1||known.length===1&&masterIds.size===1&&!masterIds.has(sid(known[0].id)))return fail('identidade');
+ const weeks=new Set();
+ for(const p of pending){
+  if(!sid(p.factionServiceId)||!sid(p.deliveryId)||p.serviceModeV9577&&p.serviceModeV9577!=='faccao')return fail('entrega-sem-prova');
+  const fs=arr('factions').filter(f=>live(f)&&sid(f.id)===sid(p.factionServiceId));
+  if(fs.length!==1||!Array.isArray(fs[0].deliveryHistory))return fail('entrega-sem-prova');
+  const hs=fs[0].deliveryHistory.filter(h=>live(h)&&sid(h.id)===sid(p.deliveryId));
+  if(hs.length!==1)return fail('entrega-sem-prova');
+  const h=hs[0],day=sid(h.date).slice(0,10),d=new Date(day+'T00:00:00Z'),qty=Number(h.qty);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==day||!Number.isSafeInteger(qty)||qty<=0||qty!==Number(p.quantity))return fail('entrega-sem-prova');
+  const siblings=all.filter(x=>live(x)&&x.manual!==true&&(!x.serviceModeV9577||x.serviceModeV9577==='faccao')&&sid(x.factionServiceId)===sid(p.factionServiceId)&&sid(x.deliveryId)===sid(p.deliveryId));
+  if(siblings.length!==1||sid(siblings[0].id)!==sid(p.id))return fail('entrega-duplicada');
+  const monday=new Date(d.getTime()-((d.getUTCDay()+6)%7)*86400000).toISOString().slice(0,10);weeks.add(monday);
+ }
+ if(weeks.size!==1)return fail('semanas-diferentes');
+ return {ok:true,reason:null,week:[...weeks][0]};
+}
+function legacyScopeMessage9887(reason){
+ return ({'avulso':'Existe avulso neste agrupamento. Use o formulário de pagamento avulso no consolidado.','historico-protegido':'Existe correção ou acerto com histórico protegido. Confira o acerto antes de dar baixa.','cancelado':'Há lançamento cancelado neste agrupamento. Use a baixa individual dos itens válidos.','status':'Situação de pagamento não reconhecida. Confira os itens.','identidade':'Identidade da facção ou do pagamento a conferir.','entrega-sem-prova':'O agrupamento possui entregas sem registro comprovado. Use a baixa individual.','entrega-duplicada':'Há uma entrega repetida. Confira antes de pagar.','semanas-diferentes':'As entregas pertencem a semanas diferentes. Use a baixa individual ou confira o acerto semanal correto.'})[reason]||'Confira os itens individualmente.';
+}
 function badGroup(key){
   const rows=arr('factionPayments').filter(p=>p&&paymentGroupKey(p)===sid(key)&&!['cancelado','cancelada'].includes(norm(p.status))),issues=[];
   const seen=new Set();for(const p of rows){const f=faction(p.factionServiceId);if(!f||seen.has(sid(f.id)))continue;seen.add(sid(f.id));const bad=overAccounted(f);if(bad)issues.push({faction:f,bad})}
@@ -75,6 +112,7 @@ if(typeof oldGroupPay==='function')window.hlgbPayFactionGroup9230=function(key){
     alert('Acerto bloqueado por segurança. Há pagamento inconsistente neste grupo: '+first.sum.toLocaleString('pt-BR')+' peças em pagamentos para '+first.sent.toLocaleString('pt-BR')+' peças enviadas. '+badReason9737(first)+' Confira os registros antes de abrir a baixa semanal.');
     return false;
   }
+  const scope=legacyScope9887(key);if(!scope.ok){alert('Acerto agrupado bloqueado: '+legacyScopeMessage9887(scope.reason));return false;}
   return oldGroupPay.apply(this,arguments);
 };
 
@@ -100,7 +138,7 @@ function repairPaymentWarnings(){
   root.querySelectorAll('tbody tr').forEach(tr=>{
     tr.querySelectorAll('.hlgb-payment-warning').forEach(x=>x.remove());
     const groupBtn=[...tr.querySelectorAll('button[onclick]')].find(b=>/hlgbPayFactionGroup9230\(/.test(String(b.getAttribute('onclick')||'')));
-    if(groupBtn){const key=groupedKeyFromButton(groupBtn),issue=badGroup(key);if(!issue)return;groupBtn.disabled=true;groupBtn.classList.remove('primary');groupBtn.classList.add('secondary');groupBtn.textContent='Bloqueado — revisar';groupBtn.title=badReason9737(issue.issues[0].bad);const cell=tr.children?.[1]||tr.firstElementChild;if(cell){const w=document.createElement('div');w.className='badge warn hlgb-payment-warning';w.style.marginTop='4px';w.textContent='⚠ '+badReason9737(issue.issues[0].bad);cell.appendChild(w)}return}
+    if(groupBtn){const key=groupedKeyFromButton(groupBtn),issue=badGroup(key);const scope=legacyScope9887(key);if(!issue&&scope.ok)return;groupBtn.disabled=true;groupBtn.classList.remove('primary');groupBtn.classList.add('secondary');groupBtn.textContent='Bloqueado — revisar';groupBtn.title=issue?badReason9737(issue.issues[0].bad):legacyScopeMessage9887(scope.reason);const cell=tr.children?.[1]||tr.firstElementChild;if(cell){const w=document.createElement('div');w.className='badge warn hlgb-payment-warning';w.style.marginTop='4px';w.textContent='⚠ '+(issue?badReason9737(issue.issues[0].bad):legacyScopeMessage9887(scope.reason));cell.appendChild(w)}return}
     const btn=[...tr.querySelectorAll('button[onclick]')].find(b=>/payFactionPayment\((\d+)\)/.test(String(b.getAttribute('onclick')||''))||/editFactionPayment\((\d+)\)/.test(String(b.getAttribute('onclick')||'')));
     if(!btn)return;const m=String(btn.getAttribute('onclick')||'').match(/(?:payFactionPayment|editFactionPayment)\((\d+)\)/),p=m?payment(m[1]):null,f=p?faction(p.factionServiceId):null,bad=f?overAccounted(f):null;
     if(!bad)return;
@@ -195,5 +233,6 @@ window.hlgbNormalTravetaReview9781=normalTravetaReview9781;
 window.HLGB_FACTION_PAYMENT_GUARD='v3';
 window.hlgbFactionPaymentOverAccounted=overAccounted;
 window.hlgbFactionPaymentBadGroup=badGroup;
+window.hlgbLegacyGroupScope9887=legacyScope9887;
 console.info('[HLGB] proteção de pagamentos por entrega de facção ativa, inclusive baixa semanal agrupada');
 })();
