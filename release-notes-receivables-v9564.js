@@ -438,10 +438,10 @@ function clientAccountPreview9759(rows,input,allowed){
  if(!Array.isArray(chosen)||new Set(chosen).size!==chosen.length||chosen.some(k=>!ordered.some(n=>n.key===k)))return blocked('selection');
  let left=payment,allocated=0,weighted=0,dated=0;const allocations=[];
  for(const k of chosen){const n=ordered.find(n=>n.key===k),amount=Math.min(left,n.balance);if(!amount)continue;left-=amount;allocated+=amount;const elapsed=n.issued&&date(n.issued)===n.issued&&n.issued<=day?days(day,n.issued):null;if(elapsed!==null){weighted+=amount*elapsed;dated+=amount}allocations.push({key:k,number:n.number,issued:n.issued||'',before:n.balance,amount,after:n.balance-amount,days:elapsed})}
- const openingApplied=Math.min(left,Math.max(0,opening));left-=openingApplied;
+ const residual=left,openingApplied=Math.min(left,Math.max(0,opening));left-=openingApplied;
  const before=notesBalance+opening,after=before-payment;
  if(![before,after,allocated,weighted,dated].every(Number.isSafeInteger))return blocked('amount-limit');
- return {state:'preview-only',clientKey:key,notesBalance,opening,payment,before,after,allocations,openingApplied,unallocatedPayment:left,weightedDays:dated?weighted/dated:null,datedAmount:dated,canWrite:false};
+ return {state:'preview-only',clientKey:key,notesBalance,opening,payment,before,after,allocations,allocatedCents:allocated,residualCents:residual,independentAfterCents:opening-residual,notesAfterCents:notesBalance-allocated,openingApplied,unallocatedPayment:left,weightedDays:dated?weighted/dated:null,datedAmount:dated,canWrite:false};
 }
 // Continuous account statement derived from reconciled existing notes/events.
 // The independent starting balance is a scenario, never a fabricated dated receipt.
@@ -573,12 +573,31 @@ async function globalCloudCheck9812(input,deps){
   return {...report,cloudNotesCompared:report.state==='preflight-only',canonicalScope:'local',serverLockConfirmed:false};
  }catch(_){return fail('cloud-unavailable')}
 }
+// Compare the allocated note portion independently. The residual is not a
+// cloud balance and never becomes a second expected receipt or a write.
+async function residualCloudConference9891(input,deps){
+ const fail=reason=>({state:'blocked',reason,canWrite:false,atomicConfirmed:false,hubReconciled:false});
+ const permitted=()=>{try{return deps.allowed()===true}catch(_){return false}};
+ if(!permitted())return fail('permission');
+ const p=input?.preview,clientId=sid(input?.clientId),ref=sid(input?.reference).trim(),method=sid(input?.method).trim();
+ if(!clientId||p?.state!=='preview-only'||p.clientKey!=='id:'+clientId||!ref||ref.length>128||!method||method.length>80||date(input.date)!==input.date||!input.date||!Array.isArray(p.allocations)||p.allocations.length>50||![p.payment,p.opening,p.notesBalance,p.before,p.after,p.openingApplied,p.unallocatedPayment,p.allocatedCents,p.residualCents,p.independentAfterCents,p.notesAfterCents].every(Number.isSafeInteger)||p.payment<=0||p.notesBalance<0)return fail('preview');
+ let allocated=0;const keys=new Set();
+ for(const a of p.allocations){if(!sid(a.key)||keys.has(a.key)||![a.amount,a.before,a.after].every(Number.isSafeInteger)||a.amount<=0||a.after<0||a.before-a.amount!==a.after)return fail('allocation');keys.add(a.key);allocated+=a.amount}
+ const residual=p.payment-allocated,applied=Math.min(residual,Math.max(0,p.opening)),independentAfter=p.opening-residual,notesAfter=p.notesBalance-allocated;
+ if(![allocated,residual,independentAfter,notesAfter,p.notesBalance+p.opening,notesAfter+independentAfter].every(Number.isSafeInteger)||residual<0||notesAfter<0||p.allocatedCents!==allocated||p.residualCents!==residual||p.openingApplied!==applied||p.unallocatedPayment!==residual-applied||p.independentAfterCents!==independentAfter||p.notesAfterCents!==notesAfter||p.before!==p.notesBalance+p.opening||p.after!==notesAfter+independentAfter)return fail('balance');
+ if((p.opening!==0||residual>0)&&input.residualReviewed!==true)return fail('residual-review');
+ if(!allocated)return {...fail('no-notes-to-compare'),state:'independent-scenario-only',receivedCents:p.payment,residualCents:residual,independentAfterCents:independentAfter,expectedHubMovementCents:p.payment,cloudNotesCompared:false,independentBalanceConfirmed:false};
+ const r=await globalCloudCheck9812({...input,preview:{...p,payment:allocated,opening:0,openingApplied:0,unallocatedPayment:0}},deps);
+ if(!permitted())return fail('permission');
+ if(r.state!=='preflight-only')return fail(r.reason);
+ return {state:'allocated-notes-compared-only',receivedCents:p.payment,allocatedCents:allocated,residualCents:residual,independentBeforeCents:p.opening,independentAfterCents:independentAfter,notesAfterCents:notesAfter,projectedTotalCents:p.after,allocations:r.allocations,expectedHubMovementCents:p.payment,expectedHubEntries:1,cloudNotesCompared:true,independentBalanceConfirmed:false,referenceUniquenessVerified:false,hubReconciled:false,atomicConfirmed:false,canWrite:false};
+}
 function cloudCheckAllowed9812(){try{return historyAuthorized9710()&&window.__HLGB_AUTH_READY===true&&['clientes','notas','financeiro','hubFinanceiro'].every(k=>canOpenPage(k)===true)}catch(_){return false}}
 function browserCloudCheck9812(input){
  const deps={allowed:cloudCheckAllowed9812,canonical:()=>{if(typeof window.hlgbCanonicalProjectionInvoices!=='function')return null;const r=window.hlgbCanonicalProjectionInvoices();return Array.isArray(r)?JSON.parse(JSON.stringify(r)):null},
  pending:async()=>{const guard=window.hlgbWalIdbGuard9536;if(typeof guard?.probe!=='function'||await guard.probe()!==true)return null;const ids=pendingProtection9710();return ids?[...ids]:null},
  read:async(module,field,id)=>{if(typeof window.cloudRequest!=='function')return null;return window.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.'+encodeURIComponent(module)+'&'+field+'=eq.'+encodeURIComponent(id)+'&deleted_at=is.null&limit=2',{method:'GET'})}};
- return globalCloudCheck9812(input,deps);
+ return input?.residualConference===true?residualCloudConference9891(input,deps):globalCloudCheck9812(input,deps);
 }
 // A legacy Hub entry without explicit source identity is a review item, NOT
 // a note payment. Never derive a link from amount, description, person or date.
@@ -672,7 +691,7 @@ function openAccountPreview9759(id){
  '<div class="grid"><label>Saldo inicial independente (R$)<input id="ca9759-opening" value="0" inputmode="decimal"></label><label>Justificativa<input id="ca9759-reason"></label><label>Pagamento global (R$)<input id="ca9759-payment" value="0" inputmode="decimal"></label><label>Data do pagamento<input id="ca9759-date" type="date" value="'+today()+'"></label></div>'+
  '<label><input id="ca9759-independent" type="checkbox"> Confirmo que o saldo inicial não repete notas existentes.</label><p>Distribuição sugerida: emissão mais antiga primeiro; notas sem data ficam no final. Selecione quais notas deseja incluir.</p>'+
  '<div style="overflow:auto;max-height:250px">'+result.rows.filter(n=>n.balance>0).map(n=>'<label style="display:block"><input type="checkbox" data-ca9759-note="'+esc(n.key)+'" checked> '+esc(n.number)+' · '+esc(dateFmt(n.issued))+' · '+brl(n.balance)+'</label>').join('')+'</div>'+
- '<button type="button" class="primary" id="ca9759-preview">Simular pagamento global</button><div id="ca9759-result" aria-live="polite"></div><details><summary>Conferência das notas na nuvem (sem gravar)</summary><p>Somente pagamentos alocados integralmente em notas, sem saldo inicial ou crédito excedente. Ainda não confirma Hub nem autoriza baixa.</p><label>Referência do recebimento<input id="ca9812-ref" maxlength="128"></label><label>Forma de pagamento<input id="ca9812-method" maxlength="80"></label><button type="button" id="ca9812-check" disabled>Conferir notas e títulos</button><div id="ca9812-output" aria-live="polite"></div></details><button type="button" class="secondary modalSave">Fechar</button>';
+ '<button type="button" class="primary" id="ca9759-preview">Simular pagamento global</button><div id="ca9759-result" aria-live="polite"></div><details><summary>Conferência das notas na nuvem (sem gravar)</summary><p>Confere somente a parte do recebimento destinada a notas. O saldo independente e o crédito excedente são simulações até a conta permanente ser habilitada. Ainda não confirma Hub nem autoriza baixa.</p><label><input type="checkbox" id="ca9812-residual"> Revisei o saldo independente e o crédito restante; não repetir notas existentes.</label><label>Referência do recebimento<input id="ca9812-ref" maxlength="128"></label><label>Forma de pagamento<input id="ca9812-method" maxlength="80"></label><button type="button" id="ca9812-check" disabled>Conferir notas e títulos</button><div id="ca9812-output" aria-live="polite"></div></details><button type="button" class="secondary modalSave">Fechar</button>';
  const hubReviewHtml='<details><summary>Conferir entradas antigas do Hub</summary><p>Consulta local: entradas sem origem identificada não são associadas a notas automaticamente. Uma coincidência de nome é apenas candidata.</p><button type="button" id="ca9814-review">Consultar entradas sem vínculo</button><div id="ca9814-output" aria-live="polite"></div><details><summary>Preparar vínculo de uma previsão com uma nota (sem gravar)</summary><p>Somente previsão integral de uma nota em aberto, com valor e vencimento iguais. Acertos globais, pagamentos realizados e previsões parciais exigem outra conferência.</p><label>ID da nota<input id="ca9815-note"></label><label>ID do lançamento previsto no Hub<input id="ca9815-hub"></label><label>Referência do documento de origem<input id="ca9815-evidence" maxlength="200"></label><label>Motivo do vínculo<input id="ca9815-reason" maxlength="500"></label><label><input type="checkbox" id="ca9815-confirmed"> Conferi a origem documental; não é apenas coincidência de valor/data.</label><button type="button" id="ca9815-review">Conferir vínculo na nuvem</button><div id="ca9815-output" aria-live="polite"></div></details></details>';
  const statementHtml='<details id="ca9773-statement"><summary>Extrato detalhado por data</summary><p>Emissões, pagamentos, compensações, devoluções e estornos com evidência. O saldo inicial independente permanece separado, sem data fictícia. Não é extrato bancário.</p><div class="grid"><label>De<input id="ca9773-from" type="date"></label><label>Até<input id="ca9773-to" type="date"></label></div><button type="button" class="secondary" id="ca9773-load">Consultar extrato</button><button type="button" class="secondary" id="ca9773-export" disabled>Exportar extrato CSV</button><div id="ca9773-output" aria-live="polite"></div></details>';
  window.openModal('Conta corrente — '+esc(client.name)+' (prévia)',html+hubReviewHtml+statementHtml,()=>window.closeModal?.());
@@ -740,16 +759,17 @@ function openAccountPreview9759(id){
  const signature=JSON.stringify(result.rows);
  let cloudPreview=null,cloudEpoch=0;const checkBtn=host.querySelector('#ca9812-check'),checkOut=host.querySelector('#ca9812-output');
  const invalidateCloud=()=>{cloudPreview=null;cloudEpoch++;if(checkBtn)checkBtn.disabled=true;if(checkOut)checkOut.textContent='Simule novamente após alterar os dados.'};
- host.addEventListener('input',e=>{if(e.target?.matches?.('[id^="ca9759-"],[data-ca9759-note]'))invalidateCloud();else if(e.target?.matches?.('#ca9812-ref,#ca9812-method')){cloudEpoch++;if(checkOut)checkOut.textContent='Conferir novamente após alterar referência ou forma de pagamento.';if(checkBtn)checkBtn.disabled=!cloudPreview||!cloudCheckAllowed9812()}});
+ host.addEventListener('input',e=>{if(e.target?.matches?.('[id^="ca9759-"],[data-ca9759-note]'))invalidateCloud();else if(e.target?.matches?.('#ca9812-ref,#ca9812-method,#ca9812-residual')){cloudEpoch++;if(checkOut)checkOut.textContent='Conferir novamente após alterar referência ou forma de pagamento.';if(checkBtn)checkBtn.disabled=!cloudPreview||!cloudCheckAllowed9812()}});
  if(checkBtn)checkBtn.onclick=async()=>{
   if(!cloudPreview||!cloudCheckAllowed9812()||!checkOut)return;
   const epoch=++cloudEpoch,p=cloudPreview,reference=host.querySelector('#ca9812-ref')?.value,method=host.querySelector('#ca9812-method')?.value;
   checkBtn.disabled=true;checkOut.textContent='Conferindo notas, títulos e sincronização…';
-  const report=await browserCloudCheck9812({preview:p.preview,clientId:sid(id),date:p.date,reference,method});
+  const report=await browserCloudCheck9812({preview:p.preview,clientId:sid(id),date:p.date,reference,method,residualConference:true,residualReviewed:host.querySelector('#ca9812-residual')?.checked===true});
   if(epoch!==cloudEpoch||!host.isConnected||!cloudCheckAllowed9812())return;
   checkBtn.disabled=false;
-  if(report.state!=='preflight-only'){checkOut.textContent='Conferência bloqueada: '+report.reason+'. Nenhuma gravação realizada.';return}
-  checkOut.textContent=report.allocations.length+' nota(s) e título(s) conferidos na nuvem, total '+brl(report.amountCents)+'. Somente comparação de leitura; referência, Hub e transação ainda não confirmados. Nenhuma baixa realizada.';
+  if(report.state==='independent-scenario-only'){checkOut.textContent='Nenhuma nota selecionada para comparar. Crédito/saldo independente apenas simulado: '+brl(report.independentAfterCents)+'. Nenhuma gravação realizada.';return}
+  if(report.state!=='allocated-notes-compared-only'){checkOut.textContent=report.reason==='residual-review'?'Confirme a revisão do saldo independente e crédito restante. Nenhuma gravação realizada.':'Conferência bloqueada: '+report.reason+'. Nenhuma gravação realizada.';return}
+  checkOut.textContent=report.allocations.length+' nota(s) e título(s) conferidos na nuvem, total alocado '+brl(report.allocatedCents)+'. Recebimento integral simulado '+brl(report.receivedCents)+' · parte independente '+brl(report.residualCents)+' · saldo independente projetado '+brl(report.independentAfterCents)+'. Uma entrada esperada pelo valor integral. Saldo independente, referência, Hub e transação ainda não confirmados. Nenhuma baixa realizada.';
  };
  btn.onclick=()=>{
   invalidateCloud();
@@ -759,8 +779,9 @@ function openAccountPreview9759(id){
   const val=k=>host.querySelector('#ca9759-'+k)?.value;
   const p=clientAccountPreview9759(latest.rows.map(n=>({...n,clientKey:'id:'+sid(id)})),{clientKey:'id:'+sid(id),openingCents:signedMoney9759(val('opening')),paymentCents:signedMoney9759(val('payment')),date:val('date'),reason:val('reason'),independentOpening:host.querySelector('#ca9759-independent')?.checked===true,noteKeys:Array.from(host.querySelectorAll('[data-ca9759-note]:checked')).map(x=>x.dataset.ca9759Note).sort((a,b)=>{const x=latest.rows.find(n=>n.key===a),y=latest.rows.find(n=>n.key===b);return (x.issued||'9999-12-31').localeCompare(y.issued||'9999-12-31')||a.localeCompare(b)})},true);
   if(p.state!=='preview-only'){out.textContent='Confira valores, saldo inicial independente e divergências das notas antes de simular.';return}
+  const reviewed=host.querySelector('#ca9812-residual');if(reviewed)reviewed.checked=false;
   cloudPreview={preview:p,date:val('date')};if(checkBtn)checkBtn.disabled=!cloudCheckAllowed9812();if(checkOut)checkOut.textContent='Informe referência e forma de pagamento para conferir.';
-  out.innerHTML='<p><b>Saldo das notas: '+brl(p.notesBalance)+' · Saldo anterior: '+brl(p.before)+' · Pagamento: '+brl(p.payment)+' · Saldo projetado: '+brl(p.after)+'</b></p><p>Abatimento do saldo inicial: '+brl(p.openingApplied)+' · Pagamento sem alocação: '+brl(p.unallocatedPayment)+' (crédito ainda não registrado).</p><div style="overflow:auto"><table><thead><tr><th>Nota</th><th>Antes</th><th>Abatimento</th><th>Depois</th></tr></thead><tbody>'+p.allocations.map(a=>'<tr><td>'+esc(a.number)+'</td><td>'+brl(a.before)+'</td><td>'+brl(a.amount)+'</td><td>'+brl(a.after)+'</td></tr>').join('')+'</tbody></table></div><p>Prazo médio simulado: '+(p.weightedDays===null?'sem datas comprováveis':p.weightedDays.toFixed(1)+' dias sobre '+brl(p.datedAmount))+' · Não é histórico de recebimentos.</p><p>Nenhum valor foi gravado.</p>';
+  out.innerHTML='<p><b>Saldo das notas: '+brl(p.notesBalance)+' · Saldo independente inicial: '+brl(p.opening)+' · Saldo anterior total: '+brl(p.before)+' · Pagamento: '+brl(p.payment)+' · Saldo projetado: '+brl(p.after)+'</b></p><p>Alocado às notas: '+brl(p.allocatedCents)+' · Parte independente: '+brl(p.residualCents)+' · Saldo das notas após: '+brl(p.notesAfterCents)+' · Saldo independente após: '+brl(p.independentAfterCents)+' · Abatimento do saldo inicial: '+brl(p.openingApplied)+' · Pagamento sem alocação: '+brl(p.unallocatedPayment)+' (crédito ainda não registrado).</p><p>Entrada única esperada no Hub: '+brl(p.payment)+' (não registrada).</p><div style="overflow:auto"><table><thead><tr><th>Nota</th><th>Antes</th><th>Abatimento</th><th>Depois</th></tr></thead><tbody>'+p.allocations.map(a=>'<tr><td>'+esc(a.number)+'</td><td>'+brl(a.before)+'</td><td>'+brl(a.amount)+'</td><td>'+brl(a.after)+'</td></tr>').join('')+'</tbody></table></div><p>Prazo médio simulado: '+(p.weightedDays===null?'sem datas comprováveis':p.weightedDays.toFixed(1)+' dias sobre '+brl(p.datedAmount))+' · Não é histórico de recebimentos.</p><p>Nenhum valor foi gravado.</p>';
  };
  return true;
 }
@@ -807,7 +828,7 @@ function install(){
   wrapper.__hlgbReceivables9564=true;wrapper.__original=old;window.renderOrderNotes=wrapper;
  }
 }
-window.hlgbNotesReceivables9564={version:V,organizeDelivery9848,deliveryCoverage9848:()=>({...deliveryCoverage9848}),globalPaymentPreflight9775,globalCloudCheck9812,hubLegacyReview9814,forecastLinkReview9815,forecastLinkCloud9815,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
+window.hlgbNotesReceivables9564={version:V,organizeDelivery9848,deliveryCoverage9848:()=>({...deliveryCoverage9848}),globalPaymentPreflight9775,globalCloudCheck9812,residualCloudConference9891,hubLegacyReview9814,forecastLinkReview9815,forecastLinkCloud9815,clientAccountStatement9773,exactPaidProof9771,clientAccountPreview9759,openAccountPreview9759,allNotes,projectionView,orderView,category,matchTab,calculate,filterAll,exportRows,paint,install,state,settledForArchive9710,archiveAllowed9710,pendingProtection9710,clientNotes9710,openClientNotes9710,organizeLegacyNotes9710,observeProjectionArchive9710,archiveStatus9710:()=>({...archiveEvidence9710}),readOnly:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [350,1300,3200].forEach(ms=>setTimeout(install,ms));
 document.addEventListener('click',e=>{if(e.target?.closest?.('[onclick*="notas"]'))setTimeout(paint,40)},true);
