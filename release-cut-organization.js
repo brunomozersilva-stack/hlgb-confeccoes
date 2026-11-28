@@ -85,9 +85,21 @@ function printCutChecklist9824(id){
 }
 // Session-only cache; direct print remains compact.
 const conferenceDrafts9828=new Map();let conferenceOwner9828='';
+const conferenceTabKey9904='hlgb_cut_conference_tab_v9904';
+function readConferenceTab9904(owner){
+ try{const v=JSON.parse(sessionStorage.getItem(conferenceTabKey9904)||'null');if(!v)return {owner,entries:{}};if(!owner||v.owner!==owner){sessionStorage.removeItem(conferenceTabKey9904);return {owner,entries:{}}}if(!v.entries||typeof v.entries!=='object'||Array.isArray(v.entries))throw Error('invalid');return v}catch(_){return null}
+}
+function saveConferenceTab9904(owner,key,draft){
+ const v=readConferenceTab9904(owner);if(!v||!owner||!draft||!Array.isArray(draft.values)||!Array.isArray(draft.checks))return false;
+ if(!Object.prototype.hasOwnProperty.call(v.entries,key)&&Object.keys(v.entries).length>=20)return false;
+ v.entries[key]={signature:draft.signature,values:draft.values.slice(),checks:draft.checks.slice(),documentCount:draft.files.length};
+ try{const json=JSON.stringify(v);if(json.length>1500000)return false;sessionStorage.setItem(conferenceTabKey9904,json);return sessionStorage.getItem(conferenceTabKey9904)===json}catch(_){return false}
+}
+function removeConferenceTab9904(owner,key){const v=readConferenceTab9904(owner);if(!v)return;delete v.entries[key];try{sessionStorage.setItem(conferenceTabKey9904,JSON.stringify(v))}catch(_){}}
+
 function conferenceIdentity9828(){
  let owner='';try{const u=typeof currentUser==='function'?currentUser():null;if(requiredCutAllowed9820()&&u?.active!==false)owner=sid(u?.id||u?.email||'').trim()}catch(_){}
- if(owner!==conferenceOwner9828){conferenceDrafts9828.clear();conferenceOwner9828=owner}return owner;
+ if(owner!==conferenceOwner9828){conferenceDrafts9828.clear();conferenceOwner9828=owner;if(owner)readConferenceTab9904(owner)}return owner;
 }
 function openFullCutChecklist9820(id){
  const sessionOwner=conferenceIdentity9828();
@@ -227,9 +239,19 @@ function openFullCutChecklist9820(id){
      documents:()=>selected.slice()
     })}catch(_){}
    }
+   const tabSave=el('button','Guardar rascunho nesta aba',panel);tabSave.type='button';tabSave.className='secondary';
+   tabSave.onclick=()=>{if(!current())return;capture();const draft=conferenceDrafts9828.get(cacheKey);status.textContent=saveConferenceTab9904(sessionOwner,cacheKey,draft)?'Rascunho de texto guardado nesta aba. Após recarregar, selecione novamente fotos/PDFs; não está na nuvem.':'Não foi possível guardar o rascunho nesta aba. Exporte ou imprima antes de sair.'};
+   const tabLoad=el('button','Recuperar rascunho guardado nesta aba',panel);tabLoad.type='button';tabLoad.className='secondary';
+   tabLoad.onclick=()=>{if(!current())return;const saved=readConferenceTab9904(sessionOwner)?.entries?.[cacheKey];
+    if(!saved){status.textContent='Nenhum rascunho guardado nesta aba para este corte.';return}
+    if(saved.signature!==signature||!Array.isArray(saved.values)||saved.values.length!==fields.length||!Array.isArray(saved.checks)||saved.checks.length!==conferenceRows.length||saved.values.some((x,i)=>typeof x!=='string'||x.length>fields[i].maxLength)||saved.checks.some(x=>typeof x!=='boolean')){status.textContent='Grade, ficha técnica ou rascunho incompatível. Nenhum valor recuperado.';return}
+    if(fields.some(x=>x.value)&&!confirm('Substituir os valores atuais pelo rascunho guardado nesta aba?'))return;
+    fields.forEach((x,i)=>{x.value=saved.values[i]});conferenceRows.forEach((r,i)=>{const cb=r.row.querySelector('input[type=checkbox]');if(cb&&!cb.disabled)cb.checked=saved.checks[i]});
+    fields.forEach(x=>x.dispatchEvent(new Event('input')));capture();status.textContent='Rascunho recuperado nesta aba. '+(saved.documentCount?'Selecione novamente os documentos necessários. ':'')+'Não confirma separação ou gravação na nuvem.';
+   };
    grid.addEventListener('change',capture);mark.addEventListener('click',capture);
    const discard=el('button','Descartar rascunho desta sessão',panel);discard.type='button';discard.className='secondary';
-   discard.onclick=()=>{if(!host.isConnected||conferenceIdentity9828()!==sessionOwner||!confirm('Descartar somente os valores da conferência desta sessão?'))return;conferenceDrafts9828.delete(cacheKey);panel.remove();grid.removeEventListener('change',capture);mark.removeEventListener('click',capture);detailed.disabled=false;};
+   discard.onclick=()=>{if(!host.isConnected||conferenceIdentity9828()!==sessionOwner||!confirm('Descartar somente os valores da conferência desta sessão?'))return;conferenceDrafts9828.delete(cacheKey);removeConferenceTab9904(sessionOwner,cacheKey);panel.remove();grid.removeEventListener('change',capture);mark.removeEventListener('click',capture);detailed.disabled=false;};
    detailed.disabled=true;
   };
  }
@@ -1110,6 +1132,6 @@ function boot(){try{apply();applyExtraState();renderSeparationWorkspace9643();or
 window.HLGB_CUT_ORGANIZATION_GUARD=V;
 window.addEventListener?.('hlgb:authenticated',()=>setTimeout(renderSeparationWorkspace9643,0));
 document.addEventListener?.('click',e=>{if(e.target?.closest?.('nav'))setTimeout(dockSeparation9715,0)},true);
-window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbFullCutChecklist9820')?.remove();document.getElementById('hlgbJointSimulation9837')?.remove();document.getElementById('hlgbJointSimulationButton9837')?.remove();document.querySelectorAll('[data-hlgb-required-cut9820]').forEach(n=>n.remove());completedOffset=0;completedFilterSignature='';document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();conferenceDrafts9828.clear();conferenceOwner9828='';jointTrials9838.length=0;jointTrialOwner9838='';expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
+window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgbFullCutChecklist9820')?.remove();document.getElementById('hlgbJointSimulation9837')?.remove();document.getElementById('hlgbJointSimulationButton9837')?.remove();document.querySelectorAll('[data-hlgb-required-cut9820]').forEach(n=>n.remove());completedOffset=0;completedFilterSignature='';document.getElementById('hlgbCompletedHistory9770')?.remove();document.querySelectorAll('.hlgb-cut-history-mode9770').forEach(n=>n.classList.remove('hlgb-cut-history-mode9770'));restoreSeparationDock9715();filterEvidence9709={observed:false,legacyRows:null,modelRows:null,shown:null,unresolved:null};clearCutDrafts9644();conferenceDrafts9828.clear();conferenceOwner9828='';try{sessionStorage.removeItem(conferenceTabKey9904)}catch(_){}jointTrials9838.length=0;jointTrialOwner9838='';expandedSchedule9761.clear();removeInlineMaterials9711(document.getElementById('corte'));materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};document.getElementById('hlgbCutSeparation9643')?.remove()});
 console.info('[HLGB] organização da aba Corte ativa');
 })();

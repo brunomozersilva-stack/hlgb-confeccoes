@@ -66,6 +66,13 @@
  await conference.getByLabel('Quantidade separada — Aviamento teste — Branco').fill('40');
  await conference.getByLabel('Quantidade separada — Aviamento teste — Rubi').fill('96');
  await conference.getByLabel('Observação — Aviamento teste — Branco').fill('Faltam 8 metros');
+ await conference.getByRole('button',{name:'Guardar rascunho nesta aba'}).click();
+ assert.equal(await p.evaluate(()=>Object.values(JSON.parse(sessionStorage.getItem('hlgb_cut_conference_tab_v9904')).entries)[0].values.includes('Operador teste')),true);
+ await conference.getByLabel('Responsável pela conferência').fill('');
+ p.once('dialog',d=>d.accept());
+ await conference.getByRole('button',{name:'Recuperar rascunho guardado nesta aba'}).click();
+ assert.equal(await conference.getByLabel('Responsável pela conferência').inputValue(),'Operador teste');
+
  const docs=conference.locator('[data-hlgb-conference-docs9834]');
  await docs.locator('input[type=file]').setInputFiles({name:'folha-cor.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.7 per color fixture')});
  await docs.getByText('Arquivo selecionado apenas nesta sessão. Ainda não enviado.').waitFor();
