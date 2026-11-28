@@ -542,7 +542,7 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
   const out=el('div','',delivery);
   let calculatedPlan=null,calculatedSignature='',cashOut=null;
   const money=x=>{const s=x.value.trim().replace(',','.');return /^-?\d{1,9}(?:\.\d{1,2})?$/.test(s)?Math.round(Number(s)*100):null};
-  const orderInputs=()=>rows.filter(r=>r.client.value.trim()||r.model.value.trim()||r.due.value||r.pieces.value||r.value.value.trim()||r.pay.value!=='unknown'||r.term.value.trim()).map(r=>({key:r.key,client:r.client.value.trim(),model:r.model.value.trim(),dueDate:r.due.value,pieces:parse(r.pieces),paymentMode:r.pay.value,paymentDays:parse(r.term),amountCents:money(r.value)}));
+  const orderInputs=()=>rows.filter(r=>r.client.value.trim()||r.model.value.trim()||r.due.value||r.pieces.value||r.value.value.trim()||r.pay.value!=='unknown'||(r.term.value.trim()!==''&&r.term.value.trim()!=='0')).map(r=>({key:r.key,client:r.client.value.trim(),model:r.model.value.trim(),dueDate:r.due.value,pieces:parse(r.pieces),paymentMode:r.pay.value,paymentDays:parse(r.term),amountCents:money(r.value)}));
   const planInput=()=>({start:start.value,asOf:today(),weeks:parse(horizon),weeklyGoal:parse(weekly),bufferPercent:parse(buffer),history:[],orders:orderInputs(),closedDates:daysClosed(),coverageConfirmed:false,newPieces:parse(proposal)});
   function invalidatePlan(){calculatedPlan=null;calculatedSignature='';out.replaceChildren();cashOut?.replaceChildren()}
   function addOrder(){
