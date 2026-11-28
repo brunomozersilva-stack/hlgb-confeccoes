@@ -91,13 +91,13 @@ end$$;
 revoke all on function records_lab.pay_internal(text,text,date,text,bigint,jsonb,bigint,boolean) from public;
 grant execute on function records_lab.pay_internal(text,text,date,text,bigint,jsonb,bigint,boolean) to records_lab_operator;
 create function records_lab.pay(p_client text,p_ref text,p_day date,p_method text,p_amount bigint,p_selected jsonb)
-returns jsonb language sql security invoker set search_path='' as $select records_lab.pay_internal(p_client,p_ref,p_day,p_method,p_amount,p_selected,null,false)$;
+returns jsonb language sql security invoker set search_path='' as $pay$select records_lab.pay_internal(p_client,p_ref,p_day,p_method,p_amount,p_selected,null,false)$pay$;
 create function records_lab.pay_account(p_client text,p_ref text,p_day date,p_method text,p_amount bigint,p_selected jsonb,p_revision bigint,p_reviewed boolean)
-returns jsonb language plpgsql security invoker set search_path='' as $
+returns jsonb language plpgsql security invoker set search_path='' as $account$
 begin
  if p_revision is null or p_revision<1 then raise exception 'account-revision';end if;
  return records_lab.pay_internal(p_client,p_ref,p_day,p_method,p_amount,p_selected,p_revision,p_reviewed);
-end$;
+end$account$;
 revoke all on function records_lab.pay_account(text,text,date,text,bigint,jsonb,bigint,boolean) from public;
 grant execute on function records_lab.pay_account(text,text,date,text,bigint,jsonb,bigint,boolean) to records_lab_operator;
 revoke all on function records_lab.pay(text,text,date,text,bigint,jsonb) from public;
