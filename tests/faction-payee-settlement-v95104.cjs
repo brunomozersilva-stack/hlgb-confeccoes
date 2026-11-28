@@ -4,7 +4,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const ROOT=path.join(__dirname,'..');
 const source=fs.readFileSync(path.join(ROOT,'release-faction-payee-settlement-v95104.js'),'utf8');
 const guard=fs.readFileSync(path.join(ROOT,'release-faction-payments.js'),'utf8');
-const consolidate=require('../release-faction-acerto-consolidated-v95102.js').consolidate;
+const unified=require('../release-faction-acerto-consolidated-v95102.js'),consolidate=unified.consolidate;
 const clone=x=>JSON.parse(JSON.stringify(x));
 const ID='1794935162875130',FID='1793731913460',VAN='1788439866181',ROS='1788439191914';
 function fixture(opts={}){
@@ -31,6 +31,7 @@ function fixture(opts={}){
   factionMasters:new Map(masters.map(m=>[String(m.id),{module:'factionMasters',
     entity_id:String(m.id),data:clone(m),revision:1,deleted_at:null}]))
  };
+ if(opts.adjust){original.factionMasterId=Number(VAN);db.factionPayments=[clone(original)];db.factions[0].deliveryHistory=[{id:Number(ID),date:'2026-11-25',qty:159}];cloud.factionPayments.get(ID).data=clone(original);cloud.factions.get(FID).data=clone(db.factions[0]);}
  const writes=[],reads=[],log=[],hub=opts.hub||[];
  const window={
   db,__HLGB_AUTH_READY:true,__HLGB_PAYEE_SYNC_PATCH_95104:opts.loaderPatch!==false,
@@ -72,8 +73,9 @@ function fixture(opts={}){
   });
   return request;
  }};
+ if(opts.adjust){window.crypto={randomUUID:()=>String(writes.length)+'-fixture-adjust'};window.currentUser=()=>({id:'actor-fixture'});window.hlgbRecordCanWrite=()=>true;window.hlgbFactionAcertoUnified95102={...unified,currentData:()=>({masters:db.factionMasters,payments:db.factionPayments,factions:db.factions,manualGroups:[],hub:db.hubFinanceEntries}),render:()=>{}};window.hlgbRecordRpcSave=async(mod,id,next,revision)=>{const row=cloud[mod].get(id);writes.push({module:mod,id,data:clone(next),revision});if(opts.conflict)return {...clone(row),applied:false};if(row.revision!==revision)throw Error('wrong revision');const updated={...row,data:clone(next),revision:revision+1};cloud[mod].set(id,updated);return {...clone(updated),applied:true}};window.hlgbApplyRecordRow=row=>{db.factionPayments[0]=clone(row.data);return true};}
  const document={addEventListener(){},getElementById:()=>null};
- const context={window,db,localStorage,indexedDB,document,navigator:{onLine:true},
+ const context={window,db,localStorage,indexedDB,document,canOpenPage:()=>true,navigator:{onLine:true},
   setTimeout:fn=>{Promise.resolve().then(fn);return 1},console,alert:()=>{},
   Error,Number,Object,Array,Map,Promise,encodeURIComponent,Date,JSON};
  vm.createContext(context);
@@ -180,3 +182,6 @@ test('Já pago: não contorna a prova de entrega quando a proteção está ausen
  await assert.rejects(()=>f.api.markPreviouslyPaid(ID,'2026-11-14','PIX','Pagamento anterior comprovado'),/Proteção de entrega indisponível/);
  assert.equal(f.writes.length,0);
 });
+
+test('commercial correction uses exact server revision and leaves physical delivery unchanged',async()=>{const f=fixture({adjust:true}),before=JSON.stringify(f.db.factions),input={payableQuantity:150,unitPrice:3.2,reason:'Conferência de remuneração'},data=()=>f.window.hlgbFactionAcertoUnified95102.currentData(),group='master:'+VAN;const x=unified.normalAdjustmentPreview(data(),group,ID,input,true);assert.equal(x.state,'preview-only');assert.equal(f.api.adjustmentAvailable9901(),true);await f.api.adjustNormal9901(group,ID,input,x);assert.equal(f.writes.length,1);assert.equal(f.writes[0].revision,3);assert.equal(f.db.factionPayments[0].quantity,159);assert.equal(f.db.factionPayments[0].value,480);assert.equal(f.db.factionPayments[0].settlementAdjustmentV9879.payableQuantity,150);assert.equal(f.db.factionPayments[0].settlementAdjustmentHistoryV9901.length,1);assert.equal(JSON.stringify(f.db.factions),before);assert.equal(f.db.hubFinanceEntries.length,0);const next={...input,payableQuantity:140};await f.api.adjustNormal9901(group,ID,next,unified.normalAdjustmentPreview(data(),group,ID,next,true));assert.equal(f.writes[1].revision,4);assert.equal(f.db.factionPayments[0].settlementAdjustmentHistoryV9901.length,2);assert.equal(f.db.factionPayments[0].value,448);});
+test('commercial correction blocks local pending, remote conflict and existing Hub without auto merge retry',async()=>{for(const opts of [{wal:true},{conflict:true},{hub:[{entity_id:'h',deleted_at:null,data:{paymentIds:[ID]}}]}]){const f=fixture({adjust:true,...opts}),input={payableQuantity:150,unitPrice:3.2,reason:'Conferência de remuneração'},group='master:'+VAN,x=unified.normalAdjustmentPreview(f.window.hlgbFactionAcertoUnified95102.currentData(),group,ID,input,true);await assert.rejects(()=>f.api.adjustNormal9901(group,ID,input,x));assert.equal(f.db.factionPayments[0].value,492.9);assert.equal(f.writes.length,opts.conflict?1:0);}});

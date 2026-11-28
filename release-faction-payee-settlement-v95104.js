@@ -23,9 +23,10 @@ function canWrite(){
  if(typeof navigator!=='undefined'&&navigator.onLine===false)throw Error('Sem internet. Nenhum lançamento alterado.');
 }
 function walMatch(entry,id){
- const m=sid(entry?.module),key=sid(entry?.id||entry?.entity_id);
+ const parts=sid(entry?.key).split(/\||::/),m=sid(entry?.module||parts[0]),key=sid(entry?.id||entry?.entity_id||parts[1]);
+ const fid=sid(payment(id)?.factionServiceId);
  return (m==='factionPayments'&&key===sid(id))||
-  (m==='factions'&&sid(entry?.data?.id)===sid(payment(id)?.factionServiceId));
+  (m==='factions'&&!!fid&&(key===fid||sid(entry?.data?.id)===fid));
 }
 function indexedWal(){
  return new Promise((resolve,reject)=>{
@@ -53,7 +54,7 @@ async function cleanWal(id){
  }catch(_){throw Error('Fila local ilegível. Não sobrescrever pagamentos.')}
  if(durable&&(!durable.entries||typeof durable.entries!=='object'||Array.isArray(durable.entries)))
   throw Error('Fila WAL incompleta. Nenhuma alteração enviada.');
- if(Object.values(durable?.entries||{}).some(e=>walMatch(e,id)))
+ if(Object.entries(durable?.entries||{}).some(([key,e])=>walMatch({...e,key:e?.key||key},id)))
   throw Error('Pagamento com alteração local ainda pendente; sincronize antes.');
  if(legacy?.modules&&Object.entries(legacy.modules).some(([module,entries])=>{
   if(!Array.isArray(entries))throw Error('Fila de sincronização inválida.');
@@ -114,7 +115,7 @@ async function hubCheck(paymentId){
   throw Error('Não foi possível conferir integralmente o Hub; baixa bloqueada.');
  return rows.filter(x=>!x.deleted_at&&[
   x.data?.sourceId,x.data?.sourcePaymentId,x.data?.factionPaymentId,
-  x.data?.originalPaymentId
+  x.data?.originalPaymentId,...(Array.isArray(x.data?.paymentIds)?x.data.paymentIds:[])
  ].some(id=>sid(id)===sid(paymentId)));
 }
 async function readMaster(id,role){
@@ -220,6 +221,60 @@ async function markPreviouslyPaid(id,date,method,note,reference=''){
    reconciliation:'pendente_conciliacao_bancaria'};
   refresh();return state.lastResult;
  }catch(e){state.lastError=sid(e?.message||e);throw e}
+ finally{state.busy=false}
+}
+// Commercial single-record correction. No multi-record settlement and no
+// three-way merge retry. A concurrent payment must win/lose by revision.
+const canonical9901=v=>Array.isArray(v)?v.map(canonical9901):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical9901(v[k])])):v;
+const equal9901=(a,b)=>JSON.stringify(canonical9901(a))===JSON.stringify(canonical9901(b));
+const actor9901=()=>{try{return sid(typeof cloudUser!=='undefined'?cloudUser?.id:typeof currentUser==='function'?currentUser()?.id:root.currentUser?.()?.id)}catch(_){return ''}};
+function adjustmentAvailable9901(){
+ try{return root.__HLGB_AUTH_READY===true&&!!actor9901()&&root.__HLGB_PAYEE_SYNC_PATCH_95104===true&&typeof root.hlgbRecordRpcSave==='function'&&typeof root.hlgbApplyRecordRow==='function'&&typeof root.hlgbRecordCanWrite==='function'&&root.hlgbRecordCanWrite('factionPayments')===true&&typeof canOpenPage==='function'&&canOpenPage('pagamentosFaccoes')===true&&canOpenPage('faccoes')===true&&typeof root.hlgbFactionAcertoUnified95102?.normalAdjustmentPreview==='function'&&typeof root.hlgbFactionAcertoUnified95102?.currentData==='function'}catch(_){return false}
+}
+async function adjustNormal9901(groupKey,id,input,expected){
+ if(state.busy)throw Error('Outra alteração está em andamento.');
+ state.busy=true;state.lastError='';
+ const actor=actor9901(),ensure=()=>{if(!adjustmentAvailable9901()||actor9901()!==actor)throw Error('Sessão ou autorização alterada. Reabra o acerto.');if(root.hlgbWalConfirmedReplay9333?.state?.busy||root.hlgbWalSingleAuthority9339?.status?.()?.scanBusy)throw Error('Sincronização em andamento. Confira antes de alterar.')};
+ let sent=false;
+ try{
+  ensure();canWrite();
+  const api=root.hlgbFactionAcertoUnified95102,initial=api.normalAdjustmentPreview(api.currentData(),groupKey,id,input,true);
+  if(initial.state!=='preview-only'||!equal9901(initial,expected))throw Error('Acerto mudou. Calcule novamente antes de salvar.');
+  await cleanWal(id);ensure();
+  const old=await remote('factionPayments',id),local=payment(id),v=old.data;
+  if(!active(local)||!equal9901(v,local)||v.manual||v.previouslyPaidV95104||v.payeeTransferV95104||v.lastGroupSettlementId||v.weeklySettlementV9883)throw Error('Registro ou histórico divergente. Atualize a consulta.');
+  const service=await remote('factions',initial.factionServiceId),localService=arr('factions').find(x=>sid(x.id)===initial.factionServiceId);
+  if(!equal9901(service.data,localService))throw Error('Entrega mudou na nuvem. Atualize a consulta.');
+  const owner=await readMaster(v.factionMasterId,'faccao');
+  if(!sid(owner.id)||norm(owner.name)!==norm(v.factionName))throw Error('Identidade da facção mudou.');
+  await verifyDeliveryBalance9739(v);
+  if((await hubCheck(id)).length)throw Error('Há lançamento vinculado no Hub. Concilie antes de corrigir.');
+  const prior=v.settlementAdjustmentV9879,history=v.settlementAdjustmentHistoryV9901??[];
+  if(!Array.isArray(history)||history.length>=100||prior&&(!history.length||!equal9901(history[history.length-1],prior))||!prior&&history.length)throw Error('Histórico de correção a conferir.');
+  const fresh=api.normalAdjustmentPreview(api.currentData(),groupKey,id,input,true);
+  if(!equal9901(initial,fresh))throw Error('Acerto mudou durante a consulta.');
+  await cleanWal(id);ensure();
+  if(!equal9901(payment(id),v))throw Error('Registro local alterado durante a consulta.');
+  const before=await remote('factionPayments',id);
+  if(before.revision!==old.revision||!equal9901(before.data,v))throw Error('Revisão mudou. Calcule novamente.');
+  const reference=typeof root.crypto?.randomUUID==='function'?root.crypto.randomUUID():'';
+  if(!reference)throw Error('Referência segura indisponível.');
+  const adjustment={reference,deliveredQuantity:initial.deliveredQuantity,payableQuantity:initial.payableQuantity,deliveryDate:initial.deliveryDate,previousPayableQuantity:initial.previousPayableQuantity,previousUnitCents:initial.previousUnitCents,unitCents:initial.proposedUnitCents,previousCents:initial.previousCents,totalCents:initial.proposedCents,reason:initial.reason,actor};
+  const next={...v,unitPrice:initial.proposedUnitCents/100,value:initial.proposedCents/100,settlementAdjustmentV9879:adjustment,settlementAdjustmentHistoryV9901:[...history,adjustment],updatedAt:new Date().toISOString()};
+  // CAS against the confirmed server revision, not the generic auto-merge path.
+  ensure();sent=true;
+  const ack=await root.hlgbRecordRpcSave('factionPayments',sid(id),next,Number(old.revision),false);
+  if(ack?.applied!==true||sid(ack.module)!=='factionPayments'||sid(ack.entity_id)!==sid(id)||Number(ack.revision)!==Number(old.revision)+1||ack.deleted_at||!equal9901(ack.data,next))throw Error('Servidor não confirmou exatamente a revisão.');
+  const read=await remote('factionPayments',id),sourceAfter=await remote('factions',initial.factionServiceId);
+  if(Number(read.revision)!==Number(ack.revision)||!equal9901(read.data,next)||sourceAfter.revision!==service.revision||!equal9901(sourceAfter.data,service.data))throw Error('Registro ou entrega mudou durante a confirmação.');
+  await cleanWal(id);ensure();
+  if(!equal9901(payment(id),v)&&!equal9901(payment(id),read.data))throw Error('Há alteração local concorrente.');
+  root.hlgbApplyRecordRow(read);
+  if(!equal9901(payment(id),read.data))throw Error('Cópia local ainda não confirmou o registro remoto.');
+  try{root.localSaveOnly?.()}catch(_){}
+  state.lastResult={kind:'normal-adjustment',paymentId:sid(id),reference,physicalQuantity:initial.deliveredQuantity,payableQuantity:initial.payableQuantity,total:next.value};
+  refresh();return state.lastResult;
+ }catch(e){state.lastError=sid(e?.message||e);if(sent)throw Error('Correção sem confirmação integral nesta sessão. NÃO repita antes de atualizar e conferir o registro: '+state.lastError);throw e}
  finally{state.busy=false}
 }
 function openModalSafe(title,html){
@@ -335,13 +390,12 @@ function delegate(e){
  }catch(err){alert('Não foi possível abrir a ação: '+sid(err?.message||err))}
 }
 function protectLegacyActions(){
- for(const name of ['reopenFactionPayment','deleteFactionPayment']){
+ for(const name of ['reopenFactionPayment','deleteFactionPayment','editFactionPayment','saveFactionPaymentAndPay']){
   const previous=root[name];if(typeof previous!=='function'||previous.__hlgbPayeeGuard95104)continue;
   const wrapped=function(id){
    const p=payment(id);
-   if(p&&(p.previouslyPaidV95104||p.payeeTransferV95104)){
-    alert('Este pagamento contém histórico protegido de facção ou de quitação anterior. ' +
-      'Não é permitido reabrir ou excluir apagando o histórico; use a correção auditada do acerto.');
+   if(p&&(p.settlementAdjustmentV9879||(['reopenFactionPayment','deleteFactionPayment'].includes(name)&&(p.previouslyPaidV95104||p.payeeTransferV95104)))){
+    alert('Este pagamento contém histórico protegido. Para editar a remuneração, use o editor do acerto consolidado. Para reabrir ou excluir, confira o histórico antes de qualquer alteração.');
     return false;
    }
    return previous.apply(this,arguments);
@@ -361,7 +415,7 @@ function install(){
  setTimeout(decorate,0);return true;
 }
 root.hlgbFactionPayeeSettlement95104={version:V,changePayee,markPreviouslyPaid,openTransfer,openPriorPaid,
- install,decorate,status:()=>({...state}),_test:{active,compare,hubCheck}};
+ install,decorate,adjustNormal9901,adjustmentAvailable9901,status:()=>({...state}),_test:{active,compare,hubCheck}};
 if(typeof document!=='undefined'){
  install();
  try{root.hlgbAfterLogin?.(()=>setTimeout(install,350),0)}catch(_){}
