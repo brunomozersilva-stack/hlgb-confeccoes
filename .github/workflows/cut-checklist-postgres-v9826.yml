@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'tests/cut-checklist-postgres-v9826/**'
+      - 'release-cut-organization.js'
+      - 'hlgb-modules/producao/cut-separation-core-v9647.js'
       - '.github/workflows/cut-checklist-postgres-v9826.yml'
 permissions:
   contents: read
