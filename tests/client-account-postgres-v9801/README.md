@@ -13,3 +13,9 @@ Estorno por evento exato, preserva original, motivo, autoria e referência; reab
 
 ## Confirmação independente v98.50
 Consulta a referência exata e os três registros associados, valida evento e revisões, distingue histórico confirmado de saldo ainda atual. Contrato cliente não aceita ACK divergente; após falha de transporte mantém referência para repetição idempotente, não gera novo lançamento. Fluxo legado bloqueia estorno, edição e abatimento por valor incompatíveis com uma devolução por item ativa. Ainda não é adaptador comercial e não habilita gravação; nenhuma alteração de banco de produção.
+
+## Prévia combinada de recebimento com saldo residual
+Contrato JS une a proposta de saldo independente e o payload de nota/título sem criar duas entradas no Hub. Exemplo sintético: saldo anterior R$20, recebimento R$100, R$70 quitam a nota, R$30 reduzem o saldo independente e deixam R$10 de crédito. A saída é somente prévia: uma entrada esperada de R$100, duas atualizações documentais propostas e um evento de saldo independente. Revisões e referência verificadas; repetição exige confirmação independente. Sem RPC, gravação, saldo oficial ou afirmação de atomicidade; o fluxo integrado real continua pendente. CI passa a executar os dois contratos JS quando os arquivos relacionados mudam.
+
+## Transação residual integrada (laboratório)
+O mesmo núcleo SQL sintético suporta o caminho legado sem saldo residual e o caminho com conta independente, revisão e autorização explícita do residual. Atualiza nota, título, previsão, saldo independente, recibo e uma entrada pelo total. Teste no fim da suíte, com cliente fictício distinto, verifica rollback por residual não revisado e falha final no Hub, repetição idêntica, crédito e revisão antiga. Conta inicial é fixture, não cadastro real. Sem migração ou endpoint comercial.

@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'tests/client-account-postgres-v9801/**'
+      - 'hlgb-modules/financeiro/client-account-*.cjs'
+      - 'tests/hlgb-client-account-*.cjs'
       - '.github/workflows/client-account-postgres-v9801.yml'
 permissions:
   contents: read
@@ -29,6 +31,10 @@ jobs:
       PGDATABASE: hlgb_fixture
     steps:
       - uses: actions/checkout@v4
+      - name: Verify independent balance and combined receipt payload contracts
+        run: |
+          node tests/hlgb-client-account-ledger-v9800.cjs
+          node tests/hlgb-client-account-record-payload-v9813.cjs
       - name: Execute isolated PostgreSQL contract
         run: |
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/fixture.sql
@@ -63,3 +69,6 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/item-return-read.sql
           psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/item-return-read-contract.sql
           node tests/client-account-postgres-v9801/item-return-confirmation-contract.cjs
+
+      - name: Verify combined residual receipt and full transaction rollback
+        run: psql -v ON_ERROR_STOP=1 -f tests/client-account-postgres-v9801/residual-receipt-contract.sql

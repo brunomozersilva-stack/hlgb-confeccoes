@@ -41,4 +41,23 @@ function build(input,allowed){
  if(sum!==p.amountCents||used.size!==byKey.size||!Number.isSafeInteger(sum))return fail('allocation-total');
  return {state:'payload-preview-only',writes,receipt:{reference:p.reference,clientId:id(p.clientId),date:p.date,method:p.method,amountCents:sum,allocations,actor,recordedAt:at},hubExpectedEntries:1,canWrite:false,atomicConfirmed:false,hubReconciled:false,serverRevalidationRequired:true};
 }
-module.exports={build};
+// Join the independent ledger proposal and actual note/title shape in one
+// preview. The single expected Hub movement is the FULL receipt, never just
+// the note allocations. No persistence authority or verified cloud balance.
+function buildAccountReceipt(input,allowed){
+ if(allowed!==true)return fail('permission');
+ const ledger=require('./client-account-ledger-v9800.cjs'),request=input?.request,account=input?.account,records=input?.records,at=input?.serverTimestamp,actor=id(input?.actor);
+ if(request?.kind!=='receipt'||!Array.isArray(records)||typeof at!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(at)||!Number.isFinite(Date.parse(at))||new Date(at).toISOString()!==at||!actor||!day(request.date)||request.date>at.slice(0,10))return fail('input');
+ const proposed=ledger.propose(account,request,true);
+ if(proposed.state!=='proposal-only')return fail(proposed.state==='existing-reference-candidate'?'existing-reference-requires-readback':proposed.reason||'ledger');
+ const event=proposed.event,allocated=event.allocations.reduce((n,a)=>n+a.amountCents,0),residual=event.amountCents-allocated;
+ if(!Number.isSafeInteger(allocated)||allocated<0||residual<0||allocated+residual!==event.amountCents)return fail('allocation-total');
+ let noteWrites=[],allocations=[];
+ if(allocated){
+  const result=build({preflight:{state:'preflight-only',canWrite:false,atomicConfirmed:false,clientId:event.clientId,reference:event.reference,method:event.method,date:event.date,amountCents:allocated,allocations:event.allocations},records,serverTimestamp:at,actor},true);
+  if(result.state!=='payload-preview-only')return result;
+  noteWrites=result.writes;allocations=result.receipt.allocations;
+ }else if(records.length)return fail('unexpected-records');
+ return {state:'account-receipt-preview-only',clientId:event.clientId,reference:event.reference,expectedAccountRevision:proposed.expectedRevision,ledgerEvent:clone(event),noteWrites,allocations,receivedCents:event.amountCents,allocatedCents:allocated,residualCents:residual,independentBeforeCents:proposed.independentBeforeCents,independentAfterCents:proposed.independentAfterCents,expectedHubMovementCents:event.amountCents,hubExpectedEntries:1,canWrite:false,atomicConfirmed:false,hubReconciled:false,serverRevalidationRequired:true};
+}
+module.exports={build,buildAccountReceipt};
