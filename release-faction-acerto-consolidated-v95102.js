@@ -145,7 +145,7 @@
    const first=unique.find(x=>!canceled(x))||unique[0];
    const factionName=sid(first.factionName||g.factionName);
    const actor=owner(factionName,first.factionMasterId);
-   const manualDeliveryConfirmed=!!actor.masterId&&!actor.ambiguous&&source.every(x=>sid(x.manualDeliveryOwnerV9875)===sid(actor.masterId)&&sid(x.factionMasterId)===sid(actor.masterId)&&validDay(x.manualDeliveryDateV9875)&&x.manualDeliveryDateV9875===source[0].manualDeliveryDateV9875);
+   const manualDeliveryConfirmed=!!actor.masterId&&!actor.ambiguous&&source.every(x=>sid(x.manualDeliveryOwnerV9875)===sid(actor.masterId)&&sid(x.factionMasterId)===sid(actor.masterId)&&validDay(x.manualDeliveryDateV9875)&&x.serviceModeV9577!=='embalagem'&&x.serviceModeV9577!=='travetada'&&x.manualDeliveryDateV9875===source[0].manualDeliveryDateV9875);
    const details=source.map(x=>({...lineDetail(x,true,data),deliveryDate:manualDeliveryConfirmed?x.manualDeliveryDateV9875:null})),nominal=details.every(x=>x.amountCents!==null)?details.reduce((n,x)=>n+x.amountCents,0):null;
    const signed=(items,minus,plus)=>Array.isArray(items)?items.map(x=>{const v=exactMoney(x?.amount);return v===null||![minus,plus].includes(x.kind)?null:{label:x.kind===minus?'Abatimento / crédito':'Acréscimo / complemento',amountCents:x.kind===minus?-v:v,note:sid(x.reason)}}):[];
    const adjustments=[...signed(g.directAdjustments,'abater','acrescentar'),...signed(g.applications,'a_mais','a_menos')];

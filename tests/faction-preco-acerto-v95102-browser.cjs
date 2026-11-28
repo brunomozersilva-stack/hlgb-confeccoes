@@ -79,6 +79,18 @@ async function submit(page,{name,qty,price,date}){
   assert.equal(await page.locator('#hlgb-unified-acertos-v95102').count(),0);
   await page.evaluate(()=>{window.__factionReportAllowed=true;window.hlgbFactionAcertoUnified95102.render()});
   assert.equal(await page.locator('#hlgb-unified-acertos-v95102').count(),1);
+  await page.evaluate(()=>{const n=window.db.factionPayments.find(x=>x.id==='normal-001');Object.assign(n,{quantity:4,unitPrice:2,factionServiceId:'registered-f',deliveryId:'registered-d'});window.db.factions.push({id:'registered-f',deliveryHistory:[{id:'registered-d',date:'2026-11-12',qty:4}]});window.hlgbFactionAcertoUnified95102.render()});
+  await page.getByRole('button',{name:'+ Mercadoria avulsa nesta semana'}).click();
+  await page.getByLabel('Data real da entrega avulsa').fill('2026-11-13');
+  await page.locator('#fm9875-confirm').check();await page.locator('#fm66-date').fill('2026-11-20');
+  const extra=page.locator('#fm66-root .fm66-line').first();await extra.locator('.fm66-unregistered').check();await extra.locator('.fm66-manual-name').fill('Mercadoria entregue junto');await extra.locator('.fm66-qty').fill('5');await extra.locator('.fm66-unit').fill('2');
+  await page.locator('#modal .modalSave').click();await page.locator('#modal').waitFor({state:'detached'});
+  const result=await page.evaluate(()=>{const api=window.hlgbFactionAcertoUnified95102,g=api.consolidate(api.currentData()).groups[0],r=window.db.factionPayments.find(x=>x.description==='Mercadoria entregue junto');return {group:r?.manualGroupId,date:r?.manualDeliveryDateV9875,week:api.groupWeeks(g).find(w=>w.key==='delivery:2026-11-09')?.totalCents,hub:window.db.hubFinanceEntries.length,qty:window.db.factionPayments.find(x=>x.id==='normal-001').quantity}});
+  assert.equal(result.date,'2026-11-13');assert.equal(result.week,1800);assert.equal(result.hub,0);assert.equal(result.qty,4);
+  await page.locator('#hlgb-unified-acertos-v95102').getByText('Ver itens e datas',{exact:true}).click();
+  await page.locator('[data-edit-avulso9875="'+result.group+'"]').click();await page.locator('#fm9875-confirm').check();await page.locator('#fm66-root .fm66-qty').first().fill('6');await page.locator('#fm66-root .fm66-unit').first().fill('3');await page.locator('#modal .modalSave').click();await page.locator('#modal').waitFor({state:'detached'});
+  const edited=await page.evaluate(()=>{const api=window.hlgbFactionAcertoUnified95102,g=api.consolidate(api.currentData()).groups[0],r=window.db.factionPayments.find(x=>x.description==='Mercadoria entregue junto');return {quantity:r.quantity,value:r.value,date:r.manualDeliveryDateV9875,week:api.groupWeeks(g).find(w=>w.key==='delivery:2026-11-09')?.totalCents,hub:window.db.hubFinanceEntries.length}});
+  assert.deepEqual(edited,{quantity:6,value:18,date:'2026-11-13',week:2600,hub:0});
   assert.equal(errors.length,0,'no browser errors: '+errors.join(' | '));
   console.log('PASS '+browserName+' mobile: 2 peças avulsas sem cadastro e 1 pagamento normal geram 1 total visual R$35,00, sem baixa');
  }finally{await browser.close()}

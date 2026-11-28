@@ -346,7 +346,7 @@ function remotelySame(local,remote){
   sid(remote.manualGroupId)===sid(local.manualGroupId)&&norm(remote.status)===norm(local.status)&&
   cents(remote.value)===cents(local.value)&&cents(remote.paidAmount)===cents(local.paidAmount)&&
   sid(remote.paymentDate)===sid(local.paymentDate)&&sid(remote.updatedAt)===sid(local.updatedAt)&&
-  Number(remote.quantity)===Number(local.quantity);
+  Number(remote.quantity)===Number(local.quantity)&&sid(remote.manualDeliveryDateV9875)===sid(local.manualDeliveryDateV9875)&&sid(remote.manualDeliveryOwnerV9875)===sid(local.manualDeliveryOwnerV9875);
 }
 /* v95.101 — prova de salvamento do acerto. O ACK da escrita NÃO é a prova
  * da releitura. Evita reescrever linhas iguais e evita falsos alarmes por
@@ -1275,7 +1275,7 @@ function openForm(groupId='',options={}){
    if(feedback)feedback.textContent='⚠ '+message;
    // ACK inconclusivo ou conflito real: bloquear novo clique no MESMO envio.
    // A pessoa pode conferir o registro na nuvem e reabrir uma nova edição.
-   const needsReview=editing&&/nuvem recebeu|nuvem devolveu valores diferentes|releitura ainda não confirmou|não coincidiram/i.test(message);
+   const needsReview=(editing||!!draft?.deliveryScope9875)&&/nuvem recebeu|nuvem devolveu valores diferentes|releitura ainda não confirmou|não coincidiram/i.test(message);
    if(btn){
     btn.disabled=needsReview;
     btn.textContent=needsReview?'⚠ Confira na nuvem antes de tentar novamente':
