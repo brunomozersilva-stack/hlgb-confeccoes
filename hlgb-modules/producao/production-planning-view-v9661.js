@@ -643,6 +643,38 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
   el('p','Requer a agenda calculada acima. Informe saldo e compromissos já conhecidos, separados do novo pedido. Não é conciliação bancária.',cash);
   const financialAllowed=()=>active()&&can('hubFinanceiro')&&can('financeiro');
   if(!financialAllowed()){el('p','Análise financeira requer acesso ao Hub Financeiro e Financeiro.',cash);return}
+  const receipts=el('details','',cash);el('summary','Carteira real de recebíveis vinculados aos pedidos',receipts);
+  el('p','Consulta da base local com proteção de sincronização. Notas compartilhadas são contadas uma única vez por cliente, nunca duplicadas por pedido. Não importa automaticamente valores para o cenário de caixa.',receipts);
+  const receiptOut=el('div','',receipts);
+  const receiptAllowed=()=>financialAllowed()&&can('notas')&&can('clientes');
+  const receiptMoney=n=>Number.isSafeInteger(n)?(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}):'A conferir';
+  let readingReceipts=false;
+  button('Conferir recebíveis e condições dos clientes',receipts,async()=>{
+   if(readingReceipts||!receiptAllowed())return;receiptOut.replaceChildren();readingReceipts=true;
+   const actor=user();
+   try{
+    const guard=root.hlgbWalIdbGuard9536,canonical=root.hlgbCanonicalProjectionInvoices,pendingFn=root.hlgbRecordPendingIdentitySet9535;
+    if(typeof guard?.probe!=='function'||typeof guard?.ids!=='function'||typeof pendingFn!=='function'||typeof canonical!=='function'||typeof api.orderReceivablesReview!=='function')throw Error('Proteções de leitura ainda indisponíveis.');
+    await guard.probe();
+    if(!receiptAllowed()||actor!==user())return;
+    const status=guard.status?.(),age=Date.now()-Date.parse(status?.lastProbeAt||'');
+    if(!status||status.probes<1||status.readFailed!==false||status.localReadFailed!==false||status.unsupported!==false||!Number.isFinite(age)||age<0||age>120000)throw Error('Fila de sincronização não conferida.');
+    const notes=canonical();if(!Array.isArray(notes))throw Error('Base canônica de notas indisponível.');
+    const pending=[...new Set([...guard.ids(),...pendingFn()].map(String))];
+    const r=api.orderReceivablesReview(data(),{asOf:today(),canonicalIds:notes.map(n=>String(n?.id??'')),pendingIds:pending,pendingObserved:true},true);
+    if(!receiptAllowed()||actor!==user())return;
+    if(r.state!=='local-receivables-review')throw Error('Fontes de pedidos, notas ou títulos indisponíveis.');
+    const totals=r.clients.reduce((a,c)=>({balance:a.balance+c.balanceCents,cash:a.cash+c.cashOpenCents,term:a.term+c.termOpenCents,overdue:a.overdue+c.overdueCents}),{balance:0,cash:0,term:0,overdue:0});
+    el('p','Saldo documental local conciliado '+receiptMoney(totals.balance)+' · à vista '+receiptMoney(totals.cash)+' · a prazo '+receiptMoney(totals.term)+' · vencido '+receiptMoney(totals.overdue)+' · '+r.issues.length+' ocorrências a conferir.',receiptOut);
+    const clients=el('details','',receiptOut);el('summary','Por cliente',clients);
+    for(const c of r.clients.slice(0,100))el('p',c.clientName+' · '+c.noteCount+' notas · em aberto '+receiptMoney(c.balanceCents)+' · à vista '+receiptMoney(c.cashOpenCents)+' · a prazo '+receiptMoney(c.termOpenCents)+' · vencido '+receiptMoney(c.overdueCents),clients);
+    const orders=el('details','',receiptOut);el('summary','Por pedido e condição de pagamento',orders);
+    for(const o of r.orders.slice(0,100))el('p','#'+o.number+' · '+o.clientName+' · '+(o.terms==='cash'?'À vista':o.terms==='term'?'A prazo':'Condição a conferir')+' · saldo de notas exclusivas '+receiptMoney(o.exclusiveNoteBalanceCents)+' · '+o.sharedNotes+' compartilhadas / '+o.reviewNotes+' a revisar',orders);
+    const issues=el('details','',receiptOut);el('summary','Ocorrências excluídas dos valores conciliados',issues);
+    for(const i of r.issues.slice(0,100))el('p',i.key+' · '+i.reason,issues);
+    el('p','Exibe até 100 linhas por detalhe; totais calculados sobre toda a consulta local. Não é saldo bancário, previsão confirmada ou valor restante integral do pedido.',receiptOut);
+   }catch(e){if(receiptAllowed()&&actor===user())el('p',String(e?.message||e),receiptOut)}finally{readingReceipts=false}
+  });
   const opening=field('Saldo disponível no início (R$)',cash),reserve=field('Reserva mínima desejada (R$)',cash);reserve.value='0';
   const delay=numeric('Atraso de recebimentos para cenário de risco (dias)',cash,14,91);
   const commitments=el('div','',cash),entries=[];let entrySeq=0;

@@ -6,3 +6,5 @@ Base comercial: ed5c56cfd2407cab679e2f7e5b7bb70e011a5f36. Não reaplicar PRs ant
 - Mobile: limitar diálogos operacionais ao viewport e corrigir fieldsets/controles.
 ## Dependências ainda não entregues
 Contratos transacionais de acertos, conta corrente e checklist em testes isolados. Conector HLGB somente leitura, sem ferramenta de migração; outro projeto de homologação é da loja. Não simular atomicidade com saves consecutivos. Não declarar rascunho de aba como checklist permanente. Restam integração real da conta corrente, baixa semanal e anexos, gravação consolidada de avulsos, corte conjunto real, dados reconciliados para produção/financeiro, demais ajustes RH/mobile, Auditor/Bot/Assistente, lazy loading e modularização integral. #280 é fonte do backlog.
+
+- Financeiro/Metas: consulta da carteira documental canônica, condições por cliente e pedido, saldo à vista/a prazo/vencido, títulos compartilhados sem dupla soma e proteção de WAL. Não lança nem importa automaticamente recebíveis.

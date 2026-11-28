@@ -44,6 +44,15 @@ await planner.getByLabel('Capacidade semanal de entregas (peças em 5 dias)',{ex
 await planner.getByLabel('Quantidade de peças do novo pedido a avaliar',{exact:true}).fill('25');
 await planner.getByRole('button',{name:'Calcular agenda de entregas'}).click();await planner.getByText(/Novo pedido de 25 peças:/).waitFor();
 await planner.getByText('3. Avaliar novo pedido e impacto no caixa',{exact:true}).click();
+await planner.getByText('Carteira real de recebíveis vinculados aos pedidos',{exact:true}).click();
+await planner.getByRole('button',{name:'Conferir recebíveis e condições dos clientes'}).click();
+await planner.getByText('Proteções de leitura ainda indisponíveis.',{exact:true}).waitFor();
+await page.evaluate(()=>{window.hlgbCanonicalProjectionInvoices=()=>[];window.hlgbWalIdbGuard9536={probe:async()=>{},ids:()=>new Set(),status:()=>({probes:1,readFailed:false,localReadFailed:false,unsupported:false,lastProbeAt:new Date().toISOString()})};window.hlgbRecordPendingIdentitySet9535=()=>new Set();});
+await planner.getByRole('button',{name:'Conferir recebíveis e condições dos clientes'}).click();
+await planner.getByText('Fontes de pedidos, notas ou títulos indisponíveis.',{exact:true}).waitFor();
+await page.evaluate(()=>{delete window.hlgbCanonicalProjectionInvoices;delete window.hlgbWalIdbGuard9536;delete window.hlgbRecordPendingIdentitySet9535;});
+await planner.getByText('Carteira real de recebíveis vinculados aos pedidos',{exact:true}).click();
+
 const startDate=await planner.getByLabel('Início do planejamento',{exact:true}).inputValue();
 await planner.getByLabel('Saldo disponível no início (R$)',{exact:true}).fill('1000');
 await planner.getByLabel('Cliente do novo pedido',{exact:true}).fill('Cliente teste');
