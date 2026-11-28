@@ -1,0 +1,43 @@
+name: HLGB - Entrega unificada em banco descartavel v98.97
+on:
+  pull_request:
+    paths:
+      - 'tests/hlgb-integrated-lab-v9897/**'
+      - '.github/workflows/hlgb-integrated-lab-v9897.yml'
+permissions:
+  contents: read
+jobs:
+  integrated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture_only
+          POSTGRES_DB: hlgb_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hlgb_fixture"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      HLGB_LAB_ONLY: '1'
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: fixture_only
+      PGDATABASE: hlgb_fixture
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: bash tests/hlgb-integrated-lab-v9897/setup.sh
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
+      - name: Single browser journey
+        run: |
+          node tests/hlgb-integrated-lab-v9897/server.cjs > /tmp/hlgb-lab.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true; cat /tmp/hlgb-lab.log' EXIT
+          for i in {1..30}; do if curl -fsS http://127.0.0.1:4187/ >/dev/null; then break; fi; sleep 1; done
+          node tests/hlgb-integrated-lab-v9897/browser.cjs

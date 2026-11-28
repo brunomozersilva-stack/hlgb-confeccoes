@@ -31,6 +31,7 @@ const path = require('path');
  await page.waitForFunction(()=>window.__reports===1);await page.waitForTimeout(180);const metrics=await page.evaluate(()=>({reports:window.__reports,stats:window.hlgbRuntimePerformance9371.refreshStats()}));if(metrics.reports!==1||metrics.stats.coalesced<29)throw Error('refresh duplicated '+JSON.stringify(metrics));
  await page.evaluate(()=>{document.getElementById('relatorios').classList.remove('active');document.getElementById('cortadores').classList.add('active');document.querySelector('button').click()});await page.waitForFunction(()=>window.__cutters===1);
  await page.evaluate(()=>{window.__HLGB_AUTH_READY=false;document.querySelector('button').click()});await page.waitForTimeout(180);if(await page.evaluate(()=>window.__cutters)!==1)throw Error('refresh after logout');
+ await page.evaluate(()=>{window.__HLGB_AUTH_READY=true;document.querySelector('button').click();window.__HLGB_AUTH_READY=false;window.dispatchEvent(new Event('hlgb:logout'));window.__HLGB_AUTH_READY=true});await page.waitForTimeout(180);if(await page.evaluate(()=>window.__cutters)!==1)throw Error('old-session refresh survived reauth');if(await page.evaluate(()=>window.hlgbRuntimePerformance9371.refreshStats().canceled)!==1)throw Error('cancel metric missing');await page.evaluate(()=>document.querySelector('button').click());await page.waitForFunction(()=>window.__cutters===2);
  await browser.close();
  console.log('runtime v93.71 webkit ok');
 })().catch(e=>{console.error(e);process.exit(1)});

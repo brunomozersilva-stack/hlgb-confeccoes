@@ -54,16 +54,18 @@ function install(transport){
   const status=add('p','Consultando conferências anteriores.',area);status.setAttribute('role','status');
   const save=add('button','Salvar conferência na homologação',area);save.type='button';save.disabled=true;
   const refresh=add('button','Consultar histórico',area);refresh.type='button';
-  const history=add('div','',area);let version=null,busy=false,pending=pendingByCut.get(cacheKey)||null;
+  const history=add('div','',area);let version=null,observedVersion=0,historyEpoch=0,historyBusy=false,busy=false,pending=pendingByCut.get(cacheKey)||null;
   const recover=add('button','Restaurar conferência pendente',area);recover.type='button';recover.hidden=!pending;
   const guard=()=>area.isConnected&&lastOwner===owner&&current();
   const localSignature=()=>signature(fields(),documents().map(fileMeta));
   recover.onclick=()=>{if(busy||!guard()||!pending)return;try{if(typeof restoreFields!=='function')throw Error('restore');matched(source,pending.source,pending.draft);if(!restoreFields(pending.draft))throw Error('restore');status.textContent=pending.files.length?'Rascunho restaurado. Selecione novamente os mesmos documentos: '+pending.files.map(f=>f.name).join(', ')+'.':'Rascunho restaurado. Repita a gravação com a mesma referência.';}catch(_){status.textContent='Grade ou materiais divergentes. Recuperação bloqueada.'}};
   async function list(){
+   const epoch=++historyEpoch;historyBusy=true;version=null;save.disabled=true;refresh.disabled=true;
+   try{
    const rows=await transport.list({cutId:source.cutId,orderId:source.orderId,productId:source.productId});
-   if(!guard())return;
-   if(!Array.isArray(rows))throw Error('history');
-   version=rows[0]?.version??0;history.replaceChildren();
+   if(!guard()||epoch!==historyEpoch)return;
+   if(!Array.isArray(rows)||rows.length>50||rows.some((r,i)=>!Number.isSafeInteger(r?.version)||r.version<1||typeof r.requestId!=='string'||!r.requestId||typeof r.responsible!=='string'||typeof r.recordedAt!=='string'||i>0&&rows[i-1].version!==r.version+1)||(rows[0]?.version??0)<observedVersion)throw Error('history');
+   version=rows[0]?.version??0;observedVersion=version;history.replaceChildren();
    for(const row of rows){const line=add('p','Versão '+row.version+' · '+row.responsible+' · '+row.recordedAt,history);
     const b=add('button','Consultar versão '+row.version,line);b.type='button';b.onclick=async()=>{
      try{const record=await transport.read({cutId:source.cutId,orderId:source.orderId,productId:source.productId,version:row.version});
@@ -74,11 +76,11 @@ function install(transport){
      }catch(_){if(guard())status.textContent='Não foi possível consultar esta versão.'}
     };
    }
-   save.disabled=busy||version===null||!storageOK;
+   }finally{if(epoch===historyEpoch){historyBusy=false;if(guard()){refresh.disabled=false;save.disabled=busy||version===null||!storageOK}}}
   }
-  refresh.onclick=async()=>{if(busy)return;try{await list();if(guard())status.textContent='Histórico consultado.'}catch(_){if(guard())status.textContent='Histórico indisponível.'}};
+  refresh.onclick=async()=>{if(busy||historyBusy)return;try{await list();if(guard())status.textContent='Histórico consultado.'}catch(_){if(guard())status.textContent='Histórico indisponível.'}};
   save.onclick=async()=>{
-   if(busy||!guard()||version===null||!storageOK)return;busy=true;save.disabled=true;status.textContent='Validando fonte e salvando.';
+   if(busy||historyBusy||!guard()||version===null||!storageOK)return;busy=true;save.disabled=true;status.textContent='Validando fonte e salvando.';
    try{
     const draft=fields(),files=documents(),meta=files.map(fileMeta),sig=signature(draft,meta);
     if(pending&&pending.signature!==sig)throw Error('pending-edit');
