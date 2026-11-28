@@ -1,0 +1,22 @@
+set role fa_lab_operator;
+do $body$declare x jsonb;begin
+ x:=fa_lab.read_weekly('m1','ok');
+ if x is null or (x->'hub'->>'amountCents')::int<>35500 or jsonb_array_length(x->'rows')<>4 or x->>'currentMatch'<>'true' then raise exception 'readback';end if;
+ if fa_lab.read_weekly('other','ok') is not null or fa_lab.read_weekly('m1','missing') is not null then raise exception 'identity';end if;
+end$body$;
+reset role;
+update fa_lab.records set data=data||'{"value":356}'::jsonb where id='weekly:ok';
+set role fa_lab_operator;
+do $body$begin if fa_lab.read_weekly('m1','ok') is not null then raise exception 'wrong Hub accepted';end if;end$body$;
+reset role;
+update fa_lab.records set data=data||'{"value":355}'::jsonb where id='weekly:ok';
+update fa_lab.records set revision=revision+1 where id='p1';
+set role fa_lab_operator;
+do $body$begin if fa_lab.read_weekly('m1','ok') is not null then raise exception 'stale payment accepted';end if;end$body$;
+reset role;
+update fa_lab.records set revision=revision-1 where id='p1';
+insert into fa_lab.records(module,id,data,revision) values('hubFinanceEntries','dup-week','{"sourceId":"ok","value":355}',1);
+set role fa_lab_operator;
+do $body$begin if fa_lab.read_weekly('m1','ok') is not null then raise exception 'duplicate Hub accepted';end if;end$body$;
+reset role;
+select 'PASS independent weekly receipt readback, wrong amount, stale revision and duplicate denial';

@@ -37,3 +37,8 @@ jobs:
           psql -v ON_ERROR_STOP=1 -f tests/faction-weekly-settlement-postgres-v9883/fixture.sql
           psql -v ON_ERROR_STOP=1 -f tests/faction-weekly-settlement-postgres-v9883/candidate.sql
           psql -v ON_ERROR_STOP=1 -f tests/faction-weekly-settlement-postgres-v9883/contract.sql
+
+      - name: Verify independent weekly receipt readback
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/faction-weekly-settlement-postgres-v9883/read.sql
+          psql -v ON_ERROR_STOP=1 -f tests/faction-weekly-settlement-postgres-v9883/read-contract.sql
