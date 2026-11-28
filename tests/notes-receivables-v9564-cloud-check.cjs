@@ -20,5 +20,12 @@ const setup=()=>{let auth=true,calls=0;const local=[clone(note)],records={projec
  x=setup();x.records.finance[0].data.remaining=79;assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'title-divergence');
  x=setup();x.deps.read=async()=>{x.revoke();return []};assert.equal((await api.globalCloudCheck9812(input,x.deps)).reason,'permission');
  x=setup();assert.equal((await api.globalCloudCheck9812({...input,preview:{...preview,opening:100}},x.deps)).reason,'preview-not-supported');assert.equal(x.calls,0);
+ const row={type:'projection',clientKey:'id:a',id:'n',key:'projection:n',number:'1',total:10000,paid:2000,credit:0,balance:8000,issued:'2026-11-01',paymentEvidence:true};
+ const scenario=api.clientAccountPreview9759([row],{clientKey:'id:a',openingCents:2000,paymentCents:11000,date:'2026-11-26',reason:'Saldo anterior',independentOpening:true},true);
+ const residual={...input,preview:scenario,residualReviewed:true};x=setup();out=await api.residualCloudConference9891(residual,x.deps);assert.equal(out.state,'allocated-notes-compared-only');assert.equal(out.allocatedCents,8000);assert.equal(out.receivedCents,11000);assert.equal(out.residualCents,3000);assert.equal(out.independentAfterCents,-1000);assert.equal(out.expectedHubMovementCents,11000);assert.equal(out.expectedHubEntries,1);assert.equal(out.independentBalanceConfirmed,false);assert.equal(out.canWrite,false);
+ x=setup();assert.equal((await api.residualCloudConference9891({...residual,residualReviewed:false},x.deps)).reason,'residual-review');assert.equal(x.calls,0);
+ x=setup();assert.equal((await api.residualCloudConference9891({...residual,preview:{...scenario,independentAfterCents:0}},x.deps)).reason,'balance');assert.equal(x.calls,0);
+ x=setup();x.deps.pending=async()=>['finance::f'];assert.equal((await api.residualCloudConference9891(residual,x.deps)).reason,'pending-sync');
+ const independent=api.clientAccountPreview9759([row],{clientKey:'id:a',openingCents:0,paymentCents:5000,date:'2026-11-26',noteKeys:[]},true);x=setup();out=await api.residualCloudConference9891({...residual,preview:independent},x.deps);assert.equal(out.state,'independent-scenario-only');assert.equal(out.independentAfterCents,-5000);assert.equal(x.calls,0);
  console.log('PASS cloud comparison only: revision, note/title identity, missing payment history, WAL, permission, no writes');
 })().catch(e=>{console.error(e);process.exitCode=1});
