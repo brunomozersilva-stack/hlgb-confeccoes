@@ -136,6 +136,7 @@ function normalTravetaReview9781(data,allowed){
   if(!m||m.active===false||!model){add('Cadastro de facção ou modelo não confirmado');continue}
   row.faction=sid(m.name);row.model=sid(model.name);
   if(p.factionName&&norm(p.factionName)!==norm(m.name)){add('Nome do pagamento diverge do cadastro atual');continue}
+  if(Object.prototype.hasOwnProperty.call(p,'settlementAdjustmentV9879')){add('Remuneração ajustada: conferir histórico antes de simular travetadas');continue}
   if(row.quantity===null||row.quantity<=0||row.grossCents===null||row.grossCents<=0||cents(p.unitPrice)===null||cents(p.unitPrice)*row.quantity!==row.grossCents){add('Valor bruto ou quantidade a conferir');continue}
   if(row.existingDiscountCents===null||row.existingDiscountCents!==0||cents(p.paidAmount)!==0||norm(p.status)!=='pendente'||p.paymentHistory!=null&&(!Array.isArray(p.paymentHistory)||p.paymentHistory.length)||p.travetaDiscountTotalV9577!=null||p.grossValueV9577!=null){add('Pagamento ou abatimento existente: preservar e revisar');continue}
   const servicePayments=data.factionPayments.filter(x=>live(x)&&x.manual!==true&&sid(x.factionServiceId)===sid(f.id)&&(!x.serviceModeV9577||x.serviceModeV9577==='faccao'));
