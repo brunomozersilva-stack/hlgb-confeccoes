@@ -7,7 +7,8 @@ grant usage on schema fa_lab to fa_lab_operator,fa_lab_denied;
 create table fa_lab.records(module text not null,id text not null,data jsonb not null,revision bigint not null check(revision>0),deleted boolean not null default false,primary key(module,id));
 create table fa_lab.events(ref text primary key,payment_id text not null,request jsonb not null,result jsonb not null,actor text not null,recorded_at timestamptz not null default clock_timestamp());
 grant select on fa_lab.records to fa_lab_operator;
-grant update(data,revision) on fa_lab.records to fa_lab_operator;
+-- Lab only: table-level UPDATE also permits the explicit table lock.
+grant update on fa_lab.records to fa_lab_operator;
 grant select,insert on fa_lab.events to fa_lab_operator;
 -- Failure after updating the payment must roll back both changes.
 create function fa_lab.fail_event() returns trigger language plpgsql set search_path='' as $body$begin if new.ref='fault' then raise exception 'fixture-event-fault';end if;return new;end$body$;

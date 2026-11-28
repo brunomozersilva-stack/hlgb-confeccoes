@@ -32,3 +32,21 @@ do $body$begin
 end$body$;
 reset role;
 select 'PASS adjustment: physical quantity and note preserved, no Hub, atomic rollback, idempotency, repeated edit and stale revisions';
+
+-- Negative cases use separate fixture changes; no payment may be altered.
+insert into fa_lab.records(module,id,data,revision) values
+('factionPayments','dup','{"id":"dup","factionServiceId":"s1","deliveryId":"d1","status":"Pendente","quantity":1}',1);
+set role fa_lab_operator;
+do $body$begin
+ begin perform fa_lab.adjust('p1','duplicate',5,2,70,250,'Conferência manual');raise exception 'expected failure';exception when others then if sqlerrm<>'duplicate-delivery' then raise;end if;end;
+end$body$;
+reset role;
+update fa_lab.records set deleted=true where id='dup';
+update fa_lab.records set data=data||'{"status":"Pago","paidAmount":200}'::jsonb where id='p1';
+set role fa_lab_operator;
+do $body$begin
+ begin perform fa_lab.adjust('p1','paid',5,2,70,250,'Conferência manual');raise exception 'expected failure';exception when others then if sqlerrm<>'not-wholly-pending' then raise;end if;end;
+ if (select count(*) from fa_lab.events)<>2 then raise exception 'unexpected correction event';end if;
+end$body$;
+reset role;
+select 'PASS duplicate and paid protection';
