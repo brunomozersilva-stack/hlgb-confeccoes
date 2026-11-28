@@ -45,8 +45,8 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 let pageObserver9905=null;const watched9905=new WeakSet();
 function watchReportPages9905(){
  if(typeof MutationObserver!=='function')return;
- if(!pageObserver9905)pageObserver9905=new MutationObserver(records=>{if(records.some(r=>r.target.classList?.contains('active')))scheduleVisibleRefresh()});
- for(const id of ['relatorios','cortadores']){const page=document.getElementById(id);if(page&&!watched9905.has(page)){watched9905.add(page);pageObserver9905.observe(page,{attributes:true,attributeFilter:['class']})}}
+ if(!pageObserver9905)pageObserver9905=new MutationObserver(records=>{if(records.some(r=>r.target.classList?.contains('active')&&!String(r.oldValue||'').split(/\s+/).includes('active')))scheduleVisibleRefresh()});
+ for(const id of ['relatorios','cortadores']){const page=document.getElementById(id);if(page&&!watched9905.has(page)){watched9905.add(page);pageObserver9905.observe(page,{attributes:true,attributeFilter:['class'],attributeOldValue:true})}}
 }
 watchReportPages9905();document.addEventListener('DOMContentLoaded',watchReportPages9905,{once:true});window.addEventListener('hlgb:authenticated',watchReportPages9905);
 
@@ -58,7 +58,7 @@ function installClassifier(){
  const evidenceText=(sync,support)=>{
   const safe=v=>{try{return JSON.stringify(v||{})}catch(e){return ''}};
   const timelines=[support?.timeline,support?.forensics?.timeline,support?.hub?.timeline].filter(Array.isArray);
-  const errors=[support?.errors,support?.forensics?.errors,support?.hub?.errors].filter(Array.isArray);
+  const errors=[support?.errors,support?.forensics?.errors,support?.hub?.errors].filter(x=>x!=null);
   const runtime=(window.hlgbInternalAuditor?.runtimeErrors||[]).slice(-40);
   const guards=sync?.runtime?.guards||{};
   return [safe(timelines),safe(errors),safe(runtime),safe({
