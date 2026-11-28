@@ -219,6 +219,11 @@ function openFullCutChecklist9820(id){
     try{window.HLGBCutChecklistPersistence9835.mount({
      panel,source:v,current,owner:sessionOwner,
      fields:()=>({responsible:fields[0]?.value||'',note:fields[1]?.value||'',lines:conferenceRows.map(({row,m,color},i)=>({name:m.name,color:color.color,unit:m.unit,pieces:color.pieces,required:m.linkOK?color.amount:null,actual:fields[2+i*2]?.value||'',note:fields[3+i*2]?.value||'',checked:!!row.querySelector('input[type=checkbox]')?.checked}))}),
+     restoreFields:(draft)=>{
+      if(!current()||!draft||!Array.isArray(draft.lines)||draft.lines.length!==conferenceRows.length||typeof draft.responsible!=='string'||typeof draft.note!=='string')return false;
+      if(draft.lines.some((l,i)=>{const {m,color}=conferenceRows[i];return l.name!==m.name||l.color!==color.color||l.unit!==m.unit||l.pieces!==color.pieces||l.required!==(m.linkOK?color.amount:null)||typeof l.actual!=='string'||typeof l.note!=='string'||typeof l.checked!=='boolean'||l.checked&&conferenceRows[i].row.querySelector('input[type=checkbox]')?.disabled}))return false;
+      fields[0].value=draft.responsible;fields[1].value=draft.note;draft.lines.forEach((l,i)=>{fields[2+i*2].value=l.actual;fields[3+i*2].value=l.note;const cb=conferenceRows[i].row.querySelector('input[type=checkbox]');if(cb&&!cb.disabled)cb.checked=l.checked});fields.forEach(input=>input.dispatchEvent(new Event('input')));capture();return true;
+     },
      documents:()=>selected.slice()
     })}catch(_){}
    }
