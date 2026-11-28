@@ -236,6 +236,18 @@ function hubId(groupId){
  let n=0;for(const ch of sid(groupId))n=(n*31+ch.charCodeAt(0))%9999999999999;
  return 300000000000000+n;
 }
+// Explicit manual delivery evidence, distinct from the scheduled payment date.
+function deliveryWeek9875(day){if(!validDate(day))return '';const t=Date.parse(day+'T00:00:00Z'),m=t-((new Date(t).getUTCDay()+6)%7)*86400000;return new Date(m).toISOString().slice(0,10)}
+function deliveryMetadata9875(parsed,input,stored=[]){
+ const old=stored.filter(x=>!isCanceledV9590(x)),links=old.map(x=>[sid(x.manualDeliveryDateV9875),sid(x.manualDeliveryOwnerV9875)]);
+ const linked=links.some(x=>x[0]||x[1]),context=draft?.deliveryScope9875;
+ if(!linked&&!context)return {};
+ if(linked&&(links.some(x=>!x[0]||!x[1]||x[0]!==links[0][0]||x[1]!==links[0][1])||links[0][1]!==sid(parsed.factionMasterId)))throw Error('Origem de entrega avulsa divergente. Confira o cadastro original.');
+ const date=sid(input.manualDeliveryDateV9875),owner=sid(parsed.factionMasterId),week=deliveryWeek9875(date);
+ if(!week||date>stamp()||input.manualDeliveryConfirmedV9875!==true||!owner||parsed.status!=='Pendente'||parsed.serviceMode!=='faccao')throw Error('Informe a data real da entrega de todas as peças avulsas e confirme que foram recebidas.');
+ if(context&&(owner!==context.masterId||week!==context.weekStart)||linked&&date!==links[0][0])throw Error('A entrega precisa pertencer à pessoa e à semana selecionadas. Para outra data, crie um novo avulso.');
+ return {manualDeliveryDateV9875:date,manualDeliveryOwnerV9875:owner};
+}
 async function persistDraft(input,receipt){
  if(state.status===STATUS.saving)throw Error('Salvamento em andamento.');
  state.status=STATUS.saving;state.lastError='';state.lastResult=null;
@@ -244,6 +256,7 @@ async function persistDraft(input,receipt){
   const parsed=validate(input),date=parsed.date,paid=parsed.status==='Pago',
    id=draft?.groupId||makeId('faction-manual'),ts=new Date().toISOString();
   if(paid&&(!parsed.method||date>stamp()))throw Error('Informe forma e data real do pagamento.');
+  const deliveryMeta=deliveryMetadata9875(parsed,input,groupRows(id));
   const priorAdjustments=directAdjustmentsV9591(groupRows(id));
   const inputAdjustments=validateDirectInputV9591(input.directAdjustmentsV9591||[],[]);
   for(const entry of inputAdjustments){
@@ -260,7 +273,7 @@ async function persistDraft(input,receipt){
   await syncPointsFromPaymentV9592(parsed.lines);
   for(let i=0;i<parsed.lines.length;i++){
    const row=parsed.lines[i],existing=arr('factionPayments').find(x=>sid(x.id)===sid(row.id));
-   const obj={...existing,id:row.id,source:'faction_manual_payment_v1',manual:true,
+   const obj={...existing,...deliveryMeta,id:row.id,source:'faction_manual_payment_v1',manual:true,
     manualGroupId:id,manualKindV9566:row.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
     status:parsed.status,factionName:parsed.factionName,productId:row.productId,
     description:row.description,manualProductNameV9589:row.manualProductName,manualProductCategoryV9589:row.manualProductCategory,
@@ -274,7 +287,7 @@ async function persistDraft(input,receipt){
     priceOriginV9566:row.priceOrigin,updatedAt:ts,createdAt:existing?.createdAt||draft.createdAt};
    if(i===0){obj.manualDirectAdjustmentsV9591=adjustments;if(draft.receipt)obj.receiptPdfV9566=draft.receipt}
    else if(existing?.receiptPdfV9566)obj.receiptPdfV9566=existing.receiptPdfV9566;
-   await saveRecord('factionPayments',obj);saved++;
+   const ack=await saveRecord('factionPayments',obj);if(deliveryMeta.manualDeliveryDateV9875)await confirmEditReadbackV95101(obj,ack);saved++;
   }
   // One financial entry for a paid group, with a stable ID across retries.
   if(paid&&date>='2026-10-05'){
@@ -333,7 +346,7 @@ function remotelySame(local,remote){
   sid(remote.manualGroupId)===sid(local.manualGroupId)&&norm(remote.status)===norm(local.status)&&
   cents(remote.value)===cents(local.value)&&cents(remote.paidAmount)===cents(local.paidAmount)&&
   sid(remote.paymentDate)===sid(local.paymentDate)&&sid(remote.updatedAt)===sid(local.updatedAt)&&
-  Number(remote.quantity)===Number(local.quantity);
+  Number(remote.quantity)===Number(local.quantity)&&sid(remote.manualDeliveryDateV9875)===sid(local.manualDeliveryDateV9875)&&sid(remote.manualDeliveryOwnerV9875)===sid(local.manualDeliveryOwnerV9875);
 }
 /* v95.101 — prova de salvamento do acerto. O ACK da escrita NÃO é a prova
  * da releitura. Evita reescrever linhas iguais e evita falsos alarmes por
@@ -370,7 +383,7 @@ function compareEditBusinessV95101(a,b){
  if(historyA===null||historyB===null||historyA!==historyB)return false;
  const labels=['id','manualGroupId','manualKindV9566','serviceModeV9577','factionMasterId',
  'factionName','status','productId','description','manualProductNameV9589','manualProductCategoryV9589',
- 'scheduledPaymentDate','paymentMethod','observation','manualLineNoteV9566','priceOriginV9566','paymentDate'];
+ 'scheduledPaymentDate','paymentMethod','observation','manualLineNoteV9566','priceOriginV9566','paymentDate','manualDeliveryDateV9875','manualDeliveryOwnerV9875'];
  for(const k of labels)if(sid(a[k])!==sid(b[k]))return false;
  const values=['quantity','unitPrice','value','grossValueV9577','travetaDiscountUnitV9577',
   'travetaDiscountTotalV9577','discountAmount','paidAmount','travetaPointsPerPieceV9592'];
@@ -444,6 +457,7 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
   }
   const parsed=validate({...input,allowEmptyV9590:true});
   if(parsed.status!=='Pendente')throw Error('Para dar baixa, utilize o botão Marcar pago.');
+  const deliveryMeta=deliveryMetadata9875(parsed,input,rows);
   const ids=new Set(parsed.lines.map(x=>sid(x.id)));
   if(ids.size!==parsed.lines.length)throw Error('Linhas duplicadas na edição.');
   const omitted=active.filter(x=>!ids.has(sid(x.id)));
@@ -495,7 +509,7 @@ async function saveGroupEdits(groupId,input,receipt,removalReasons=[]){
     [...previousPayeeHistory,{id:payeeEventId,at:ts,fromName:sid(old.factionName),
       toName:parsed.factionName,fromMasterId:sid(old.factionMasterId)||null,
       toMasterId:sid(parsed.factionMasterId)||null,reason:sid(parsed.note).trim()}]:previousPayeeHistory;
-   const next={...old,id:x.id,source:'faction_manual_payment_v1',manual:true,manualGroupId:groupId,
+   const next={...old,...deliveryMeta,id:x.id,source:'faction_manual_payment_v1',manual:true,manualGroupId:groupId,
     payeeTransferHistoryV95104:payeeHistory,
     manualKindV9566:x.kind,serviceModeV9577:parsed.serviceMode,factionMasterId:parsed.factionMasterId,
     factionName:parsed.factionName,status:'Pendente',productId:x.productId,description:x.description,
@@ -1181,7 +1195,7 @@ function formData(){
  const root=document.getElementById('fm66-root');if(!root)throw Error('Formulário não carregado.');
  const get=id=>root.querySelector('#'+id)?.value||'';
  return {factionName:get('fm66-faction'),serviceMode:get('fm66-mode')||'faccao',date:get('fm66-date'),status:get('fm66-status'),
-  method:get('fm66-method'),note:get('fm66-note'),lines:[...root.querySelectorAll('.fm66-line')].map(lineFromDom),
+  method:get('fm66-method'),note:get('fm66-note'),manualDeliveryDateV9875:get('fm9875-delivery'),manualDeliveryConfirmedV9875:root.querySelector('#fm9875-confirm')?.checked===true,lines:[...root.querySelectorAll('.fm66-line')].map(lineFromDom),
    directAdjustmentsV9591:[...root.querySelectorAll('.fm91-adjustment')].map(el=>({
     id:sid(el.dataset.id),kind:el.querySelector('.fm91-kind')?.value||'',
     amount:el.querySelector('.fm91-value')?.value||'',reason:el.querySelector('.fm91-reason')?.value||''
@@ -1232,13 +1246,15 @@ function modalHtml(){
   '<div style="margin:12px 0;font-size:18px;font-weight:700">Total: <span id="fm66-grand">R$ 0,00</span></div>'+
   '<div id="fm66-feedback" role="status" class="sub"></div><button type="button" class="primary modalSave">☁️ Salvar pagamento avulso</button></div>';
 }
-function openForm(groupId=''){
+function openForm(groupId='',options={}){
  if(typeof window.openModal!=='function'&&typeof openModal!=='function')return false;
  const editing=!!sid(groupId),stored=editing?assertGroup(groupId):[];
  if(editing&&groupState(stored)!=='Pendente')throw Error('Apenas lançamentos pendentes podem ter valores editados. Pagamentos já baixados exigem conferência contábil.');
  draft=editing?{groupId:sid(groupId),editing:true,createdAt:stored[0].createdAt||new Date().toISOString(),receipt:stored.find(x=>x.receiptPdfV9566)?.receiptPdfV9566||null,
   removals:[],editAttemptId:makeId('faction-edit')}:
   {groupId:makeId('faction-manual'),createdAt:new Date().toISOString(),receipt:null};
+ const scope=options.deliveryScope9875;
+ if(scope){if(editing||window.__HLGB_AUTH_READY!==true||typeof window.hlgbFactionAcertoUnified95102?.validateDeliveryScope!=='function'||!window.hlgbFactionAcertoUnified95102.validateDeliveryScope(scope))throw Error('Acerto semanal mudou. Reabra a conferência.');draft.deliveryScope9875={masterId:sid(scope.masterId),weekStart:sid(scope.weekStart),name:sid(scope.name)};}
  state.opened++;
  const open=window.openModal||openModal;
  open(editing?'Editar pagamento avulso pendente':'Pagamento avulso — facção, embalagem ou travetada',modalHtml(),async()=>{
@@ -1247,6 +1263,7 @@ function openForm(groupId=''){
   if(feedback)feedback.textContent='Confirmando os registros na nuvem...';
   try{
    const input=formData(),file=document.getElementById('fm66-pdf')?.files?.[0],receipt=await readReceipt(file);
+   if(draft?.deliveryScope9875&&!window.hlgbFactionAcertoUnified95102?.validateDeliveryScope(draft.deliveryScope9875))throw Error('Acerto semanal mudou. Nenhuma inclusão enviada. Reabra a conferência.');
    if(editing)await saveGroupEdits(groupId,input,receipt,draft?.removals||[]);else await persistDraft(input,receipt);
    if(typeof window.closeModal==='function')window.closeModal();else if(typeof closeModal==='function')closeModal();
    try{window.renderFactionPayments?.()}catch(_){}
@@ -1258,7 +1275,7 @@ function openForm(groupId=''){
    if(feedback)feedback.textContent='⚠ '+message;
    // ACK inconclusivo ou conflito real: bloquear novo clique no MESMO envio.
    // A pessoa pode conferir o registro na nuvem e reabrir uma nova edição.
-   const needsReview=editing&&/nuvem recebeu|nuvem devolveu valores diferentes|releitura ainda não confirmou|não coincidiram/i.test(message);
+   const needsReview=(editing||!!draft?.deliveryScope9875)&&/nuvem recebeu|nuvem devolveu valores diferentes|releitura ainda não confirmou|não coincidiram/i.test(message);
    if(btn){
     btn.disabled=needsReview;
     btn.textContent=needsReview?'⚠ Confira na nuvem antes de tentar novamente':
@@ -1355,6 +1372,15 @@ function openForm(groupId=''){
   const btn=document.querySelector('#fm66-root .modalSave');if(btn)btn.textContent='☁️ Salvar alterações';
   const info=document.getElementById('fm66-feedback');if(info)info.textContent='Para retirar um produto lançado por engano, clique em Remover e informe o motivo. O registro será cancelado (não apagado) quando salvar. Você também pode desfazer a retirada antes de salvar.';
  }else addLine('product');
+ const linked=editing?activeGroupRowsV9590(stored).find(r=>r.manualDeliveryDateV9875):null;
+ if(scope||linked){
+  const root=document.getElementById('fm66-root'),box=document.createElement('div');box.className='panel';
+  box.innerHTML='<b>Entrega avulsa registrada no acerto semanal</b><p class="sub">Confirme a data real de recebimento de todas as peças deste avulso. A data de pagamento acima é independente. Não altera estoque nem o histórico físico de pedidos.</p><label>Data real da entrega avulsa <input type="date" id="fm9875-delivery" aria-label="Data real da entrega avulsa" value="'+esc(linked?.manualDeliveryDateV9875||'')+'"></label><label style="display:block"><input type="checkbox" id="fm9875-confirm" style="width:auto"> Confirmei que todas as peças deste avulso foram entregues nessa data</label>';
+  root.prepend(box);
+  if(linked)document.getElementById('fm9875-delivery').disabled=true;
+  if(scope){const d=document.getElementById('fm9875-delivery');d.min=scope.weekStart;d.max=new Date(Date.parse(scope.weekStart+'T00:00:00Z')+6*86400000).toISOString().slice(0,10);document.getElementById('fm66-faction').value=scope.name;document.getElementById('fm66-status').value='Pendente';document.getElementById('fm66-status').disabled=true;document.getElementById('fm66-mode').disabled=true;}
+  document.getElementById('fm66-faction').readOnly=true;
+ }
  return true;
 }
 function receiptGroups(){
