@@ -478,6 +478,12 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    for(const source of ['cut','external','internal']){
     const rows=report.weeks.filter(w=>w.source===source);el('h4',sources[source],hist);
     el('p',rows.length?rows.map(w=>w.week+': '+fmt(w.pieces)+' pç').join(' · '):'Sem dados datados suficientes.',hist);
+    const samples=rows.map(w=>w.pieces).filter(n=>Number.isSafeInteger(n)&&n>0).sort((a,b)=>a-b);
+    if(samples.length){
+     const average=Math.round(samples.reduce((a,b)=>a+b,0)/samples.length);
+     const reference=samples.length>=4?samples[Math.floor((samples.length-1)*.25)]:null;
+     el('p','Média das '+samples.length+' semanas observadas: '+fmt(average)+' pç'+(reference===null?' · referência conservadora indisponível (mínimo de 4 semanas).':' · referência conservadora observada: '+fmt(reference)+' pç.')+' Não é capacidade confirmada.',hist);
+    }
    }
    const details=el('details','',hist);el('summary','Por modelo e equipe (até 100 registros)',details);
    for(const r of report.rows.slice(0,100))el('p',sources[r.source]+' · '+r.productName+' · '+r.teamName+' · '+r.observedWeeks+' semanas observadas · média '+fmt(r.averageActiveWeek)+' pç',details);
@@ -492,10 +498,11 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    stageFields.push({key,name,capacity,wip,checked});
   }
   const stageOut=el('div','',flow);
+  const stageInput=()=>({start:start.value,goal:parse(goal),bufferPercent:parse(buffer),closedDates:daysClosed(),stages:stageFields.map(s=>({key:s.key,name:s.name,manualCapacity:parse(s.capacity),initialWip:s.wip?parse(s.wip):0,wipConfirmed:!!s.checked?.checked,history:[],teams:[]}))});
   button('Calcular divisão da produção',flow,()=>{
    stageOut.replaceChildren();if(!active())return;
-   const stages=stageFields.map(s=>({key:s.key,name:s.name,manualCapacity:parse(s.capacity),initialWip:s.wip?parse(s.wip):0,wipConfirmed:!!s.checked?.checked,history:[],teams:[]}));
-   const v=api.productionStageGoals({start:start.value,goal:parse(goal),bufferPercent:parse(buffer),closedDates:daysClosed(),stages},true);
+   const input=stageInput(),stages=input.stages;
+   const v=api.productionStageGoals(input,true);
    if(v.state!=='local-stage-goals'){el('p','Confira as datas, metas e capacidades inteiras.',stageOut);return}
    el('p','Dias de trabalho: '+v.workdays+' · Peças prontas simuladas: '+fmt(v.simulatedDeliveries)+' · Falta para a meta: '+fmt(v.goalGap),stageOut);
    for(const s of v.stages)el('p',s.name+' · capacidade no período '+fmt(s.periodCapacity)+' · peças simuladas '+fmt(s.simulatedPieces)+' · saldo em processo '+fmt(s.endingWip),stageOut);
@@ -503,6 +510,28 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    const daily=el('details','',stageOut);el('summary','Divisão por dia',daily);
    for(const d of v.days)el('p',d.date+' · '+d.stages.map(s=>stages.find(x=>x.key===s.key).name+': '+fmt(s.pieces)).join(' / '),daily);
    if(v.partial)el('p','Cenário parcial: histórico não certificado e saldos não conferidos podem alterar o resultado.',stageOut);
+  });
+  const multi=el('details','',host);el('summary','Planejar várias semanas de produção',multi);
+  el('p','Repete a meta semanal informada e transporta o saldo em processo para a semana seguinte. Não altera metas oficiais nem confirma capacidade.',multi);
+  const multiWeeks=numeric('Semanas de produção',multi,4,13);multiWeeks.min='1';
+  const multiOut=el('div','',multi);
+  const invalidateStages=()=>{stageOut.replaceChildren();multiOut.replaceChildren()};
+  for(const x of [start,buffer,closed,goal,multiWeeks,...stageFields.flatMap(s=>[s.capacity,s.wip,s.checked]).filter(Boolean)]){
+   x.addEventListener('input',invalidateStages);x.addEventListener('change',invalidateStages);
+  }
+  button('Calcular produção de várias semanas',multi,()=>{
+   multiOut.replaceChildren();if(!active())return;
+   const input=stageInput(),count=parse(multiWeeks);
+   if(typeof api.multiweekStageFlow!=='function'||!Number.isSafeInteger(count)||count<1||count>13||input.goal===null){el('p','Informe uma meta e de 1 a 13 semanas.',multiOut);return}
+   const v=api.multiweekStageFlow({...input,asOf:today(),weeklyTargets:Array(count).fill(input.goal)},true);
+   if(v.state!=='local-multiweek-flow'){el('p','Confira início (hoje ou depois), calendário e capacidades de todas as etapas.',multiOut);return}
+   el('p','Meta total: '+fmt(v.totalTarget)+' pç · prontas simuladas: '+fmt(v.totalFinished)+' pç · faltam: '+fmt(v.remainingTarget)+' pç · saldo final em processo: '+fmt(v.endingWip)+' pç.',multiOut);
+   for(const w of v.weeks){
+    const week=el('details','',multiOut);el('summary',w.start+' a '+w.end+' · meta '+fmt(w.target)+' · prontas '+fmt(w.finished)+' · atraso acumulado '+fmt(w.backlog),week);
+    for(const stage of w.stages)el('p',stage.name+' · capacidade '+fmt(stage.capacity)+' · executadas '+fmt(stage.pieces)+' · saldo final em processo '+fmt(stage.endWip)+' · capacidade não utilizada '+fmt(stage.unusedCapacity),week);
+    for(const d of v.daily.filter(d=>d.date>=w.start&&d.date<=w.end))el('p',d.date+' · '+d.stages.map(x=>input.stages.find(s=>s.key===x.key).name+': '+fmt(x.pieces)).join(' / '),week);
+   }
+   if(v.partial)el('p','Cenário parcial: revise capacidade, histórico e saldos físicos. Não é promessa de entrega.',multiOut);
   });
   const delivery=el('details','',host);delivery.open=true;el('summary','2. Organizar pedidos, prazos e recebimentos',delivery);
   el('p','Informe apenas peças ainda pendentes. O valor e a condição de pagamento são referências informadas, não baixa de nota ou previsão bancária confirmada.',delivery);
@@ -513,11 +542,12 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
   const out=el('div','',delivery);
   let calculatedPlan=null,calculatedSignature='',cashOut=null;
   const money=x=>{const s=x.value.trim().replace(',','.');return /^-?\d{1,9}(?:\.\d{1,2})?$/.test(s)?Math.round(Number(s)*100):null};
-  const orderInputs=()=>rows.filter(r=>r.client.value.trim()||r.model.value.trim()||r.due.value||r.pieces.value).map(r=>({key:r.key,client:r.client.value.trim(),model:r.model.value.trim(),dueDate:r.due.value,pieces:parse(r.pieces),paymentMode:r.pay.value,paymentDays:parse(r.term),amountCents:money(r.value)}));
+  const orderInputs=()=>rows.filter(r=>r.client.value.trim()||r.model.value.trim()||r.due.value||r.pieces.value||r.value.value.trim()||r.pay.value!=='unknown'||(r.term.value.trim()!==''&&r.term.value.trim()!=='0')).map(r=>({key:r.key,client:r.client.value.trim(),model:r.model.value.trim(),dueDate:r.due.value,pieces:parse(r.pieces),paymentMode:r.pay.value,paymentDays:parse(r.term),amountCents:money(r.value)}));
   const planInput=()=>({start:start.value,asOf:today(),weeks:parse(horizon),weeklyGoal:parse(weekly),bufferPercent:parse(buffer),history:[],orders:orderInputs(),closedDates:daysClosed(),coverageConfirmed:false,newPieces:parse(proposal)});
   function invalidatePlan(){calculatedPlan=null;calculatedSignature='';out.replaceChildren();cashOut?.replaceChildren()}
   function addOrder(){
-   if(rows.length>=100)return;
+   if(!active()||rows.length>=100)return;
+   invalidatePlan();
    const row=el('fieldset','',queue),key='scenario-'+(++seq);el('legend','Pedido '+seq,row);
    const client=field('Cliente',row),model=field('Modelo / número do pedido',row),due=field('Prazo de entrega',row,'date'),pieces=numeric('Peças ainda pendentes',row),value=field('Valor a receber (R$)',row);
    const label=el('label','Condição de pagamento ',row),pay=el('select','',label);for(const [k,t] of [['unknown','A conferir'],['cash','À vista'],['term','A prazo']]){const o=el('option',t,pay);o.value=k}
@@ -530,6 +560,7 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    out.replaceChildren();if(!active())return;
    invalidatePlan();
    const input=planInput();
+   if(rows.some(r=>r.value.value.trim()&&money(r.value)===null)){el('p','Confira o valor a receber: use reais com até duas casas decimais.',out);return}
    if(input.orders.some(r=>!r.client||!r.dueDate||!Number.isSafeInteger(r.pieces)||r.pieces<=0||r.amountCents!==null&&r.amountCents<0||r.paymentMode==='term'&&(!Number.isSafeInteger(r.paymentDays)||r.paymentDays<=0))){el('p','Complete todos os pedidos iniciados: cliente, prazo, peças e condição de pagamento.',out);return}
    const v=api.deliveryCapacityPlan(input,true);
    if(v.state!=='local-capacity-simulation'){el('p','Confira início, horizonte, capacidade e quantidades.',out);return}

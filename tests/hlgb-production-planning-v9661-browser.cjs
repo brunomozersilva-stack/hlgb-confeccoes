@@ -14,6 +14,18 @@ const planner=page.locator('#hlgbDeliveryPlanner9845');await planner.waitFor();
 await planner.getByLabel('Objetivo de peças prontas na semana',{exact:true}).fill('100');
 for(const label of ['Capacidade informada de Corte (peças em 5 dias)','Capacidade informada de Costura / facções (peças em 5 dias)','Capacidade informada de Acabamento e entrega (peças em 5 dias)'])await planner.getByLabel(label,{exact:true}).fill('100');
 await planner.getByRole('button',{name:'Calcular divisão da produção'}).click();await planner.getByText(/Peças prontas simuladas:/).waitFor();
+await planner.getByText('Planejar várias semanas de produção',{exact:true}).click();
+await planner.getByLabel('Semanas de produção',{exact:true}).fill('2');
+await planner.getByRole('button',{name:'Calcular produção de várias semanas'}).click();
+await planner.getByText(/Meta total: 200 pç/).waitFor();
+await planner.getByLabel('Objetivo de peças prontas na semana',{exact:true}).fill('120');
+assert.equal(await planner.getByText(/Meta total: 200 pç/).count(),0);
+assert.equal(await planner.getByText(/Peças prontas simuladas:/).count(),0);
+await planner.getByRole('button',{name:'Calcular produção de várias semanas'}).click();
+await planner.getByText(/Meta total: 240 pç/).waitFor();
+await planner.getByLabel('Objetivo de peças prontas na semana',{exact:true}).fill('100');
+await planner.getByText('Planejar várias semanas de produção',{exact:true}).click();
+
 await planner.getByLabel('Capacidade semanal de entregas (peças em 5 dias)',{exact:true}).fill('100');
 await planner.getByLabel('Quantidade de peças do novo pedido a avaliar',{exact:true}).fill('25');
 await planner.getByRole('button',{name:'Calcular agenda de entregas'}).click();await planner.getByText(/Novo pedido de 25 peças:/).waitFor();
