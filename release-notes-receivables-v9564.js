@@ -424,7 +424,8 @@ function clientAccountPreview9759(rows,input,allowed){
  const blocked=reason=>({state:'blocked',reason,canWrite:false});
  if(allowed!==true||!Array.isArray(rows)||!input)return blocked('permission-or-source');
  const opening=input.openingCents,payment=input.paymentCents,day=input.date;
- if(!Number.isSafeInteger(opening)||!Number.isSafeInteger(payment)||payment<0||!date(day)||day!==date(day))return blocked('invalid-input');
+ const exactDay=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
+ if(!Number.isSafeInteger(opening)||!Number.isSafeInteger(payment)||payment<0||!exactDay(day))return blocked('invalid-input');
  if(opening!==0&&(input.independentOpening!==true||!sid(input.reason).trim()))return blocked('opening-proof');
  const key=sid(input.clientKey);if(!key.startsWith('id:')||key.length<=3)return blocked('client-identity');
  const seen=new Set();let notesBalance=0;const notes=[];
@@ -434,13 +435,15 @@ function clientAccountPreview9759(rows,input,allowed){
   if(n.balance>0)notes.push(n);
  }
  const ordered=notes.slice().sort((a,b)=>(a.issued||'9999-12-31').localeCompare(b.issued||'9999-12-31')||a.key.localeCompare(b.key));
- const chosen=input.noteKeys==null?ordered.map(n=>n.key):input.noteKeys;
+ const eligible=ordered.filter(n=>!n.issued||exactDay(n.issued)&&n.issued<=day),eligibleKeys=new Set(eligible.map(n=>n.key));
+ const chosen=input.noteKeys==null?eligible.map(n=>n.key):input.noteKeys;
  if(!Array.isArray(chosen)||new Set(chosen).size!==chosen.length||chosen.some(k=>!ordered.some(n=>n.key===k)))return blocked('selection');
+ if(chosen.some(k=>!eligibleKeys.has(k)))return blocked('note-issued-after-payment');
  let left=payment,allocated=0,weighted=0,dated=0;const allocations=[];
  for(const k of chosen){const n=ordered.find(n=>n.key===k),amount=Math.min(left,n.balance);if(!amount)continue;left-=amount;allocated+=amount;const elapsed=n.issued&&date(n.issued)===n.issued&&n.issued<=day?days(day,n.issued):null;if(elapsed!==null){weighted+=amount*elapsed;dated+=amount}allocations.push({key:k,number:n.number,issued:n.issued||'',before:n.balance,amount,after:n.balance-amount,days:elapsed})}
  const residual=left,openingApplied=Math.min(left,Math.max(0,opening));left-=openingApplied;
  const before=notesBalance+opening,after=before-payment;
- if(![before,after,allocated,weighted,dated].every(Number.isSafeInteger))return blocked('amount-limit');
+ if(![before,after,allocated,weighted,dated,opening-residual,notesBalance-allocated].every(Number.isSafeInteger))return blocked('amount-limit');
  return {state:'preview-only',clientKey:key,notesBalance,opening,payment,before,after,allocations,allocatedCents:allocated,residualCents:residual,independentAfterCents:opening-residual,notesAfterCents:notesBalance-allocated,openingApplied,unallocatedPayment:left,weightedDays:dated?weighted/dated:null,datedAmount:dated,canWrite:false};
 }
 // Continuous account statement derived from reconciled existing notes/events.
@@ -778,7 +781,7 @@ function openAccountPreview9759(id){
   if(!latest.available||latest.ambiguous||JSON.stringify(latest.rows)!==signature){out.textContent='As notas mudaram. Reabra a consulta antes de simular.';return}
   const val=k=>host.querySelector('#ca9759-'+k)?.value;
   const p=clientAccountPreview9759(latest.rows.map(n=>({...n,clientKey:'id:'+sid(id)})),{clientKey:'id:'+sid(id),openingCents:signedMoney9759(val('opening')),paymentCents:signedMoney9759(val('payment')),date:val('date'),reason:val('reason'),independentOpening:host.querySelector('#ca9759-independent')?.checked===true,noteKeys:Array.from(host.querySelectorAll('[data-ca9759-note]:checked')).map(x=>x.dataset.ca9759Note).sort((a,b)=>{const x=latest.rows.find(n=>n.key===a),y=latest.rows.find(n=>n.key===b);return (x.issued||'9999-12-31').localeCompare(y.issued||'9999-12-31')||a.localeCompare(b)})},true);
-  if(p.state!=='preview-only'){out.textContent='Confira valores, saldo inicial independente e divergências das notas antes de simular.';return}
+  if(p.state!=='preview-only'){out.textContent=p.reason==='note-issued-after-payment'?'Uma nota selecionada tem emissão posterior ao recebimento ou data inválida. Desmarque-a ou confira a data do pagamento.':'Confira valores, saldo inicial independente e divergências das notas antes de simular.';return}
   const reviewed=host.querySelector('#ca9812-residual');if(reviewed)reviewed.checked=false;
   cloudPreview={preview:p,date:val('date')};if(checkBtn)checkBtn.disabled=!cloudCheckAllowed9812();if(checkOut)checkOut.textContent='Informe referência e forma de pagamento para conferir.';
   out.innerHTML='<p><b>Saldo das notas: '+brl(p.notesBalance)+' · Saldo independente inicial: '+brl(p.opening)+' · Saldo anterior total: '+brl(p.before)+' · Pagamento: '+brl(p.payment)+' · Saldo projetado: '+brl(p.after)+'</b></p><p>Alocado às notas: '+brl(p.allocatedCents)+' · Parte independente: '+brl(p.residualCents)+' · Saldo das notas após: '+brl(p.notesAfterCents)+' · Saldo independente após: '+brl(p.independentAfterCents)+' · Abatimento do saldo inicial: '+brl(p.openingApplied)+' · Pagamento sem alocação: '+brl(p.unallocatedPayment)+' (crédito ainda não registrado).</p><p>Entrada única esperada no Hub: '+brl(p.payment)+' (não registrada).</p><div style="overflow:auto"><table><thead><tr><th>Nota</th><th>Antes</th><th>Abatimento</th><th>Depois</th></tr></thead><tbody>'+p.allocations.map(a=>'<tr><td>'+esc(a.number)+'</td><td>'+brl(a.before)+'</td><td>'+brl(a.amount)+'</td><td>'+brl(a.after)+'</td></tr>').join('')+'</tbody></table></div><p>Prazo médio simulado: '+(p.weightedDays===null?'sem datas comprováveis':p.weightedDays.toFixed(1)+' dias sobre '+brl(p.datedAmount))+' · Não é histórico de recebimentos.</p><p>Nenhum valor foi gravado.</p>';

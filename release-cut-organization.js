@@ -844,13 +844,15 @@ function addChecklistDraft9644(card,row,el){
  let exporting=false;
  exportBtn.onclick=async()=>{
   if(exporting)return;const e=getEntry();if(!e){info.textContent='Revise a sessão e o pedido.';return}
-  if(!window.HLGBCutDossier9661||!window.crypto?.subtle){info.textContent='Exportação segura indisponível neste navegador.';return}
+  if(!window.crypto?.subtle){info.textContent='Exportação segura indisponível neste navegador.';return}
   const draft=JSON.parse(JSON.stringify(e.draft)),selected=e.files.slice();exporting=true;exportBtn.disabled=true;
   const unchanged=()=>valid()&&cutDrafts9644.get(key)===e&&JSON.stringify(e.draft)===JSON.stringify(draft)&&e.files.length===selected.length&&e.files.every((x,i)=>x===selected[i]);
   try{
+   info.textContent='Preparando exportação local…';
+   const dossier=await ensureCutDossier9893();if(!unchanged())throw Error('stale');if(!dossier){info.textContent='Gerador ZIP indisponível. Confira a conexão e tente novamente; os arquivos selecionados continuam nesta sessão.';return}
    const documents=[];for(const f of selected){if(!unchanged())throw Error('stale');documents.push({name:f.info.name,bytes:new Uint8Array(await f.file.arrayBuffer())})}
    const digest=async bytes=>Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');
-   const pack=await window.HLGBCutDossier9661.build(row,draft,documents,cutChecklist9644,digest);
+   const pack=await dossier.build(row,draft,documents,cutChecklist9644,digest);
    if(!unchanged())throw Error('stale');
    const url=URL.createObjectURL(new Blob([pack.bytes],{type:'application/zip'}));const link=document.createElement('a');link.href=url;link.download='corte-'+row.orderId.replace(/[^a-z0-9_-]/gi,'_')+'-modelo-'+row.productId.replace(/[^a-z0-9_-]/gi,'_')+'.zip';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);
    info.textContent='Arquivo local solicitado ao navegador. Não confirma salvamento na nuvem, separação ou baixa de estoque.';
@@ -859,6 +861,26 @@ function addChecklistDraft9644(card,row,el){
 
 }
 
+// No request or execution until explicit export. Use boot's own version URL.
+ // Do not inject a second script while the first is still loading, even after
+ // the caller's bounded wait. Failed network requests may be retried.
+let dossierFlight9893=null;
+function ensureCutDossier9893(){
+ const ready=()=>typeof window.HLGBCutDossier9661?.build==='function'?window.HLGBCutDossier9661:null;
+ if(ready())return Promise.resolve(ready());
+ const url=window.__HLGB_LAZY_DOSSIER_9893?.url;
+ if(typeof url!=='string'||!/^\.\/hlgb-modules\/producao\/cut-dossier-export-v9661\.js\?fresh=\d+$/.test(url))return Promise.resolve(null);
+ if(!dossierFlight9893){
+  const script=document.createElement('script');script.src=url;script.async=true;script.dataset.hlgbDossier9893='1';
+  const flight=new Promise(resolve=>{
+   script.addEventListener('load',()=>{const api=ready();if(!api)script.remove();resolve(api)},{once:true});
+   script.addEventListener('error',()=>{script.remove();resolve(null)},{once:true});
+  });
+  dossierFlight9893=flight;flight.then(()=>{if(dossierFlight9893===flight)dossierFlight9893=null});
+  try{(document.head||document.documentElement).appendChild(script)}catch(_){script.dispatchEvent(new Event('error'))}
+ }
+ let timer;return Promise.race([dossierFlight9893,new Promise(resolve=>{timer=setTimeout(()=>resolve(null),12000)})]).finally(()=>clearTimeout(timer));
+}
 let materialsEvidence9711={observed:false,inline:null,fallback:null,ambiguous:null};
 function removeInlineMaterials9711(root){root?.querySelectorAll?.('[data-hlgb-inline-materials9711]').forEach(x=>x.remove())}
 /* v97.15 — move the single authoritative panel, never clone controls or write records. */

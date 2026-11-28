@@ -37,7 +37,7 @@ function call(role,name,x){
   await p.addScriptTag({path:'hlgb-modules/producao/cut-separation-core-v9647.js'});
   await p.addScriptTag({path:dir+'/client-confirmation.cjs'});
   await p.addScriptTag({path:dir+'/candidate-ui.cjs'});
-  await p.evaluate(()=>window.HLGBChecklistCandidate9835.install(Object.fromEntries(['source','list','read','save','attach','listFiles'].map(n=>[n,x=>window.fixtureRpc(n,x)]))));
+  await p.evaluate(()=>window.HLGBChecklistCandidate9835.install(Object.fromEntries(['source','list','read','save','attach','listFiles'].map(n=>[n,x=>n==='list'&&window.__historyFailure?Promise.reject(Error('fixture history offline')):n==='list'&&window.__historyEmpty?Promise.resolve([]):window.fixtureRpc(n,x)]))));
   await p.addScriptTag({path:'release-cut-organization.js'});
   await p.evaluate(()=>window.hlgbCutOrganization.openFullCutChecklist9820('c1'));
   await p.getByRole('button',{name:'Conferir quantidades por cor'}).click();
@@ -69,6 +69,9 @@ function call(role,name,x){
  await a.getByRole('button',{name:'Salvar conferência na homologação'}).click();
  await a.getByText('Conferência e documentos confirmados — versão 1.').waitFor();
  assert.equal(await a.evaluate(()=>sessionStorage.getItem('hlgb-checklist-lab-pending-9889')),null);
+ await a.evaluate(()=>window.__historyFailure=true);await a.getByRole('button',{name:'Consultar histórico'}).click();await a.getByText('Histórico indisponível.').waitFor();assert.equal(await a.getByRole('button',{name:'Salvar conferência na homologação'}).isEnabled(),false);
+ await a.evaluate(()=>{window.__historyFailure=false;window.__historyEmpty=true});await a.getByRole('button',{name:'Consultar histórico'}).click();await a.getByText('Histórico indisponível.').waitFor();assert.equal(await a.getByRole('button',{name:'Salvar conferência na homologação'}).isEnabled(),false);
+ await a.evaluate(()=>window.__historyEmpty=false);await a.getByRole('button',{name:'Consultar histórico'}).click();await a.getByText('Histórico consultado.').waitFor();assert.equal(await a.getByRole('button',{name:'Salvar conferência na homologação'}).isEnabled(),true);
  assert.equal(call('checklist_lab_operator','list',{cutId:'c1',orderId:'o1',productId:'p1'}).length,1);
  assert.equal(await a.evaluate(()=>JSON.stringify(db)===window.__before),true);
  const second=await init('checklist_lab_operator2');
