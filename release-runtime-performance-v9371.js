@@ -19,7 +19,7 @@ function stopIntervalByPreview(match){
 // renderizadores próprios e deve atualizar quando a tela é usada, não em loop global.
 stopIntervalByPreview(/refreshAll9252/);
 function activePage(){return document.querySelector('.page.active')?.id||''}
-const refreshStats={scheduled:0,coalesced:0,skipped:0,executed:0};let refreshPending=false;
+const refreshStats={scheduled:0,coalesced:0,skipped:0,executed:0,canceled:0};let refreshPending=false,refreshTimer=null,refreshEpoch=0;
 function refreshVisibleLegacy(){
  try{
   if(document.hidden||window.__HLGB_AUTH_READY===false){refreshStats.skipped++;return false}
@@ -33,12 +33,13 @@ function refreshVisibleLegacy(){
 function scheduleVisibleRefresh(){
  if(document.hidden||window.__HLGB_AUTH_READY===false){refreshStats.skipped++;return false}
  if(refreshPending){refreshStats.coalesced++;return false}
- refreshPending=true;refreshStats.scheduled++;setTimeout(()=>{refreshPending=false;refreshVisibleLegacy()},80);return true;
+ refreshPending=true;refreshStats.scheduled++;const epoch=refreshEpoch;refreshTimer=setTimeout(()=>{if(epoch!==refreshEpoch)return;refreshTimer=null;refreshPending=false;refreshVisibleLegacy()},80);return true;
 }
 document.addEventListener('click',e=>{
  const nav=e.target?.closest?.('[data-page],button,a,[role="button"]');if(!nav)return;
  scheduleVisibleRefresh();
 },true);
+window.addEventListener('hlgb:logout',()=>{refreshEpoch++;if(refreshPending)refreshStats.canceled++;if(refreshTimer!==null)clearTimeout(refreshTimer);refreshTimer=null;refreshPending=false});
 window.addEventListener('pageshow',scheduleVisibleRefresh);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleVisibleRefresh()});
 

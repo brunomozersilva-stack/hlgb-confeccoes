@@ -26,10 +26,11 @@ function fixture(){
  const permission={corte:true,pedidos:true,produtos:true,materiais:true,producao:true,compras:true,estoque:true,fornecedores:true};
  let selected=[{productId:'old',pieces:5}],writes=0,confirmAnswer=false,nav=null,userId='fixture';
  const win={__HLGB_AUTH_READY:true,HLGBProductionPlanning9661:api,hlgbWriteoffIntegrity9391:{pairIndex:()=>new Set()},hlgbCutterSheetV9523:{previewOnPage9523:()=>{}},hlgbWeeklyMaterialPlanner9583:{selected:()=>selected.map(x=>({...x})),setSelection:x=>{writes++;selected=x}},addEventListener:(k,f)=>(winEvents[k]??=[]).push(f)};
- const ctx={window:win,document,db:data,canOpenPage:p=>permission[p]===true,currentUser:()=>({id:userId}),setTimeout:f=>{f();return 0},confirm:()=>confirmAnswer,page:p=>{nav=p},console};
+ let pageObserver=null;class MutationObserver{constructor(fn){pageObserver=fn}observe(){}disconnect(){}}
+ const ctx={MutationObserver,window:win,document,db:data,canOpenPage:p=>permission[p]===true,currentUser:()=>({id:userId}),setTimeout:f=>{f();return 0},confirm:()=>confirmAnswer,page:p=>{nav=p},console};
  vm.runInNewContext(fs.readFileSync('hlgb-modules/producao/production-planning-view-v9661.js','utf8'),ctx);
  const host=()=>byId('hlgbJointCut9661'),find=(r,t)=>walk(r).filter(x=>x.tagName==='button'&&x.textContent===t),click=(r,t,i=0)=>{const e=find(r,t)[i];assert.ok(e,t);e.fire('click')},search=v=>{const e=walk(host()).find(x=>x.tagName==='input'&&x.type==='search');e.value=v;e.fire('input')};
- return {host,cut,shortcut:()=>byId('hlgbJointCutShortcut9673'),data,permission,win,find,click,search,counts:()=>({writes,selected,nav}),confirm:v=>{confirmAnswer=v},user:v=>{userId=v},fire:(events,k)=>{for(const f of events[k]||[])f()},docEvents,winEvents};
+ return {host,cut,changePage:target=>{const joint=byId('hlgbJointCutPage9732');for(const x of document.querySelectorAll('.page'))x.classList.remove('active');const page=target==='joint'?joint:cut;page.classList.add('active');pageObserver?.([{target:joint},{target:cut}].filter(x=>x.target));},shortcut:()=>byId('hlgbJointCutShortcut9673'),data,permission,win,find,click,search,counts:()=>({writes,selected,nav}),confirm:v=>{confirmAnswer=v},user:v=>{userId=v},fire:(events,k)=>{for(const f of events[k]||[])f()},docEvents,winEvents};
 }
 const f=fixture(),before=JSON.stringify(f.data);
 assert.equal(f.host(),null);assert.equal(f.cut.children[0],f.shortcut());f.click(f.shortcut(),'Corte Conjunto');assert.equal(f.host().parentNode.id,'hlgbJointCutPage9732');assert.equal(f.cut.classList.contains('active'),false);
@@ -77,3 +78,5 @@ console.log('PASS unique basket, filter, material totals, explicit purchase hand
  assert.equal(x.counts().writes,0);assert.equal(JSON.stringify(x.data),before);
  console.log('PASS full material selector and separate-color simulation');
 })();
+
+(function programmaticNavigation(){const x=fixture();x.click(x.shortcut(),'Corte Conjunto');assert.ok(x.host());x.changePage('cut');assert.equal(x.host(),null);x.changePage('joint');assert.ok(x.host());console.log('PASS planning follows page activation without click');})();

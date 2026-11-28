@@ -579,8 +579,16 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
   cash.addEventListener('input',e=>{cashOut.replaceChildren();if(e.target!==confirmed)confirmed.checked=false});
  }
 
- function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();mountDeliveryPlanner9845();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
- let operationalPending9845=false;
+ function refresh(){if(document.hidden)return;mountCutShortcut();mountCut();mountRemnants();mountDeliveryPlanner9845();observePlanningPages9895();if(!cutAllowed()||!document.getElementById('hlgbJointCut9661'))root.hlgbJointWorkspaceEvidence9714={observed:false}}
+ let operationalPending9845=false,planningObserver9895=null;
+const planningPages9895=new Map();
+function observePlanningPages9895(){
+ if(typeof MutationObserver!=='function')return;
+ if(!planningObserver9895)planningObserver9895=new MutationObserver(entries=>{if(entries.some(e=>e.target.classList.contains('active')!==planningPages9895.get(e.target))){for(const e of entries)planningPages9895.set(e.target,e.target.classList.contains('active'));scheduleOperational9845()}});
+ const pages=[...document.querySelectorAll('.page')];
+ if([...planningPages9895.keys()].some(x=>!pages.includes(x))){planningObserver9895.disconnect();planningPages9895.clear()}
+ for(const page of pages)if(!planningPages9895.has(page)){planningPages9895.set(page,page.classList.contains('active'));planningObserver9895.observe(page,{attributes:true,attributeFilter:['class']})}
+}
 function scheduleOperational9845(){
  if(operationalPending9845)return;
  operationalPending9845=true;
