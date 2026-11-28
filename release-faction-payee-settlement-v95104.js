@@ -108,16 +108,24 @@ async function verifyDeliveryBalance9739(p){
  if(!own||!compare(own,p)||root.hlgbFactionPaymentOverAccounted(f,rows))
   throw Error('Saldo de entregas ou pagamento duplicado na nuvem. Confira antes da baixa.');
 }
-async function hubCheck(paymentId){
- const rows=await root.cloudRequest('hlgb_records?select=entity_id,data,deleted_at'+
-  '&module=eq.hubFinanceEntries&limit=2000',{method:'GET'});
- if(!Array.isArray(rows)||rows.length>=2000)
-  throw Error('Não foi possível conferir integralmente o Hub; baixa bloqueada.');
- return rows.filter(x=>!x.deleted_at&&[
-  x.data?.sourceId,x.data?.sourcePaymentId,x.data?.factionPaymentId,
-  x.data?.originalPaymentId,...(Array.isArray(x.data?.paymentIds)?x.data.paymentIds:[])
- ].some(id=>sid(id)===sid(paymentId)));
+// A short nonempty page is not proof of completion (PostgREST may cap rows).
+async function pagedRows9903(module,filter=''){
+ const seen=new Set(),out=[];let offset=0;
+ for(let page=0;page<250;page++){
+  const rows=await root.cloudRequest('hlgb_records?select=module,entity_id,data,revision,deleted_at&module=eq.'+encodeURIComponent(module)+filter+'&order=entity_id.asc&limit=200&offset='+offset,{method:'GET'});
+  if(!Array.isArray(rows)||rows.length>200)throw Error('Não foi possível conferir integralmente '+module+'.');
+  if(!rows.length)return out;
+  for(const r of rows){const id=sid(r?.entity_id);if(!id||seen.has(id)||r.module!==module||!Number.isSafeInteger(Number(r.revision))||Number(r.revision)<1||!r.data||typeof r.data!=='object')throw Error('Paginação ou identidade divergente em '+module+'.');seen.add(id);out.push(r)}
+  offset+=rows.length;
+ }
+ throw Error('Limite de conferência atingido em '+module+'. Nenhuma baixa autorizada.');
 }
+const linkedHub9903=(rows,ids)=>rows.filter(x=>!x.deleted_at&&[
+ x.data?.sourceId,x.data?.sourcePaymentId,x.data?.factionPaymentId,x.data?.originalPaymentId,
+ ...(Array.isArray(x.data?.paymentIds)?x.data.paymentIds:[])
+].some(id=>ids.has(sid(id))));
+async function hubCheck(paymentId){return linkedHub9903(await pagedRows9903('hubFinanceEntries'),new Set([sid(paymentId)]))}
+
 async function readMaster(id,role){
  const row=await remote('factionMasters',id),m=row.data;
  const local=master(id);
@@ -277,6 +285,47 @@ async function adjustNormal9901(groupKey,id,input,expected){
  }catch(e){state.lastError=sid(e?.message||e);if(sent)throw Error('Correção sem confirmação integral nesta sessão. NÃO repita antes de atualizar e conferir o registro: '+state.lastError);throw e}
  finally{state.busy=false}
 }
+async function verifyWeekly9903(groupKey,scopeKey,expected){
+ if(state.busy)throw Error('Outra conferência está em andamento.');
+ state.busy=true;
+ const actor=actor9901(),api=root.hlgbFactionAcertoUnified95102;
+ const ensure=()=>{if(!actor||actor9901()!==actor||root.__HLGB_AUTH_READY!==true||typeof root.cloudRequest!=='function'||typeof canOpenPage!=='function'||!['faccoes','pagamentosFaccoes','hubFinanceiro'].every(p=>canOpenPage(p)===true)||typeof api?.weeklyPaymentPreview!=='function')throw Error('Sessão ou acesso à conferência do Hub indisponível.');if(root.hlgbWalConfirmedReplay9333?.state?.busy||root.hlgbWalSingleAuthority9339?.status?.()?.scanBusy)throw Error('Sincronização em andamento.')};
+ const snapshot=()=>api.weeklyPaymentPreview(api.currentData(),groupKey,scopeKey,true);
+ try{
+  ensure();const p=snapshot();
+  if(p.state!=='local-conference-only'||!equal9901(p,expected))throw Error('Acerto mudou. Reabra a conferência.');
+  const owner=await remote('factionMasters',p.masterId);
+  if(!equal9901(owner.data,master(p.masterId))||owner.data.active===false)throw Error('Cadastro da facção mudou.');
+  const filter='&data->>factionMasterId=eq.'+encodeURIComponent(p.masterId)+'&deleted_at=is.null';
+  const ownerRows=await pagedRows9903('factionPayments',filter);
+  const localOwner=arr('factionPayments').filter(r=>sid(r.factionMasterId)===p.masterId&&!r.deleted&&!r.deleted_at&&!r.deletedAt);
+  const byId=new Map(localOwner.map(r=>[sid(r.id),r]));
+  if(byId.size!==localOwner.length||ownerRows.length!==localOwner.length||ownerRows.some(r=>r.deleted_at||!equal9901(r.data,byId.get(sid(r.entity_id)))))throw Error('Carteira da facção diverge da nuvem. Atualize antes de conferir.');
+  const ids=new Set(),sources=new Map();
+  for(const item of p.items){
+   ensure();await cleanWal(item.id);
+   const r=ownerRows.find(r=>sid(r.entity_id)===item.id);
+   if(!r||!equal9901(r.data,payment(item.id)))throw Error('Item do acerto diverge da nuvem.');
+   ids.add(item.id);if(item.groupId)ids.add(sid(item.groupId));
+   if(item.kind==='normal'){
+    const fid=sid(r.data.factionServiceId);if(!fid)throw Error('Entrega sem vínculo.');
+    if(!sources.has(fid)){
+     const source=await remote('factions',fid);
+     if(!equal9901(source.data,arr('factions').find(f=>sid(f.id)===fid)))throw Error('Entrega mudou na nuvem.');
+     await verifyDeliveryBalance9739(r.data);sources.set(fid,source);
+    }
+   }
+  }
+  if(linkedHub9903(await pagedRows9903('hubFinanceEntries'),ids).length)throw Error('Já existe vínculo no Hub. Concilie antes de pagar.');
+  const again=await pagedRows9903('factionPayments',filter);
+  if(!equal9901(ownerRows,again))throw Error('Carteira alterada durante a conferência.');
+  for(const [id,source] of sources){if(!equal9901(source,await remote('factions',id)))throw Error('Entrega alterada durante a conferência.')}
+  if(!equal9901(owner,await remote('factionMasters',p.masterId)))throw Error('Cadastro alterado durante a conferência.');
+  for(const item of p.items)await cleanWal(item.id);
+  ensure();if(!equal9901(p,snapshot()))throw Error('Acerto local alterado durante a conferência.');
+  return {state:'observed-remote-lines',count:p.items.length,totalCents:p.totalCents,canWrite:false,atomic:false};
+ }finally{state.busy=false}
+}
 function openModalSafe(title,html){
  if(typeof root.openModal!=='function')throw Error('Janela do HLGB indisponível.');
  root.openModal(title,html,()=>false);
@@ -415,7 +464,7 @@ function install(){
  setTimeout(decorate,0);return true;
 }
 root.hlgbFactionPayeeSettlement95104={version:V,changePayee,markPreviouslyPaid,openTransfer,openPriorPaid,
- install,decorate,adjustNormal9901,adjustmentAvailable9901,status:()=>({...state}),_test:{active,compare,hubCheck}};
+ install,decorate,adjustNormal9901,adjustmentAvailable9901,verifyWeekly9903,status:()=>({...state}),_test:{active,compare,hubCheck}};
 if(typeof document!=='undefined'){
  install();
  try{root.hlgbAfterLogin?.(()=>setTimeout(install,350),0)}catch(_){}
