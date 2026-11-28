@@ -574,6 +574,70 @@ for(const [mode,label] of [['combined','Prévia da ficha conjunta'],['individual
    for(const o of v.orders)el('p',o.client+' / '+o.model+' · entrega '+o.dueDate+' · conclusão simulada '+(o.lastWorkDate||'não alocada')+' · restante '+fmt(o.remaining)+' · recebimento candidato '+(o.receiptDate||'a conferir'),out);
    if(v.issues.length)el('p','Atenção: carteira e capacidade são manuais e parciais; registros inválidos ou sem confirmação não constituem compromissos. '+v.issues.join(' · '),out);
   });
+  const factionPanel=el('details','',host);el('summary','Planejamento por facção e aprendizado de prazos',factionPanel);
+  el('p','Consulte lotes realmente retornados, fila atual e capacidade informada. Nenhuma peça será atribuída automaticamente.',factionPanel);
+  const leadOut=el('div','',factionPanel);
+  button('Consultar histórico de prazos das facções',factionPanel,()=>{
+   leadOut.replaceChildren();if(!active())return;
+   const h=api.factionLeadTimes?.(data(),today(),true),b=api.factionForecastBacktest?.(data(),today(),true);
+   if(h?.state!=='local-leadtime-observation'){el('p','Histórico indisponível. Confira os registros de facção e os locais de produção.',leadOut);return}
+   el('p',h.rows.length+' grupos de modelo / facção / tamanho de lote · '+h.open.length+' lotes em aberto · '+h.issues.length+' registros a conferir.',leadOut);
+   for(const r of h.rows.slice(0,100))el('p',r.productName+' · '+r.teamName+' · '+r.band+' pç · '+r.count+' lotes · média '+fmt(r.averageDays)+' dias · prazo conservador '+fmt(r.conservativeDays)+' dias.',leadOut);
+   const open=el('details','',leadOut);el('summary','Lotes abertos e atrasos observados',open);
+   for(const r of h.open.slice(0,100))el('p',r.teamName+' · '+r.productName+' · '+fmt(r.remaining)+' pç restantes · '+r.elapsedDays+' dias em aberto · referência '+(r.referenceDate||'histórico insuficiente')+(r.lateAgainstDue?' · prazo informado vencido':''),open);
+   if(b?.state==='local-forecast-backtest'){const z=b.summary;el('p','Avaliação com lotes anteriores: '+z.evaluated+' previsões avaliadas · erro absoluto médio '+fmt(z.meanAbsoluteErrorDays)+' dias · dentro da referência '+fmt(z.onTimePercent)+'% · '+z.insufficient+' lotes sem histórico suficiente.',leadOut)}
+  });
+  const factionInputs=el('div','',factionPanel);
+  const selectField=(label,parent)=>{const l=el('label',label,parent);const x=el('select','',l);x.setAttribute('aria-label',label);x.style.cssText='display:block;width:100%;max-width:100%;min-width:0';return x};
+  const fillOptions=(select,list,label)=>{const previous=select.value;select.replaceChildren();const first=el('option',label,select);first.value='';for(const r of list){const o=el('option',String(r.name||r.id),select);o.value=String(r.id)}select.value=list.some(r=>String(r.id)===previous)?previous:''};
+  const liveOptions=key=>{const list=Array.isArray(data()?.[key])?data()[key]:[];const counts=new Map();for(const r of list){const id=String(r?.id??'');counts.set(id,(counts.get(id)||0)+1)}return list.filter(r=>r&&r.id!=null&&String(r.id)!==''&&counts.get(String(r.id))===1&&r.active!==false&&!r.deleted&&!r.deletedAt&&!r.deleted_at&&!r._deleted)};
+  const product=selectField('Modelo do pedido a distribuir',factionInputs);
+  const lot=numeric('Peças do novo lote',factionInputs,0,1000000),due=field('Prazo final do novo lote',factionInputs,'date');
+  const finishing=numeric('Dias de margem para acabamento',factionInputs,2,90),fqWeeks=numeric('Horizonte da fila da facção (semanas)',factionInputs,4,13);fqWeeks.min='1';
+  const teamsHost=el('div','',factionPanel),teamRows=[],factionOut=el('div','',factionPanel);
+  const tick=(label,parent)=>{const l=el('label','',parent),x=el('input','',l);x.type='checkbox';el('span',' '+label,l);return x};
+  const invalidateFaction=()=>{factionOut.replaceChildren();for(const r of teamRows){r.coverage.checked=false;r.capacityConfirmed.checked=false;r.compatibility.checked=false}};
+  function addTeam(){
+   if(!active()||teamRows.length>=20)return;
+   const row=el('fieldset','',teamsHost);el('legend','Facção / equipe',row);
+   const team=selectField('Equipe para simular',row);fillOptions(team,liveOptions('productionLocations'),'Selecione a equipe');
+   const capacity=numeric('Capacidade da equipe em 5 dias',row),extra=numeric('Outras peças comprometidas (não incluídas na fila)',row,0);
+   const coverage=tick('Conferi toda a carteira e compromissos da equipe',row),capacityConfirmed=tick('Conferi a capacidade semanal da equipe',row),compatibility=tick('Conferi que esta equipe executa o modelo',row);
+   const r={team,capacity,extra,coverage,capacityConfirmed,compatibility};teamRows.push(r);
+   const reset=()=>{coverage.checked=false;capacityConfirmed.checked=false;compatibility.checked=false;factionOut.replaceChildren()};
+   for(const x of [team,capacity,extra]){x.addEventListener('change',reset);x.addEventListener('input',reset)}
+   for(const x of [coverage,capacityConfirmed,compatibility])x.addEventListener('change',()=>factionOut.replaceChildren());
+   button('Remover equipe da simulação',row,()=>{if(!active())return;const i=teamRows.indexOf(r);if(i>=0)teamRows.splice(i,1);row.remove();factionOut.replaceChildren()});
+  }
+  button('Atualizar modelos e equipes',factionPanel,()=>{if(!active())return;fillOptions(product,liveOptions('products'),'Selecione o modelo');for(const r of teamRows)fillOptions(r.team,liveOptions('productionLocations'),'Selecione a equipe');invalidateFaction()});
+  fillOptions(product,liveOptions('products'),'Selecione o modelo');addTeam();
+  button('Adicionar equipe à comparação',factionPanel,()=>{addTeam();factionOut.replaceChildren()});
+  for(const x of [start,buffer,closed,product,lot,due,finishing,fqWeeks]){x.addEventListener('input',invalidateFaction);x.addEventListener('change',invalidateFaction)}
+  const teamInput=r=>({teamId:r.team.value,weeklyCapacity:parse(r.capacity),additionalCommitted:parse(r.extra),coverageConfirmed:r.coverage.checked,capacityConfirmed:r.capacityConfirmed.checked,compatibilityConfirmed:r.compatibility.checked});
+  const queueInput=()=>({start:start.value,bufferPercent:parse(buffer),weeks:parse(fqWeeks),closedDates:daysClosed()});
+  button('Simular filas e vagas por facção',factionPanel,()=>{
+   factionOut.replaceChildren();if(!active())return;
+   if(!teamRows.length||typeof api.factionQueueScenario!=='function'){el('p','Adicione ao menos uma equipe.',factionOut);return}
+   if(start.value<today()){el('p','Use uma data de início a partir de hoje.',factionOut);return}
+   for(const r of teamRows){
+    const q=api.factionQueueScenario(data(),{...queueInput(),...teamInput(r),newPieces:parse(lot)},true);
+    if(q?.state!=='local-queue-scenario'){el('p','Fila indisponível: confira equipe, datas e capacidade.',factionOut);continue}
+    const d=el('details','',factionOut);d.open=true;el('summary',q.teamName+' · '+fmt(q.observedPieces)+' peças em lotes observados · '+fmt(q.pendingPieces)+' em atribuições a conferir',d);
+    el('p','Capacidade semanal após margem '+fmt(q.weeklyTarget)+' · pendentes ao fim do horizonte '+fmt(q.existingRemaining)+' · primeira vaga '+(q.firstFree||'sem vaga')+' · conclusão simulada '+(q.newCompletion||'não alocada')+'.',d);
+    for(const w of q.weeks)el('p',w.start+' a '+w.end+' · carteira '+fmt(w.existing)+' · novo lote '+fmt(w.newPieces)+' · livres '+fmt(w.free)+' pç',d);
+    for(const issue of q.issues)el('p','Conferir '+issue.recordId+': '+issue.reason,d);
+   }
+   el('p','Simulações independentes por equipe; não some as peças do novo lote entre equipes.',factionOut);
+  });
+  button('Sugerir divisão do pedido entre facções',factionPanel,()=>{
+   factionOut.replaceChildren();if(!active())return;
+   const v=api.distributeFactionOrder?.(data(),{...queueInput(),asOf:today(),dueDate:due.value,pieces:parse(lot),productId:product.value,finishBufferDays:parse(finishing),teams:teamRows.map(teamInput)},true);
+   if(v?.state!=='local-distribution-scenario'){el('p','Confira modelo, prazo, quantidade e capacidades antes de simular a divisão.',factionOut);return}
+   el('p','Divisão candidata: '+fmt(v.allocated)+' de '+fmt(v.pieces)+' pç · sem alocação '+fmt(v.unallocated)+' · entrega de referência '+(v.referenceDelivery||'indisponível')+'.',factionOut);
+   for(const a of v.allocations)el('p',a.teamName+' · '+fmt(a.pieces)+' pç · primeira vaga '+a.firstFree+' · retorno de referência '+a.referenceReturn+' · '+a.sampleCount+' lotes comparáveis.',factionOut);
+   for(const a of v.teams.filter(t=>t.reason))el('p',a.teamName+' · '+a.reason,factionOut);
+   el('p','Nenhum compromisso ou destino gravado. Confirme a carteira, ficha técnica e capacidade real antes de aceitar o pedido.',factionOut);
+  });
   // Finance scenario is deliberately manual; no import that could duplicate recorded receivables.
   const cash=el('details','',host);el('summary','3. Avaliar novo pedido e impacto no caixa',cash);
   el('p','Requer a agenda calculada acima. Informe saldo e compromissos já conhecidos, separados do novo pedido. Não é conciliação bancária.',cash);

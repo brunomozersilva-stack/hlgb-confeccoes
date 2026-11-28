@@ -24,11 +24,13 @@
  function clear(){document.getElementById('hlgbRHLive9667')?.remove()}
  function mount(){
   const page=document.getElementById('folhaPagamento');
-  if(!allowed()||!page?.classList.contains('active')){clear();return}
-  const old=document.getElementById('hlgbRHLive9667');if(old){if(old.dataset.actor!==actor())clear();else return}
+  if(!allowed()||!page){clear();return}
+  const old=document.getElementById('hlgbRHLive9667');if(old&&old.dataset.actor!==actor())clear();
+  if(document.hidden||!page.classList.contains('active'))return;
+  if(old&&old.isConnected&&old.dataset.actor===actor())return;
   if(typeof api()?.roster!=='function')return;
   const host=el('section','',page);host.id='hlgbRHLive9667';host.className='panel';host.dataset.actor=actor();
-  const active=()=>host.isConnected&&allowed()&&actor()===host.dataset.actor&&page.classList.contains('active');
+  const active=()=>!document.hidden&&host.isConnected&&allowed()&&actor()===host.dataset.actor&&page.classList.contains('active');
   const current=()=>active()?api().roster(deps):{state:'forbidden',rows:[]};
   el('h3','Planejamento de RH — férias, provisões e desligamento',host);
   el('p','Usa o cadastro local autorizado. Valores e direitos precisam ser conferidos pelo RH/contador. Não altera a folha, não registra desligamento, não cria pagamento e não grava rascunhos na nuvem.',host);
@@ -181,6 +183,6 @@ function scheduleOperational9845(){
  setTimeout(()=>{operationalPending9845=false;mount()},0);
 }
 document.addEventListener('click',scheduleOperational9845,true);
- document.addEventListener('visibilitychange',()=>{clear();if(!document.hidden)mount()});
+ document.addEventListener('visibilitychange',mount);
  root.addEventListener?.('hlgb:logout',clear);root.addEventListener?.('hlgb:authenticated',()=>{clear();mount()});setTimeout(mount,800);
 })(typeof window!=='undefined'?window:null);

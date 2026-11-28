@@ -26,7 +26,7 @@ function fixture(){
  const host=()=>byId('hlgbRHLive9667'),button=(r,t)=>{const e=walk(r).find(x=>x.tagName==='button'&&x.textContent===t);assert.ok(e,'button '+t);return e},label=(r,t)=>{const e=walk(r).find(x=>x.tagName==='label'&&(x._text===t||x.children.some(c=>c.tagName==='span'&&c.textContent.trim()===t)));assert.ok(e,'field '+t);return e.children.find(x=>['input','select'].includes(x.tagName))};
  const section=t=>{const e=walk(host()).find(x=>x.tagName==='details'&&x.children[0]?.textContent===t);assert.ok(e,t);return e};
  const set=(r,t,v)=>{const x=label(r,t);x.value=v;x.fire('change')},check=(r,t)=>{const x=label(r,t);x.checked=true;x.fire('change')},click=(r,t)=>button(r,t).fire('click');
- return {data,win,permission,page,old,byId,host,walk,section,set,check,click,events,docEvents,cloudUser,fire:(a,k)=>{for(const fn of a[k]||[])fn()}};
+ return {data,win,permission,page,old,byId,host,walk,section,set,check,click,events,docEvents,cloudUser,doc,fire:(a,k)=>{for(const fn of a[k]||[])fn()}};
 }
 const f=fixture(),before=JSON.stringify(f.data);
 assert.ok(f.host());assert.equal(f.byId('payrollProvisionCards'),f.old);assert.match(f.host().textContent,/2 funcionários ativos/);
@@ -40,6 +40,7 @@ f.set(p,'Início aquisitivo','2025-01-01');f.set(p,'Fim aquisitivo','2025-12-31'
 assert.match(p.textContent,/3\.000,00/);assert.match(p.textContent,/2\.000,00/);assert.match(p.textContent,/2 períodos revisados/);
 const n=f.section('Planejar desligamento e conferir verbas');
 f.set(n,'Funcionário','1');f.set(n,'Data de comunicação','2026-11-23');f.set(n,'Modalidade','employer-no-cause');f.set(n,'Aviso','indemnified');f.check(n,'Conferi admissão, salário e modalidade');f.set(n,'Descrição da verba revisada','Saldo revisado');f.set(n,'Tipo de verba','credit');f.set(n,'Situação','open');f.set(n,'Valor da verba (R$)','500');f.click(n,'Adicionar verba conferida');f.click(n,'Simular desligamento');
+const savedHost=f.host();f.doc.hidden=true;f.fire(f.docEvents,'visibilitychange');f.doc.hidden=false;f.fire(f.docEvents,'visibilitychange');assert.equal(f.host(),savedHost);f.page.className='page';f.fire(f.docEvents,'click');f.page.className='page active';f.fire(f.docEvents,'click');assert.equal(f.host(),savedHost);
 assert.match(n.textContent,/48 dias/);assert.match(n.textContent,/4\.800,00/);assert.match(n.textContent,/500,00/);assert.match(n.textContent,/Não é valor líquido/);
 assert.equal(JSON.stringify(f.data),before);
 f.data.employees[0].salary=3500;f.click(n,'Simular desligamento');assert.match(n.textContent,/Confira o cadastro atualizado/);f.data.employees[0].salary=3000;

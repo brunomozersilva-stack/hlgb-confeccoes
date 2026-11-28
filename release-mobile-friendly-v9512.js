@@ -38,6 +38,13 @@ const css=String.raw`
   #modal .modalbox :is(input,select,textarea,button){min-width:0!important;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
   #modal .modalbox :is(input,select,textarea){font-size:16px!important}
   #modal .modalbox button{white-space:normal;min-height:42px}
+  :is(#hlgbFullCutChecklist9820,#hlgbJointSimulation9837){box-sizing:border-box!important;max-width:calc(100vw - 20px)!important;max-height:calc(100dvh - 20px)!important;overscroll-behavior:contain;overflow:auto!important}
+  :is(#hlgbFullCutChecklist9820,#hlgbJointSimulation9837) :is(fieldset,details,label,.toolbar){min-width:0!important;max-width:100%;box-sizing:border-box}
+  :is(#hlgbFullCutChecklist9820,#hlgbJointSimulation9837) :is(input,select,textarea,button){max-width:100%!important;min-width:0!important;box-sizing:border-box;font-size:16px}
+  :is(#hlgbFullCutChecklist9820,#hlgbJointSimulation9837) button{min-height:42px;white-space:normal;overflow-wrap:anywhere}
+  #appShell .page fieldset{min-inline-size:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+  #appShell .page fieldset > label{display:block;max-width:100%;min-width:0}
+
   #modal .modalbox table{display:block;max-width:100%;overflow-x:auto}
   /* Account for both nav and assistant; don't hide controls or change their handlers. */
   #appShell main{padding-bottom:calc(164px + env(safe-area-inset-bottom))!important}
