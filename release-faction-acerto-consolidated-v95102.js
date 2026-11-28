@@ -204,7 +204,7 @@
   return {payments:Array.isArray(d.factionPayments)?d.factionPayments:[],
    masters:Array.isArray(d.factionMasters)?d.factionMasters:[],
    factions:d.factions,production:d.production,orders:d.orders,projectionInvoices:d.projectionInvoices,
-   manualGroups:typeof api?.receiptGroups==='function'?api.receiptGroups():[]};
+   hub:Array.isArray(d.hubFinanceEntries)?d.hubFinanceEntries:[],manualGroups:typeof api?.receiptGroups==='function'?api.receiptGroups():[]};
  }
  function printablePending(data,key,allowed,scopeKey=null){
   if(allowed!==true||data?.scope!=='apenas_visual_sem_baixa'||!Array.isArray(data.groups)||!Array.isArray(data.warnings))throw Error('Consulta indisponível');
@@ -264,7 +264,7 @@
   const x=dateBreakdown(group,true);if(x.state!=='local-date-summary')return '<p class="sub">Conferir saldos e datas antes de agrupar.</p>';
   return '<details><summary>Resumo por data de referência</summary><p class="sub">Saldos pendentes, não pagamentos realizados. Datas ausentes ou inválidas permanecem separadas.</p><div style="overflow-x:auto"><table><thead><tr><th>Data</th><th>Normal</th><th>Avulso</th><th>Saldo</th></tr></thead><tbody>'+x.rows.map(r=>'<tr><td>'+esc(r.date||'Sem data válida')+' · '+r.count+' item(ns)</td><td>'+money(r.normalCents)+'</td><td>'+money(r.manualCents)+'</td><td>'+money(r.totalCents)+'</td></tr>').join('')+'</tbody></table></div></details>';
  }
- function printButtons(g){if(!g.masterId||g.identityAmbiguous)return '';const groups=groupWeeks(g),button=(w,label)=>'<button type="button" class="secondary" data-faction-print9777="'+esc(g.key)+'"'+(w?' data-faction-scope9868="'+esc(w.scopeKey)+'"':'')+'>'+esc(label)+'</button>';return (groups.length>1?button(null,'Consulta geral de saldos / PDF'):'')+groups.map(w=>'<div class="sub">'+esc(w.label)+' · '+money(w.totalCents)+' '+button(w,w.key?'Imprimir acerto da semana':w.entries[0].kind==='avulso'?'Imprimir avulso':'Imprimir conferência individual')+(w.key&&w.entries.some(e=>e.kind==='normal')?' <button type="button" class="secondary" data-add-week-avulso9875="'+esc(g.key)+'" data-week9875="'+esc(w.key.slice(9))+'">+ Mercadoria avulsa nesta semana</button>':'')+'</div>').join('')}
+ function printButtons(g){if(!g.masterId||g.identityAmbiguous)return '';const groups=groupWeeks(g),button=(w,label)=>'<button type="button" class="secondary" data-faction-print9777="'+esc(g.key)+'"'+(w?' data-faction-scope9868="'+esc(w.scopeKey)+'"':'')+'>'+esc(label)+'</button>';return (groups.length>1?button(null,'Consulta geral de saldos / PDF'):'')+groups.map(w=>'<div class="sub">'+esc(w.label)+' · '+money(w.totalCents)+' '+button(w,w.key?'Imprimir acerto da semana':w.entries[0].kind==='avulso'?'Imprimir avulso':'Imprimir conferência individual')+(w.key?' <button type="button" class="secondary" data-weekly-conference9885="'+esc(g.key)+'" data-weekly-scope9885="'+esc(w.scopeKey)+'">Conferir baixa semanal única</button>':'')+(w.key&&w.entries.some(e=>e.kind==='normal')?' <button type="button" class="secondary" data-add-week-avulso9875="'+esc(g.key)+'" data-week9875="'+esc(w.key.slice(9))+'">+ Mercadoria avulsa nesta semana</button>':'')+'</div>').join('')}
  // Financial-only proposal: physical delivery quantity never changes.
  function normalAdjustmentPreview(data,groupKey,paymentId,input,allowed){
   const fail=reason=>({state:'blocked',reason,canWrite:false});
@@ -295,6 +295,52 @@
   if(!e||!d?.deliveryDate||!d.quantity||!d.unitPriceCents)throw Error('Entrega sem comprovação suficiente para esta prévia.');
   window.openModal('Prévia de edição do item do acerto','<section id="hlgb-normal-preview9877"><p><b>'+esc(g.factionName)+' · '+esc(d.label)+'</b></p><p>Entrega registrada: '+dateBr(d.deliveryDate)+' · '+qtyText(d.quantity)+' peças · Saldo '+money(e.amountCents)+'</p><div class="field"><label>Quantidade a remunerar <input id="np9877-qty" type="number" min="1" max="'+d.quantity+'" step="1" value="'+(d.adjustment?.state==='local-adjustment'?d.adjustment.payableQuantity:d.quantity)+'"></label></div><div class="field"><label>Valor unitário (R$) <input id="np9877-price" type="number" min="0.01" step="0.01" value="'+(d.unitPriceCents/100).toFixed(2)+'"></label></div><div class="field"><label>Motivo da correção <textarea id="np9877-reason" maxlength="500"></textarea></label></div><button id="np9877-calculate" type="button" class="secondary">Calcular prévia</button><p id="np9877-result" role="status"></p><p class="sub">Somente simulação. A quantidade física da entrega não muda. A gravação da correção de pagamentos normais ainda depende de validação integrada; não use esta prévia como autorização de baixa.</p></section>',()=>false);
   document.getElementById('np9877-calculate')?.addEventListener('click',()=>{const out=document.getElementById('np9877-result');if(!out)return;if(!authorized()||JSON.stringify(consolidate(currentData()))!==expectedSignature){out.textContent='Acerto mudou. Reabra a consulta.';return}const x=normalAdjustmentPreview(currentData(),groupKey,id,{payableQuantity:document.getElementById('np9877-qty')?.value,unitPrice:document.getElementById('np9877-price')?.value,reason:document.getElementById('np9877-reason')?.value},true);const labels={'quantity-range':'A quantidade a remunerar não pode ultrapassar a entrega registrada.','special-pricing':'Preço especial/travetada: conferir cálculo original.','reason':'Informe motivo de 6 a 500 caracteres.','unit-price':'Informe valor unitário válido.','unchanged':'Nenhuma alteração informada.'};out.textContent=x.state==='preview-only'?'Valor atual: '+money(x.previousCents)+' · Novo valor: '+money(x.proposedCents)+' · Diferença: '+(x.differenceCents<0?'− ':'+ ')+money(Math.abs(x.differenceCents))+' · Novo total semanal simulado: '+money(x.proposedWeekCents)+'. Nada foi salvo.':labels[x.reason]||'Item não elegível: confira entrega, valores ou pagamentos anteriores.';});
+ }
+ // Local payment conference only. Never send or mark paid from this module.
+ function weeklyPaymentPreview(data,groupKey,scopeKey,allowed){
+  const fail=reason=>({state:'review',reason,canWrite:false});
+  if(allowed!==true)return fail('permission');
+  const fresh=consolidate(data),groups=fresh.groups.filter(g=>g.key===groupKey&&g.masterId&&!g.identityAmbiguous);
+  if(groups.length!==1)return fail('identity');
+  const g=groups[0],w=groupWeeks(g).find(x=>x.scopeKey===scopeKey&&x.key&&x.basis==='delivery');
+  if(!w)return fail('week');
+  // A local warning may hide a payment belonging to this week. Fail closed.
+  if(fresh.warnings.length)return fail('warnings');
+  const masters=(data.masters||[]).filter(m=>sid(m.id)===g.masterId&&m.active!==false&&norm(m.name)===norm(g.factionName));
+  if(masters.length!==1)return fail('identity');
+  const ids=new Set(),items=[],manualIds=new Set(),payments=Array.isArray(data.payments)?data.payments:[],week=weekOf(w.key.slice(9));
+  let total=0;
+  for(const e of w.entries){
+   if(e.partial||e.paidCents>0||e.discountCents>0||e.kind==='avulso'&&(!e.manualDeliveryConfirmed||!e.detailVerified||e.adjustments?.length))return fail('adjustments');
+   if(e.kind==='avulso'){
+    manualIds.add(e.groupId);
+    const raw=payments.filter(p=>sid(p?.manualGroupId)===e.groupId);
+    if(raw.length!==e.details.length||raw.some(p=>canceled(p)||p.manual!==true||norm(p.status)!=='pendente'||sid(p.factionMasterId)!==g.masterId||p.manualDeliveryDateV9875!==e.details[0].deliveryDate||['manualDirectAdjustmentsV9591','manualApplicationsV9590','manualCorrectionsV9590'].some(k=>p[k]!=null&&(!Array.isArray(p[k])||p[k].length))))return fail('manual-review');
+   }
+   let sum=0;
+   for(const d of e.details||[]){
+    const match=payments.filter(p=>sid(p?.id)===sid(d.id)&&!canceled(p)),p=match[0];
+    if(match.length!==1||ids.has(sid(d.id))||!sid(d.id)||!p||sid(p.factionMasterId)!==g.masterId||norm(p.factionName)!==norm(g.factionName)||norm(p.status)!=='pendente'||exactMoney(p.paidAmount??0)!==0||exactMoney(p.discountAmount??0)!==0||!Array.isArray(p.paymentHistory??[])||(p.paymentHistory??[]).length||p.serviceModeV9577&&p.serviceModeV9577!=='faccao'||!validDay(d.deliveryDate)||weekOf(d.deliveryDate)?.start!==week?.start||!Number.isSafeInteger(d.displayQty)||d.displayQty<=0||!Number.isSafeInteger(d.unitPriceCents)||d.unitPriceCents<=0||!Number.isSafeInteger(d.amountCents)||d.amountCents<=0||d.displayQty*d.unitPriceCents!==d.amountCents)return fail('item-review');
+    const f=e.kind==='normal'?(data.factions||[]).find(x=>sid(x.id)===sid(p.factionServiceId)):null;
+    if(p.travetaPricingVersion||f?.travetaPricingVersion||[p.travetaDiscountTotalV9577,p.travetaDiscountUnitV9577,p.travetaDiscount].some(v=>exactMoney(v??0)!==0)||e.kind==='avulso'&&p.manualKindV9566&&p.manualKindV9566!=='product'&&p.manualKindV9566!=='service')return fail('special-pricing');
+    ids.add(sid(d.id));sum+=d.amountCents;
+    items.push({id:sid(d.id),label:d.label,kind:e.kind,groupId:e.groupId||null,deliveryDate:d.deliveryDate,quantity:d.quantity,payableQuantity:d.displayQty,unitCents:d.unitPriceCents,amountCents:d.amountCents,noteNumber:d.noteNumber||null,adjusted:d.adjustment?.state==='local-adjustment'});
+   }
+   if(sum!==e.amountCents)return fail('value');
+   total+=sum;
+  }
+  if(!items.length||items.length>500||!Number.isSafeInteger(total)||total!==w.totalCents)return fail('value');
+  const linked=(data.hub||[]).some(h=>h&&!canceled(h)&&[h.sourceId,h.sourcePaymentId,h.factionPaymentId,h.originalPaymentId,...(Array.isArray(h.paymentIds)?h.paymentIds:[])].some(id=>ids.has(sid(id))||manualIds.has(sid(id))));
+  if(linked)return fail('linked-hub');
+  return {state:'local-conference-only',masterId:g.masterId,factionName:g.factionName,weekStart:week.start,weekEnd:week.end,items:items.sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0),totalCents:total,expectedHubEntries:1,canWrite:false,requiresServerRevalidation:true};
+ }
+ function openWeeklyPaymentPreview(groupKey,scopeKey,expectedSignature){
+  if(!authorized()||typeof window.openModal!=='function')throw Error('Formulário indisponível.');
+  const data=currentData();if(JSON.stringify(consolidate(data))!==expectedSignature)throw Error('Acerto mudou. Atualize a conferência.');
+  const p=weeklyPaymentPreview(data,groupKey,scopeKey,true),labels={warnings:'Há registros com inconsistências na consulta. Revise antes de consolidar.',adjustments:'Acerto parcial ou com ajustes adicionais: revisar separadamente.', 'manual-review':'Avulso com grupo incompleto ou histórico especial.', 'special-pricing':'Preço especial ou travetada: conferir regra original.', 'linked-hub':'Já existe vínculo financeiro local. Concilie antes de pagar.', 'item-review':'Quantidade, pessoa ou valor do item requer conferência.'};
+  const content=p.state==='local-conference-only'?'<p><b>'+esc(p.factionName)+'</b> · '+dateBr(p.weekStart)+' a '+dateBr(p.weekEnd)+'</p><div style="overflow:auto"><table><thead><tr><th>Modelo / entrega</th><th>Qtd. a pagar</th><th>Unitário</th><th>Valor</th></tr></thead><tbody>'+p.items.map(i=>'<tr><td>'+esc(i.label)+'<div class="sub">'+esc(i.kind==='avulso'?'Avulso':'Normal')+' · '+dateBr(i.deliveryDate)+(i.noteNumber?' · Nota '+esc(i.noteNumber):'')+(i.adjusted?' · Entregues '+qtyText(i.quantity):'')+'</div></td><td>'+qtyText(i.payableQuantity)+'</td><td>'+money(i.unitCents)+'</td><td>'+money(i.amountCents)+'</td></tr>').join('')+'</tbody></table></div><p><b>'+p.items.length+' linhas · Total '+money(p.totalCents)+'</b></p><p>Previsão: uma saída financeira para a semana. A confirmação na nuvem ainda não foi habilitada.</p>':'<p role="alert">'+esc(labels[p.reason]||'Identidade, semana ou saldo requer conferência.')+'</p>';
+  window.openModal('Conferir baixa semanal única','<section id="hlgb-weekly-conference9885">'+content+'<p class="sub"><b>Somente conferência local.</b> Nada foi salvo, nenhum Pix foi enviado e nenhuma baixa foi registrada. Não substitui o acerto original.</p><button type="button" class="secondary" id="weekly-close9885">Fechar conferência</button></section>',()=>false);
+  document.getElementById('weekly-close9885')?.addEventListener('click',()=>window.closeModal?.());
  }
  function validateDeliveryScope(scope){if(!authorized()||!scope||!validDay(scope.weekStart))return false;const found=consolidate(currentData()).groups.filter(g=>g.masterId===sid(scope.masterId)&&!g.identityAmbiguous&&norm(g.factionName)===norm(scope.name)&&groupWeeks(g).some(w=>w.key==='delivery:'+scope.weekStart&&w.entries.some(e=>e.kind==='normal')));return found.length===1;}
  function render(){
@@ -332,6 +378,7 @@
       '</details></td></tr>').join('')+'</tbody></table></div>':
     '<div class="sub">Nenhum acerto pendente nos dados disponíveis neste computador.</div>')+
    '<p class="sub">A conferência da mesma pessoa usa o cadastro e o nome normalizado. Se houver homônimos ou pagamento parcial, revise os registros antes de pagar. Para registrar uma única saída bancária, será necessário homologar uma transação financeira unificada com confirmação remota; as baixas atuais continuam separadas e protegidas.</p>';
+  host.querySelectorAll('[data-weekly-conference9885]').forEach(b=>b.onclick=()=>{if(!host.isConnected)return;try{openWeeklyPaymentPreview(b.dataset.weeklyConference9885,b.dataset.weeklyScope9885,signature)}catch(e){alert(sid(e?.message||e))}});
   host.querySelectorAll('[data-normal-preview9877]').forEach(b=>b.onclick=()=>{if(!host.isConnected)return;try{openNormalPreview(b.dataset.normalOwner9877,b.dataset.normalPreview9877,signature)}catch(e){alert(sid(e?.message||e))}});
   host.querySelectorAll('[data-edit-avulso9875],[data-add-week-avulso9875]').forEach(b=>b.onclick=()=>{if(!authorized()||!host.isConnected)return;const fresh=consolidate(currentData());if(JSON.stringify(fresh)!==signature){render();return alert('Os acertos mudaram. Confira novamente.')}const api=window.hlgbFactionManual9566;try{if(typeof api?.openForm!=='function')throw Error('Formulário original indisponível.');if(b.dataset.editAvulso9875){const gid=b.dataset.editAvulso9875;const matches=fresh.groups.filter(g=>g.masterId&&!g.identityAmbiguous&&g.entries.some(e=>e.kind==='avulso'&&e.groupId===gid));if(matches.length!==1)throw Error('Identidade do acerto a conferir.');api.openForm(gid)}else{const g=fresh.groups.find(x=>x.key===b.dataset.addWeekAvulso9875),scope={masterId:g?.masterId,name:g?.factionName,weekStart:b.dataset.week9875};if(!validateDeliveryScope(scope))throw Error('Semana indisponível.');api.openForm('',{deliveryScope9875:scope})}}catch(e){alert(sid(e?.message||e))}});
   host.querySelectorAll('[data-avulso-register9871]').forEach(b=>b.onclick=()=>{if(!authorized()||!host.isConnected)return;const gid=b.dataset.avulsoRegister9871,fresh=consolidate(currentData());if(JSON.stringify(fresh)!==signature){render();return alert('Os acertos mudaram. Confira novamente.')}const match=fresh.groups.filter(g=>g.masterId&&!g.identityAmbiguous&&g.entries.some(e=>e.kind==='avulso'&&e.groupId===gid));if(match.length!==1)return alert('Identidade do acerto a conferir.');const api=window.hlgbFactionManual9566;try{if(typeof api?.openPayModal!=='function')throw Error('Formulário original indisponível.');api.openPayModal(gid)}catch(e){alert(sid(e?.message||e))}});
@@ -350,5 +397,5 @@
   window.addEventListener?.('hlgb:authenticated',()=>setTimeout(install,250));
   window.addEventListener?.('hlgb:logout',()=>{document.getElementById('hlgb-unified-acertos-v95102')?.remove();signature=''});
  }
- return Object.freeze({version:VERSION,consolidate,dateBreakdown,weekSummary,groupWeeks,printablePending,currentData,normalAdjustmentPreview,validateDeliveryScope,render,install});
+ return Object.freeze({version:VERSION,consolidate,dateBreakdown,weekSummary,groupWeeks,printablePending,currentData,normalAdjustmentPreview,weeklyPaymentPreview,validateDeliveryScope,render,install});
 });
