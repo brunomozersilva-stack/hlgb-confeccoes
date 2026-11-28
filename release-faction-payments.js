@@ -96,6 +96,7 @@ window.separateFactionForPayment=function(id){
 const oldPay=window.payFactionPayment;
 window.payFactionPayment=function(id){
   const p=payment(id),f=p?faction(p.factionServiceId):null,bad=f?overAccounted(f):null;
+  if(p?.settlementAdjustmentV9879){const data=window.hlgbFactionAcertoUnified95102?.currentData?.(),report=data&&window.hlgbFactionAcertoUnified95102?.consolidate?.(data),matches=report?.groups?.flatMap(x=>x.entries).filter(e=>e.kind==='normal'&&String(e.paymentId)===String(id)&&e.details?.[0]?.adjustment?.state==='local-adjustment');if(matches?.length!==1){alert('Correção de remuneração sem comprovação local. Atualize o acerto antes da baixa.');return false}}
   if(bad){
     alert('Pagamento bloqueado por segurança. Esta facção possui '+bad.sum.toLocaleString('pt-BR')+' peças distribuídas em pagamentos, mas o envio é de '+bad.sent.toLocaleString('pt-BR')+' peças e o entregue é '+bad.done.toLocaleString('pt-BR')+'. '+badReason9737(bad)+' Revise os lançamentos antes de dar baixa.');
     return false;
